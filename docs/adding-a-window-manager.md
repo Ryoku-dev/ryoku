@@ -57,7 +57,7 @@ The eleven verbs, in plain terms:
 |`apply <store>`|"Turn these settings into my config file."|
 |`defaults`|"Here is my baseline for those settings."|
 |`schema`|"Here are the settings only I have, so Ryoku Settings can draw them."|
-|`binds [store]`|"Here is every keybind as I emit it, with the user's rebinds and custom shortcuts", for the Super+K cheatsheet, the Hub and Kit's Keys tab. With no store, read the saved one: that is how the cheatsheet asks. Kit also carries Commands, Phone, Dev tools, and Typing test.|
+|`binds [store]`|"Here is every keybind as I emit it, with the user's rebinds and custom shortcuts", for the Super+K cheatsheet, the Hub and Kit's Keys tab. With no store, read the saved one: that is how the cheatsheet asks. Kit also carries Downloads, Commands, Phone, Dev tools and Typing test.|
 |`outputs <file>`|"Arrange the displays like this."|
 |`session`|The `wayland-session` desktop entry, so a greeter can offer you.|
 

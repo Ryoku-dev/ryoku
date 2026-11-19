@@ -2,9 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
-import shell.services as Svc
 import "Singletons"
 import Ryoku.Ui.Singletons
+import "../../../services/lib/markdown.js" as Md
 
 Item {
     id: root
@@ -57,20 +57,17 @@ Item {
     readonly property bool answerCurrent: phase === "done" && askedQuestion.length > 0
     readonly property var chips: {
         if (busy)
-            return [
-                { kind: "chat", value: "", label: I18n.tr("Continue in Agent") },
-                { kind: "cancel", value: "", label: I18n.tr("Cancel") }
-            ];
+            return [{ kind: "cancel", value: "", label: I18n.tr("Cancel") }];
         if (phase !== "done")
             return [];
         const result = [];
         if (needsAgent)
-            result.push({ kind: "chat", value: "", label: I18n.tr("Open Agent") });
+            result.push({ kind: "open", value: "", label: I18n.tr("Open in Rashin") });
         result.push({ kind: "copy", value: answerText, label: I18n.tr("Copy") });
         for (var i = 0; i < answerActions.length; i++)
             result.push(answerActions[i]);
         if (!needsAgent)
-            result.push({ kind: "chat", value: "", label: I18n.tr("Open Agent") });
+            result.push({ kind: "open", value: "", label: I18n.tr("Open in Rashin") });
         return result;
     }
 
@@ -192,13 +189,8 @@ Item {
             Spawn.runApp(["kitty", "-e", "nvim", value], { label: "kitty" });
         else if (kind === "dir" || kind === "url")
             Spawn.runApp(["xdg-open", value], { label: kind });
-        else if (kind === "chat" && bridge) {
-            bridge.handoff(function() {
-                Svc.ShellState.requestSurfaceActive("ask#chat", undefined);
-                root.finished();
-            });
-            return;
-        }
+        else if (kind === "open" && answerId.length > 0)
+            Spawn.run(["rashin", "open", "--session", answerId]);
         finished();
     }
 
@@ -314,7 +306,14 @@ Item {
         TextEdit {
             width: parent.width
             visible: root.phase === "done"
-            text: root.answerText
+            text: Md.render(root.answerText, {
+                px: Math.round(Metrics.fontSubtitle * root.s),
+                mono: Theme.mono,
+                codeBg: "" + Theme.tileBg,
+                link: "" + Theme.vermLit,
+                dim: "" + Theme.subtle
+            })
+            textFormat: TextEdit.RichText
             color: Theme.bright
             font.family: Theme.font
             font.pixelSize: Metrics.fontSubtitle * root.s
@@ -323,6 +322,11 @@ Item {
             selectByMouse: true
             selectionColor: Theme.vermDimDeep
             selectedTextColor: Theme.bright
+            onLinkActivated: url => {
+                const safe = Md.safeUrl(url);
+                if (safe.length > 0)
+                    Spawn.runApp(["xdg-open", safe], { label: "browser" });
+            }
         }
 
         Text { visible: root.phase === "done" && root.fromHistory; text: I18n.tr("From history"); color: Theme.faint; font.family: Theme.mono; font.pixelSize: Metrics.fontEyebrow * root.s }

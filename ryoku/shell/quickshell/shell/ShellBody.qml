@@ -366,7 +366,6 @@ Scope {
                     screen: perScreen.modelData
                     active: askLoader.showNow
                     mode: perScreen.st ? perScreen.st.askMode : "ask"
-                    tool: perScreen.st ? perScreen.st.askTool : ""
                     onRequestClose: if (perScreen.st) perScreen.st.askOpen = false
                     onModeChangeRequested: mode => ShellState.setAskMode(perScreen.modelData, mode)
                     onBubblePinned: (question, answer) => {
@@ -766,19 +765,13 @@ Scope {
             Bus.run("hub open");
             break;
         case "cheatsheet":
-            Quickshell.execDetached(["sh", "-c", "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys"]);
+            ShellState.toggleKit(undefined);
             break;
         case "screenshot":
             Quickshell.execDetached(["ryoku-cmd-ryoshot"]);
             break;
         case "ask":
             ShellState.requestSurfaceActive("ask", undefined);
-            break;
-        case "compress":
-            ShellState.requestSurfaceActive("ask#tools/compress", undefined);
-            break;
-        case "install":
-            ShellState.requestSurfaceActive("ask#tools/install", undefined);
             break;
         }
     }
@@ -799,7 +792,7 @@ Scope {
                 break;
             case "cheatsheet":
                 if (!Shells.owns("cheatsheet"))
-                    root.toggleSurface(id);
+                    ShellState.toggleKit(mon);
                 break;
             case "barToggle":
             case "overview":
@@ -1014,13 +1007,6 @@ Scope {
             else
                 ShellState.closeSurface("polkit", "");
         }
-    }
-
-    // Stash steps a running task's own surface aside when it needs the auth
-    // island. (pill 332-335)
-    Connections {
-        target: Stash
-        function onAuthStepAside(mon, id) { ShellState.closeSurface(id, mon); }
     }
 
     // Daemon-facing surface channel. Target "shell" avoids the live pill's
@@ -1262,18 +1248,8 @@ Scope {
     }
     CustomShortcut {
         name: "ask"
-        description: I18n.tr("Ask Rashin")
+        description: I18n.tr("Open the Rashin bar")
         onPressed: root.toggleSurface("ask")
-    }
-    CustomShortcut {
-        name: "compress"
-        description: I18n.tr("Open Tools to compress media")
-        onPressed: root.toggleSurface("compress")
-    }
-    CustomShortcut {
-        name: "install"
-        description: I18n.tr("Open Tools to install a package")
-        onPressed: root.toggleSurface("install")
     }
 
     Binding {

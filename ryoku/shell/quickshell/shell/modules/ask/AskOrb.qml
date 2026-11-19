@@ -1,10 +1,11 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Lithic
 import Ryoku.Blobs
-import Ryoku.Ui.Singletons
-import shell.services
 
+// Rashin's seal. It moves only while it has a reason to: `active` says Rashin is
+// working (or the pinned bubble is shown), and reduced motion holds it still.
 Item {
     id: root
 
@@ -12,25 +13,13 @@ Item {
     property bool active: false
     property string phase: "idle"
     property string working: ""
-    property string mode: "ask"
     property bool typing: false
-    property bool chatBusy: false
-    property string chatActivity: ""
     property string preset: "inline"
-    property color ink: Tokens.ink
+    property color ink: Lithic.fg
     property real orbSize: 28 * s
     property string transientState: ""
-    readonly property bool motionAllowed: active && !Tokens.reduceMotion && !Motion.reduce
+    readonly property bool motionAllowed: active && !Lithic.reduceMotion
     readonly property string orbState: {
-        if (mode === "tools" || mode === "web")
-            return "breathing";
-        if (mode === "chat") {
-            if (!chatBusy)
-                return typing ? "listening" : "breathing";
-            const activity = chatActivity.toLowerCase();
-            return activity.indexOf("writ") >= 0 || activity.indexOf("compos") >= 0
-                ? "composing" : "working";
-        }
         if (transientState.length > 0)
             return transientState;
         if (phase === "working") {

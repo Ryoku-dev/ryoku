@@ -285,12 +285,6 @@ EOF
   # the mimeapps map is materialized, so the mapping reaches installs on update.
   install -Dm644 "$_repo/ryoku/apps/nvim/ryoku-nvim.desktop" \
     "$pkgdir/usr/share/applications/ryoku-nvim.desktop"
-  # Compress video / Install app: launcher-searchable tools that open a
-  # multi-file picker and run the stash compress/install helpers on the pick.
-  install -Dm644 "$_repo/ryoku/apps/tools/compress-video.desktop" \
-    "$pkgdir/usr/share/applications/compress-video.desktop"
-  install -Dm644 "$_repo/ryoku/apps/tools/install-app.desktop" \
-    "$pkgdir/usr/share/applications/install-app.desktop"
   # Ryoku Hub: a launcher-searchable entry for the settings surface, so it shows
   # in the app launcher alongside its Super+comma keybind.
   install -Dm644 "$_repo/ryoku/hub/ryoku-hub.desktop" \

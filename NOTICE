@@ -60,8 +60,9 @@ bridge that keeps the design in sync with the other dock designs. It is
 released under the GNU General Public License version 3; the ported portions
 keep that license, compatible with Ryoku's GPL-3.
 
-Kit's Dev tools, Commands, Typing test and Phone tabs
-(ryoku/shell/quickshell/keys/) and the phone module behind the Phone tab
+Kit's Dev tools, Commands, Typing test and Phone sections
+(ryoku/shell/quickshell/shell/modules/kit/sections/) and the phone module behind
+the Phone section
 (ryoku/shell/quickshell/shell/modules/phone/) are based on the cheatsheet pages,
 phone services and Phone sidebar of ii-p3drovfx by P3DROVFX and contributors
 (https://github.com/P3DROVFX/ii-p3drovfx). They are modified versions: Ryoku
@@ -74,7 +75,8 @@ phone packages on demand, and routes window placement through the
 window-manager seam. They are released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
 
-The word lists and key sounds under ryoku/shell/quickshell/keys/typing/assets/
+The word lists and key sounds under
+ryoku/shell/quickshell/shell/modules/kit/sections/typing/assets/
 come from Monkeytype (https://github.com/monkeytypegame/monkeytype), released
 under the GNU General Public License version 3 only; the pinned upstream commit
 is recorded in the manifests beside them.

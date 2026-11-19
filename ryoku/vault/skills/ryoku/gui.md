@@ -128,7 +128,7 @@ Quick settings, ryoshot, and Ask are outside Ryoku Settings. Reach them here:
 | Launch an app | App launcher | Super+Space | the shell launcher (Ryoku Settings > Desktop > App launcher tunes it and picks launchers installed items provide) |
 | System activity, connections, levels, and session actions | Quick settings (its look is picked in Ryoku Settings > Desktop > Quick settings) | Super+Escape | `ryoku-shell quicksettings` |
 | Screenshots and recordings | ryoshot capture bar | Super+Shift+S | `ryoku-shell screenshot` |
-| Read-only system answers and general free-model use | Rashin Ask bar | Alt+Space | `rashin ask <question>` |
+| Read-only system answers, web search and downloads | Rashin bar | Alt+Space | `rashin ask <question>`, `ryoku-shell ask web`, `ryoku-shell ask downloads` |
 | Persistent external-harness sessions | Rashin app, Agent tab | Super+Alt+Space | `rashin-app` |
 | Install or create a separate account profile | Ryostore > Profiles, then Ryoku Settings > Accounts > Users | open Ryostore, choose Profiles | `ryostore settings profiles <id>` hands off to Ryoku Settings' `users fromProfile` IPC |
 

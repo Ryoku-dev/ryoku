@@ -146,12 +146,12 @@ hl.layer_rule({
   no_anim = true,
 })
 
--- Kit (qs -c keys, Super+K) is a full-screen layer-shell overlay. Blur the
--- desktop behind its dim scrim so the card reads on any wallpaper, and suppress
--- the compositor's layer animation because QML owns the fade.
+-- Kit (Super+K) is a full-screen layer-shell overlay the shell maps while it is
+-- open. Blur the desktop behind its scrim so the page reads on any wallpaper,
+-- and suppress the compositor's layer animation because QML owns the arrival.
 hl.layer_rule({
-  name    = "ryoku-keys-blur",
-  match   = { namespace = "^ryoku-keys$" },
+  name    = "ryoku-kit-blur",
+  match   = { namespace = "^ryoku-kit$" },
   blur    = not no_blur,
   no_anim = true,
 })

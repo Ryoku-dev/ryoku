@@ -2,213 +2,253 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Lithic
 import Ryoku.Ui.Singletons
+import "look"
 import "../../services/lib/markdown.js" as Md
 
+// One Quick Ask turn: what was asked, what Rashin is doing while it works, and
+// the answer as it streams (Markdown; images are cut to their alt text and only
+// web and mail links open). The things the answer itself offers (a command to
+// copy, a file to open) sit under it as plaques.
 Item {
     id: root
 
     required property real s
     required property RashinSession session
-    property bool active: false
-    property int selectedChip: 0
-    property string flash: ""
+    property real maximumHeight: 420 * s
+
     readonly property var sessionData: session.state
-    readonly property var chips: {
-        if (session.busy)
-            return [
-                { kind: "agent", label: I18n.tr("Move to Agent"), value: "" },
-                { kind: "cancel", label: I18n.tr("Cancel"), value: "" }
-            ];
-        if (sessionData.phase !== "done" && sessionData.phase !== "cancelled")
-            return [];
-        const rows = [];
-        if (sessionData.needsAgent)
-            rows.push({ kind: "agent", label: I18n.tr("Move to Agent"), value: "" });
-        if (String(sessionData.answer || "").length > 0)
-            rows.push({ kind: "copy", label: I18n.tr("Copy"), value: sessionData.answer });
-        const actions = sessionData.actions || [];
-        for (var i = 0; i < actions.length; i++)
-            rows.push(actions[i]);
-        if (!sessionData.needsAgent)
-            rows.push({ kind: "agent", label: I18n.tr("Continue with Agent"), value: "" });
-        rows.push({ kind: "open", label: I18n.tr("Open in Rashin"), value: "" });
-        rows.push({ kind: "pin", label: I18n.tr("Pin bubble"), value: "" });
-        return rows;
+    readonly property string answerText: String(sessionData.answer || "")
+    readonly property bool boxed: !Look.lithic
+    readonly property real side: Math.round(18 * root.s)
+    // what the answer offers, as Rashin sent it: {kind: copy|cmd|color|file|dir|url, label, value}
+    readonly property var offers: sessionData.phase === "done" || sessionData.phase === "cancelled" ? (sessionData.actions || []) : []
+    readonly property string workingLabel: {
+        const tools = sessionData.tools || [];
+        return tools.length > 0 ? String(tools[tools.length - 1].title || I18n.tr("Working")) : I18n.tr("Thinking");
     }
 
-    signal handoffRequested()
-    signal pinRequested(string question, string answer)
+    signal hud(string text)
 
-    implicitHeight: content.implicitHeight
+    implicitHeight: Math.min(root.maximumHeight, column.implicitHeight + Math.round(26 * root.s))
 
-    function statusLabel(value) {
-        const status = String(value || "running").toLowerCase();
-        if (status === "done" || status === "completed")
-            return I18n.tr("Done");
-        if (status === "failed" || status === "error")
-            return I18n.tr("Failed");
-        if (status === "cancelled" || status === "canceled")
-            return I18n.tr("Cancelled");
-        if (status === "waiting" || status === "pending")
-            return I18n.tr("Waiting");
-        return I18n.tr("Running");
+    function offerLabel(offer) {
+        if (offer.kind === "file")
+            return "nvim " + String(offer.label || offer.value || "");
+        if (offer.kind === "dir")
+            return I18n.tr("Open %1").arg(offer.label || offer.value || "");
+        if (offer.kind === "cmd")
+            return "$ " + String(offer.label || offer.value || "");
+        return String(offer.label || "");
     }
 
-    function move(delta) {
-        selectedChip = Math.max(0, Math.min(chips.length - 1, selectedChip + delta));
+    function offerGlyph(offer) {
+        return offer.kind === "file" ? "edit_document" : offer.kind === "dir" ? "folder_open"
+            : offer.kind === "url" ? "open_in_browser" : offer.kind === "cmd" ? "terminal" : "content_copy";
     }
 
-    function activate() {
-        if (chips[selectedChip])
-            fire(chips[selectedChip]);
-    }
-
-    function fire(chip) {
-        const kind = String(chip.kind || "");
-        const value = String(chip.value || "");
+    function fire(offer) {
+        const kind = String(offer.kind || "");
+        const value = String(offer.value || "");
         if (kind === "copy" || kind === "cmd" || kind === "color") {
-            Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", value]);
-            flash = kind + "\u0000" + value;
-            flashTimer.restart();
+            Quickshell.clipboardText = value;
+            root.hud(I18n.tr("Copied"));
         } else if (kind === "file") {
             Spawn.runApp(["kitty", "-e", "nvim", value], { label: "kitty" });
         } else if (kind === "dir" || kind === "url") {
             Spawn.runApp(["xdg-open", value], { label: kind });
-        } else if (kind === "agent") {
-            handoffRequested();
-        } else if (kind === "open") {
-            Quickshell.execDetached(["rashin", "open", "--session", root.session.id]);
-        } else if (kind === "pin") {
-            pinRequested(String(sessionData.question || ""), String(sessionData.answer || ""));
-        } else if (kind === "cancel") {
-            session.cancel();
         }
     }
 
-    function caption(chip) {
-        if (flash === String(chip.kind || "") + "\u0000" + String(chip.value || ""))
-            return I18n.tr("Copied");
-        if (chip.kind === "file")
-            return "nvim " + String(chip.label || chip.value || "");
-        if (chip.kind === "dir")
-            return I18n.tr("Open %1").arg(chip.label || chip.value || "");
-        if (chip.kind === "cmd")
-            return "$ " + String(chip.label || chip.value || "");
-        return String(chip.label || "");
+    function scrollBy(amount) {
+        const limit = Math.max(0, flick.contentHeight - flick.height);
+        flick.contentY = Math.max(0, Math.min(limit, flick.contentY + amount));
+        flick.follow = flick.contentY >= limit - 2;
     }
 
-    Timer {
-        id: flashTimer
-        interval: 1200
-        onTriggered: root.flash = ""
-    }
+    function line(delta) { root.scrollBy(delta * 48 * root.s); }
+    function page(delta) { root.scrollBy(delta * (flick.height - 40 * root.s)); }
 
-    Column {
-        id: content
-        width: parent.width
-        spacing: Tokens.s3 * root.s
+    Flickable {
+        id: flick
 
-        Text {
-            visible: root.session.busy
-            text: root.sessionData.tools.length > 0 ? I18n.tr("Working with %1").arg(root.sessionData.tools[root.sessionData.tools.length - 1].title || I18n.tr("tools")) : I18n.tr("Thinking")
-            color: Tokens.inkDim
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
+        // stay with the newest line until the reader scrolls away from it
+        property bool follow: true
+
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: column.implicitHeight + Math.round(26 * root.s)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: contentHeight > height + 1
+        onMovementEnded: flick.follow = flick.contentY >= flick.contentHeight - flick.height - 2
+        onContentHeightChanged: {
+            if (flick.follow && root.session.busy)
+                flick.contentY = Math.max(0, flick.contentHeight - flick.height);
         }
 
-        Repeater {
-            model: root.sessionData.tools || []
-            delegate: Row {
-                required property var modelData
-                width: content.width
-                spacing: Tokens.s2 * root.s
-                Text {
-                    text: root.statusLabel(modelData.status)
-                    color: Tokens.inkMuted
-                    font.family: Tokens.mono
-                    font.pixelSize: Tokens.fTiny * root.s
-                }
-                Text {
-                    width: parent.width - 90 * root.s
-                    text: String(modelData.title || modelData.toolKind || I18n.tr("Tool"))
-                    color: Tokens.inkDim
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall * root.s
-                    elide: Text.ElideRight
-                }
+        Column {
+            id: column
+            x: root.side
+            y: Math.round(12 * root.s)
+            width: flick.width - root.side * 2
+            spacing: Math.round(10 * root.s)
+
+            Text {
+                width: parent.width
+                visible: text.length > 0
+                text: String(root.sessionData.question || "")
+                color: Lithic.fg
+                font.family: Look.sans
+                font.pixelSize: Math.round(15 * root.s)
+                font.weight: Font.Medium
+                wrapMode: Text.WordWrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+                renderType: Text.NativeRendering
             }
-        }
 
-        TextEdit {
-            width: parent.width
-            visible: text.length > 0
-            text: Md.prepare(root.sessionData.answer)
-            textFormat: TextEdit.MarkdownText
-            color: Tokens.inkDim
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fBody * root.s
-            wrapMode: TextEdit.Wrap
-            readOnly: true
-            selectByMouse: true
-            selectionColor: Tokens.bone
-            selectedTextColor: Tokens.inkOnBone
-            onLinkActivated: url => {
-                const safe = Md.safeUrl(url);
-                if (safe.length > 0)
-                    Spawn.runApp(["xdg-open", safe], { label: "browser" });
-            }
-        }
+            Column {
+                width: parent.width
+                visible: root.session.busy
+                spacing: Math.round(3 * root.s)
 
-        Text {
-            width: parent.width
-            visible: root.sessionData.needsAgent && String(root.sessionData.needsAgentReason || "").length > 0
-            text: String(root.sessionData.needsAgentReason || "")
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
-            font.italic: true
-            wrapMode: Text.WordWrap
-        }
+                Micro {
+                    width: parent.width
+                    s: root.s
+                    visible: (root.sessionData.tools || []).length === 0
+                    text: I18n.tr("Thinking")
+                    color: Lithic.fg2
+                }
+                Repeater {
+                    model: root.session.busy ? (root.sessionData.tools || []).slice(-4) : []
 
-        Text {
-            width: parent.width
-            visible: String(root.sessionData.error || "").length > 0
-            text: String(root.sessionData.error || "")
-            color: Tokens.inkDim
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
-            wrapMode: Text.WordWrap
-        }
+                    delegate: Row {
+                        id: toolRow
+                        required property var modelData
+                        readonly property string status: String(toolRow.modelData.status || "running").toLowerCase()
+                        readonly property bool settled: toolRow.status === "done" || toolRow.status === "completed"
+                        readonly property bool broken: toolRow.status === "failed" || toolRow.status === "error"
+                        spacing: Math.round(8 * root.s)
 
-        Flow {
-            width: parent.width
-            spacing: Tokens.s2 * root.s
-            Repeater {
-                model: root.chips
-                delegate: Rectangle {
-                    id: chip
-                    required property var modelData
-                    required property int index
-                    readonly property bool current: index === root.selectedChip
-                    width: chipText.implicitWidth + Tokens.s4 * root.s
-                    height: Tokens.ctlH * root.s
-                    radius: Tokens.radius * root.s
-                    color: current ? Tokens.bone : chipTap.pressed ? Tokens.tint16 : chipHover.hovered ? Tokens.tint10 : Tokens.tint5
-                    border.width: Tokens.border
-                    border.color: current ? Tokens.bone : Tokens.lineStrong
-                    Text {
-                        id: chipText
-                        anchors.centerIn: parent
-                        text: root.caption(chip.modelData)
-                        color: chip.current ? Tokens.inkOnBone : Tokens.ink
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fSmall * root.s
+                        Symbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            s: root.s
+                            name: toolRow.broken ? "close" : toolRow.settled ? "check" : "arrow_right_alt"
+                            size: 14
+                            ink: toolRow.broken ? Lithic.jasper : toolRow.settled ? Lithic.jade : Lithic.lapis
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.min(implicitWidth, column.width - 30 * root.s)
+                            text: String(toolRow.modelData.title || toolRow.modelData.toolKind || I18n.tr("Tool"))
+                            color: Lithic.fg3
+                            font.family: Look.sans
+                            font.pixelSize: Math.round(12 * root.s)
+                            elide: Text.ElideRight
+                            renderType: Text.NativeRendering
+                        }
                     }
-                    HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) root.selectedChip = chip.index }
-                    TapHandler { id: chipTap; onTapped: root.fire(chip.modelData) }
+                }
+            }
+
+            Shape {
+                width: parent.width
+                height: answer.implicitHeight + (root.boxed ? Math.round(24 * root.s) : 0)
+                visible: root.answerText.length > 0
+                s: root.s
+                cutSize: Look.cutCard
+                fill: root.boxed ? Look.card : "transparent"
+                strokeColor: root.boxed ? Look.cardStroke : "transparent"
+                strokeWidth: root.boxed && !Qt.colorEqual(Look.cardStroke, "transparent") ? 1 : 0
+
+                TextEdit {
+                    id: answer
+                    x: root.boxed ? Math.round(14 * root.s) : 0
+                    y: root.boxed ? Math.round(12 * root.s) : 0
+                    width: parent.width - x * 2
+                    text: Md.render(root.answerText, Look.prose(root.s, 14, root.boxed ? Look.card : Look.frame))
+                    textFormat: TextEdit.RichText
+                    color: Lithic.fg
+                    selectionColor: Lithic.sel
+                    selectedTextColor: Lithic.onSel
+                    font.family: Look.sans
+                    font.pixelSize: Math.round(14 * root.s)
+                    wrapMode: TextEdit.Wrap
+                    readOnly: true
+                    selectByMouse: true
+                    activeFocusOnPress: false
+                    renderType: Text.NativeRendering
+                    onLinkActivated: url => {
+                        const safe = Md.safeUrl(url);
+                        if (safe.length > 0)
+                            Spawn.runApp(["xdg-open", safe], { label: "browser" });
+                    }
+                }
+            }
+
+            Text {
+                width: parent.width
+                visible: root.sessionData.needsAgent === true && text.length > 0
+                text: String(root.sessionData.needsAgentReason || "")
+                color: Lithic.fg2
+                font.family: Look.sans
+                font.pixelSize: Math.round(13 * root.s)
+                wrapMode: Text.WordWrap
+                renderType: Text.NativeRendering
+            }
+
+            Text {
+                width: parent.width
+                visible: text.length > 0
+                text: String(root.sessionData.error || "")
+                color: Lithic.jasper
+                font.family: Look.sans
+                font.pixelSize: Math.round(13 * root.s)
+                wrapMode: Text.WordWrap
+                renderType: Text.NativeRendering
+            }
+
+            Text {
+                width: parent.width
+                visible: root.sessionData.phase === "cancelled"
+                text: I18n.tr("Stopped before the answer was finished.")
+                color: Lithic.fg3
+                font.family: Look.sans
+                font.pixelSize: Math.round(13 * root.s)
+                wrapMode: Text.WordWrap
+                renderType: Text.NativeRendering
+            }
+
+            Flow {
+                width: parent.width
+                visible: root.offers.length > 0
+                spacing: Math.round(6 * root.s)
+
+                Repeater {
+                    model: root.offers
+
+                    delegate: Chip {
+                        required property var modelData
+                        s: root.s
+                        tier: "line"
+                        glyph: root.offerGlyph(modelData)
+                        text: root.offerLabel(modelData)
+                        onClicked: root.fire(modelData)
+                    }
                 }
             }
         }
+    }
+
+    ScrollRail {
+        anchors.right: parent.right
+        anchors.rightMargin: Math.round(2 * root.s)
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: Math.round(4 * root.s)
+        anchors.bottomMargin: Math.round(4 * root.s)
+        flickable: flick
     }
 }

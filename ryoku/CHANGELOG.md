@@ -1,6 +1,9 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Alt+Space no longer depends on Rashin.** The `shell.ask` shortcut opens the
+  Rashin bar, whose web search and downloads work with Rashin off or absent,
+  so it stays bound without `rashind` (`wm/binds.go` and its vendored copies).
 - **Rashin runs Ask, Agents, Teams and Dreams on one native engine.** External
   ACP harnesses and team sign-in are gone; local models run on demand before
   free remote models. Learning is opt-in, and the app follows the desktop's

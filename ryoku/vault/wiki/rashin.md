@@ -74,7 +74,8 @@ not a boundary against code you already run.
 
 ## Surfaces
 
-- Alt+Space opens the thin Ask bar.
+- Alt+Space opens the Rashin bar: Quick Ask, web search and downloads. Web
+  and Downloads work with Rashin off.
 - Super+Alt+Space opens `rashin-app` with Ask, Agents, Teams and Learning.
 - `rashin <question>` asks from a terminal.
 - Ryoku Settings > Apps > Rashin turns the system on or off.

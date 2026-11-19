@@ -1,6 +1,79 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Alt+Space opens the Rashin bar, a Raycast-style command bar.** One field
+  and one ranked list: a calculator answer, `Download <host>` for a pasted link
+  or magnet, live and recent downloads, recent asks, and the `Ask Rashin` and
+  `Search the web` fallbacks. Enter runs the row, Ctrl+Enter its second action,
+  Ctrl+K lists every action, Tab asks Rashin, and Escape steps back one layer at
+  a time. The bar draws in the design in use (Lithic, Material, Adwaita, Fluent)
+  with one gliding selection plate and the design's own view transitions, and
+  holds still under reduced motion (`quickshell/shell/modules/ask/`).
+- **Quick Ask stays; the Agent mode is gone from the bar.** Answers stream with
+  their actions, Open in Rashin continues them in the app, and Markdown answers
+  now leave room between paragraphs, lists and code in the bar, the bubble and
+  the launcher's Ask (`modules/ask/views/AskView.qml`, `services/lib/markdown.js`).
+- **Web searches in place, through its own search daemon, `ryoseek`.** While you
+  type the bar shows suggestions, a Wikipedia row and a definition card for "what
+  does X mean"; the full search runs on Enter or after 1.2 s of stillness, so
+  typing no longer sends a search at every pause. The Web section merges
+  Keenable and DuckDuckGo with Bing as the last resort, and Wikipedia, GitHub,
+  Stack Overflow, MDN, npm, crates.io, the Arch Wiki, Flathub, YouTube and Hacker
+  News answer by scope, plus Arch packages and the AUR on Arch-based editions.
+  DuckDuckGo had started answering every search with a bot check, which left
+  Web empty: `ryoseek` keeps one request budget per engine for every bar and
+  terminal, pauses an engine that blocks for its Retry-After or 15 minutes
+  doubling, remembers that across bar openings, and shows "paused until" instead
+  of an error. It starts on demand and exits after five idle minutes
+  (`modules/ask/views/WebView.qml`, `modules/ask/SearchClient.qml`,
+  `ryoget/cmd/ryoseek/`, `ryoget/internal/search/`).
+- **Paste several links at once.** Links in any pasted text (one per line, in a
+  sentence, Markdown, magnets) are pulled out and cleaned: tracking tags and
+  redirect wrappers removed, `youtu.be`, mobile and mirror addresses made normal,
+  duplicates dropped, signed download links left exactly as they are. The bar's
+  home list offers "Download N links" and says what it cleaned; Enter adds them
+  all, and Ctrl+Enter opens Kit's intake card, where each link fills in as it is
+  read, with one format for all or per link, ticks and one folder. `ryoget add -`
+  does the same from a terminal (`modules/ask/views/RootView.qml`,
+  `modules/kit/sections/downloads/`, `ryoget/internal/links/`).
+- **A download manager on a new engine, `ryoget`, in Kit's Downloads.** The
+  Rashin bar starts a download from a pasted link and Enter and lists what is
+  moving; the manager itself is a Kit section. Files download over several
+  connections and resume after a stop or a crash; videos and posts from YouTube,
+  X, Instagram, TikTok, Reddit, Bluesky, SoundCloud, Vimeo, Twitch, Streamable,
+  Dailymotion, Pinterest, Tumblr, Bilibili, Loom, OK.ru, Rutube, VK and Facebook
+  resolve natively, other sites through yt-dlp, and torrents and magnets
+  download with file selection and seeding limits. Each row draws its live piece
+  map; the selection shows beside the list its pieces, its speed over the last
+  minute and its files, and Settings is a page of its own. The daemon starts on
+  demand, keeps going after Kit and the bar close, notifies when a download lands
+  and exits when idle (`modules/kit/sections/downloads/`, `ryoget/`).
+- **Cobalt, its Docker container and the Stash tools are gone.** Compress,
+  Install, Installed apps, Recent downloads and the Cobalt switch leave the bar,
+  with `stash-cobalt.sh`, `stash-cobalt-server.sh`, `stash-download.sh` and the
+  `ryoku-shell compress` and `install` verbs. `ryoku-shell ask web` opens the bar
+  on Web and `ryoku-shell ask downloads` opens Kit's Downloads; right-click
+  Compress and Install in the file manager keep working (`ipc/daemon.go`,
+  `quickshell/shell/ShellBody.qml`, `quickshell/shell/services/ShellState.qml`).
+- **Kit is a tabbed manual, and a closed Kit costs nothing.** Super+K starts Kit
+  as a small program of its own; closing hides it, a reopen within the minute is
+  instant, and a minute after closing it quits, so a closed Kit holds no memory.
+  Six tabs run down the left (Downloads, Keys, Commands, Phone, Dev tools, Typing
+  test), each with one live figure and lit until opened when something changed
+  there, and the open tab is part of the page's outline. One field filters the
+  open section, Ctrl+F searches all of Kit, Ctrl+K lists the actions, Ctrl+1 to
+  Ctrl+6 and Ctrl+PgDn/PgUp move between sections and pages, Escape steps back
+  one layer, and it draws in the four designs. Keys is one scroll, searchable by
+  name in your language or by chord, with find-by-pressing-keys and Rebind in
+  Settings. Commands copies on Enter after asking for any blank and runs on
+  Ctrl+Enter in a terminal that stays open, and its catalogue is translated. Dev
+  tools cap how much they process, and the regex tester runs each pattern in a
+  short-lived helper stopped after 1.5 s, so a runaway pattern cannot freeze Kit.
+  The typing test keeps the keyboard after it ends, and History and Stats have
+  graphs. `ryoku-kit [section [page]]` opens Kit on a section, starting it or
+  reaching the running one, and an update removes the old
+  `~/.config/quickshell/keys` (`quickshell/shell/kit.qml`,
+  `quickshell/shell/modules/kit/`, `scripts/ryoku-kit`).
 - **Theia checks English without installing another program**
   Automatic uses the built-in checker for English and your model for other
   languages, and spelling fixes use the exact word you selected

@@ -55,7 +55,6 @@ cloudflare
 color
 colors
 cols
-compress
 connection
 connectivity
 contrast
@@ -126,7 +125,6 @@ idle
 image
 inpaint
 input
-install
 installed
 int
 islands

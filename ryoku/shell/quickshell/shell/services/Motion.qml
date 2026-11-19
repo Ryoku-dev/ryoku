@@ -109,7 +109,7 @@ Singleton {
     // slide.
     readonly property int startupReveal: 1000
 
-    // Retained transitional timings for remaining Popout, Deck, Stash,
+    // Retained transitional timings for remaining Popout, Deck,
     // KeyringSurface, and WaveMeter consumers.
     readonly property int fast:     root.dur(140)
     readonly property int standard: root.dur(300)

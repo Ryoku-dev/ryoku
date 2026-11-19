@@ -128,7 +128,7 @@ below windows on that output.
 
 Desktop-wide shortcuts stay Ryoku's under every item: Super+Space opens the
 launcher chosen on Ryoku Settings > Desktop > App launcher, Super+V clipboard history,
-Super+comma Ryoku Settings, Super+Escape quick settings, Alt+Space Rashin Ask.
+Super+comma Ryoku Settings, Super+Escape quick settings, Alt+Space the Rashin bar.
 
 ## Contributions
 

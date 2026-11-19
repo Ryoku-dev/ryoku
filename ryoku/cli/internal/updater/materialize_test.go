@@ -290,6 +290,8 @@ func TestMaterializeSweepsStaleQuickshell(t *testing.T) {
 	// quickshell that must survive.
 	writeFile(t, filepath.Join(dest, "quickshell/shell/Removed.qml"), "OLD\n")
 	writeFile(t, filepath.Join(dest, "quickshell/plugins/shell.qml"), "OLD\n")
+	writeFile(t, filepath.Join(dest, "quickshell/keys/shell.qml"), "OLD KIT\n")
+	writeFile(t, filepath.Join(dest, "quickshell/keys/typing/words.json"), "[]\n")
 	writeFile(t, filepath.Join(dest, "hypr/user.lua"), "USER\n")
 
 	if err := Materialize(); err != nil {
@@ -301,6 +303,9 @@ func TestMaterializeSweepsStaleQuickshell(t *testing.T) {
 	}
 	if sys.Exists(filepath.Join(dest, "quickshell/plugins")) {
 		t.Error("emptied stale quickshell dir should be pruned")
+	}
+	if sys.Exists(filepath.Join(dest, "quickshell/keys")) {
+		t.Error("retired Kit tree should be pruned without a manifest entry")
 	}
 	wantFile(t, filepath.Join(dest, "hypr/user.lua"), "USER")
 }

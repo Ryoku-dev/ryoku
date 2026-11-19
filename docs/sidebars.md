@@ -1,15 +1,16 @@
-# Quick settings, ryoshot, and Ask
+# Quick settings, ryoshot, the Rashin bar, and Kit
 
-Three global tools are available under every subshell and bar style and on both Hyprland and
+Four global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
 - `Super+Escape` opens **Quick settings** at the top-left of the focused display.
 - `Super+Shift+S` opens the floating **ryoshot** capture bar.
-- `Alt+Space` opens **Ask** near the top third of the focused display.
+- `Alt+Space` opens the **Rashin bar** near the top third of the focused display.
+- `Super+K` opens **Kit** in the middle of the focused display.
 
-Quick settings and Ask close with Escape, their close button, or a click outside.
-ryoshot has its own close control. The shortcuts are editable in
-**Ryoku Settings > Windows > Keyboard shortcuts**.
+Quick settings and the Rashin bar close with Escape, their close button, or a click outside;
+Kit closes with Escape, a click outside, or `Super+K` again. ryoshot has its own close control.
+The shortcuts are editable in **Ryoku Settings > Windows > Keyboard shortcuts**.
 
 ## Quick settings
 
@@ -148,27 +149,160 @@ and webcam toggles. The delay and microphone choices persist in `ryoshot.json`.
 The settings popover keeps the save behaviour and links to **Ryoku Settings >
 Apps > Screen capture**.
 
-## Ask
+## Rashin bar
 
-Ask is a compact client for the optional Rashin daemon. Its QML is created only
-when Alt+Space opens the bar, connects to Rashin's local socket, and is released
-after the bar closes. If Rashin is off or absent, the bar does not start a
-daemon or leave a watcher running.
+The Rashin bar is a keyboard-first command bar in the style of Raycast. It draws
+in the desktop's design (`theme.design`: Lithic, Material, Adwaita or Fluent) and
+palette, and follows a change live. Its QML is created when Alt+Space opens it
+and released 15 s after it closes, so a closed bar costs nothing.
 
-- **Ask** sends one-shot, read-only questions to Rashin's free-model router.
-  Answers stream into the bar with copy, file, folder, link and proposed-command
-  actions. Recent asks come from daemon-owned sessions, so history survives the
-  bar and app closing.
-- **Agent** shows the most recent external-harness session, or starts one with
-  the harness you choose. Permissions, prompts and model choices belong to that
-  harness. **Open in Rashin** moves the same session into the app.
-- **Tools** and **Web** remain shell features. They work whether Rashin is on or
-  not.
+One field leads every view. The root view ranks what you type: a calculator
+answer for an expression, `Download <host>` first for a link or magnet,
+`Download N links` when the field holds several, active and recent downloads,
+recent asks when Rashin is on, and two fallbacks that always close the list,
+`Ask Rashin` and `Search the web`.
 
-**Move to Agent** keeps the original question and opens an Agent session for
-work that needs changes. The Rashin app is another client of the same daemon:
-its Ask, Agent and Index pages see the same sessions and index state rather than
-holding a separate transcript.
+- **Quick Ask** (Tab, or `\`) sends a one-shot, read-only question to Rashin.
+  The answer streams into the bar with copy, file, folder, link and
+  proposed-command actions; **Open in Rashin** continues it in the app and
+  **Pin** keeps it as a bubble on the desktop. With Rashin off or absent the view
+  says so and opens its settings; the bar never starts Rashin.
+- **Web** (`?`) searches in place. While you type it shows suggestions, a
+  Wikipedia row and, for a word or a "what does X mean" question, a definition
+  card. The full search runs on Enter, on picking a suggestion, or once you stop
+  typing for 1.2 s. Its Web section merges Keenable and DuckDuckGo results, with
+  Bing as the last resort; Wikipedia, GitHub, Stack Overflow, MDN, npm, crates.io,
+  the Arch Wiki, Flathub, YouTube and Hacker News answer too, plus Arch packages
+  and the AUR on Arch-based editions. All keeps the best few that match, a scope
+  or a source shows its whole list. An engine that is blocking this computer
+  shows as paused until a time instead of failing, and when every web engine is
+  out the view offers Ask Rashin and Search in the browser. Enter opens a result
+  in the browser; its actions copy the link, ask Rashin about the page, or
+  download it.
+- **Downloads** (`/`) hands over to Kit's Downloads, where the download manager
+  lives (see Kit below). The bar keeps the quick paths: a link and Enter starts
+  it with your defaults, `Download N links` and Enter adds every pasted link,
+  and the home list shows what is moving. Ctrl+Enter on a link, or on several,
+  opens Kit's intake card with them, and **Show in Downloads** opens Kit on that
+  download.
+
+Enter runs the highlighted row, Ctrl+Enter its second action, and Ctrl+K lists
+every action for it. Up and Down move, Ctrl+Up and Ctrl+Down jump between
+sections. Escape closes the action list, then clears the field, then goes back,
+then closes the bar; Backspace on an empty field goes back. Ctrl+1 and Ctrl+2
+jump to Quick Ask and Web; Ctrl+3 opens Kit's Downloads.
+
+### Downloads engine
+
+Downloads run in `ryoget` (`ryoku/shell/ryoget/`), a Go daemon shipped with the
+shell. It starts on demand through `ryoku-host svc --user start ryoget` (a
+systemd user unit, or a runit service on Void), keeps working after the bar
+closes, and exits after a minute with nothing to do. No container is involved.
+
+- Files download over up to 16 connections into a `.part` file whose sidecar
+  lets a stopped or crashed download resume where it was.
+- Media links resolve natively for YouTube, X, Instagram, TikTok, Reddit video,
+  Bluesky, SoundCloud, Vimeo, Twitch, Streamable, Dailymotion, Pinterest, Tumblr,
+  Bilibili, Loom, OK.ru, Rutube, VK and Facebook; any other site goes through an
+  installed yt-dlp while that fallback is on. ffmpeg joins video and audio
+  without re-encoding.
+- Torrents and magnet links download with file selection and seeding limits.
+  The torrent client exists only while a torrent runs or seeds.
+- A finished or failed download posts a notification with Open and Show in
+  folder.
+
+Settings live in `~/.config/ryoku/downloads.json`, written only by the daemon,
+and the queue in `~/.local/state/ryoku/ryoget/`. `ryoget add`, `list`, `pause`,
+`resume`, `cancel`, `remove` and `retry` drive it from a terminal; `ryoget add -`
+reads any text on standard input and adds every link in it, cleaned the same way
+as a paste. `ryoget.desktop` offers it for magnet links and `.torrent` files
+without claiming them as the default. The wire protocol is in the module's
+README.
+
+### Search engine
+
+Web search runs in `ryoseek`, a small daemon built from the same Go module and
+shipped with the shell. It starts when the bar searches, serves every bar and
+terminal through one socket, and exits after five idle minutes, so it remembers
+which engine is blocking this computer and for how long between bar openings.
+
+- Each engine has a request budget. An engine that answers with a bot check, a
+  captcha or a refusal pauses for its own Retry-After, or 15 minutes doubling up
+  to 6 hours, and nothing is sent to it meanwhile.
+- Results are cached for 30 minutes and suggestions for 10. A request already
+  sent is never thrown away; it fills the cache.
+- It identifies itself honestly as `ryoseek` and never disguises itself as a
+  browser.
+- What leaves the computer: typed text goes to DuckDuckGo (or Bing) suggestions
+  and Wikipedia; a full search goes to Keenable, which logs queries with the
+  address they came from, and to DuckDuckGo, and to Bing only when both fail;
+  definitions come from FreeDictionaryAPI.com, or from Wiktionary itself when it
+  has nothing (both Wiktionary, CC BY-SA 4.0).
+
+Its health and budgets live in `~/.local/state/ryoku/ryoseek/health.json` and
+its cache in `~/.cache/ryoku/ryoseek/`. `ryoseek query <text>` searches from a
+terminal.
+
+## Kit
+
+Kit (`Super+K`) is a tabbed manual of six sections in the desktop's design. Its
+tabs run down the left: Downloads, Keys, Commands, Phone, Dev tools and Typing
+test, each with one live figure (the download speed or what finished, the
+shortcut count, your saved commands, the phone's charge, the tool count, your
+best speed). A tab whose section changed while you were elsewhere stays lit until
+you open it ("1 finished", "2 new"). One field on top filters the open section;
+Ctrl+F searches all of Kit, with the answers grouped by section and a count on
+each tab. The foot names what Enter and Ctrl+Enter do beside Actions (Ctrl+K).
+Kit opens on the section you used last (Keys the first time) and remembers each
+section's page.
+
+Kit is a small program of its own. Super+K starts it, closing hides it, and a
+reopen within the next minute is instant; a minute after you close it, it quits,
+so a closed Kit costs nothing. The first open after that starts it again, which
+takes a moment longer.
+
+Ctrl+1 to Ctrl+6 pick a section, Ctrl+Tab and Ctrl+Shift+Tab step through them,
+and Ctrl+PgDn and Ctrl+PgUp step through a section's pages. Up and Down move.
+Escape steps back one layer: the action list, all of Kit, the section's own
+layer, the field, then Kit itself.
+
+- **Downloads** is the download manager. Paste a link and press Enter to
+  download it with your defaults, or Ctrl+Enter to choose the format, the items
+  of a post or playlist, the torrent's files and the folder first. Paste several
+  links, in any text, and they are cleaned (tracking tags and redirect wrappers
+  removed, short and mobile addresses made normal, duplicates dropped) and shown
+  on one card where each fills in as it is read; pick one format for all or per
+  link, untick any, and Enter adds the rest. Enter on an empty field takes the
+  links on the clipboard. Each row draws its transfer's live piece map, and the
+  selected download shows beside the list its pieces, its speed over the last
+  minute, its files and its connections or peers. The Settings page holds the
+  folder, downloads at once, connections, speed limits, video quality, audio
+  format, seeding and notifications.
+- **Keys** lists every shortcut of the running compositor in one scroll, under
+  headings that stay in view, with the compositor's own section and the
+  shortcuts it cannot honour marked. Search by name in your language or by chord
+  ("super+k"). Tab starts find-by-pressing-keys: the next shortcut you press
+  jumps to its row. Rebind in Settings opens Keyboard shortcuts.
+- **Commands** is a library of Ryoku and Linux commands plus your own: a dense
+  list grouped by topic, with the selected command's detail beside it. Enter
+  copies the command, after asking for any blank in it; Ctrl+Enter runs it in a
+  terminal that stays open until you press Enter. Commands marked Careful, or
+  written as usage, are copy-only. Ctrl+K stars, adds, imports, edits and
+  deletes your own, which live in `~/.local/share/ryoku/kit/commands.json`.
+- **Phone** controls a paired phone through KDE Connect and adb: quick actions
+  and recent notifications on its overview, then Notifications with replies,
+  Screen (mirror, record, webcam, microphone, wireless debugging), Contacts and
+  Apps. Without a paired phone it points to **Ryoku Settings > Phone**.
+- **Dev tools** are eleven offline helpers: password and UUID generators, JSON,
+  Base64, URL, JWT, Unix time, colours, regular expressions, text diff and chmod.
+  Pick one from the list; Tab moves between its panes, Ctrl+Enter runs it,
+  Ctrl+Shift+C copies the output and Ctrl+L clears.
+- **Typing test** runs timed, word-count and zen tests, with a results screen,
+  History and Stats with graphs, and Settings. While a test is up every key goes
+  to it.
+
+Kit keeps its memory in `~/.local/state/ryoku/kit.json`: the last section, each
+section's page, the dev tools' options and the typing history.
 
 ## Commands
 
@@ -176,28 +310,35 @@ holding a separate transcript.
 ryoku-shell quicksettings
 ryoku-shell screenshot
 ryoku-shell ask
-ryoku-shell ask chat
-ryoku-shell ask tools
-ryoku-shell compress
-ryoku-shell install
+ryoku-shell ask web
+ryoku-shell ask downloads
+ryoku-shell cheatsheet
+ryoku-kit [section [page]]
 ```
 
-`quicksettings` opens Quick settings, `screenshot` launches ryoshot, and the Ask
-commands open the matching mode or tool. The compositor providers expose the
-same actions without putting compositor-specific QML in the shell.
+`quicksettings` opens Quick settings, `screenshot` launches ryoshot, `ask` and
+`ask web` open the Rashin bar on its root or Web view, and `ask downloads` opens
+Kit's Downloads. `cheatsheet` toggles Kit, and `ryoku-kit` opens it on a section
+(`downloads`, `keys`, `commands`, `phone`, `devtools`, `typing`) and, if given, one
+of its pages. The compositor providers expose the same actions without putting
+compositor-specific QML in the shell.
 
 ## Rendering and lifecycle
 
 `Sidebar.qml` owns the Quick settings content window and its click-away window.
 `AskBar.qml` is one full-screen overlay surface that holds the bar and its
 click-away area, so the keyboard always stays with the bar on both compositors.
+Kit's `Kit.qml` is the same kind of overlay, with the dim, on the focused display.
 They use overlay-layer keyboard focus while open and reserve no window space.
 Per-display UI scale is applied to every dimension, and reduced-motion settings
 remove decorative movement without removing required hold gestures.
 
 The root shell loads its heavy surfaces on demand and unloads them after
-closing. ryoshot is a separate on-demand Quickshell process, so capture work is
-not resident in the shell.
+closing. Kit and ryoshot are separate on-demand Quickshell programs, so their
+work is never resident in the shell. `kit.qml`, beside the shell's `shell.qml`,
+runs Kit with the shell's directory as its root; `ryoku-kit` starts it or hands
+the request to the running one; it quits a minute after closing, and only the
+open section's page exists while it is up.
 Detail pages, plugin discovery, file watches, native sampling, audio enumeration,
 and display probing run only while their owning surface is active.
 
@@ -226,6 +367,18 @@ shared recording, key-press, and webcam overlay services under
 `shell/modules/capture/`. Ask components live under
 `ryoku/shell/quickshell/shell/modules/ask/`, including `AskBar.qml`, its mode
 views, and `AskBubble.qml`.
+
+Kit starts from `ryoku/shell/quickshell/shell/kit.qml` (its IPC, the window on the
+asked display, and the minute it waits before quitting) and lives under
+`ryoku/shell/quickshell/shell/modules/kit/`. `Kit.qml` is the overlay with its
+dim; `KitFrame.qml` holds the field, the page
+strip, the foot, the Ctrl+K panel and all of Kit, with `KitRail.qml`,
+`KitPages.qml`, `KitFoot.qml`, `KitSearch.qml` and `KitMemory.qml` (`kit.json`)
+beside it. `lib/` holds the keyboard map, routes, memory keys and search, each
+with its tests, and `parts/` the setting rows the pages share. Each section is a
+folder under `sections/`: `Section.qml` is its page, built only while it is
+open, and `Source.qml` is what it knows while Kit is open (its tab's figure, what
+is new, its rows for all of Kit).
 
 Shared state is owned by `shell/services/SidebarState.qml`, `ShellState`, and the
 Ask and chat services. Native sampling and rendering live in

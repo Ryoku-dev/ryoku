@@ -7,6 +7,11 @@
   engine and self-improvement workflows (MIT).** The About page links to
   the project and names Can Bölük and Mario Zechner
   (`quickshell/schema/about.js`, `../rashin/NOTICE`).
+- **Credits name what Kit's Downloads and the Rashin bar's Web stand on.**
+  anacrolix/torrent for the BitTorrent engine (MPL-2.0), Motrix and cobalt as
+  the references the download manager and its link handling were designed
+  from, and Wiktionary for the definitions in web search (CC BY-SA 4.0); the
+  yt-dlp row names Downloads' fallback too (`quickshell/schema/about.js`).
 
 ### Changed
 

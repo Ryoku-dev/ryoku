@@ -451,9 +451,17 @@ below are what each surface becomes.
   engraved charts with a value and proof, connections as claims with their
   proof, session actions as plaques with the danger tier for power-off
   ([sidebars.md](sidebars.md)).
-- **Ask, clipboard, voice.** A `stone4` cut plane with one field. Rows take the
-  hover plane, never a left accent bar; an answer streams as body text. Nothing
-  breathes or glows while idle.
+- **Rashin bar** (`Alt+Space`). One field, one ranked list and a footer that
+  names the primary action and `Actions Ctrl K`, drawn in the design in use:
+  Lithic cuts the plane and rules it with hairlines, Material rounds a tonal pill
+  field and tonal rows, Adwaita sets results as boxed lists, Fluent layers planes
+  with thin outlines. One selection plate glides between rows, never a left
+  accent bar; views push and pop with the design's own transition. Downloads
+  draw their live piece maps in lapis while moving, jade when landed, amber when
+  paused and jasper when failed. Nothing breathes or glows while idle
+  ([sidebars.md](sidebars.md)).
+- **Clipboard, voice.** A `stone4` cut plane with one field. Rows take the hover
+  plane, never a left accent bar. Nothing breathes or glows while idle.
 - **Notifications.** Ryoku's own card takes the design in use, switched live
   from `theme.design` (`modules/notifications/NotificationLook.qml`,
   `designs/`). Each look sets the column's width, gap and settle
@@ -501,10 +509,15 @@ below are what each surface becomes.
   palette.
 - **Session confirm.** The Hub's confirm: title in `sentence`, a plain
   consequence sentence, quiet Cancel, the act in a `danger` plaque.
-- **Kit** (`Super+K`). A Hub-shaped tool window: a sidebar tree of its tools
-  (Keys, Commands, Phone, Dev tools, Typing test) under one search that replaces
-  the tree with results; shortcuts set as keycaps (cut token plates on `field`
-  with an `edge` hairline, as `ChordField` draws them).
+- **Kit** (`Super+K`). A tabbed manual in the four styles: a rail of six tabs
+  (Downloads, Keys, Commands, Phone, Dev tools, Typing test) down the left, each
+  carrying one live figure (the download speed, the shortcut count, the phone's
+  charge) and staying lit until opened when something changed there. The open
+  tab is part of the page's own outline, not a marker beside it. One field on
+  top filters the open section, Ctrl+F searches all of Kit with the results
+  grouped by section, and the foot names what Enter and Ctrl+Enter do beside
+  Actions (Ctrl+K), as the Rashin bar does. Shortcuts are set as keycaps. The
+  desktop dims behind it.
 - **Desktop widgets and the Stage Editor.** A widget plate is a cut plane, or no
   plane with `Ink.legible` ink over the wallpaper. Stage Editor chrome (toolbar,
   drawer, inspectors) is setting rows and Segmented choices on cut slabs.

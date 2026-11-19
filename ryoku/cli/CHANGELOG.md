@@ -1,6 +1,11 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku-host capabilities` names the edition.** Its JSON gains `edition`
+  (`arch`, `cachyos`, `fedora` or `void`, read from `/etc/os-release` by `ID` and
+  then `ID_LIKE`; absent when none matches), so Kit's Commands shows the commands
+  for this machine without reading the file from QML
+  (`internal/host/capabilities.go`).
 - **A checkout box gets the gpk its checkout pins.** Checkout boxes take
   `[ryoku]` from the stable channel, which can serve an older gpk than the
   checkout's Settings and Ryostore need. On Arch and CachyOS the dev deploy now

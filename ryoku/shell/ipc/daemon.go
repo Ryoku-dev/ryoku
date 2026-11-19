@@ -1276,10 +1276,8 @@ var surfaceCommands = map[string]string{
 	"screenshot":          "screenshot",
 	"sight":               "sight",
 	"ask":                 "ask",
-	"ask chat":            "ask#chat",
-	"ask tools":           "ask#tools",
-	"compress":            "ask#tools/compress",
-	"install":             "ask#tools/install",
+	"ask web":             "ask#web",
+	"ask downloads":       "ask#downloads",
 	"menu quick-settings": "sidebar-left",
 	"menu screenshot":     "screenshot",
 	"menu app-launcher":   "launcher",
@@ -1343,11 +1341,11 @@ func (d *daemon) dispatch(line string) string {
 		if len(args) == 0 {
 			break
 		}
-		if len(args) == 1 && (args[0] == "chat" || args[0] == "tools") {
+		if len(args) == 1 && (args[0] == "web" || args[0] == "downloads") {
 			routeCmd = line
 			break
 		}
-		return "err ask: expected chat or tools"
+		return "err ask: expected web or downloads"
 	case "dock":
 		return d.dockCLI(args)
 	case "powerprofiles":

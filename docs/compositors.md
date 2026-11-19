@@ -98,8 +98,8 @@ compositor's name, so a scrolling-tiler action niri has and Hyprland lacks is
 listed without the shell naming either. It resolves the store the way `apply`
 does, so a chord a user displaced is already gone from the list. A compositor
 whose binds are all shared prints an empty list and gets no section. Kit opens
-with Super+K and keeps Keys, Commands, Phone, Dev tools, and Typing test under
-one search field.
+with Super+K and keeps Downloads, Keys, Commands, Phone, Dev tools and Typing
+test as tabs beside one field.
 
 Hyprland adds one more verb, `plugins`. niri has no plugin system and says so
 in `caps` instead of shipping a verb that would fail. Wayfire loads plugins --

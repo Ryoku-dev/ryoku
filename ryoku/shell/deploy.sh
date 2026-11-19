@@ -649,9 +649,9 @@ mv -Tf "$qylock_installer_root/lockscreen.next" \
   "$qylock_installer_root/lockscreen"
 # ryostage: the wallpaper engine's launcher, not a ryoku-* name.
 install -m755 "$here/scripts/ryostage" "$bindir/ryostage"
-# The .sh helpers the shell drives by bare name: the Stash sidebar's cobalt queue
-# and its compress/install/download backends, the LocalSend LAN transfer, the
-# clipboard-thumbnail generator. Shell scripts, so they ride the shell to PATH.
+# The .sh helpers the shell drives by bare name: the compress/install backends,
+# the LocalSend LAN transfer, the clipboard-thumbnail generator. Shell scripts,
+# so they ride the shell to PATH.
 for s in "$here/scripts"/*.sh; do
   [[ -f $s ]] || continue
   install -m755 "$s" "$bindir/${s##*/}"
@@ -659,6 +659,8 @@ done
 # Depth and Parallax merged into ryostage; a checkout box that installed the old
 # helpers keeps them on PATH forever otherwise (pacman drops them on packaged boxes).
 rm -f "$bindir"/ryoku-{depth,parallax-engine}
+# The retired download engine scripts and container helper, for the same reason.
+rm -f "$bindir"/stash-{cobalt,cobalt-server,download}.sh "$bindir"/ryoku-docker
 
 # Build ryogami-live, the software-decode video-wallpaper daemon the shell drives
 # for live wallpapers. Needs wayland-scanner + a C toolchain + ffmpeg/wayland dev

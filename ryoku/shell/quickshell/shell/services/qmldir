@@ -52,7 +52,6 @@ singleton Polkit Polkit.qml
 singleton PowerProfiles PowerProfiles.qml
 singleton Session Session.qml
 singleton SessionActions SessionActions.qml
-singleton Stash Stash.qml
 singleton Sysinfo Sysinfo.qml
 singleton BluetoothDiscovery BluetoothDiscovery.qml
 singleton BtLink BtLink.qml

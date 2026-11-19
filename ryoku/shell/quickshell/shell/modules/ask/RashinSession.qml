@@ -10,20 +10,18 @@ Scope {
 
     required property RashinClient client
     property string kind: "ask"
-    property var state: SessionState.initialState(kind)
+    property var state: SessionState.initialState()
     property var pendingEvents: []
     property var sessions: []
-    property var pendingHandoff: null
     property bool pendingCancel: false
     property bool attaching: false
     property int attachSerial: 0
     property bool awaitingId: false
-    property bool creating: false
     signal changed()
     signal failed(string message)
 
     readonly property string id: String(state.id || "")
-    readonly property bool busy: state.busy === true || creating
+    readonly property bool busy: state.busy === true
 
     function copyState(source) {
         var result = {};
@@ -45,14 +43,12 @@ Scope {
     function reset() {
         if (id.length > 0 && client.ready)
             client.call("session.detach", { id: id });
-        state = SessionState.initialState(kind);
+        state = SessionState.initialState();
         pendingEvents = [];
-        pendingHandoff = null;
         pendingCancel = false;
         attaching = false;
         attachSerial++;
         awaitingId = false;
-        creating = false;
         changed();
     }
 
@@ -78,11 +74,6 @@ Scope {
         if (pendingCancel) {
             pendingCancel = false;
             cancel();
-        }
-        if (pendingHandoff) {
-            const callback = pendingHandoff;
-            pendingHandoff = null;
-            handoff(callback);
         }
     }
 
@@ -144,19 +135,12 @@ Scope {
         if (root.id.length > 0 && root.id !== nextId)
             client.call("session.detach", { id: root.id });
         const serial = ++attachSerial;
-        var fresh = SessionState.initialState(kind);
+        var fresh = SessionState.initialState();
         fresh.id = nextId;
         state = fresh;
         pendingEvents = [];
         attaching = true;
         attachPage(nextId, 0, serial, ({}), callback);
-    }
-
-    function loadLatest() {
-        list(1, function(rows) {
-            if (!root.creating && root.id.length === 0 && rows.length > 0)
-                root.attach(rows[0].id);
-        });
     }
 
     function ask(question, imagePaths) {
@@ -166,7 +150,7 @@ Scope {
         if (id.length > 0)
             client.call("session.detach", { id: id });
         pendingEvents = [];
-        var fresh = SessionState.initialState("ask");
+        var fresh = SessionState.initialState();
         fresh.phase = "working";
         fresh.busy = true;
         fresh.question = text;
@@ -186,62 +170,12 @@ Scope {
         });
     }
 
-    function prompt(text) {
-        const value = String(text || "").trim();
-        if (value.length === 0 || busy)
-            return;
-        if (id.length === 0) {
-            creating = true;
-            client.call("session.new", { kind: "agent", origin: "bar" }, function(info, error) {
-                if (error) {
-                    root.creating = false;
-                    root.fail(String(error.message || ""));
-                    return;
-                }
-                root.creating = false;
-                root.attach(info.id, function() { root.prompt(value); });
-            });
-            return;
-        }
-        client.call("session.prompt", { id: id, text: value }, function(result, error) {
-            if (error)
-                root.fail(String(error.message || ""));
-        });
-    }
-
     function cancel() {
-        pendingHandoff = null;
         if (id.length === 0) {
             pendingCancel = true;
             return;
         }
         client.call("session.cancel", { id: id });
-    }
-
-    function answerPermission(request, option) {
-        if (id.length > 0)
-            client.call("session.permission", { id: id, request: request, option: option });
-    }
-
-    function setModel(model) {
-        if (id.length > 0)
-            client.call("session.set_model", { id: id, model: model });
-    }
-
-    function handoff(callback) {
-        pendingCancel = false;
-        if (id.length === 0) {
-            pendingHandoff = callback;
-            return;
-        }
-        client.call("session.handoff", { id: id, model: String(state.model || ""), run: true }, function(info, error) {
-            if (error) {
-                root.fail(String(error.message || ""));
-                return;
-            }
-            if (callback)
-                callback(info);
-        });
     }
 
     Connections {

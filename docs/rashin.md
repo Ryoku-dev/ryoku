@@ -39,7 +39,7 @@ This page is the contract the implementation follows. The wire reference is
 | Daemon | `rashind` | Go, no cgo | Native engine, model gateway, sessions, index, teams |
 | Command line | `rashin` | Go, no cgo | Lifecycle, Ask, index, local models, methods |
 | App | `rashin-app` | Go + Gio, Lithic | Ask, Agents, Index, Teams, Learning, Settings |
-| Bar | Alt+Space | Quickshell QML | Quick Ask and Agent turns, Stash tools, Web search |
+| Bar | Alt+Space | Quickshell QML | Quick Ask; web search and downloads work without Rashin |
 | Settings page | Ryoku Settings > Apps > Rashin | Quickshell QML | On/off switch, status, open the app |
 | Usage collectors | `ryoku-ai-usage` and friends | sh | Coding-agent usage for the bar's usage pill |
 
@@ -94,8 +94,8 @@ Settings page with Ryoku Settings (`ryoku/hub/quickshell/pages/Rashin.qml`).
 
 | State | What exists | Alt+Space | Super+Alt+Space |
 |---|---|---|---|
-| Not installed | nothing | unbound | unbound |
-| Off | package files only | bar opens and says Rashin is off | app opens and says Rashin is off |
+| Not installed | nothing | bar opens; Quick Ask points at Settings | unbound |
+| Off | package files only | bar opens; Quick Ask says Rashin is off | app opens and says Rashin is off |
 | On, idle | socket unit (systemd) | bar | app |
 | On, working | `rashind` and an on-demand tool host or local model server when needed | bar | app |
 
@@ -1108,22 +1108,23 @@ model without tool support is visible but cannot be selected for an Agent.
 The app retains an event reducer, a single-instance window, keyboard
 navigation, its demo daemon and offscreen render routes. Only a visible
 window watches the desktop; an idle one draws no frames. The shell's
-Alt+Space bar remains a thin socket client for Ask and recent Agent sessions.
+Alt+Space bar remains a thin socket client for Quick Ask.
 
 ## The bar
 
-Alt+Space opens the bar (`ryoku/shell/quickshell/shell/modules/ask/`). Its QML
-is created when it opens and released 15 s after it closes. It talks to the
-daemon over the socket (Quickshell `Socket`, newline-delimited JSON), connecting
-when it opens and closing when it is released; when the socket is missing it
-runs `rashin ensure` once and retries.
+Alt+Space opens the Rashin bar (`ryoku/shell/quickshell/shell/modules/ask/`;
+the whole bar is described in `docs/sidebars.md`). Its QML is created when it
+opens and released 15 s after it closes. Quick Ask talks to the daemon over the
+socket (Quickshell `Socket`, newline-delimited JSON), connecting when it opens
+and closing when it is released; when the socket is missing it runs
+`rashin ensure` once and retries.
 
-- **Ask**: one-shot asks with streamed text, answer actions, recent asks,
-  cancel, Move to Agent.
-- **Agent**: the most recent Agent session (or a new one), prompts,
-  permissions, model choice, Open in Rashin.
-- **Tools** (Stash) and **Web** are shell features and work whether Rashin is
-  on or not.
+- **Quick Ask**: one-shot asks with streamed text, answer actions, recent asks,
+  cancel, Pin and Open in Rashin. The bar has no Agent mode; agent work lives in
+  the app.
+- **Web** and **Downloads** are shell features (`ryoseek` and `ryoget`) and work
+  whether Rashin is on, off or not installed, so the Alt+Space shortcut no longer
+  depends on `rashind`.
 - **Open in Rashin** runs `rashin open --session <id>`, which asks a running app
   to switch (`ui.open`) and raises it, or launches it. `rashin open --project
   <id or path> --view graph|changes|tasks|activity|overview [--worktree

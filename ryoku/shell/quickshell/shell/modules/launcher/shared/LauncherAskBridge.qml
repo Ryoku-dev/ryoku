@@ -55,10 +55,6 @@ Scope {
         askSession.cancel();
     }
 
-    function handoff(callback) {
-        askSession.handoff(callback);
-    }
-
     Connections {
         target: socketClient
         function onBecameReady() { root.flush(); }
