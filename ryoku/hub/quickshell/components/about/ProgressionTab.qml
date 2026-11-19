@@ -9,7 +9,7 @@ Column {
     spacing: LithicTokens.space.s4
     property int pageIndex: 0
     readonly property var group: Progression.groups[Math.max(0, Math.min(pageIndex, Progression.groups.length - 1))]
-    readonly property var entries: Progression.achievements.filter(a => a.category === group.id)
+    readonly property var entries: Progression.visibleBadges(group.id)
     readonly property int earnedCount: entries.filter(a => Progression.data.earned[a.id] === true).length
     readonly property int claimableCount: entries.filter(a =>
         Progression.data.earned[a.id] === true && Progression.data.claimed[a.id] !== true).length
@@ -31,7 +31,7 @@ Column {
             }
             Label {
                 text: I18n.tr("%1 of %2 achievements completed").replace("%1",
-                    Object.keys(Progression.data.earned || {}).length).replace("%2", Progression.achievements.length)
+                    Object.keys(Progression.data.earned || {}).length).replace("%2", Progression.achievements.filter(a => !a.secret || Progression.data.earned[a.id]).length)
                 typeRole: "detail"
                 inkRole: "fg2"
             }
@@ -133,6 +133,33 @@ Column {
         }
     }
 
+    Item {
+        width: parent.width
+        height: root.group.id === "Classified" ? 112 : 0
+        visible: root.group.id === "Classified"
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 9
+            Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Progression.discoveredSecrets > 0 ?
+                    I18n.tr("CLASSIFIED ARCHIVE · %1 SIGNALS DECODED").replace("%1", Progression.discoveredSecrets) :
+                    I18n.tr("THE ARCHIVE DOES NOT ANSWER EVERY QUESTION")
+                typeRole: "monoSm"
+                inkRole: "fg2"
+            }
+            Plaque {
+                anchors.horizontalCenter: parent.horizontalCenter
+                small: true
+                kind: "quiet"
+                text: "力 ◇ 力"
+                accessibleName: I18n.tr("Listen for the archive signal")
+                onClicked: Progression.recordSignal()
+            }
+        }
+    }
+
     Grid {
         id: album
         width: parent.width
@@ -148,11 +175,11 @@ Column {
                 readonly property bool complete: Progression.data.earned[modelData.id] === true
                 readonly property bool claimed: Progression.data.claimed[modelData.id] === true
                 width: (album.width - album.columnSpacing) / 2
-                height: 188
+                height: 220
                 radius: 6
                 color: Lithic.mix(Lithic.ground, Lithic.fg, claimed ? 0.052 : 0.025)
                 border.width: 1
-                border.color: complete ? Lithic.mix(Lithic.gold, Lithic.ground, 0.25) : Lithic.mix(Lithic.fg, Lithic.ground, 0.85)
+                border.color: complete ? Progression.rarityColours[modelData.rarity] : Lithic.mix(Lithic.fg, Lithic.ground, 0.85)
 
                 Column {
                     anchors.fill: parent
@@ -161,29 +188,29 @@ Column {
                     Row {
                         width: parent.width
                         spacing: 12
-                        Rectangle {
-                            width: 54
-                            height: 54
-                            radius: 6
-                            color: achievementTile.complete ? Lithic.mix(Lithic.gold, Lithic.ground, 0.76) :
-                                                               Lithic.mix(Lithic.fg, Lithic.ground, 0.9)
-                            border.width: 1
-                            border.color: achievementTile.complete ? Lithic.gold : Lithic.fg3
-                            Glyph {
-                                anchors.centerIn: parent
-                                name: achievementTile.modelData.glyph
-                                size: 30
-                                ink: achievementTile.complete ? Lithic.gold : Lithic.fg3
-                            }
+                        ArchiveSeal {
+                            width: 104
+                            height: 104
+                            title: achievementTile.modelData.title
+                            sigil: achievementTile.modelData.sigil
+                            rarity: achievementTile.modelData.rarity
+                            category: achievementTile.modelData.category
+                            locked: !achievementTile.complete
+                            animateFoil: achievementTile.modelData.rarity === "holographic"
                         }
                         Column {
-                            width: parent.width - 66
+                            width: parent.width - 116
                             spacing: 4
                             Label {
                                 width: parent.width
                                 text: I18n.tr(achievementTile.modelData.title)
                                 typeRole: "sentence"
                                 elide: Text.ElideRight
+                            }
+                            Label {
+                                text: achievementTile.modelData.rarity.toUpperCase()
+                                typeRole: "monoSm"
+                                ink: Progression.rarityColours[achievementTile.modelData.rarity]
                             }
                             Label {
                                 text: achievementTile.claimed ? I18n.tr("CLAIMED") :

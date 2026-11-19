@@ -10,8 +10,17 @@ Open **Ryoku Settings > Accounts > Achievements & badges**.
 
 ### Achievement Book
 
-- Horizontally organised categories: Ryoku, Profile and Card Studio.
+- Horizontally organised categories: Ryoku, Profile, Card Studio, Collection,
+  Mastery and Classified.
 - Each category has its own folio of achievements and reward seals.
+- 41 achievements use seven colour-coded rarities: common, uncommon, rare,
+  epic, legendary, mythic and holographic. Each QML-drawn seal uses engraved
+  radial lettering, concentric rims, a category sigil and technical ticks.
+- Four classified achievements stay absent from the standard album until
+  discovered. The final seal remains completely hidden until **all other**
+  achievements, including other classified achievements, are completed.
+- Holographic rewards get a motion-sensitive, iridescent finish. The renderer
+  is procedural QML, not a generic PNG icon pack.
 - Completion unlocks a **Claim** action. It does not immediately issue credits.
 - Claiming issues one-time credits and a collectible badge sticker.
 - Previously earned v1/v2 achievements are migrated as *claimed*, preserving
@@ -29,6 +38,9 @@ The Profile Workshop is on a second tab in the Achievements area.
 - Stickers may be earned badges or decorative shop items. Up to 24 may be placed
   at once, with independently saved position, rotation and size.
 - Home's **Decorate** control enables sticker drag mode. Editing is off by default.
+- Home's identity text and controls explicitly sit above the sticker layer,
+  regardless of sticker placement or user rotation. The featured badge also
+  uses the archive seal renderer.
 - Fonts are separate unlocks, individually assigned to display name, hostname
   and tagline. The font choices use installed font families and safely fall
   back when a family is unavailable.
@@ -38,23 +50,30 @@ The Profile Workshop is on a second tab in the Achievements area.
 
 ## One-time local economy
 
-| Achievement group | Maximum credits |
-| --- | ---: |
-| Ryoku exploration | 360 |
-| Profile customisation | 320 |
-| Existing Card Studio milestones | 600 |
-| **Total** | **1280** |
+| Achievement group | Count | Maximum credits |
+| --- | ---: | ---: |
+| Ryoku | 7 | 810 |
+| Profile | 10 | 1240 |
+| Card Studio | 9 | 1010 |
+| Collection | 10 | 1250 |
+| Mastery | 1 | 230 |
+| Classified | 4 | 1100 |
+| **Total** | **41** | **5640** |
 
-| Shop category | Total cost |
-| --- | ---: |
-| Original card palettes | 600 |
-| Decorative stickers | 245 |
-| Canvas backgrounds | 210 |
-| Fonts | 175 |
-| **Total** | **1230** |
+| Shop category | Count | Total cost |
+| --- | ---: | ---: |
+| Card palettes | 3 | 600 |
+| Engraved sticker relics | 10 | 985 |
+| Canvas backgrounds | 7 | 960 |
+| Fonts | 6 | 590 |
+| **Total** | **26** | **3135** |
 
-The full launch catalogue can be collected from finite, one-time achievements
-without repeating trivial actions. Collecting everything leaves 50 credits.
+Completing and claiming all achievements provides enough credits to collect
+every launch cosmetic, leaving a surplus of 2505 credits for future catalogues.
+This is a long-term maximum, not an up-front grant. Certain purchases and
+creative acts are required for later achievements and secret combinations.
+Each reward and purchase can occur only once. No daily farming or repeatable
+currency is available.
 
 This is intentionally a local, user-owned reward system. Editing progress data
 is possible and expected for a user's own machine. Neither coins nor badges
@@ -68,6 +87,7 @@ Version 3 state resides at
 (or `~/.local/share/ryoku/progression.json`).
 
 The model stores:
+- an internal secret-signal interaction counter
 - earned, claimed and visited milestones
 - purchased cosmetics and the active card palette
 - one featured badge
@@ -114,6 +134,6 @@ profile and social inventory also need authentication and an authoritative
 server-side entitlement ledger. These systems are **not implemented here**.
 
 The profile canvas currently has curated backgrounds, user-picked local
-pictures, glyph stickers, fonts and editable card words. Remote/cloud sharing,
+pictures, procedural seal stickers, fonts and editable card words. Remote/cloud sharing,
 custom externally sourced sticker packs, rich animation packs and a global
 theme marketplace are future work. Keep those modular and optional.
