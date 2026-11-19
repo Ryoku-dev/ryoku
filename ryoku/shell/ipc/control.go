@@ -14,8 +14,10 @@ import (
 // verbs. Each mirrors one reference control method (menu <name> / close-all,
 // per-edge bar toggle and the toggle/reveal/hide-all trio, audio
 // volume-up/down/mute, brightness up/down, lock check, settings open/close).
-// The volume and brightness steps are the reference literals: 5% of the [0,1]
-// output-volume range and 5 of the [0,100] brightness range.
+// The volume and brightness steps are Ryoku Settings choices in shell.json
+// (audio.step and display.brightnessStep). The media-key helpers own both the
+// grid and the reading, so the bar's wheel shells out to the same helper the key
+// runs instead of stepping the sink on its own: one press, one amount.
 
 // barEdges are the four frame edges plus "all". The reference offered per-edge
 // toggles and a toggle/reveal/hide-all trio whose -x flag excluded bars marked
@@ -36,31 +38,28 @@ func parseBarEdge(args []string) (edge, action string, ok bool) {
 	return args[0], args[1], true
 }
 
-// audioArgv maps an audio subcommand to the wpctl invocation that carries it
-// out: up/down step 5% of the sink volume, up clamps at 1.0 (100%) to match the
-// reference's [0,1] clamp, and mute toggles. These match the media-key binds, so
-// the keybind and the IPC verb drive one behaviour.
-func audioArgv(sub string) ([]string, bool) {
+// audioCmd maps an audio subcommand to the invocation that carries it out. The
+// volume keys and the bar's wheel have to land on the same level, so up/down go
+// through ryoku-volume, which owns the grid, the audio.step setting and the
+// boost cap; mute toggles the sink itself.
+func audioCmd(sub string) (string, []string, bool) {
 	switch sub {
-	case "up":
-		return []string{"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"}, true
-	case "down":
-		return []string{"set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"}, true
+	case "up", "down":
+		return "ryoku-volume", []string{sub}, true
 	case "mute":
-		return []string{"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}, true
+		return "wpctl", []string{"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}, true
 	}
-	return nil, false
+	return "", nil, false
 }
 
-// brightnessArgv maps a brightness subcommand to a ryoku-cmd-brightness step.
-// The reference stepped brightness by 5 on a 0..100 scale (5%); the helper
-// drives both the laptop backlight and any DDC/CI external monitor at once.
+// brightnessArgv maps a brightness subcommand to the shared helper's word. The
+// helper reads display.brightnessStep itself and drives both the laptop
+// backlight and any DDC/CI external monitor at once, so an explicit percentage
+// is left to scripts.
 func brightnessArgv(sub string) ([]string, bool) {
 	switch sub {
-	case "up":
-		return []string{"+5"}, true
-	case "down":
-		return []string{"-5"}, true
+	case "up", "down":
+		return []string{sub}, true
 	}
 	return nil, false
 }
@@ -69,14 +68,14 @@ func brightnessArgv(sub string) ([]string, bool) {
 // moves, so the verb only performs the change; that OSD flash is the reference's
 // documented side effect.
 func (d *daemon) audio(sub string) string {
-	argv, ok := audioArgv(sub)
+	name, argv, ok := audioCmd(sub)
 	if !ok {
 		return "err audio: expected up, down, or mute"
 	}
 	// The output cue fires for every up/down/mute, even when the sink change
 	// itself fails; input volume/mute have no verb here and stay silent.
 	d.playSound(soundVolumeChange)
-	if err := exec.Command("wpctl", argv...).Run(); err != nil {
+	if err := exec.Command(name, argv...).Run(); err != nil {
 		return "err audio: " + err.Error()
 	}
 	return "ok"

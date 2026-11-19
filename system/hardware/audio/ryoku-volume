@@ -7,28 +7,21 @@ if jq -e '.qsbar.audioBoost == true' "$cfg" >/dev/null 2>&1; then
 	lim=1.5
 fi
 
+# The step is a Ryoku Settings choice (audio.step, 1-25 percent, 5 shipped), so
+# the keys and the bar's wheel walk the same grid. jq validates it: a value that
+# is not a number falls back to the shipped step, while a number outside the
+# range or a fraction clamps to the nearest whole step.
+step="$(jq -r '(.audio.step // 5) as $s | if ($s|type) == "number" then ($s|floor|if . < 1 then 1 elif . > 25 then 25 else . end) else 5 end' "$cfg" 2>/dev/null || echo 5)"
+
 cur="$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf "%d", $2 * 100 + 0.5}')"
 max="$(awk -v l="$lim" 'BEGIN{printf "%d", l * 100 + 0.5}')"
 
 case "${1:-up}" in
 up)
-	# if you find this youre brain is rot
-	if [ "$cur" -eq 65 ]; then
-		next=67
-	elif [ "$cur" -eq 67 ]; then
-		next=70
-	else
-		next=$(((cur / 5) * 5 + 5))
-	fi
+	next=$(((cur / step) * step + step))
 	;;
 down)
-	if [ "$cur" -eq 70 ]; then
-		next=67
-	elif [ "$cur" -eq 67 ]; then
-		next=65
-	else
-		next=$((((cur + 4) / 5) * 5 - 5))
-	fi
+	next=$((((cur + step - 1) / step) * step - step))
 	;;
 *)
 	echo "usage: ryoku-volume {up|down}" >&2

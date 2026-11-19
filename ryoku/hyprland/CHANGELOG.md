@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+- **The brightness keys step by the Ryoku Settings value.** `modules/binds.lua`
+  passes `ryoku-cmd-brightness up`/`down` instead of `+5`/`-5`, so the size
+  lives in `display.brightnessStep` and the generated config never has to be
+  rewritten when it changes.
+
 ### Added
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
   layout of one output's workspaces and remembers it. While the display link is
