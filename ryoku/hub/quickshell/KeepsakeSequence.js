@@ -3,7 +3,7 @@ var CODE = "WWSSADAD";
 var GAP_MS = 2400;
 
 function step(index, lastAt, key, at, modified, repeated) {
-    if (modified || repeated || CODE.indexOf(key) < 0)
+    if (modified || repeated || !key || CODE.indexOf(key) < 0)
         return { index: 0, at: 0, complete: false };
 
     var current = (lastAt === 0 || at - lastAt > GAP_MS || at < lastAt) ? 0 : index;

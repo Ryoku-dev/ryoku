@@ -465,6 +465,8 @@ Item {
                 readonly property string customImage: Progression.canvas.image || ""
                 readonly property var collection: Progression.cosmetics.find(c => c.id === chosen)
                 readonly property string galleryArt: collection && collection.art ? collection.art : ""
+                readonly property color surfaceAccent: chosen === "bg-ember" ||
+                    chosen === "bg-archive" ? Lithic.gold : Lithic.lapis
                 visible: chosen !== "" || customImage !== ""
                 Image {
                     anchors.fill: parent
@@ -480,12 +482,7 @@ Item {
                     anchors.fill: parent
                     visible: profileBackground.customImage === "" &&
                         profileBackground.chosen !== Progression.completionScene.id
-                    color: profileBackground.chosen === "bg-blueprint" ? "#132335" :
-                           profileBackground.chosen === "bg-ember" ? "#271a19" :
-                           profileBackground.chosen === "bg-archive" ? "#27231d" :
-                           profileBackground.chosen === "bg-obsidian" ? "#11171b" :
-                           profileBackground.chosen === "bg-sutra" ? "#1f2225" :
-                           profileBackground.chosen === "bg-signal" ? "#121b22" : "#1b1d23"
+                    color: Lithic.mix(Lithic.ground, profileBackground.surfaceAccent, 0.09)
                 }
                 BlackPrism {
                     anchors.fill: parent
@@ -514,12 +511,7 @@ Item {
                         x: index * 62
                         width: 1
                         height: profileBackground.height
-                        color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
-                               profileBackground.chosen === "bg-ember" ? "#a26e56" :
-                               profileBackground.chosen === "bg-archive" ? "#b5a78d" :
-                               profileBackground.chosen === "bg-obsidian" ? "#738590" :
-                               profileBackground.chosen === "bg-sutra" ? "#9caba6" :
-                               profileBackground.chosen === "bg-signal" ? "#6497c0" : "#777e8b"
+                        color: Lithic.mix(Lithic.fg3, profileBackground.surfaceAccent, 0.3)
                         opacity: 0.16
                     }
                 }
@@ -531,12 +523,7 @@ Item {
                         y: index * 62
                         width: profileBackground.width
                         height: 1
-                        color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
-                               profileBackground.chosen === "bg-ember" ? "#a26e56" :
-                               profileBackground.chosen === "bg-archive" ? "#b5a78d" :
-                               profileBackground.chosen === "bg-obsidian" ? "#738590" :
-                               profileBackground.chosen === "bg-sutra" ? "#9caba6" :
-                               profileBackground.chosen === "bg-signal" ? "#6497c0" : "#777e8b"
+                        color: Lithic.mix(Lithic.fg3, profileBackground.surfaceAccent, 0.3)
                         opacity: 0.16
                     }
                 }

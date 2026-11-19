@@ -98,15 +98,15 @@ FocusScope {
             Label {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: reveal.badge && reveal.badge.category === "Classified" ?
-                    "CLASSIFIED / DECRYPTED" :
+                    I18n.tr("CLASSIFIED / DECRYPTED") :
                     reveal.badge && reveal.badge.category === "Mastery" ?
-                    "MASTERY / ACHIEVED" : "THE ARCHIVE REMEMBERS"
+                    I18n.tr("MASTERY / ACHIEVED") : I18n.tr("THE ARCHIVE REMEMBERS")
                 typeRole: "mono"
                 ink: reveal.metal
             }
             Label {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "ACHIEVEMENT UNLOCKED"
+                text: I18n.tr("ACHIEVEMENT UNLOCKED")
                 typeRole: "monoSm"
                 inkRole: "fg2"
             }
@@ -146,7 +146,7 @@ FocusScope {
             }
             Label {
                 width: parent.width
-                text: "Collected. Your badge is now available to feature or place on your profile."
+                text: I18n.tr("Collected. Your badge is now available to feature or place on your profile.")
                 typeRole: "detail"
                 inkRole: "fg2"
                 wrapMode: Text.Wrap
@@ -157,7 +157,7 @@ FocusScope {
             Plaque {
                 anchors.horizontalCenter: parent.horizontalCenter
                 kind: "gold"
-                text: "Return to archive"
+                text: I18n.tr("Return to archive")
                 onClicked: reveal.dismiss()
             }
         }

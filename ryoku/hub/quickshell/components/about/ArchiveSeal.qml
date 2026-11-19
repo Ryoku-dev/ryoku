@@ -25,8 +25,8 @@ Item {
         anchors.fill: parent
         source: seal.visible && seal.badgeId !== "" ?
             Qt.resolvedUrl("../../assets/badges/" + seal.badgeId + ".svg") : ""
-        sourceSize.width: Math.max(150, Math.round(width * 2))
-        sourceSize.height: Math.max(150, Math.round(height * 2))
+        sourceSize.width: Math.min(1024, Math.max(1, Math.round(width * 2)))
+        sourceSize.height: Math.min(1024, Math.max(1, Math.round(height * 2)))
         fillMode: Image.PreserveAspectFit
         smooth: true
         asynchronous: true

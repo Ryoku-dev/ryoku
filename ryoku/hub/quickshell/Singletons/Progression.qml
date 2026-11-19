@@ -15,6 +15,7 @@ Singleton {
     property bool directoryReady: false
     property string error: ""
     property var pending: []
+    property var pendingVisits: []
     property string pendingSessionAt: ""
     property bool pendingKeepsake: false
     property bool editMode: false
@@ -66,11 +67,15 @@ Singleton {
             root.ready = root.directoryReady;
             root.flushPending();
         }
-        onLoadFailed: {
-            if (root.directoryReady && !root.ready) {
+        onLoadFailed: (loadError) => {
+            if (!root.directoryReady)
+                return;
+            if (!root.ready && loadError === FileViewError.FileNotFound) {
                 root.data = Model.clean({});
                 root.ready = true;
                 root.flushPending();
+            } else {
+                root.error = "Could not load progression data. The existing save has not been changed.";
             }
         }
     }
@@ -82,6 +87,10 @@ Singleton {
         root.pending = [];
         for (var i = 0; i < queued.length; i++)
             root.award(queued[i]);
+        var visits = root.pendingVisits;
+        root.pendingVisits = [];
+        for (var j = 0; j < visits.length; j++)
+            root.visitedPage(visits[j].page, visits[j].category, visits[j].at);
         if (root.pendingSessionAt !== "") {
             var at = root.pendingSessionAt;
             root.pendingSessionAt = "";
@@ -158,10 +167,16 @@ Singleton {
             root.save(result.state);
     }
 
-    function visitedPage(page, category) {
-        if (!root.ready)
+    function visitedPage(page, category, at) {
+        var when = at || new Date().toISOString();
+        if (!root.ready) {
+            root.pendingVisits = root.pendingVisits.concat([
+                { page: page, category: category, at: when }
+            ]);
             return;
-        var result = Model.visit(root.data, page, category);
+        }
+        if (root.error !== "") return;
+        var result = Model.visit(root.data, page, category, when);
         if (result.changed)
             root.save(result.state);
     }

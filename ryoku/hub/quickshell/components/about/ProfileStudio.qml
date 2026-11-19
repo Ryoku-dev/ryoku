@@ -123,6 +123,8 @@ Column {
                     Image {
                         anchors.fill: parent
                         source: Qt.resolvedUrl("../../assets/" + backdrop.modelData.art)
+                        sourceSize.width: Math.max(1, Math.round(width * 2))
+                        sourceSize.height: Math.max(1, Math.round(height * 2))
                         asynchronous: true
                         fillMode: Image.PreserveAspectCrop
                         smooth: true
@@ -324,8 +326,8 @@ Column {
                         small: true
                         kind: stickerTile.owned ? "gold" : "line"
                         text: stickerTile.owned ? I18n.tr("Place") : I18n.tr("Unlock")
-                        enabled: Progression.canvas.stickers.length < 24 &&
-                            (stickerTile.owned || Progression.balance >= stickerTile.modelData.price)
+                        enabled: stickerTile.owned ? Progression.canvas.stickers.length < 24 :
+                            Progression.balance >= stickerTile.modelData.price
                         onClicked: {
                             if (stickerTile.owned) Progression.addSticker(stickerTile.modelData.id);
                             else Progression.purchase(stickerTile.modelData.id);

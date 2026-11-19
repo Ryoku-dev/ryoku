@@ -84,7 +84,7 @@ function gpuPerformance(name) {
         return gtx >= 900 ? 6 : 3;
     }
 
-    m = /\brx\s*(\d{3,4})\b/.exec(s);
+    m = /\brx\s*(\d{3,4})(?:m)?\b/.exec(s);
     if (m) {
         var rx = Number(m[1]);
         var base = 0;
