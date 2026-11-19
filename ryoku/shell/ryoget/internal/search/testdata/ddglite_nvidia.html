@@ -1,0 +1,723 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=1;">
+  <meta name="referrer" content="origin">
+  <meta name="HandheldFriendly" content="true" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>nvidia wayland flicker at DuckDuckGo</title>
+  <link title="DuckDuckGo (Lite)" type="application/opensearchdescription+xml" rel="search" href="//duckduckgo.com/opensearch_lite_v2.xml">
+  <link href="//duckduckgo.com/favicon.ico" rel="shortcut icon" />
+  <link rel="icon" href="//duckduckgo.com/favicon.ico" type="image/x-icon" />
+  <link id="icon60" rel="apple-touch-icon" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_60x60.png?v=2"/>
+  <link id="icon76" rel="apple-touch-icon" sizes="76x76" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_76x76.png?v=2"/>
+  <link id="icon120" rel="apple-touch-icon" sizes="120x120" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_120x120.png?v=2"/>
+  <link id="icon152" rel="apple-touch-icon" sizes="152x152" href="//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_152x152.png?v=2"/>
+  <link rel="image_src" href="//duckduckgo.com/assets/icons/meta/DDG-icon_256x256.png">
+  <link rel="stylesheet" media="handheld, all" href="//duckduckgo.com/dist/lr.54c8db90cecb71c0a540.css" type="text/css"/>
+</head>
+
+<body>
+  <p class='extra'>&nbsp;</p>
+  <div class="header">
+    DuckDuckGo
+  </div>
+  <p class='extra'>&nbsp;</p>
+
+  <form action="/lite/" method="post">
+      <input class='query' type="text" size="40" name="q" value="nvidia wayland flicker">
+      <input class='submit' type="submit" value="Search">
+      
+      
+      
+      
+
+      <div class="filters">
+        <select class="submit" name="kl">
+          
+            <option value="" >All Regions</option>
+          
+            <option value="ar-es" >Argentina</option>
+          
+            <option value="au-en" >Australia</option>
+          
+            <option value="at-de" >Austria</option>
+          
+            <option value="be-fr" >Belgium (fr)</option>
+          
+            <option value="be-nl" >Belgium (nl)</option>
+          
+            <option value="br-pt" >Brazil</option>
+          
+            <option value="bg-bg" >Bulgaria</option>
+          
+            <option value="ca-en" >Canada (en)</option>
+          
+            <option value="ca-fr" >Canada (fr)</option>
+          
+            <option value="ct-ca" >Catalonia</option>
+          
+            <option value="cl-es" >Chile</option>
+          
+            <option value="cn-zh" >China</option>
+          
+            <option value="co-es" >Colombia</option>
+          
+            <option value="hr-hr" >Croatia</option>
+          
+            <option value="cz-cs" >Czech Republic</option>
+          
+            <option value="dk-da" >Denmark</option>
+          
+            <option value="ee-et" >Estonia</option>
+          
+            <option value="fi-fi" >Finland</option>
+          
+            <option value="fr-fr" >France</option>
+          
+            <option value="de-de" >Germany</option>
+          
+            <option value="gr-el" >Greece</option>
+          
+            <option value="hk-tzh" >Hong Kong</option>
+          
+            <option value="hu-hu" >Hungary</option>
+          
+            <option value="is-is" >Iceland</option>
+          
+            <option value="in-en" >India (en)</option>
+          
+            <option value="id-en" >Indonesia (en)</option>
+          
+            <option value="ie-en" >Ireland</option>
+          
+            <option value="il-en" >Israel (en)</option>
+          
+            <option value="it-it" >Italy</option>
+          
+            <option value="jp-jp" >Japan</option>
+          
+            <option value="kr-kr" >Korea</option>
+          
+            <option value="lv-lv" >Latvia</option>
+          
+            <option value="lt-lt" >Lithuania</option>
+          
+            <option value="my-en" >Malaysia (en)</option>
+          
+            <option value="mx-es" >Mexico</option>
+          
+            <option value="nl-nl" >Netherlands</option>
+          
+            <option value="nz-en" >New Zealand</option>
+          
+            <option value="no-no" >Norway</option>
+          
+            <option value="pk-en" >Pakistan (en)</option>
+          
+            <option value="pe-es" >Peru</option>
+          
+            <option value="ph-en" >Philippines (en)</option>
+          
+            <option value="pl-pl" >Poland</option>
+          
+            <option value="pt-pt" >Portugal</option>
+          
+            <option value="ro-ro" >Romania</option>
+          
+            <option value="ru-ru" >Russia</option>
+          
+            <option value="xa-ar" >Saudi Arabia</option>
+          
+            <option value="sg-en" >Singapore</option>
+          
+            <option value="sk-sk" >Slovakia</option>
+          
+            <option value="sl-sl" >Slovenia</option>
+          
+            <option value="za-en" >South Africa</option>
+          
+            <option value="es-ca" >Spain (ca)</option>
+          
+            <option value="es-es" >Spain (es)</option>
+          
+            <option value="se-sv" >Sweden</option>
+          
+            <option value="ch-de" >Switzerland (de)</option>
+          
+            <option value="ch-fr" >Switzerland (fr)</option>
+          
+            <option value="tw-tzh" >Taiwan</option>
+          
+            <option value="th-en" >Thailand (en)</option>
+          
+            <option value="tr-tr" >Turkey</option>
+          
+            <option value="us-en" >US (English)</option>
+          
+            <option value="us-es" >US (Spanish)</option>
+          
+            <option value="ua-uk" >Ukraine</option>
+          
+            <option value="uk-en" >United Kingdom</option>
+          
+            <option value="vn-en" >Vietnam (en)</option>
+          
+        </select>
+
+        <select class="submit" name="df">
+          
+            <option value="" selected>Any Time</option>
+          
+            <option value="d" >Past Day</option>
+          
+            <option value="w" >Past Week</option>
+          
+            <option value="m" >Past Month</option>
+          
+            <option value="y" >Past Year</option>
+          
+        </select>
+      </div>
+  </form>
+
+  
+    <p class="extra">&nbsp;</p>
+    <table border="0">
+      <tr>
+        <td>
+          
+        </td>
+        <td>
+          
+            <!-- Next Page Button Sub-template -->
+<form class="next_form" action="/lite/" method="post">
+    <input type="submit" class='navbutton' value="Next Page &gt;">
+    <input type="hidden" name="q" value="nvidia wayland flicker">
+    <input type="hidden" name="s" value="10">
+    <input type="hidden" name="nextParams" value="">
+    <input type="hidden" name="v" value="l">
+    <input type="hidden" name="o" value="json">
+    <input type="hidden" name="dc" value="11">
+    <input type="hidden" name="api" value="d.js">
+    <input type="hidden" name="vqd" value="4-8867961831665812604594097865729652135">
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    
+    
+    
+      <input name="kl" value="wt-wt" type="hidden">
+    
+    
+    
+    
+</form>
+          
+        </td>
+      </tr>
+    </table>
+  
+
+  
+
+  <p class='extra'>&nbsp;</p>
+
+  <table border="0">
+    
+  </table>
+
+  <table border="0">
+    
+      
+      <!-- Web results are present -->
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    1.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fforums.developer.nvidia.com%2Ft%2Fopengl%2Dxwayland%2Dinsane%2Dflickering%2F283087&amp;rut=21a1caae8a9c78dcbcf2f94e87f9e400db601473ae24904fd506b485afe024b2" class='result-link'>OpenGL/Xwayland insane flickering - NVIDIA Developer Forums</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    On driver 550.40.07 (this also happens on 545) anything using OpenGL through xwayland <b>flickers</b> like crazy. VRR on and off. This does not happen if the zink driver is forced or if the app is native <b>wayland</b>. Currently using an rtx 3080 on Arch linux. Examples of games affected by this bug are Minecraft, Terraria and factorio.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>forums.developer.nvidia.com/t/opengl-xwayland-insane-flickering/283087</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    2.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbbs.archlinux.org%2Fviewtopic.php%3Fid%3D294506&amp;rut=38a9378019e314f4e37af16ff07f5ca17c9cc34d67b4bb00a491a2a2aa9eb088" class='result-link'>[Solved] Plasma 6 (Wayland + New Mesa) causes flickering in many apps ...</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    After updating to Plasma 6 (switching to <b>Wayland</b>) I get a lot of visual bugs (mostly flickering) in many apps that use hardware acceleration. Thankfully, disabling hardware acceleration makes the applications workable, else it&#x27;s almost impossible to use them since these visual bugs make the applications unusable.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>bbs.archlinux.org/viewtopic.php?id=294506</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    3.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fforums.developer.nvidia.com%2Ft%2Fflickering%2Dstuttering%2Dgraphical%2Dartifacting%2Dand%2Dmore%2Don%2Dwayland%2Dgeforce%2Dgtx%2D1650%2Dsuper%2Ddriver%2Dversion%2D545%2D29%2D02%2D2%2Ddkms%2F273748&amp;rut=de26136c1d6ad27e1d91ccf7ff7f61625e6f9bfa5315ec56c79d813b252025e1" class='result-link'>Flickering, stuttering, graphical artifacting, and more on Wayland ...</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    <b>NVIDIA</b> doesn&#x27;t implement implicit sync as the others vendors do. Those issues are caused by this. While they (<b>NVIDIA</b>) can&#x27;t land explicit sync on ALL projects (<b>Wayland</b> protocol, mesa, compositors, etc..), that is the state of things. Either downgrade your driver to 535 series or switch to xorg or start looking for heavily patched xwayland, <b>wayland</b> protocols and possibly mutter See more at ...
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>forums.developer.nvidia.com/t/flickering-stuttering-graphical-artifacting-and-more-on-wayland-geforce-gtx-1650-super-driver-version-545-29-02-2-dkms/273748</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    4.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Feglug.org%2Ffixing%2Dnvidia%2Dscreen%2Dtearing%2Dand%2Dflickering%2Don%2Dwayland%2Dwith%2Drecent%2Ddrivers%2F&amp;rut=fa64034ad3790f7ce1922152d82b5c5fbede07b5b68b1e4c98f9d161bb301f6f" class='result-link'>How to Fix NVIDIA Screen Tearing on Wayland (2026)? - eglug.org</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    Screen flickering after an <b>NVIDIA</b> driver update usually means the new driver introduced a regression in its <b>Wayland</b> sync handling. Driver versions between 535.54.03 and 555.42.02 are particularly prone to this. Step-by-step guide to fix <b>NVIDIA</b> screen tearing and flickering on <b>Wayland</b> with recent drivers. Covers GNOME, KDE, Sway, explicit sync, and Force Composition Pipeline.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>eglug.org/fixing-nvidia-screen-tearing-and-flickering-on-wayland-with-recent-drivers/</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    5.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.reddit.com%2Fr%2Fkde%2Fcomments%2F11eq79w%2Fscreen_flicker_on_wayland_w_nvidia_driver_on_arch%2F&amp;rut=7318aeeb98b1664a2f387a1734ee70bbfc19d71cd39074c58a763a64483d92ef" class='result-link'>Screen Flicker on Wayland w/ NVIDIA Driver on Arch : r/kde - Reddit</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    I&#x27;m using the <b>Nvidia</b> driver on Arch and I&#x27;ve installed KDE Plasma with SDDM, along with the <b>Wayland</b> dependencies for Plasma with <b>Nvidia</b> (plasma-<b>wayland</b>-session, egl-<b>wayland</b>). In order to get Plasma to launch under <b>Wayland</b>, I had to disable the modules for my Ryzen CPU&#x27;s IGPU, and also set the nvidia_drm.modeset=1 kernel parameter.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>www.reddit.com/r/kde/comments/11eq79w/screen_flicker_on_wayland_w_nvidia_driver_on_arch/</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    6.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fsoportecero.com%2Fen%2Farticulos%2Fsolucion%2Dstuttering%2Dnvidia%2Dwayland%2Dexplicit%2Dsync.html&amp;rut=510cffa0c51391a1e275a5593c99a3cbb68627dccb5e7ebfd508a4f142a83fba" class='result-link'>[FIXED] NVIDIA Wayland Gaming Stuttering &amp; Flickering in Linux</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    Visual flickering, stuttering, and frame out-of-order issues when gaming on Linux with <b>NVIDIA</b> graphics cards under <b>Wayland</b> compositors (KDE Plasma 6, Hyprland, GNOME) stems from buffer synchronization mismatches between the proprietary display driver and the <b>Wayland</b> compositor windowing system.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>soportecero.com/en/articulos/solucion-stuttering-nvidia-wayland-explicit-sync.html</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    7.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.reddit.com%2Fr%2Flinux_gaming%2Fcomments%2F16qgihv%2Fsteam_flicker_or_poor_performance_waylandnvidia%2F&amp;rut=607b05a4014516e72cc41d9346b35a7c5bb2e1a025af902a3fbaae6db88e34eb" class='result-link'>Steam Flicker or Poor Performance Wayland/Nvidia - Reddit</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    Now I&#x27;m just having weird issues with <b>flicker</b>/poor performance with Steam itself. If I have &quot;Enable GPU accelerated rendering in web views&quot; turned on, it is just an absolute unusable <b>flicker</b> disaster. Turning it off makes it usable, but the performance is pretty bad when navigating/scrolling. Is anybody else having these issues and is this just the state of it or are there some suggestions on ...
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>www.reddit.com/r/linux_gaming/comments/16qgihv/steam_flicker_or_poor_performance_waylandnvidia/</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    8.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fkextcache.com%2Fwayland%2Dnvidia%2Da%2Ddefinite%2D2025%2Dguide%2F&amp;rut=681fc26b61b452827b8a5e0564dff47a4b6e418d1b64adc75c19dd425ead51c6" class='result-link'>Wayland NVIDIA on Arch and Hyprland: 2026 setup and fixes</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    Set up <b>Wayland</b> on <b>NVIDIA</b> in Arch Linux and Hyprland in 2026: the right driver package for your GPU, the Lua config, and fixes for <b>flicker</b> and suspend.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>kextcache.com/wayland-nvidia-a-definite-2025-guide/</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    9.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2FValveSoftware%2Fsteam%2Dfor%2Dlinux%2Fissues%2F10313&amp;rut=4e52336dce68ae0b831aac94f92454b57cef612e022fc9e445476779ed7dd161" class='result-link'>Immense store flicker on Nvidia Wayland - GitHub</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    Same issue here on <b>Wayland</b> with <b>NVIDIA</b> RTX 3090 GPU and proprietary drivers. Resizing Steam window to a smaller one seems to reduce amount of flickering. Disabling GPU Accelerated rendering in web views solves the flickering, but UI is unresponsive, slow and barely usable.
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>github.com/ValveSoftware/steam-for-linux/issues/10313</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+        
+            <tr>
+              
+                <td valign="top">
+                  
+                    10.&nbsp;
+                  
+                </td>
+                <td>
+                  <a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.linux.org%2Fthreads%2Fscreen%2Dflicker%2Dissues%2Dmostly%2Don%2Dwayland.53129%2F&amp;rut=bfa1888f0ef9959f57a5c2198424f78a45673fb6c54eaa6dac3f00f871749813" class='result-link'>Screen Flicker Issues, Mostly on Wayland - Linux.org</a>
+                </td>
+                
+            </tr>
+
+            
+              
+                <!-- Only show abstract separately if there's a click URL (not EOF) -->
+                <tr>
+                  <td>&nbsp;&nbsp;&nbsp;</td>
+                  <td class='result-snippet'>
+                    System info: 12th gen i7 CPU 64gb RAM DDR5 6000MHz Radeon RX 79000XTX (issue happened on some of the distros with an <b>nvidia</b> card as well) MSI MPG Z790 Edge WiFi Monitors: 14 yr old Dell LCD panel (no apparent issues), Samsung Odyssey OLED G95SC OS Installed on a partition on a SSD nvme drive, with another partition on that drive holding my windows installation. Linux Distros where issue has ...
+                  </td>
+                </tr>
+              
+            
+
+            
+              <tr>
+                <td>&nbsp;&nbsp;&nbsp;</td>
+                <td>
+                  <span class='link-text'>www.linux.org/threads/screen-flicker-issues-mostly-on-wayland.53129/</span>
+                  
+                </td>
+              </tr>
+            
+
+            <tr>
+              <td>&nbsp;</td>
+              <td>&nbsp;</td>
+            </tr>
+
+        
+      
+    
+
+    
+      
+      <tr>
+        <td colspan=2>
+          
+          
+            <!-- Next Page Button Sub-template -->
+<form class="next_form" action="/lite/" method="post">
+    <input type="submit" class='navbutton' value="Next Page &gt;">
+    <input type="hidden" name="q" value="nvidia wayland flicker">
+    <input type="hidden" name="s" value="10">
+    <input type="hidden" name="nextParams" value="">
+    <input type="hidden" name="v" value="l">
+    <input type="hidden" name="o" value="json">
+    <input type="hidden" name="dc" value="11">
+    <input type="hidden" name="api" value="d.js">
+    <input type="hidden" name="vqd" value="4-8867961831665812604594097865729652135">
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    
+    
+    
+      <input name="kl" value="wt-wt" type="hidden">
+    
+    
+    
+    
+</form>
+          
+          
+        </td>
+      </tr>
+    
+  </table>
+
+  <p class='extra'>&nbsp;</p>
+
+  <form action="/lite/" method="post">
+      <input class='query' type="text" size="40" name="q" value="nvidia wayland flicker" >
+      <input class='submit' type="submit" value="Search">
+      
+      
+      
+      
+      
+        <input name="kl" value="wt-wt" type="hidden">
+      
+  </form>
+
+  <p class='extra'>&nbsp;</p>
+
+  
+    <img src="//duckduckgo.com/t/sl_l"/>
+  
+  <div id='end-spacer'>&nbsp;</div>
+
+</body>
+</html>

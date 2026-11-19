@@ -1,8 +1,12 @@
 # ryoget
 
-Ryoku's download engine. `ryoget serve` is the on-demand user daemon that
-runs every download; everything else `ryoget` does is a command line client
-of that daemon.
+Ryoku's download engine and search daemon. Two binaries from one module:
+
+- `ryoget serve` is the on-demand user daemon behind Kit's Downloads and the
+  Rashin bar's quick downloads. Everything else `ryoget` does is a command line
+  client of that daemon.
+- `ryoseek serve` is the on-demand search daemon behind the Rashin bar's Web
+  view (see [ryoseek](#ryoseek)). It never links the download engine.
 
 Build with `CGO_ENABLED=0 go build -tags nosqlite,purego_utp`.
 
@@ -104,3 +108,107 @@ Last-Modified, sends `If-Range`, and starts over cleanly when the file changed.
 Servers without ranges get one stream. Each range retries five times with back-off;
 a server that refuses extra connections with 429 or 503 is downloaded with fewer.
 The finished file never replaces an existing one: it lands as `name (2).ext`.
+
+## ryoseek
+
+The search daemon behind the Rashin bar's Web view: one per user, started when the bar
+first searches. It owns every engine's request budget and block timer, so they outlive
+the bar. It imports `internal/search` and never the download engine.
+
+Build with `CGO_ENABLED=0 go build -trimpath -tags nosqlite,purego_utp ./cmd/ryoseek`.
+
+### Files
+
+| What | Where |
+|---|---|
+| Socket | `$XDG_RUNTIME_DIR/ryoseek.sock` (else `/tmp/ryoseek-<uid>.sock`), mode 0600 |
+| Lock | beside the socket, `ryoseek.lock`; a second daemon exits |
+| Engine health and budgets | `$XDG_STATE_HOME/ryoku/ryoseek/health.json`, written on change |
+| Cache (results, icons, thumbnails) | `$XDG_CACHE_HOME/ryoku/ryoseek/` |
+| Log of a spawned daemon | `$XDG_STATE_HOME/ryoku/ryoseek/ryoseek.log`; under a unit, the journal |
+
+### Lifetime
+
+`ryoseek ensure` dials the socket; when nothing answers it runs
+`ryoku-host svc --user start ryoseek`, and where no unit answers it starts a detached
+`ryoseek serve` (its own session) and polls the socket for up to 3 s. Exit 0 ready,
+1 failed, 3 nothing to start.
+
+Every client shares one search service. The daemon exits after 5 minutes
+(`RYOSEEK_IDLE_SECONDS`) with no client connected and no request on the wire; SIGTERM
+stops it cleanly, letting requests already sent finish into the cache and flushing the
+health file.
+
+### Command line
+
+```
+ryoseek serve
+ryoseek ensure
+ryoseek query <text> [--scope S] [--mode suggest|full] [--json]
+ryoseek version
+```
+
+`query` starts the daemon if needed, asks once (scope `all` and mode `full` by default)
+and prints each source's rows by rank; `--json` prints every protocol line instead.
+
+### Socket protocol (v2)
+
+One compact JSON object per line, at most 1 MiB; only the daemon's own user may connect.
+
+Client to daemon:
+
+- `{"hello":{"client":"bar"|"rashin"|"cli","version":2,"lang":"en-US"}}` first. `lang` is the
+  full locale; it picks Wikipedia's and the dictionary's language and the Accept-Language
+  every engine sees. A query sent before hello runs with `en-US`.
+- `{"id":N,"q":"...","scope":"all"|<scope>|<sourceId>,"mode":"suggest"|"full"}`. A newer
+  query cancels everything older from the same client; an empty `q` answers only the final
+  done.
+- `{"id":N,"detail":{"source":"...","key":"..."}}`: `key` is the row's `key`. A newer detail
+  cancels older details, not the running query.
+- `{"cancel":N}` stops the lines for N. Requests already sent still finish into the cache;
+  a request still held by its budget is dropped once no client wants it.
+
+Daemon to client:
+
+- After hello: `{"ready":true,"version":2,"sources":[Source],"engines":[Engine]}`, no network.
+  `Source = {id, name, scope, glyph, typing}`; `typing` sources answer in suggest mode. The
+  order is the section order in `all` when ranks tie.
+- Per source, only for the sources that run in the query's mode and scope (the dictionary
+  runs only for a lookup):
+  - `{"id":N,"source":S,"state":"loading"}` first,
+  - `{"id":N,"source":S,"state":"waiting"}` while its budget holds the request (it will run),
+  - then one of `{"id":N,"source":S,"state":"done","items":[Item],"more":bool,"rank":int}`,
+    `{"id":N,"source":S,"state":"paused","until":"RFC3339"}` (every engine behind the source is
+    blocked; `until` is the soonest resume) or `{"id":N,"source":S,"state":"error","error":"text"}`.
+  - In `all`, rows that do not match the query well enough are left out (`more:true` then
+    says the source's own view has rows); a scope or a single source gets the whole list.
+    Sections order by `rank`, higher first: dictionary 7, web and suggestions 6, others 1 to
+    5 from relevance, empty 0.
+- `{"id":N,"state":"done"}` once every source of the query settled.
+- `{"engines":[Engine]}` to every client whenever an engine is paused or resumes.
+  `Engine = {id, name, sources:[sourceId], state:"ok"|"paused", until}`. The web lane's
+  engines are `keenable`, `ddg-lite` and `bing-rss` (`sources` holds `web`).
+- `{"id":N,"detail":{source, key, title, url, text, site, thumb, facts:[{label,value}], error?}}`.
+
+`Item = {key, source, kind, title, url, snippet, site, date, thumb, meta}`; `thumb` is a local
+file or empty, `date` RFC3339 or empty. Kinds: `page article repo question video package
+thread doc suggestion definition`. A `suggestion` has the completion as `title`, no `url`,
+`meta.engine`. A `definition` has the word as `title`, the sense as `snippet`, the Wiktionary
+page as `url` and `meta: {partOfSpeech, tags, examples, attribution, attributionUrl}`
+(the attribution must stay visible: CC BY-SA 4.0). A web `page` has `meta.engines`, the
+engines that found it, in the order `keenable ddg-lite bing-rss`.
+
+Modes: `suggest` (while typing) runs suggestions (DuckDuckGo autocomplete, Bing's when
+DuckDuckGo fails or is paused), Wikipedia title search and the dictionary card
+(FreeDictionaryAPI.com, Wiktionary as fallback) for one or two words or "what does X mean",
+"X meaning", "define X"; never a web engine. `full` (on Enter, on picking a suggestion, or
+after 1.2 s of stillness with 3+ characters) runs every source in scope; its `web` source
+asks Keenable and DuckDuckGo lite in parallel and merges them by reciprocal rank fusion,
+with Bing RSS only when both failed or are paused.
+
+Every engine has a request budget and a health record in the state file: a block (202 or
+DuckDuckGo's challenge, captcha, Anubis or JavaScript interstitial pages, 403, 429, 503)
+pauses it for its Retry-After, else 15 min doubling per strike up to 6 h, and nothing is sent
+to a paused engine. Results stay 30 min (memory and disk), suggestions 10 min, empty
+answers 5 min. Every request says `User-Agent: ryoseek/<version> (+https://ryoku.dev)
+Go-http-client/2.0`.
