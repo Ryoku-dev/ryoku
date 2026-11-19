@@ -124,7 +124,7 @@ Item {
                 width: parent.width
                 text: pg.beginning
                 color: Lithic.fg2
-                font.pixelSize: 17
+                font.pixelSize: 13
                 font.weight: Font.Normal
                 lineHeight: 1.48
                 wrapMode: Text.WordWrap
@@ -182,7 +182,7 @@ Item {
                             width: parent.width
                             text: "“" + contributor.modelData.quote + "”"
                             color: Lithic.fg
-                            font.pixelSize: 19
+                            font.pixelSize: 15
                             font.italic: true
                             lineHeight: 1.3
                             wrapMode: Text.WordWrap
@@ -199,7 +199,7 @@ Item {
                 width: parent.width
                 text: pg.letter
                 color: Lithic.fg
-                font.pixelSize: 20
+                font.pixelSize: 16
                 font.italic: true
                 lineHeight: 1.42
                 wrapMode: Text.WordWrap
