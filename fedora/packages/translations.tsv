@@ -57,6 +57,8 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc libstdc++	desktop	
+ggml-cuda	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks CUDA; Rashin downloads its own llama-server.
+ggml-vulkan	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks Vulkan; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	gh	desktop	
 glibc	glibc	desktop	
@@ -132,6 +134,7 @@ limine-snapper-sync	-	system	Fedora snapshots are not supported in this release.
 linux	kernel	system	
 linux-firmware	linux-firmware	system	
 linux-headers	kernel-devel kernel-headers	desktop	
+llama-cpp	-	optional	Fedora's build predates LFM3 (b11960) and has no Vulkan; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	Ryoku-owned RPM.
 looking-glass	-	optional	No Fedora package provides this Arch package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	Python equalizer and compressor plugins.

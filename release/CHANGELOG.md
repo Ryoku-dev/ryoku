@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Rashin no longer needs external coding harnesses.** Arch, CachyOS, Fedora,
+  Void and Nix package its native engine; llama.cpp and model weights are
+  downloads the user chooses, not shipped files. Adapted engine work credits
+  oh-my-pi (MIT) in Rashin's NOTICE.
 - **Rashin includes its grammar, dictionary and word list notices on every edition**
   The Harper Go port keeps Apache-2.0, the dictionary keeps its full source
   notices, foldhash keeps Zlib and the writing checks' word lists keep MIT and

@@ -57,6 +57,8 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc	desktop	
+ggml-cuda	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
+ggml-vulkan	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	github-cli	desktop	
 glibc	glibc	desktop	
@@ -136,6 +138,7 @@ limine-snapper-sync	limine-snapper-sync	system	repo=ryoku
 linux	linux	system	
 linux-firmware	linux-firmware linux-firmware-intel linux-firmware-nvidia linux-firmware-broadcom	system	
 linux-headers	linux-headers	desktop	
+llama-cpp	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	repo=ryoku
 looking-glass	-	optional	No Void repository package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	

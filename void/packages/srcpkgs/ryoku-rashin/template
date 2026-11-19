@@ -10,9 +10,8 @@ homepage="https://ryoku.dev"
 hostmakedepends="go pkg-config"
 makedepends="wayland-devel libxkbcommon-devel libglvnd-devel Vulkan-Headers"
 depends="ryoku-desktop>=${version} wayland libxkbcommon mesa-dri mesa-vaapi libglvnd vulkan-loader bubblewrap"
-# xbps has no optional dependencies: uv, which sets up Hindsight, the optional
-# memory engine, is optional and comes with the desktop package set
-# (void/packages/translations.tsv), so it is not a depends.
+# xbps has no optional dependencies: uv comes with the desktop set for
+# Hindsight, while Rashin fetches llama.cpp on demand to run local models.
 distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"

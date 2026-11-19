@@ -35,6 +35,7 @@ Requires:       hicolor-icon-theme
 Requires:       libglvnd
 # Rashin installs Hindsight, its optional memory engine, with uv only when asked.
 Suggests:       uv
+# Fedora's llama-cpp predates LFM3 and lacks Vulkan; Rashin fetches its own runtime on request.
 
 %description
 Rashin provides Ryoku's optional AI daemon, command line and Gio application.
