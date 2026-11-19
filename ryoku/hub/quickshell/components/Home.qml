@@ -478,13 +478,20 @@ Item {
                 }
                 Rectangle {
                     anchors.fill: parent
-                    visible: profileBackground.customImage === ""
+                    visible: profileBackground.customImage === "" &&
+                        profileBackground.chosen !== Progression.completionScene.id
                     color: profileBackground.chosen === "bg-blueprint" ? "#132335" :
                            profileBackground.chosen === "bg-ember" ? "#271a19" :
                            profileBackground.chosen === "bg-archive" ? "#27231d" :
                            profileBackground.chosen === "bg-obsidian" ? "#11171b" :
                            profileBackground.chosen === "bg-sutra" ? "#1f2225" :
                            profileBackground.chosen === "bg-signal" ? "#121b22" : "#1b1d23"
+                }
+                BlackPrism {
+                    anchors.fill: parent
+                    visible: profileBackground.chosen === Progression.completionScene.id &&
+                        profileBackground.customImage === ""
+                    live: root.shown && !root.preview
                 }
                 Image {
                     visible: profileBackground.customImage === "" && profileBackground.galleryArt !== ""
@@ -500,7 +507,9 @@ Item {
                     opacity: 0.31
                 }
                 Repeater {
-                    model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.width / 62)
+                    model: profileBackground.customImage !== "" ||
+                           profileBackground.chosen === Progression.completionScene.id ? 0 :
+                           Math.ceil(profileBackground.width / 62)
                     delegate: Rectangle {
                         x: index * 62
                         width: 1
@@ -515,7 +524,9 @@ Item {
                     }
                 }
                 Repeater {
-                    model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.height / 62)
+                    model: profileBackground.customImage !== "" ||
+                           profileBackground.chosen === Progression.completionScene.id ? 0 :
+                           Math.ceil(profileBackground.height / 62)
                     delegate: Rectangle {
                         y: index * 62
                         width: profileBackground.width

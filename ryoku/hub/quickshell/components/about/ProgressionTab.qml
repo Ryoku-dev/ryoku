@@ -8,8 +8,27 @@ Column {
     id: root
     spacing: LithicTokens.space.s4
     property int pageIndex: 0
+    signal categorySelected()
+    signal badgeClaimed(var badge)
+
+    onPageIndexChanged: {
+        root.categorySelected();
+        if (!Lithic.reduceMotion)
+            turnPage.restart();
+    }
+
+    NumberAnimation {
+        id: turnPage
+        target: album
+        property: "opacity"
+        from: 0.25
+        to: 1
+        duration: 270
+        easing.type: Easing.OutCubic
+    }
     readonly property var group: Progression.groups[Math.max(0, Math.min(pageIndex, Progression.groups.length - 1))]
     readonly property var entries: Progression.visibleBadges(group.id)
+    readonly property int totalInCategory: Progression.achievements.filter(a => a.category === group.id).length
     readonly property int earnedCount: entries.filter(a => Progression.data.earned[a.id] === true).length
     readonly property int claimableCount: entries.filter(a =>
         Progression.data.earned[a.id] === true && Progression.data.claimed[a.id] !== true).length
@@ -26,7 +45,9 @@ Column {
                 ink: Lithic.gold
             }
             Label {
-                text: I18n.tr("Every badge tells a story.")
+                text: root.group.id === "Mastery" ? I18n.tr("The master archives.") :
+                    root.group.id === "Classified" ? I18n.tr("Beyond the visible.") :
+                    I18n.tr("Every badge tells a story.")
                 typeRole: "title"
             }
             Label {
@@ -61,7 +82,7 @@ Column {
 
     Row {
         width: parent.width
-        spacing: LithicTokens.space.s3
+        spacing: LithicTokens.space.s2
         Plaque {
             kind: "line"
             small: true
@@ -70,15 +91,27 @@ Column {
             enabled: root.pageIndex > 0
             onClicked: root.pageIndex--
         }
-        Repeater {
-            model: Progression.groups
-            delegate: Plaque {
-                required property var modelData
-                required property int index
-                kind: root.pageIndex === index ? "gold" : "quiet"
-                small: true
-                text: I18n.tr(modelData.title)
-                onClicked: root.pageIndex = index
+        Flickable {
+            width: Math.max(0, parent.width - 120)
+            height: 38
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            contentWidth: categoryTabs.implicitWidth
+            contentHeight: height
+            Row {
+                id: categoryTabs
+                spacing: LithicTokens.space.s2
+                Repeater {
+                    model: Progression.groups
+                    delegate: Plaque {
+                        required property var modelData
+                        required property int index
+                        kind: root.pageIndex === index ? "gold" : "quiet"
+                        small: true
+                        text: I18n.tr(modelData.title)
+                        onClicked: root.pageIndex = index
+                    }
+                }
             }
         }
         Plaque {
@@ -120,7 +153,7 @@ Column {
             Column {
                 anchors.verticalCenter: parent.verticalCenter
                 Label {
-                    text: root.earnedCount + " / " + root.entries.length
+                    text: root.earnedCount + " / " + root.totalInCategory
                     typeRole: "title"
                     ink: Lithic.gold
                 }
@@ -135,7 +168,7 @@ Column {
 
     Item {
         width: parent.width
-        height: root.group.id === "Classified" ? 112 : 0
+        height: root.group.id === "Classified" ? 154 : 0
         visible: root.group.id === "Classified"
 
         Column {
@@ -149,6 +182,22 @@ Column {
                 typeRole: "monoSm"
                 inkRole: "fg2"
             }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+                Repeater {
+                    model: root.totalInCategory
+                    delegate: Rectangle {
+                        required property int index
+                        width: 9
+                        height: 9
+                        rotation: 45
+                        color: index < Progression.discoveredSecrets ? Lithic.gold : "transparent"
+                        border.color: index < Progression.discoveredSecrets ? Lithic.gold : Lithic.fg3
+                        border.width: 1
+                    }
+                }
+            }
             Plaque {
                 anchors.horizontalCenter: parent.horizontalCenter
                 small: true
@@ -160,109 +209,67 @@ Column {
         }
     }
 
+    Column {
+        width: parent.width
+        spacing: LithicTokens.space.s3
+        visible: root.group.id === "Mastery"
+
+        Rectangle {
+            width: parent.width
+            height: 108
+            color: Lithic.mix(Lithic.ground, Lithic.gold, 0.065)
+            border.color: Lithic.mix(Lithic.ground, Lithic.gold, 0.6)
+            border.width: 1
+
+            Row {
+                anchors.fill: parent
+                anchors.margins: 17
+                spacing: 16
+                Label {
+                    text: "道"
+                    typeRole: "title"
+                    ink: Lithic.gold
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Column {
+                    width: Math.max(0, parent.width - 80)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 5
+                    Label { text: "THE FOUR PILLARS"; typeRole: "mono"; ink: Lithic.gold }
+                    Label {
+                        width: parent.width
+                        text: "Earn each category's complete collection. Nothing here requires better hardware or paid items."
+                        typeRole: "detail"
+                        inkRole: "fg2"
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                }
+            }
+        }
+    }
+
     Grid {
         id: album
         width: parent.width
-        columns: 2
+        columns: width >= 660 ? 2 : 1
         columnSpacing: LithicTokens.space.s3
         rowSpacing: LithicTokens.space.s3
 
         Repeater {
             model: root.entries
-            delegate: Rectangle {
-                id: achievementTile
+            delegate: AchievementCard {
                 required property var modelData
-                readonly property bool complete: Progression.data.earned[modelData.id] === true
-                readonly property bool claimed: Progression.data.claimed[modelData.id] === true
-                width: (album.width - album.columnSpacing) / 2
-                height: 236
-                radius: 6
-                color: Lithic.mix(Lithic.ground, Lithic.fg, claimed ? 0.052 : 0.025)
-                border.width: 1
-                border.color: complete ? Progression.rarityColours[modelData.rarity] : Lithic.mix(Lithic.fg, Lithic.ground, 0.85)
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 7
-                    Row {
-                        width: parent.width
-                        spacing: 12
-                        ArchiveSeal {
-                            width: 104
-                            height: 104
-                            title: achievementTile.modelData.title
-                            sigil: achievementTile.modelData.sigil
-                            rarity: achievementTile.modelData.rarity
-                            category: achievementTile.modelData.category
-                            locked: !achievementTile.complete
-                            animateFoil: achievementTile.modelData.rarity === "holographic"
-                        }
-                        Column {
-                            width: parent.width - 116
-                            spacing: 4
-                            Label {
-                                width: parent.width
-                                text: I18n.tr(achievementTile.modelData.title)
-                                typeRole: "sentence"
-                                elide: Text.ElideRight
-                            }
-                            Label {
-                                text: achievementTile.modelData.rarity.toUpperCase()
-                                typeRole: "monoSm"
-                                ink: Progression.rarityColours[achievementTile.modelData.rarity]
-                            }
-                            Label {
-                                text: achievementTile.claimed ? I18n.tr("CLAIMED") :
-                                    achievementTile.complete ? I18n.tr("READY TO CLAIM") : I18n.tr("LOCKED")
-                                typeRole: "monoSm"
-                                ink: achievementTile.complete ? Lithic.gold : Lithic.fg3
-                            }
-                        }
-                    }
-                    Label {
-                        width: parent.width
-                        height: 36
-                        text: I18n.tr(achievementTile.modelData.detail)
-                        typeRole: "detail"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideRight
-                    }
-                    Label {
-                        visible: text !== ""
-                        text: Progression.progressFor(achievementTile.modelData.id)
-                        typeRole: "monoSm"
-                        ink: Progression.rarityColours[achievementTile.modelData.rarity]
-                    }
-                    Row {
-                        width: parent.width
-                        spacing: 8
-                        Label {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "+" + achievementTile.modelData.reward + " ◆"
-                            typeRole: "mono"
-                            ink: Lithic.gold
-                        }
-                        Item { width: Math.max(0, parent.width - 255); height: 1 }
-                        Plaque {
-                            small: true
-                            kind: achievementTile.complete && !achievementTile.claimed ? "gold" : "line"
-                            text: achievementTile.claimed ? I18n.tr("Collected") :
-                                achievementTile.complete ? I18n.tr("Claim") : I18n.tr("Locked")
-                            enabled: achievementTile.complete && !achievementTile.claimed
-                            onClicked: Progression.claim(achievementTile.modelData.id)
-                        }
-                        Plaque {
-                            visible: achievementTile.claimed
-                            small: true
-                            kind: Progression.featuredBadge === achievementTile.modelData.id ? "gold" : "quiet"
-                            text: Progression.featuredBadge === achievementTile.modelData.id ? I18n.tr("Featured") : I18n.tr("Feature")
-                            enabled: Progression.featuredBadge !== achievementTile.modelData.id
-                            onClicked: Progression.featureBadge(achievementTile.modelData.id)
-                        }
-                    }
+                badge: modelData
+                width: (album.width - (album.columns - 1) * album.columnSpacing) /
+                    album.columns
+                height: implicitHeight
+                onClaimRequested: badge => {
+                    Progression.claim(badge.id);
+                    if (Progression.data.claimed[badge.id] === true)
+                        root.badgeClaimed(badge);
                 }
+                onFeatureRequested: id => Progression.featureBadge(id)
             }
         }
     }

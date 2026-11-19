@@ -48,10 +48,17 @@ Item {
 
             ProgressionTab {
                 id: book
+                onBadgeClaimed: badge => reveal.present(badge)
+                onCategorySelected: scroll.contentY = 0
                 x: LithicTokens.space.s5
                 y: LithicTokens.space.s5
                 width: Math.max(0, scroll.width - 2 * LithicTokens.space.s5 - 18)
             }
         }
+    }
+
+    AchievementReveal {
+        id: reveal
+        anchors.fill: parent
     }
 }

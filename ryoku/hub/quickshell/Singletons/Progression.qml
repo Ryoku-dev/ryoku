@@ -22,6 +22,9 @@ Singleton {
     readonly property int balance: data.balance || 0
     readonly property var achievements: Model.achievements
     readonly property var cosmetics: Model.cosmetics
+    readonly property var completionScene: Model.completionScene
+    readonly property bool completionSceneUnlocked: Model.completionSceneUnlocked(root.data)
+    function progressInfoFor(id) { return Model.progressInfo(root.data, id); }
     readonly property var groups: Model.groups
     readonly property var rarityColours: Model.rarityColours
     readonly property int discoveredSecrets: Model.secretCount(root.data)
