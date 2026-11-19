@@ -26,6 +26,12 @@ Column {
     function choose(name) {
         if (picker.root) picker.root.setWorkspaceIcon(picker.slot, name)
     }
+    // A tile wins over unsaved typing: drop the edit first, or re-picking the
+    // current symbol would leave the typed text to be saved when focus leaves.
+    function pick(name) {
+        nameField.text = Qt.binding(() => picker.current)
+        picker.choose(name)
+    }
     // A known name shapes into one em-wide glyph; an unknown one lays out as
     // letters, which the bar would draw as text, so it is not saved.
     function commitText(text) {
@@ -99,7 +105,7 @@ Column {
                 icon: modelData
                 fallback: String(picker.slot)
                 selected: picker.current === modelData
-                onPicked: picker.choose(modelData)
+                onPicked: picker.pick(modelData)
             }
         }
     }
