@@ -1,0 +1,161 @@
+package storage
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"path/filepath"
+
+	g "github.com/anacrolix/generics"
+
+	"github.com/anacrolix/torrent/metainfo"
+)
+
+// File-based storage for torrents, that isn't yet bound to a particular torrent.
+type fileClientImpl struct {
+	opts NewFileClientOpts
+}
+
+// All Torrent data stored in this baseDir. The info names of each torrent are used as directories.
+func NewFile(baseDir string) ClientImplCloser {
+	return NewFileWithCompletion(baseDir, pieceCompletionForDir(baseDir))
+}
+
+type NewFileClientOpts struct {
+	// The base directory for all downloads.
+	ClientBaseDir   string
+	FilePathMaker   FilePathMaker
+	TorrentDirMaker TorrentDirFilePathMaker
+	// If part files are enabled, this will default to inferring completion from file names at
+	// startup, and keep the rest in memory.
+	PieceCompletion PieceCompletion
+	UsePartFiles    g.Option[bool]
+	// DisableMmap opens files through the classic read/write implementation even where the memory
+	// mapped one is available. Mapped files must not be changed by anything but this client: one
+	// that is replaced or truncated underneath a mapping faults the process (SIGBUS) instead of
+	// returning an error. Set this where something else writes the same files, such as another
+	// downloader for the same content or a sync tool.
+	DisableMmap bool
+	// By default, OpenTorrent fails if a torrent's file path that already exists goes through a
+	// symlink that resolves outside the torrent's directory. Set this to follow such symlinks, for
+	// example where directories under the download directory are symlinks to other disks.
+	FollowSymlinksOutOfTorrentDir bool
+	Logger                        *slog.Logger
+}
+
+// The specific part-files option or the default.
+func (me NewFileClientOpts) partFiles() bool {
+	return me.UsePartFiles.UnwrapOr(true)
+}
+
+// The file IO implementation to open torrents with.
+func (me NewFileClientOpts) fileIo() fileIo {
+	if me.DisableMmap {
+		return newClassicFileIo()
+	}
+	return defaultFileIo()
+}
+
+// NewFileOpts creates a new ClientImplCloser that stores files using the OS native filesystem.
+func NewFileOpts(opts NewFileClientOpts) ClientImplCloser {
+	if opts.TorrentDirMaker == nil {
+		opts.TorrentDirMaker = defaultPathMaker
+	}
+	if opts.FilePathMaker == nil {
+		opts.FilePathMaker = func(opts FilePathMakerOpts) string {
+			var parts []string
+			if opts.Info.BestName() != metainfo.NoName {
+				parts = append(parts, opts.Info.BestName())
+			}
+			return filepath.Join(append(parts, opts.File.BestPath()...)...)
+		}
+	}
+	if opts.PieceCompletion == nil {
+		if opts.partFiles() {
+			opts.PieceCompletion = NewMapPieceCompletion()
+		} else {
+			opts.PieceCompletion = pieceCompletionForDir(opts.ClientBaseDir)
+		}
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	return &fileClientImpl{opts}
+}
+
+func (me *fileClientImpl) Close() error {
+	return me.opts.PieceCompletion.Close()
+}
+
+func (fs *fileClientImpl) OpenTorrent(
+	ctx context.Context,
+	info *metainfo.Info,
+	infoHash metainfo.Hash,
+) (_ TorrentImpl, err error) {
+	dir := fs.opts.TorrentDirMaker(fs.opts.ClientBaseDir, info, infoHash)
+	fs.opts.Logger.DebugContext(ctx, "opened file torrent storage", slog.String("dir", dir))
+	metainfoFileInfos := info.UpvertedFiles()
+	files := make([]fileExtra, len(metainfoFileInfos))
+	filePaths := make([]string, len(metainfoFileInfos))
+	for i, fileInfo := range metainfoFileInfos {
+		filePath := filepath.Join(dir, fs.opts.FilePathMaker(FilePathMakerOpts{
+			Info: info,
+			File: &fileInfo,
+		}))
+		if filepath.Clean(filePath) == filepath.Clean(dir) && !info.IsDir() {
+			// A single-file torrent with no usable name, such as "" or ".", would be stored at the
+			// torrent directory itself. Name the file after the infohash instead.
+			filePath = filepath.Join(dir, infoHash.HexString())
+		}
+		if !isSubFilepath(dir, filePath) {
+			err = fmt.Errorf("file %v: path %q is not sub path of %q", i, filePath, dir)
+			return
+		}
+		files[i].safeOsPath = filePath
+		filePaths[i] = filePath
+	}
+	err = checkTorrentFilePaths(dir, filePaths, metainfoFileInfos, fs.opts.partFiles())
+	if err != nil {
+		return
+	}
+	if !fs.opts.FollowSymlinksOutOfTorrentDir {
+		err = checkTorrentFileLinks(dir, filePaths, fs.opts.partFiles())
+		if err != nil {
+			return
+		}
+	}
+	for i, fileInfo := range metainfoFileInfos {
+		if fileInfo.Length == 0 {
+			err = CreateNativeZeroLengthFile(files[i].safeOsPath)
+			if err != nil {
+				err = fmt.Errorf("creating zero length file: %w", err)
+				return
+			}
+		}
+	}
+	t := &fileTorrentImpl{
+		info,
+		files,
+		metainfoFileInfos,
+		info.FileSegmentsIndex(),
+		infoHash,
+		fs.opts.fileIo(),
+		nil,
+		fs,
+	}
+	if checkpointer, ok := fs.opts.PieceCompletion.(PieceCompletionCheckpointer); ok {
+		t.checkpoint = newTorrentCheckpointBuffer(t, checkpointer)
+	}
+	if t.partFiles() {
+		err = t.setCompletionFromPartFiles()
+		if err != nil {
+			err = fmt.Errorf("setting completion from part files: %w", err)
+			return
+		}
+	}
+	return TorrentImpl{
+		Piece:        t.Piece,
+		Close:        t.Close,
+		CloseWriters: t.CloseWriters,
+	}, nil
+}

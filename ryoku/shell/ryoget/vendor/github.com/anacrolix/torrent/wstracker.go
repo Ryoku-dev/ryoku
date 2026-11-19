@@ -1,0 +1,151 @@
+package torrent
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net"
+	netHttp "net/http"
+	"net/url"
+	"sync"
+
+	"github.com/anacrolix/log"
+	"github.com/pion/webrtc/v4"
+
+	"github.com/anacrolix/torrent/tracker"
+	httpTracker "github.com/anacrolix/torrent/tracker/http"
+	"github.com/anacrolix/torrent/webtorrent"
+)
+
+type websocketTrackerStatus struct {
+	url     url.URL
+	tc      *webtorrent.TrackerClient
+	release func()
+}
+
+func (me websocketTrackerStatus) statusLine() string {
+	return fmt.Sprintf("%+v", me.tc.Stats())
+}
+
+func (me websocketTrackerStatus) URL() *url.URL {
+	return &me.url
+}
+
+func (me websocketTrackerStatus) Stop() {
+	if me.release != nil {
+		me.release()
+	}
+}
+
+type refCountedWebtorrentTrackerClient struct {
+	webtorrent.TrackerClient
+	refCount int
+}
+
+type websocketTrackers struct {
+	PeerId                     [20]byte
+	Logger                     log.Logger
+	Slogger                    *slog.Logger
+	GetAnnounceRequest         func(event tracker.AnnounceEvent, infoHash [20]byte) (tracker.AnnounceRequest, error)
+	OnConn                     func(webtorrent.DataChannelConn, webtorrent.DataChannelContext)
+	mu                         sync.Mutex
+	clients                    map[string]*refCountedWebtorrentTrackerClient
+	Proxy                      httpTracker.ProxyFunc
+	DialContext                func(ctx context.Context, network, addr string) (net.Conn, error)
+	WebsocketTrackerHttpHeader func() netHttp.Header
+	ICEServers                 []webrtc.ICEServer
+	callbacks                  *Callbacks
+}
+
+func (me *websocketTrackers) slogger() *slog.Logger {
+	if me.Slogger != nil {
+		return me.Slogger
+	}
+	if !me.Logger.IsZero() {
+		return me.Logger.Slogger()
+	}
+	return slog.Default()
+}
+
+func (me *websocketTrackers) Get(url string, infoHash [20]byte) (*webtorrent.TrackerClient, func()) {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+	value, ok := me.clients[url]
+	if !ok {
+		httpClient := &netHttp.Client{
+			Transport: &netHttp.Transport{
+				Proxy:       me.Proxy,
+				DialContext: me.DialContext,
+			},
+		}
+		value = &refCountedWebtorrentTrackerClient{
+			TrackerClient: webtorrent.TrackerClient{
+				HTTPClient:                 httpClient,
+				Url:                        url,
+				GetAnnounceRequest:         me.GetAnnounceRequest,
+				PeerId:                     me.PeerId,
+				OnConn:                     me.OnConn,
+				Slogger:                    me.slogger().With("trackerClientUrl", url),
+				WebsocketTrackerHttpHeader: me.WebsocketTrackerHttpHeader,
+				ICEServers:                 me.ICEServers,
+				OnConnected: func(err error) {
+					for _, cb := range me.callbacks.StatusUpdated {
+						cb(StatusUpdatedEvent{
+							Event: TrackerConnected,
+							Url:   url,
+							Error: err,
+						})
+					}
+				},
+				OnDisconnected: func(err error) {
+					for _, cb := range me.callbacks.StatusUpdated {
+						cb(StatusUpdatedEvent{
+							Event: TrackerDisconnected,
+							Url:   url,
+							Error: err,
+						})
+					}
+				},
+				OnAnnounceSuccessful: func(ih string) {
+					for _, cb := range me.callbacks.StatusUpdated {
+						cb(StatusUpdatedEvent{
+							Event:    TrackerAnnounceSuccessful,
+							Url:      url,
+							InfoHash: ih,
+						})
+					}
+				},
+				OnAnnounceError: func(ih string, err error) {
+					for _, cb := range me.callbacks.StatusUpdated {
+						cb(StatusUpdatedEvent{
+							Event:    TrackerAnnounceError,
+							Url:      url,
+							Error:    err,
+							InfoHash: ih,
+						})
+					}
+				},
+			},
+		}
+		value.TrackerClient.Start(func(err error) {
+			if err != nil {
+				me.slogger().Error("error running tracker client", "url", url, "err", err)
+			}
+		})
+		if me.clients == nil {
+			me.clients = make(map[string]*refCountedWebtorrentTrackerClient)
+		}
+		me.clients[url] = value
+	}
+	value.refCount++
+	return &value.TrackerClient, func() {
+		me.mu.Lock()
+		defer me.mu.Unlock()
+		value.TrackerClient.CloseOffersForInfohash(infoHash)
+		value.refCount--
+		if value.refCount == 0 {
+			value.TrackerClient.Close()
+			delete(me.clients, url)
+		}
+	}
+}

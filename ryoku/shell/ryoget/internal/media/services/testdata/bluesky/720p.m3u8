@@ -1,0 +1,16 @@
+#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-TARGETDURATION:11
+#EXTINF:10.200,
+video0.ts?session_id=dboqtbr2uu1s73flusc0&dur=10.200000
+#EXTINF:4.000,
+video1.ts?session_id=dboqtbr2uu1s73flusc0&dur=4.000000
+#EXTINF:3.967,
+video2.ts?session_id=dboqtbr2uu1s73flusc0&dur=3.966667
+#EXTINF:7.700,
+video3.ts?session_id=dboqtbr2uu1s73flusc0&dur=7.700000
+#EXTINF:3.867,
+video4.ts?session_id=dboqtbr2uu1s73flusc0&dur=3.866667
+#EXT-X-ENDLIST

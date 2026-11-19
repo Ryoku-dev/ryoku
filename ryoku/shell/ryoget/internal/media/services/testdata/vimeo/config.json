@@ -1,0 +1,23 @@
+{
+ "video": {
+  "title": "The New Vimeo Player (You Know, For Videos)",
+  "duration": 62,
+  "thumbnail_url": "https://i.vimeocdn.com/video/452001751-8216e0571c251a09d7a8387550942d89f7f86f6398f8ed886e639b0dd50d3c90-d",
+  "owner": {
+   "name": "Vimeo"
+  }
+ },
+ "request": {
+  "files": {
+   "progressive": [],
+   "hls": {
+    "default_cdn": "akfire_interconnect_quic",
+    "cdns": {
+     "akfire_interconnect_quic": {
+      "url": "https://vod-adaptive-ak.vimeocdn.com/fixture/v2/playlist/av/primary/playlist.m3u8"
+     }
+    }
+   }
+  }
+ }
+}

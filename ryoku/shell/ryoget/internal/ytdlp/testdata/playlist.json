@@ -1,0 +1,3 @@
+{"_type":"playlist","id":"PL1","title":"A list","playlist_count":7,"extractor_key":"Youtube","entries":[
+ {"_type":"video","id":"v1","title":"First","webpage_url":"https://www.youtube.com/watch?v=v1","extractor_key":"Youtube","url":"https://cdn.test/v1.mp4","ext":"mp4","protocol":"https","vcodec":"avc1","acodec":"mp4a.40.2","height":360}
+]}

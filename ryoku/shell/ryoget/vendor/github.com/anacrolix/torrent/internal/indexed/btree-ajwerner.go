@@ -1,0 +1,66 @@
+//go:build !torrent_tidwall_btree
+
+package indexed
+
+import (
+	"iter"
+
+	"github.com/anacrolix/btree"
+	g "github.com/anacrolix/generics"
+)
+
+type ajwernerBtreeSet[R any] struct {
+	inner btree.Set[R]
+}
+
+func (me *ajwernerBtreeSet[R]) Delete(r R) (actual R, removed bool) {
+	actual, _, removed = me.inner.Map.Delete(r)
+	return
+}
+
+func (me *ajwernerBtreeSet[R]) Upsert(r R) (_ R, overwrote bool) {
+	return me.inner.Upsert(r)
+}
+
+func (me *ajwernerBtreeSet[R]) Contains(r R) bool {
+	_, ok := me.inner.Get(r)
+	return ok
+}
+
+func (me *ajwernerBtreeSet[R]) Len() int {
+	return me.inner.Len()
+}
+
+func (me *ajwernerBtreeSet[R]) Iter(yield func(R) bool) {
+	it := me.inner.Iterator()
+	for it.First(); it.Valid(); it.Next() {
+		if !yield(it.Cur()) {
+			return
+		}
+	}
+}
+
+func (me *ajwernerBtreeSet[R]) IterFrom(start R) iter.Seq[R] {
+	return func(yield func(R) bool) {
+		it := me.inner.Iterator()
+		it.SeekGE(start)
+		for ; it.Valid(); it.Next() {
+			if !yield(it.Cur()) {
+				return
+			}
+		}
+	}
+}
+
+func (me *ajwernerBtreeSet[R]) GetGte(start R) (_ g.Option[R]) {
+	it := me.inner.Iterator()
+	it.SeekGE(start)
+	if !it.Valid() {
+		return
+	}
+	return g.Some(it.Cur())
+}
+
+func makeBtreeSet[R any](cmp func(R, R) int) btreeSet[R] {
+	return &ajwernerBtreeSet[R]{inner: btree.MakeSet(cmp)}
+}

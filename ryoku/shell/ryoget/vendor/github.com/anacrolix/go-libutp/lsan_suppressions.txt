@@ -1,0 +1,25 @@
+# LeakSanitizer suppressions for the `lsan` build tag.
+#
+# Every entry here is a one-time initialization inside Apple's own system
+# libraries, reachable only through cgo. None of them originate in go-libutp or
+# libutp: the allocations are process-lifetime caches (the notify token table,
+# the XPC bootstrap pipe, dispatch/objc class init, dyld's thread-local slot for
+# qsort) that macOS never frees by design, so LeakSanitizer reports them as
+# leaked at exit. They do not exist under glibc on Linux, which is why the CI
+# asan job runs on ubuntu only and needs none of these.
+#
+# Building the tests with the `netgo` tag avoids the C resolver (getaddrinfo),
+# which removes all but the libdispatch/XPC entry below; that last one fires
+# during runtime init even for a test that opens no sockets.
+
+# libdispatch/XPC init (fires even with netgo, and without any socket).
+leak:xpc_date_create_from_current
+leak:libxpc.dylib
+leak:libdispatch.dylib
+
+# The cgo resolver (getaddrinfo) and its notify/bootstrap machinery. Only
+# reached when built without netgo; kept so the plain `-tags lsan` build is
+# also clean on macOS.
+leak:getaddrinfo
+leak:libsystem_info.dylib
+leak:libsystem_notify.dylib

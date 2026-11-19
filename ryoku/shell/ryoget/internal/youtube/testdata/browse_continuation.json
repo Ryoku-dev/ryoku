@@ -1,0 +1,177 @@
+{
+ "onResponseReceivedActions": [
+  {
+   "appendContinuationItemsAction": {
+    "continuationItems": [
+     {
+      "lockupViewModel": {
+       "contentId": "pvUy69I_Xuk",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+       "contentImage": {
+        "thumbnailViewModel": {
+         "image": {
+          "sources": [
+           {
+            "url": "https://i.ytimg.com/vi/pvUy69I_Xuk/hqdefault.jpg?sqp=-oaymwEbCKgBEF5IVfKriqkDDggBFQAAiEIYAXABwAEG&rs=AOn4CLCX3wHqjr-4lmk1gQrLgMWWk3nipQ",
+            "width": 168,
+            "height": 94
+           },
+           {
+            "url": "https://i.ytimg.com/vi/pvUy69I_Xuk/hqdefault.jpg?sqp=-oaymwEbCMQBEG5IVfKriqkDDggBFQAAiEIYAXABwAEG&rs=AOn4CLDD3bp24dkQQXP5Jk4DEZFVzFB2SA",
+            "width": 196,
+            "height": 110
+           },
+           {
+            "url": "https://i.ytimg.com/vi/pvUy69I_Xuk/hqdefault.jpg?sqp=-oaymwEcCPYBEIoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLC7Zu7NawmwW1_IdgBojwxt670eMg",
+            "width": 246,
+            "height": 138
+           },
+           {
+            "url": "https://i.ytimg.com/vi/pvUy69I_Xuk/hqdefault.jpg?sqp=-oaymwEcCNACELwBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDc5LiX4_pK147WRMA77yYCIP7ryA",
+            "width": 336,
+            "height": 188
+           }
+          ]
+         },
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "28:01"
+              }
+             }
+            ]
+           }
+          }
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "What's New in Blender 5.3! Official Overview"
+         }
+        }
+       }
+      }
+     },
+     {
+      "lockupViewModel": {
+       "contentId": "6rjcePddRlg",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+       "contentImage": {
+        "thumbnailViewModel": {
+         "image": {
+          "sources": [
+           {
+            "url": "https://i.ytimg.com/vi/6rjcePddRlg/hqdefault.jpg?sqp=-oaymwEiCKgBEF5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AQ==&rs=AOn4CLCK38WT-CMNXY62BM8OyFtrlxayNg",
+            "width": 168,
+            "height": 94
+           },
+           {
+            "url": "https://i.ytimg.com/vi/6rjcePddRlg/hqdefault.jpg?sqp=-oaymwEiCMQBEG5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AQ==&rs=AOn4CLDBsPY3zEAVjfQRUF53shnXqEyu9w",
+            "width": 196,
+            "height": 110
+           },
+           {
+            "url": "https://i.ytimg.com/vi/6rjcePddRlg/hqdefault.jpg?sqp=-oaymwEjCPYBEIoBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAE=&rs=AOn4CLCj3Wf2PEb6frODsMPFOKeaFtvIUw",
+            "width": 246,
+            "height": 138
+           },
+           {
+            "url": "https://i.ytimg.com/vi/6rjcePddRlg/hqdefault.jpg?sqp=-oaymwEjCNACELwBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAE=&rs=AOn4CLAfaiO4Bj0I4CHv0AnaeOm0YIlt6w",
+            "width": 336,
+            "height": 188
+           }
+          ]
+         },
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "47:17"
+              }
+             }
+            ]
+           }
+          }
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "How We Built the BCON26 Visual Identity \u2014 BCON26"
+         }
+        }
+       }
+      }
+     },
+     {
+      "lockupViewModel": {
+       "contentId": "SqJ_rtaPqg4",
+       "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+       "contentImage": {
+        "thumbnailViewModel": {
+         "image": {
+          "sources": [
+           {
+            "url": "https://i.ytimg.com/vi/SqJ_rtaPqg4/hqdefault.jpg?sqp=-oaymwEiCKgBEF5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AQ==&rs=AOn4CLBlnIeChK-uWHikqP7BKlWVA67KGg",
+            "width": 168,
+            "height": 94
+           },
+           {
+            "url": "https://i.ytimg.com/vi/SqJ_rtaPqg4/hqdefault.jpg?sqp=-oaymwEiCMQBEG5IWvKriqkDFQgBFQAAAAAYASUAAMhCPQCAokN4AQ==&rs=AOn4CLBKIsr6e6D3bQUnnWW-NZoCwyuUqg",
+            "width": 196,
+            "height": 110
+           },
+           {
+            "url": "https://i.ytimg.com/vi/SqJ_rtaPqg4/hqdefault.jpg?sqp=-oaymwEjCPYBEIoBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAE=&rs=AOn4CLBBoYMAKewiEb5dSt0b-6hjogn69A",
+            "width": 246,
+            "height": 138
+           },
+           {
+            "url": "https://i.ytimg.com/vi/SqJ_rtaPqg4/hqdefault.jpg?sqp=-oaymwEjCNACELwBSFryq4qpAxUIARUAAAAAGAElAADIQj0AgKJDeAE=&rs=AOn4CLDFmW-S6ubTETs6UKuSwxiinKuoMw",
+            "width": 336,
+            "height": 188
+           }
+          ]
+         },
+         "overlays": [
+          {
+           "thumbnailBottomOverlayViewModel": {
+            "badges": [
+             {
+              "thumbnailBadgeViewModel": {
+               "text": "48:39"
+              }
+             }
+            ]
+           }
+          }
+         ]
+        }
+       },
+       "metadata": {
+        "lockupMetadataViewModel": {
+         "title": {
+          "content": "Not Color: What Every Digital Artist Should Know About Color Science \u2014 BCON26"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": []
+  }
+ }
+}

@@ -1,0 +1,9 @@
+{"_type":"video","id":"abc123","title":"A Test Clip","uploader":"Someone","duration":12.5,"thumbnail":"https://img.test/t.jpg","webpage_url":"https://vimeo.test/123","extractor_key":"Vimeo",
+ "formats":[
+  {"format_id":"sb0","url":"https://img.test/sb","ext":"mhtml","protocol":"mhtml","vcodec":"none","acodec":"none","format_note":"storyboard"},
+  {"format_id":"hls-720","url":"https://cdn.test/720.m3u8","ext":"mp4","protocol":"m3u8_native","vcodec":"avc1.64001F","acodec":"mp4a.40.2","height":720,"fps":30,"tbr":2400},
+  {"format_id":"dash-1080","url":"https://cdn.test/manifest.mpd","ext":"mp4","protocol":"http_dash_segments","vcodec":"avc1.640028","acodec":"none","height":1080,"fps":29.97,"tbr":5000},
+  {"format_id":"http-1080","url":"https://cdn.test/1080.mp4","ext":"mp4","protocol":"https","vcodec":"avc1.640028","acodec":"none","height":1080,"fps":60,"tbr":6000,"filesize":1234567,"http_headers":{"User-Agent":"UA-test","Referer":"https://vimeo.test/"}},
+  {"format_id":"drm-2160","url":"https://cdn.test/drm.mp4","ext":"mp4","protocol":"https","vcodec":"vp9","acodec":"none","height":2160,"has_drm":true},
+  {"format_id":"audio-hi","url":"https://cdn.test/a.m4a","ext":"m4a","protocol":"https","vcodec":"none","acodec":"mp4a.40.2","abr":128.4,"tbr":130,"filesize_approx":200000}
+ ]}
