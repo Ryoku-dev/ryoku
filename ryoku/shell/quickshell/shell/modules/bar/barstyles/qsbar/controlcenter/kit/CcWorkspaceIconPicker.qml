@@ -32,13 +32,18 @@ Column {
         nameField.text = Qt.binding(() => picker.current)
         picker.choose(name)
     }
-    // A known name shapes into one em-wide glyph; an unknown one lays out as
-    // letters, which the bar would draw as text, so it is not saved.
+    // A known name shapes into one em-wide glyph, and spelling it out with
+    // zero-width non-joiners breaks that ligature back into wider letters. An
+    // unknown name or a lone letter does neither; the bar would draw it as text,
+    // so it is not saved.
     function commitText(text) {
         if (!picker.root) return
         var name = picker.root.workspaceIconName(text)
         glyphProbe.text = name
-        if (name === "" || glyphProbe.advanceWidth <= glyphProbe.font.pixelSize * 1.2)
+        var glyph = glyphProbe.advanceWidth
+        glyphProbe.text = name.split("").join("\u200c")
+        var spelled = glyphProbe.advanceWidth
+        if (name === "" || (glyph <= glyphProbe.font.pixelSize * 1.2 && spelled > glyph))
             picker.choose(name)
         nameField.text = Qt.binding(() => picker.current)
     }
