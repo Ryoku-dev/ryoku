@@ -424,11 +424,6 @@ EOF
   for s in "$_repo"/system/extras/ryoku-*; do
     install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
   done
-  # container runtime helper (ryoku-docker): the privileged door the stash
-  # Cobalt setup wizard drives. Its own directory because it is not hardware.
-  for s in "$_repo"/system/containers/ryoku-*; do
-    install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
-  done
   # the extras actuator (renamed from ryoku-extras-install); the ryoku-* glob
   # above no longer matches it, so install it by name.
   install -Dm755 "$_repo/system/extras/ryostore-install" "$pkgdir/usr/bin/ryostore-install"
@@ -612,14 +607,6 @@ EOF
 
   install -Dm755 "$_repo/system/policy/ryoku-polkit-reload" \
     "$pkgdir/usr/bin/ryoku-polkit-reload"
-
-  # Container runtime: the same one-click grant for ryoku-docker (installed to
-  # /usr/bin by the containers glob above), so the stash Cobalt setup wizard can
-  # start docker.service and the cobalt container without a password prompt per
-  # step. The helper exposes no docker passthrough, so the grant cannot be turned
-  # into arbitrary root; see the rule's own comment.
-  install -Dm644 "$_repo/system/containers/46-ryoku-docker.rules" \
-    "$pkgdir/usr/share/polkit-1/rules.d/46-ryoku-docker.rules"
 
   # The sessionless lid policy belongs to logind. XBPS actions run the guarded
   # cutover that the ALPM hooks provide on Arch.

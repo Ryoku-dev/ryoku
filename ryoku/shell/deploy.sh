@@ -806,8 +806,8 @@ piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 install -m755 "$here/../cli/ryoku-host" "$bindir/ryoku-host"
 # every system helper the package ships to /usr/bin, by the same globs, so a new
-# hardware or container helper reaches a checkout the moment it lands.
-for s in "$here/../../system/hardware"/*/ryoku-* "$here/../../system/containers"/ryoku-*; do
+# hardware helper reaches a checkout the moment it lands.
+for s in "$here/../../system/hardware"/*/ryoku-*; do
   [[ -f $s && -x $s ]] || continue
   install -m755 "$s" "$bindir/${s##*/}"
 done

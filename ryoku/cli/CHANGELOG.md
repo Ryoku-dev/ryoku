@@ -6,6 +6,12 @@
   then `ID_LIKE`; absent when none matches), so Kit's Commands shows the commands
   for this machine without reading the file from QML
   (`internal/host/capabilities.go`).
+- **`ryoku doctor` clears what the retired Cobalt engine left.** It removes
+  `~/.config/ryoku/stash.json` and the `stash-probe` cache, and when Docker
+  answers without privileges it removes the `ryoku-cobalt` container and its
+  image; when Docker needs root it names the two commands to run once instead.
+  It touches no other container and never `docker.service`
+  (`internal/doctor/reconcile_retired_cobalt.go`).
 - **A checkout box gets the gpk its checkout pins.** Checkout boxes take
   `[ryoku]` from the stable channel, which can serve an older gpk than the
   checkout's Settings and Ryostore need. On Arch and CachyOS the dev deploy now

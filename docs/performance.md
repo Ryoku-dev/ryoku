@@ -58,7 +58,7 @@ empty workspace:
 UI (`qs`), the shell daemon, its helpers (cava, pw-record), the window-manager
 provider, the wallpaper daemon, the compositor, session daemons and Ryoku's
 system units. Optional features are reported apart: phone integration,
-dictation, Rashin, Cobalt.
+dictation, Rashin. Downloads (`ryoget`) run only while a transfer does.
 
 ## Results
 
@@ -311,7 +311,7 @@ In the order to take them:
 
 Optional features carry their own cost and are off unless chosen: phone
 integration (the KDE Connect monitor), dictation, Rashin (nothing at all while
-it is off), Cobalt. QS Bar stays the heaviest style: its ambient stream keeps
+it is off). QS Bar stays the heaviest style: its ambient stream keeps
 it near 11% of a core and a quarter of the GPU at idle on Performance.
 
 ## Measuring it yourself

@@ -33,7 +33,6 @@ dbus	dbus-libs	optional
 ddcutil	ddcutil	desktop	
 desktop-file-utils	desktop-file-utils	desktop	
 dkms	dkms	desktop	
-docker	moby-engine	desktop	
 dolphin	dolphin	optional	
 dosfstools	dosfstools	system	
 dualsensectl	dualsensectl	optional	Ryoku-owned RPM.

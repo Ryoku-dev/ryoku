@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Changed
+- `base.packages`: **Docker is no longer installed.** It was only there for the
+  Stash downloader's Cobalt engine, which is gone: downloads now run in
+  `ryoget`, a native daemon with no container. The Fedora (`moby-engine`) and
+  Void translations go with it. Existing boxes keep Docker until it is removed
+  by hand, and `ryoku doctor` takes away the `ryoku-cobalt` container it left.
 - `cachyos.replaces`: **CachyOS leaves out stock `linux-headers` with stock
   `linux`.** Its package set already carries matching headers for both CachyOS
   kernels, while doctor derives matches for any additional installed kernel.

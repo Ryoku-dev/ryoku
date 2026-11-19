@@ -330,6 +330,7 @@ func reconcilers() []reconciler {
 		{i18n.T("Ryogami user paths"), reconcileRyogamiHome},
 		{i18n.T("ryogami wallpaper daemon"), reconcileRyogamiWallpaper},
 		{i18n.T("ryowalls app leftovers"), reconcileRyowallsRemoval},
+		{i18n.T("retired download engine leftovers"), reconcileRetiredCobalt},
 		{i18n.T("duplicate launcher entries"), reconcileLauncherDuplicates},
 		{i18n.T("quick-settings capture tab"), reconcileCaptureModule},
 		{i18n.T("quick-settings stage tab"), reconcileStageModule},

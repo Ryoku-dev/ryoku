@@ -45,8 +45,7 @@ pkgs.stdenvNoCC.mkDerivation {
     }
 
     install_helpers \
-      system/hardware/*/ryoku-* \
-      system/containers/ryoku-*
+      system/hardware/*/ryoku-*
 
     # Compositor-neutral shell helpers moved out of the Hyprland payload.
     # They must exist under both Hyprland and Niri.

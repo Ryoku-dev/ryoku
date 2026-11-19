@@ -33,7 +33,6 @@ dbus	dbus	optional
 ddcutil	ddcutil	desktop	
 desktop-file-utils	desktop-file-utils	desktop	
 dkms	dkms	desktop	
-docker	docker	desktop	
 dolphin	dolphin	optional	
 dualsensectl	dualsensectl	optional	repo=ryoku
 dosfstools	dosfstools	system	
