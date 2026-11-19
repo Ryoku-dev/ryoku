@@ -20,7 +20,19 @@ function g(key, fallback) {
 }
 
 var on = { bind: g("enabled", true), is: [true] };
+var verticalOn = { bind: g("voiceVertical", true), is: [true] };
 var snapOn = { bind: g("snap", true), is: [true] };
+var leftRight = [
+    { label: "Left", value: "left" }, { label: "Right", value: "right" }
+];
+var belowRight = [
+    { label: "Below", value: "below" }, { label: "Right", value: "right" }
+];
+var belowLeft = [
+    { label: "Below", value: "below" }, { label: "Left", value: "left" }
+];
+var alignLeft = { bind: g("voiceAlign", "center"), is: ["left", "center"] };
+var alignRight = { bind: g("voiceAlign", "center"), is: ["right"] };
 var guidesOn = { bind: g("guideGrid", true), is: [true] };
 
 // a row that needs several switches on lists them outermost first in `whenAll`;
@@ -104,6 +116,41 @@ var rows = [
       keywords: ["discord", "voice", "call", "participants", "avatars", "limit"],
       control: "stepper", min: 1, max: 8, changeLabel: "Game bar people shown",
       bind: g("voiceAvatars", 8), "default": 8, when: on },
+    { id: "voice-vertical", section: "voice", label: "Avatar layout",
+      detail: "Show the avatars in the call in one column or in rows",
+      keywords: ["discord", "voice", "vertical", "horizontal", "layout", "column", "row", "stack", "avatar"],
+      control: "segmented", options: [
+          { label: "Horizontal", value: false }, { label: "Vertical", value: true }
+      ], changeLabel: "Game bar avatar layout",
+      bind: g("voiceVertical", false), "default": false, when: on },
+    { id: "voice-align", section: "voice", label: "Avatar alignment",
+      detail: "Where the avatars sit inside the widget",
+      keywords: ["discord", "voice", "align", "alignment", "left", "center", "right", "avatars"],
+      control: "segmented", options: [
+          { label: "Center", value: "center" }, { label: "Left", value: "left" },
+          { label: "Right", value: "right" }
+      ], changeLabel: "Game bar avatar alignment",
+      bind: g("voiceAlign", "center"), "default": "center",
+      whenAll: [on, verticalOn], when: verticalOn },
+    { id: "voice-name-position", section: "voice", label: "Name position",
+      detail: "Where the name sits next to each avatar",
+      keywords: ["discord", "voice", "name", "label", "below", "left", "right", "avatar"],
+      control: "segmented", options: [
+          { label: "Below", value: "below" }, { label: "Left", value: "left" },
+          { label: "Right", value: "right" }
+      ], changeLabel: "Game bar avatar name position",
+      bind: g("voiceNamePosition", "below"), "default": "below",
+      whenAll: [on, verticalOn], when: verticalOn },
+    { id: "voice-name-gap", section: "voice", label: "Name gap",
+      detail: "Space between each avatar and its name",
+      keywords: ["discord", "voice", "name", "gap", "spacing", "padding", "avatar"],
+      control: "stepper", min: 0, max: 16, unit: "px", changeLabel: "Game bar name gap",
+      bind: g("voiceNameGap", 1), "default": 1, when: on },
+    { id: "voice-name-chars", section: "voice", label: "Name length",
+      detail: "How many characters of a name to show before adding three dots",
+      keywords: ["discord", "voice", "name", "characters", "length", "truncate", "dots"],
+      control: "stepper", min: 4, max: 32, unit: "chars", changeLabel: "Game bar name length",
+      bind: g("voiceNameChars", 12), "default": 12, when: on },
     { id: "voice-dim", section: "voice", label: "Fade quiet people",
       detail: "Dim everyone who is not speaking so the speaker stands out",
       keywords: ["discord", "voice", "speaking", "dim", "fade", "active speaker"],
@@ -144,15 +191,34 @@ function met(cond, value) {
     return cond.is.some(x => JSON.stringify(x) === JSON.stringify(v));
 }
 
+// adaptive rows carry a static mirrorSide flag; RowControl derives the shown
+// option from the live value so a page rebuild that keeps the row stays correct.
 // rows with each `when` set to the first of its conditions that is not met (or its own when
 // all are), so a row waits on the outermost switch that is off and a deep link lands there.
 // value(bind) reads a bind (Changes.value).
 function adapt(rows, value) {
     return rows.map(r => {
-        if (!r.whenAll)
-            return r;
-        var first = r.whenAll.concat([r.when]).find(c => !met(c, value));
-        return first && first !== r.when ? Object.assign({}, r, { when: first }) : r;
+        var flat = r;
+        if (r.whenAll) {
+            var first = r.whenAll.concat([r.when]).find(c => !met(c, value));
+            flat = first && first !== r.when ? Object.assign({}, r, { when: first }) : r;
+        }
+        // Both rows are hidden when horizontal, so only the vertical rules apply.
+        var options = flat.options;
+        var mirrorSide = false;
+        if (flat.id === "voice-align") {
+            // Vertical only has two sides: a stored Center behaves as Left.
+            options = leftRight;
+            mirrorSide = true;
+        } else if (flat.id === "voice-name-position") {
+            // Mirror the name away from the aligned edge; Below always stays.
+            if (met(alignLeft, value))
+                options = belowRight;
+            if (met(alignRight, value))
+                options = belowLeft;
+            mirrorSide = true;
+        }
+        return Object.assign({}, flat, { options: options, mirrorSide: mirrorSide });
     });
 }
 

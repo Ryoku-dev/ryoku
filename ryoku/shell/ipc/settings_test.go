@@ -1314,3 +1314,65 @@ settle:
 		t.Fatal("a finished rewrite under the latched stat did not reload")
 	}
 }
+
+func TestGameBarVoiceAlign(t *testing.T) {
+	store := newTestStore(t)
+	if got := frameGet(t, store.frameLocked(), "gamebar.voiceAlign"); got != "center" {
+		t.Fatalf("voiceAlign default = %v, want center", got)
+	}
+	for _, value := range []string{`"left"`, `"right"`, `"center"`} {
+		if err := store.patch("gamebar.voiceAlign", rm(value)); err != nil {
+			t.Fatalf("patch voiceAlign %s: %v", value, err)
+		}
+	}
+	if err := store.patch("gamebar.voiceAlign", rm(`"diagonal"`)); err == nil {
+		t.Fatal("voiceAlign accepted an unknown value")
+	}
+	if got := frameGet(t, store.frameLocked(), "gamebar.voiceNamePosition"); got != "below" {
+		t.Fatalf("voiceNamePosition default = %v, want below", got)
+	}
+	for _, value := range []string{`"left"`, `"right"`, `"below"`} {
+		if err := store.patch("gamebar.voiceNamePosition", rm(value)); err != nil {
+			t.Fatalf("patch voiceNamePosition %s: %v", value, err)
+		}
+	}
+	if err := store.patch("gamebar.voiceNamePosition", rm(`"above"`)); err == nil {
+		t.Fatal("voiceNamePosition accepted an unknown value")
+	}
+	if got := frameNum(t, store.frameLocked(), "gamebar.voiceNameGap"); got != 1 {
+		t.Fatalf("voiceNameGap default = %v, want 1", got)
+	}
+	if err := store.patch("gamebar.voiceNameGap", rm("8")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.patch("gamebar.voiceNameGap", rm("20")); err == nil {
+		t.Fatal("voiceNameGap accepted an out-of-range value")
+	}
+	if got := frameNum(t, store.frameLocked(), "gamebar.voiceNameChars"); got != 12 {
+		t.Fatalf("voiceNameChars default = %v, want 12", got)
+	}
+	if err := store.patch("gamebar.voiceNameChars", rm("8")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.patch("gamebar.voiceNameChars", rm("2")); err == nil {
+		t.Fatal("voiceNameChars accepted an out-of-range value")
+	}
+
+	// A same-side name is mirrored in the same patch, so no intermediate
+	// frame can show an option that is no longer offered.
+	for _, side := range []string{"left", "right"} {
+		other := "left"
+		if side == "left" {
+			other = "right"
+		}
+		if err := store.patch("gamebar.voiceAlign", rm(`"`+side+`"`)); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.patch("gamebar.voiceNamePosition", rm(`"`+side+`"`)); err != nil {
+			t.Fatal(err)
+		}
+		if got := frameGet(t, store.frameLocked(), "gamebar.voiceNamePosition"); got != other {
+			t.Fatalf("%s + %s: name position = %v, want %s", side, side, got, other)
+		}
+	}
+}

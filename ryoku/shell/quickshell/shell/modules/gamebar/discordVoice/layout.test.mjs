@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { PAD, HEADER, NAME, SPACE, avatar, cell, columns, size } = require("./layout.js");
+const { PAD, HEADER, NAME, NAME_SIDE, NAME_MAX, SPACE, avatar, beside, nameWidth, cell, rowHeight, columns, size } = require("./layout.js");
 
 test("avatar size is clamped to the setting range", () => {
     assert.equal(avatar(undefined), 52);
@@ -48,4 +48,32 @@ test("names off leaves the avatar cell tighter", () => {
     const named = size(400, 4, 52, true);
     const plain = size(400, 4, 52, false);
     assert.ok(plain.h < named.h);
+});
+
+test("vertical stacks everyone in one column", () => {
+    assert.equal(columns(2000, 8, 52, true, true), 1);
+    const narrow = size(400, 8, 52, true, false);
+    const tall = size(400, 8, 52, true, true);
+    assert.ok(tall.h > narrow.h);
+});
+
+test("a name beside the avatar takes width and drops the name row", () => {
+    assert.equal(beside("left"), true);
+    assert.equal(beside("below"), false);
+    assert.equal(cell(52, true, "left"), 52 + NAME_SIDE);
+    assert.equal(rowHeight(52, true, "below"), 52 + NAME);
+    assert.equal(rowHeight(52, true, "left"), 52);
+    assert.equal(cell(52, true, "left", 6), 52 + NAME_SIDE);
+    assert.equal(cell(52, true, "right", 6), 52 + NAME_SIDE + 6);
+    assert.equal(rowHeight(52, true, "below", 6), 52 + NAME + 6);
+    const below = size(400, 1, 52, true, false, "below");
+    const side = size(400, 1, 52, true, false, "left");
+    assert.ok(side.h < below.h);
+});
+
+test("a higher character limit widens the name box", () => {
+    assert.equal(nameWidth(8), NAME_SIDE);
+    assert.equal(nameWidth(20), 20 * 6);
+    assert.equal(nameWidth(32), NAME_MAX);
+    assert.equal(cell(52, true, "below", 0, 32), NAME_MAX);
 });

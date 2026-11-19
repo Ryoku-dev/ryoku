@@ -86,6 +86,8 @@ var (
 	tintValues            = []string{"off", "low", "medium"}
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
+	voiceAlignValues      = []string{"center", "left", "right"}
+	voiceNamePosValues    = []string{"below", "left", "right"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
 	controlSectionIDs     = []string{"vitals", "connections", "powerProfile", "media", "levels", "bottomControls"}
 	controlPositionValues = []string{"top-left", "top-center", "top-right", "center"}
@@ -166,6 +168,11 @@ type gameBarSettings struct {
 	// Voice controls how the Discord card behaves: avatar limit, the fade for
 	// quiet people, and the compact pinned overlay's avatar, names and panel.
 	VoiceAvatars    int     `json:"voiceAvatars"`
+	VoiceVertical   bool    `json:"voiceVertical"`
+	VoiceAlign      string  `json:"voiceAlign"`
+	VoiceNamePos    string  `json:"voiceNamePosition"`
+	VoiceNameGap    int     `json:"voiceNameGap"`
+	VoiceNameChars  int     `json:"voiceNameChars"`
 	VoiceDim        bool    `json:"voiceDim"`
 	VoiceDimOpacity float64 `json:"voiceDimOpacity"`
 	VoiceAvatarSize int     `json:"voiceAvatarSize"`
@@ -535,6 +542,11 @@ func defaultSettings() *settings {
 			Damping:         0.58,
 			Mass:            1,
 			VoiceAvatars:    8,
+			VoiceVertical:   false,
+			VoiceAlign:      "center",
+			VoiceNamePos:    "below",
+			VoiceNameGap:    1,
+			VoiceNameChars:  12,
 			VoiceDim:        true,
 			VoiceDimOpacity: 0.5,
 			VoiceAvatarSize: 52,
@@ -655,6 +667,19 @@ func (g *gameBarSettings) normalize(v *validator) {
 	v.clampF(&g.Damping, 0.05, 1)
 	v.clampF(&g.Mass, 0.1, 10)
 	v.rangeI("gamebar.voiceAvatars", &g.VoiceAvatars, 1, 8)
+	g.VoiceAlign = v.known("gamebar.voiceAlign", g.VoiceAlign, voiceAlignValues, "center")
+	g.VoiceNamePos = v.known("gamebar.voiceNamePosition", g.VoiceNamePos, voiceNamePosValues, "below")
+	// A name on the same side as the aligned avatars points out of the widget.
+	// Mirror it here so one patch publishes both values together.
+	if (g.VoiceAlign == "left" || g.VoiceAlign == "right") && g.VoiceNamePos == g.VoiceAlign {
+		if g.VoiceAlign == "left" {
+			g.VoiceNamePos = "right"
+		} else {
+			g.VoiceNamePos = "left"
+		}
+	}
+	v.rangeI("gamebar.voiceNameGap", &g.VoiceNameGap, 0, 16)
+	v.rangeI("gamebar.voiceNameChars", &g.VoiceNameChars, 4, 32)
 	v.clampF(&g.VoiceDimOpacity, 0.2, 1)
 	v.rangeI("gamebar.voiceAvatarSize", &g.VoiceAvatarSize, 32, 72)
 	v.clampF(&g.VoiceBgOpacity, 0, 1)

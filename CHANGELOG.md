@@ -12,6 +12,12 @@ for finer detail.
   rounding of their own.
 
 ### Added
+- The Game Bar's Discord voice widget can stack the people in a call in one
+  column instead of a row, and place the avatars at the left, centre or right,
+  with **Avatar layout**, **Avatar alignment** and **Name position** choices,
+  a **Name gap** control and a **Name length** cap in Ryoku Settings > Desktop >
+  Game bar > Discord voice (`voiceVertical`, `voiceAlign`, `voiceNamePosition`,
+  `voiceNameGap`, `voiceNameChars`).
 - QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
   multi-monitor setups to show only the workspaces assigned to each screen on its
   respective bar. The inactive screen dims its active workspace indicator to 72%
