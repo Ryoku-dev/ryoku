@@ -373,11 +373,16 @@ func pickerImportDirs() string {
 // NVIDIA boxes hardware-decoded frames (NVDEC, shared into GL through CUDA)
 // tore the whole picker into shards while the download browser played live
 // wallpaper previews. The previews are small loops, so software decode is cheap.
+//
+// MangoHud's implicit Vulkan layer can hook into Qt Multimedia's FFmpeg device
+// initialization (av_hwdevice_ctx_create -> vkCreateDevice) during card video
+// previews and crash with SIGSEGV. Opt out on the picker process (#903).
 var pickerDiskCacheEnv = []string{
 	"QSG_RHI_DISABLE_DISK_CACHE=1",
 	"QT_DISABLE_SHADER_DISK_CACHE=1",
 	"QT_MEDIA_BACKEND=ffmpeg",
 	"QT_FFMPEG_DECODING_HW_DEVICE_TYPES=",
+	"DISABLE_MANGOHUD=1",
 }
 
 // Import dirs are prepended so the Ryoku.Ryogami module resolves ahead of any

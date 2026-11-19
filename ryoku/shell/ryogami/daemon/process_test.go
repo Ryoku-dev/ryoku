@@ -259,3 +259,17 @@ func TestEnsureWaitsForStoppingPickerBeforeColdStart(t *testing.T) {
 		t.Fatal("replacement picker did not start after the old picker exited")
 	}
 }
+
+func TestPickerEnvDisablesMangoHud(t *testing.T) {
+	env := pickerEnv()
+	found := false
+	for _, kv := range env {
+		if kv == "DISABLE_MANGOHUD=1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("pickerEnv() does not contain DISABLE_MANGOHUD=1: %v", env)
+	}
+}
