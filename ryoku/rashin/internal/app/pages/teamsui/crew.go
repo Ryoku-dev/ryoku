@@ -2,13 +2,14 @@ package teamsui
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
@@ -19,30 +20,31 @@ import (
 // a tile measures against no height limit
 const unbounded = 1 << 24
 
+// a full tile holds a name, a title and a model line that wraps once; a mini tile's face is a crew strip's
+const (
+	crewTile     unit.Dp = 200
+	crewMiniMark unit.Dp = 24
+)
+
 // CrewStyle is how a crew chart is drawn: full tiles on a team's page, small
-// ones beside a draft; an edge with no alpha draws none
+// ones beside a draft
 type CrewStyle struct {
 	tile, gapX, gapY, mark unit.Dp
-	plane, edge            color.NRGBA
 	mini                   bool
 	// Head stands above the lead on a tile of its own, as a dream's CEO does
 	Head layout.Widget
 }
 
-// on the pane a tile lifts as a slab, its vein carrying the edge only in light mode, where the lift alone would not separate
+// on the pane a tile is the design's card: drawn by its hairline in Lithic, a tonal card where corners are round
 func FullCrew(th *look.Theme) CrewStyle {
-	style := CrewStyle{tile: 200, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: 36, plane: th.R.Slab}
-	if !th.R.Dark {
-		style.edge = th.R.Vein
-	}
-	return style
+	return CrewStyle{tile: crewTile, gapX: th.Sp.S3, gapY: th.Sp.S5, mark: unit.Dp(tokens.SizeTabletMark)}
 }
 
-// the aside is a slab, so its tiles stand one step up on the field; a
+// the aside is a card already, so its tiles are drawn by a hairline alone; a
 // mini tile is a mark and a name, two to a row as wide as the aside lets them
 // be, so a name such as Researcher reads whole; its title is in the form beside it
 func MiniCrew(th *look.Theme) CrewStyle {
-	return CrewStyle{gapX: th.Sp.S2, gapY: th.Sp.S4, mark: 24, plane: th.R.Field, mini: true}
+	return CrewStyle{gapX: th.Sp.S2, gapY: th.Sp.S4, mark: crewMiniMark, mini: true}
 }
 
 // CrewIdentity is a tile's mark beside a name and a title, as every crew tile opens
@@ -81,9 +83,9 @@ type placedTile struct {
 	size image.Point
 }
 
-// CrewChart draws the lead's tile centred on top, a vein down from it and
-// across, the members in rows under it; live is nil where the crew is only
-// drafted, as no member of it works yet
+// CrewChart draws the lead's tile centred on top, a guide line down from it
+// and across, the members in rows under it; live is nil where the crew is
+// only drafted, as no member of it works yet
 func CrewChart(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, members []protocol.Member, live *CrewLive, style CrewStyle) layout.Dimensions {
 	lead, leadIndex := Lead(members)
 	if leadIndex < 0 {
@@ -103,7 +105,9 @@ func CrewChart(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, memb
 		return placedTile{call: macro.Stop(), size: dimensions.Size}
 	}
 	record := func(member protocol.Member) placedTile {
-		return place(func(gtx layout.Context) layout.Dimensions { return crewTile(gtx, th, snapshot, member, live, style) })
+		return place(func(gtx layout.Context) layout.Dimensions {
+			return layoutCrewTile(gtx, th, snapshot, member, live, style)
+		})
 	}
 	var head placedTile
 	leadY := 0
@@ -129,7 +133,7 @@ func CrewChart(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, memb
 		rows[len(rows)-1] = append(rows[len(rows)-1], record(member))
 	}
 
-	line := max(1, gtx.Dp(1))
+	line := max(1, gtx.Dp(unit.Dp(tokens.SizeHairline)))
 	trunk := width / 2
 	y := leadY + top.size.Y
 	type placedRow struct {
@@ -152,45 +156,49 @@ func CrewChart(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, memb
 		placed[index] = placedRow{y: y, height: height, xs: xs}
 		y += height
 	}
-	// the veins go under the tiles so a tile's edge is never crossed
+	// who answers to whom is a guide line, as the tree's rails are; it goes under the tiles so a tile's edge is never crossed
+	guide := th.R.Guide()
 	if style.Head != nil {
-		look.FillRect(gtx, image.Rect(trunk, head.size.Y, trunk+line, leadY), th.R.Vein)
+		look.FillRect(gtx, image.Rect(trunk, head.size.Y, trunk+line, leadY), guide)
 	}
 	if len(placed) > 0 {
 		last := placed[len(placed)-1]
-		look.FillRect(gtx, image.Rect(trunk, leadY+top.size.Y, trunk+line, last.y-gapY/2), th.R.Vein)
+		look.FillRect(gtx, image.Rect(trunk, leadY+top.size.Y, trunk+line, last.y-gapY/2), guide)
 		for _, row := range placed {
 			bar := row.y - gapY/2
 			left, right := min(trunk, row.xs[0]+tileWidth/2), max(trunk, row.xs[len(row.xs)-1]+tileWidth/2)
-			look.FillRect(gtx, image.Rect(left, bar, right+line, bar+line), th.R.Vein)
+			look.FillRect(gtx, image.Rect(left, bar, right+line, bar+line), guide)
 			for _, x := range row.xs {
-				look.FillRect(gtx, image.Rect(x+tileWidth/2, bar, x+tileWidth/2+line, row.y), th.R.Vein)
+				look.FillRect(gtx, image.Rect(x+tileWidth/2, bar, x+tileWidth/2+line, row.y), guide)
 			}
 		}
 	}
-	draw := func(tile placedTile, at image.Point) {
+	// a tile is as tall as the tallest of its row, so a row reads as one band
+	draw := func(tile placedTile, at image.Point, height int) {
 		stack := op.Offset(at).Push(gtx.Ops)
-		bounds, cut := image.Rectangle{Max: tile.size}, gtx.Dp(th.Cut.Mid)
-		kit.FillCut(gtx.Ops, bounds, cut, style.plane)
-		if style.edge.A > 0 {
-			kit.StrokeCut(gtx.Ops, bounds, cut, line, style.edge)
+		bounds := image.Rect(0, 0, tile.size.X, height)
+		if style.mini {
+			kit.SlabOutline(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small))
+		} else {
+			kit.SlabSurface(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Mid), th.R.Slab)
 		}
 		tile.call.Add(gtx.Ops)
 		stack.Pop()
 	}
 	if style.Head != nil {
-		draw(head, image.Pt((width-tileWidth)/2, 0))
+		draw(head, image.Pt((width-tileWidth)/2, 0), head.size.Y)
 	}
-	draw(top, image.Pt((width-tileWidth)/2, leadY))
+	draw(top, image.Pt((width-tileWidth)/2, leadY), top.size.Y)
 	for index, row := range rows {
 		for column, tile := range row {
-			draw(tile, image.Pt(placed[index].xs[column], placed[index].y))
+			draw(tile, image.Pt(placed[index].xs[column], placed[index].y), placed[index].height)
 		}
 	}
 	return layout.Dimensions{Size: image.Pt(width, y)}
 }
 
-func crewTile(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, member protocol.Member, live *CrewLive, style CrewStyle) layout.Dimensions {
+// who it is, what it runs on, and what it does while it works; a member at rest says nothing more
+func layoutCrewTile(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, member protocol.Member, live *CrewLive, style CrewStyle) layout.Dimensions {
 	identity := CrewIdentity(th, style, member.Name, member.Title, member.Lead)
 	return layout.UniformInset(CrewTileInset(th, style)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -198,62 +206,41 @@ func crewTile(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, membe
 			return identity(gtx)
 		}
 		engine := MemberEngine(snapshot, member)
-		harnessInk := th.R.Fg2
+		line, ink := engine.Line(), th.R.Fg2
 		if engine.Missing {
-			harnessInk = th.R.Jasper
+			line, ink = i18n.Tf("%s cannot run now", engine.Short()), th.R.Stone(palette.Failed)
 		}
-		model := engine.Model
-		if engine.Extra != "" {
-			model = i18n.Tf("%s, %s", model, engine.Extra)
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		children := []layout.FlexChild{
 			layout.Rigid(identity),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			// the engine wraps rather than cuts, a tile in a row as tall as its tallest
+			// the model wraps rather than cuts
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Detail, Color: harnessInk, MaxLines: 2}.Layout(gtx, th.Theme, engine.Harness)
+				return kit.Label{Style: th.T.Detail, Color: ink, MaxLines: 2}.Layout(gtx, th.Theme, line)
 			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return kit.Label{Style: th.T.Detail, Color: th.R.Fg2, MaxLines: 2}.Layout(gtx, th.Theme, model)
-			}),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				task, working := MemberTask(snapshot, live.team, member)
-				now, inHand := TaskLive(snapshot, task)
-				if !working || !inHand {
-					return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Idle"))(gtx)
-				}
-				// the name stands at the top of the tile, and what it is on reads while it says nothing yet
-				now.Member = ""
-				if now.Caption == "" {
-					now.Caption = task.Title
-				}
-				presence := live.presence(member.ID)
-				if _, screen := snapshot.Screens[task.Session]; !screen || task.Session == "" {
-					return presence.Layout(gtx, th, now)
-				}
-				// a member working on a screen of its own says so, as the task page shows it
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return presence.Layout(gtx, th, now) }),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-							layout.Rigid(look.IconWidget(look.Icon.Screen, 14, th.R.Fg2)),
-							layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-							layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg2, i18n.T("Screen"))),
-						)
-					}),
-				)
-			}),
-		)
+		}
+		if live != nil {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return live.layout(gtx, th, snapshot, member)
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
 // CrewLive is the presence of each member at work on the crew chart shown,
-// kept so a caption cross-fades as it changes
+// kept so a caption cross-fades as it changes and a tile unfolds as its
+// member takes a task
 type CrewLive struct {
 	team    string
-	members map[string]*Presence
+	members map[string]*crewMember
+}
+
+type crewMember struct {
+	presence Presence
+	fold     kit.Disclosure
+	// what it showed last, drawn while the tile folds after the task ended
+	last   Live
+	screen bool
 }
 
 // Of is the chart's presence for a team, begun anew when the team shown changes
@@ -264,14 +251,54 @@ func (live *CrewLive) Of(team string) *CrewLive {
 	return live
 }
 
-func (live *CrewLive) presence(member string) *Presence {
+func (live *CrewLive) member(id string) *crewMember {
 	if live.members == nil {
-		live.members = make(map[string]*Presence)
+		live.members = make(map[string]*crewMember)
 	}
-	presence := live.members[member]
-	if presence == nil {
-		presence = new(Presence)
-		live.members[member] = presence
+	member := live.members[id]
+	if member == nil {
+		member = new(crewMember)
+		live.members[id] = member
 	}
-	return presence
+	return member
 }
+
+// what a member does now unfolds under its model and folds away when the task leaves its hands
+func (live *CrewLive) layout(gtx layout.Context, th *look.Theme, snapshot state.Snapshot, member protocol.Member) layout.Dimensions {
+	shown := live.member(member.ID)
+	task, working := MemberTask(snapshot, live.team, member)
+	now, inHand := TaskLive(snapshot, task)
+	shown.fold.Open = working && inHand
+	if shown.fold.Open {
+		// the name stands at the top of the tile, and what it is on reads while it says nothing yet
+		now.Member = ""
+		if now.Caption == "" {
+			now.Caption = task.Title
+		}
+		_, screen := snapshot.Screens[task.Session]
+		shown.last, shown.screen = now, screen && task.Session != ""
+	}
+	return shown.fold.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			if !shown.screen {
+				return shown.presence.Layout(gtx, th, shown.last)
+			}
+			// a member working on a screen of its own says so, as the task page shows it
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return shown.presence.Layout(gtx, th, shown.last) }),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(look.IconWidget(look.Icon.Screen, crewScreenIcon, th.R.Fg2)),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
+						layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg2, i18n.T("Screen"))),
+					)
+				}),
+			)
+		})
+	})
+}
+
+// the screen glyph beside a caption line
+const crewScreenIcon unit.Dp = 14

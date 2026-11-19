@@ -2,26 +2,11 @@ package demo
 
 import (
 	"encoding/json"
-	"slices"
+	"maps"
 	"time"
-
-	"ryoku-i18n"
 
 	"ryoku-rashin/internal/protocol"
 )
-
-// the model list of the harness when it offers model, else nil
-func (s *server) offering(harness, model string) []protocol.Choice {
-	for _, known := range s.data.snapshot.Harnesses {
-		if known.ID != harness || known.Capabilities == nil {
-			continue
-		}
-		if slices.ContainsFunc(known.Capabilities.ModelList, func(choice protocol.Choice) bool { return choice.ID == model }) {
-			return known.Capabilities.ModelList
-		}
-	}
-	return nil
-}
 
 // appends one event to a session and tells the client, as the daemon does for anything a runner emits
 func (s *server) emit(out *outbox, id, kind string, data any) {
@@ -64,51 +49,7 @@ func (s *server) has(id, kind string) bool {
 	return false
 }
 
-// a harness that comes up says what it will use, which is all starting one early is for
-func (s *server) wake(out *outbox, raw json.RawMessage) {
-	var params protocol.SessionRef
-	if decode(raw, &params) != nil {
-		return
-	}
-	s.mu.Lock()
-	info, known := s.session(params.ID)
-	models := demoModels()
-	if known {
-		// a session opened on a model starts on it, from the list its harness offers
-		if info.Model == "" || info.Model == "default" {
-			info.Model = "anthropic/opus"
-		} else if offered := s.offering(info.Harness, info.Model); offered != nil {
-			models = offered
-		}
-		info.Alive = true
-		// an Ask keeps its own mode, the harness's never reaches it
-		if info.Kind == protocol.KindAgent {
-			info.Mode = "default"
-		}
-		s.replaceSession(info)
-	}
-	s.mu.Unlock()
-	if !known || !onHarness(info) {
-		return
-	}
-	if !s.has(params.ID, protocol.EvModel) {
-		s.emit(out, params.ID, protocol.EvModel, protocol.ChoiceData{Current: info.Model, Options: models})
-		if info.Kind == protocol.KindAgent {
-			s.emit(out, params.ID, protocol.EvMode, protocol.ChoiceData{Current: info.Mode, Options: []protocol.Choice{
-				{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan"), Description: i18n.T("Plans before it edits")},
-			}})
-			s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions("auto")})
-		}
-	}
-	s.tell(out, params.ID)
-}
-
-// an agent always runs on a harness, an Ask when Settings picked one as it began
-func onHarness(info protocol.SessionInfo) bool {
-	return info.Kind == protocol.KindAgent || info.Harness != ""
-}
-
-// the first prompt to a session on a harness brings the harness up, which says what it uses as session.start does
+// An engine announces its model and approvals when its first turn begins.
 func (s *server) wakeFirst(out *outbox, raw json.RawMessage) {
 	var params protocol.SessionRef
 	if decode(raw, &params) != nil {
@@ -116,10 +57,17 @@ func (s *server) wakeFirst(out *outbox, raw json.RawMessage) {
 	}
 	s.mu.Lock()
 	info, known := s.session(params.ID)
+	options := maps.Clone(s.data.options[params.ID])
 	s.mu.Unlock()
-	if known && onHarness(info) && !s.has(params.ID, protocol.EvModel) {
-		s.wake(out, raw)
+	if !known || s.has(params.ID, protocol.EvModel) {
+		return
 	}
+	s.emit(out, params.ID, protocol.EvModel, protocol.ChoiceData{Current: info.Model})
+	s.emit(out, params.ID, protocol.EvMode, protocol.ChoiceData{Current: info.Mode})
+	if info.Kind == protocol.KindAgent {
+		s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions(options, info.Model == demoPaidID)})
+	}
+	s.tell(out, params.ID)
 }
 
 // the select a choice was made in moves only when the daemon says the choice took
@@ -138,7 +86,13 @@ func (s *server) chose(out *outbox, method string, raw json.RawMessage) {
 	case protocol.MSessionSetOption:
 		var params protocol.SetOptionParams
 		if decode(raw, &params) == nil {
-			s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions(params.Value)})
+			s.mu.Lock()
+			info, ok := s.session(params.ID)
+			options := maps.Clone(s.data.options[params.ID])
+			s.mu.Unlock()
+			if ok {
+				s.emit(out, params.ID, protocol.EvOptions, protocol.OptionsData{Options: demoOptions(options, info.Model == demoPaidID)})
+			}
 		}
 	case protocol.MSessionStop:
 		var params protocol.SessionRef

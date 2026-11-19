@@ -39,7 +39,7 @@ func TestAnIconShownAtTwoSizesIsDrawnOnce(t *testing.T) {
 func TestLongOverlayMeasuresOnlyTheAvailableSide(t *testing.T) {
 	anim.SetReduce(true)
 	t.Cleanup(func() { anim.SetReduce(false) })
-	th := New(palette.Dark, palette.Look{})
+	th := NewWithRoles(palette.Signature(true))
 	var ops op.Ops
 	gtx := layout.Context{
 		Ops: &ops, Now: time.Unix(1000, 0),

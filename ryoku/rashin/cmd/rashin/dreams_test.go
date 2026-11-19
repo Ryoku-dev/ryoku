@@ -19,11 +19,11 @@ func TestTheDreamsRouteOpensTheNewDreamDialogAndADream(t *testing.T) {
 }
 
 func TestDreamsStartReadsTheStatementAndItsFlags(t *testing.T) {
-	params, err := parseDreamStart([]string{"Make", "an", "ESP32", "page", "--name", "ESP32 setup", "--harness", "omp", "--tokens", "500000"})
-	if err != nil || params.Statement != "Make an ESP32 page" || params.Name != "ESP32 setup" || params.Harness != "omp" || params.MonthTokens != 500000 {
+	params, err := parseDreamStart([]string{"Make", "an", "ESP32", "page", "--name", "ESP32 setup", "--model", "rashin-models/lfm3-omni-2b", "--tokens", "500000"})
+	if err != nil || params.Statement != "Make an ESP32 page" || params.Name != "ESP32 setup" || params.Model != "rashin-models/lfm3-omni-2b" || params.MonthTokens != 500000 {
 		t.Fatalf("parsed %+v, %v", params, err)
 	}
-	for _, bad := range [][]string{{}, {"--name", "x"}, {"Make it", "--tokens", "-1"}, {"Make it", "--colour", "red"}, {"Make it", "--name"}} {
+	for _, bad := range [][]string{{}, {"--name", "x"}, {"Make it", "--tokens", "-1"}, {"Make it", "--harness", "omp"}, {"Make it", "--colour", "red"}, {"Make it", "--name"}} {
 		if _, err := parseDreamStart(bad); err == nil {
 			t.Fatalf("%v was accepted", bad)
 		}

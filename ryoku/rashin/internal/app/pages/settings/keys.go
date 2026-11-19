@@ -42,7 +42,7 @@ func writingKeys() []keyRow {
 		{i18n.T("Start a new line"), [][]string{{"Shift", "Enter"}}},
 		{i18n.T("Steer the turn that is running"), [][]string{{"Ctrl", "Enter"}}},
 		{i18n.T("Bring back what you sent, from an empty field"), [][]string{{"↑"}, {"↓"}}},
-		{i18n.T("List the harness's commands"), [][]string{{"/"}}},
+		{i18n.T("List Rashin's commands"), [][]string{{"/"}}},
 		{i18n.T("Paste text, or an image as an attachment"), [][]string{{"Ctrl", "V"}}},
 	}
 }
@@ -77,23 +77,23 @@ func (p *Page) layoutKeys(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 		return func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, settings) }
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Keyboard"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-		layout.Rigid(slab(everywhereKeys())),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("While writing"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(slab(writingKeys())),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("In a conversation"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(slab(readingKeys())),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("On the Memory page"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(slab(memoryKeys())),
-	)
+	return look.Section(gtx, th, ordinal(sectionKeys), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(slab(everywhereKeys())),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("While writing")})),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(slab(writingKeys())),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("In a conversation")})),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(slab(readingKeys())),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("On the Memory page")})),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(slab(memoryKeys())),
+		)
+	})
 }
 
 func keyChords(th *look.Theme, chords [][]string) layout.Widget {
@@ -107,7 +107,7 @@ func keyChords(th *look.Theme, chords [][]string) layout.Widget {
 				if at > 0 {
 					children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout))
 				}
-				children = append(children, layout.Rigid(look.TokenChip(th, name)))
+				children = append(children, layout.Rigid(kit.Keycap(th.Theme, name)))
 			}
 		}
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)

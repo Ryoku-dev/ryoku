@@ -12,8 +12,8 @@ import (
 	"ryoku-rashin/internal/sandbox"
 )
 
-// agentIndexCall serves an index read that arrived on a team session's own
-// socket. The agent reads only the indexes whose every root lies inside
+// agentIndexCall serves an index read of a team session, from its tools or
+// its own socket. The agent reads only the indexes whose every root lies inside
 // its team's folder or a folder the team may change, never the system
 // index: the rest cover what its sandbox hides, and peek and def would hand
 // it their files' text. index.list names only those indexes, and any other

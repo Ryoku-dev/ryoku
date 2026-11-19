@@ -2,17 +2,17 @@ package teams
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
 
-	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 )
 
-// managerCall finds the dream a call from an agent's MCP server is for and
+// managerCall finds the dream a call from a session's team tools is for and
 // refuses one that does not come from that dream's manager: a member of a
 // dream, or any agent of a team, may not hire, release, say where a dream
 // stands or present it.
@@ -34,9 +34,9 @@ func (s *Service) managerCall(ctx context.Context, ref protocol.AgentRef) (calle
 	return c, team, nil
 }
 
-// agentHire lets a dream's manager add a member, on its own engine or by
-// default the manager's. The engine must be signed in for this dream: a
-// hire on one that is not is refused with the harnesses that are.
+// agentHire lets a dream's manager add a member, on a model of its own or by
+// default the manager's model and options. A model Rashin cannot run now is
+// refused with what is wrong, so the manager can hire on another.
 func (s *Service) agentHire(ctx context.Context, p protocol.AgentHireParams) (protocol.Member, error) {
 	c, team, err := s.managerCall(ctx, p.AgentRef)
 	if err != nil {
@@ -45,28 +45,23 @@ func (s *Service) agentHire(ctx context.Context, p protocol.AgentHireParams) (pr
 	manager, _ := taskMember(team, c.Member)
 	hire := protocol.Member{
 		Name: strings.TrimSpace(p.Name), Title: strings.TrimSpace(p.Title), Instructions: strings.TrimSpace(p.Instructions),
-		Harness: strings.TrimSpace(p.Harness), Model: strings.TrimSpace(p.Model),
+		Model: strings.TrimSpace(p.Model),
 	}
 	if hire.Name == "" || hire.Instructions == "" {
 		return protocol.Member{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A hire needs a name and a short paragraph on the responsibility it owns."))
 	}
-	if hire.Harness == "" {
-		hire.Harness, hire.Options = manager.Harness, manager.Options
-		if hire.Model == "" {
-			hire.Model = manager.Model
-		}
+	if hire.Model == "" {
+		hire.Model, hire.Options = manager.Model, maps.Clone(manager.Options)
 	}
 	settings := s.settings()
-	harness, _, _ := protocol.ResolveEngine(hire, settings, s.defaultHarness(settings))
-	if harness == "" {
-		return protocol.Member{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("No harness is installed to run a hire."))
+	model, _ := protocol.ResolveEngine(hire, settings)
+	problem, tier := s.modelStatus(ctx, model)
+	if tier == protocol.TierPaid &&
+		model != manager.Model && model != settings.Teams.Defaults.Model && model != settings.Agent.Model {
+		return protocol.Member{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Only the user can pin a paid model for a dream hire. Choose the manager's model or a model the user set in Settings."))
 	}
-	if !registry.Known(harness, settings) {
-		return protocol.Member{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer. %s", harness, s.signedInWords(team)))
-	}
-	if _, signed := s.signedIn(harness, team.ID); !signed {
-		return protocol.Member{}, protocol.Errorf(protocol.CodeConflict, "%s",
-			i18n.Tf("This dream is not signed in to %s, so a hire cannot work on it. %s", registry.Name(harness, settings), s.signedInWords(team)))
+	if problem != "" {
+		return protocol.Member{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A hire cannot work on %s. %s Hire on another model, or leave the model empty to take yours.", s.engineWords(model), problem))
 	}
 	s.mu.Lock()
 	current, ok := s.state.team(team.ID)
@@ -76,11 +71,7 @@ func (s *Service) agentHire(ctx context.Context, p protocol.AgentHireParams) (pr
 	}
 	next := current
 	next.Members = append(slices.Clone(current.Members), hire)
-	kept := make(map[string]bool, len(current.Members))
-	for _, m := range current.Members {
-		kept[m.Harness] = true
-	}
-	if _, err := normaliseTeam(&next, false, settings, kept); err != nil {
+	if _, err := normaliseTeam(&next, false, settings); err != nil {
 		s.mu.Unlock()
 		return protocol.Member{}, err
 	}
@@ -94,42 +85,13 @@ func (s *Service) agentHire(ctx context.Context, p protocol.AgentHireParams) (pr
 	}
 	hired := next.Members[len(next.Members)-1]
 	s.resetIdle(c.Task)
-	detail := i18n.Tf("Hired %s, %s, on %s.", hired.Name, hired.Title, s.engineWords(harness, hired.Model))
+	detail := i18n.Tf("Hired %s, %s, on %s.", hired.Name, hired.Title, s.engineWords(model))
 	if why := strings.TrimSpace(p.Why); why != "" {
 		detail += " " + why
 	}
 	s.record(protocol.Activity{Actor: manager.Name, Action: "dream.hire", Target: hired.Name, OK: true, Team: team.ID, Task: c.Task, Initiator: protocol.InitiatorAgent, Detail: s.redact(detail)})
 	s.emitTeam(team.ID)
 	return hired, nil
-}
-
-// signedInWords names the harnesses this dream is signed in to, for a hire
-// that cannot go ahead.
-func (s *Service) signedInWords(team protocol.Team) string {
-	settings := s.settings()
-	candidates := []string{settings.Teams.Defaults.Harness, settings.Agent.Harness, s.defaultHarness(settings)}
-	for _, m := range team.Members {
-		id, _, _ := protocol.ResolveEngine(m, settings, s.defaultHarness(settings))
-		candidates = append(candidates, id)
-	}
-	for _, instance := range settings.Agent.Instances {
-		candidates = append(candidates, strings.TrimSpace(instance.ID))
-	}
-	var names []string
-	seen := map[string]bool{}
-	for _, id := range candidates {
-		if id == "" || seen[id] {
-			continue
-		}
-		seen[id] = true
-		if _, ok := s.signedIn(id, team.ID); ok {
-			names = append(names, registry.Name(id, settings))
-		}
-	}
-	if len(names) == 0 {
-		return i18n.T("It is signed in to no harness besides yours; hire on your own harness, or ask the user to sign the dream in to another.")
-	}
-	return i18n.Tf("It is signed in to: %s.", strings.Join(names, ", "))
 }
 
 // agentRelease lets a dream's manager let a member go once its work is in;

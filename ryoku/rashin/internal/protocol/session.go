@@ -32,7 +32,7 @@ const (
 	StateIdle    SessionState = "idle"
 	StateWorking SessionState = "working"
 	StateWaiting SessionState = "waiting" // an open permission waits for the user
-	StateStopped SessionState = "stopped" // the agent process is not running
+	StateStopped SessionState = "stopped" // nothing runs for it; the next prompt resumes it
 	StateFailed  SessionState = "failed"
 )
 
@@ -50,11 +50,10 @@ const (
 
 // SessionInfo describes one session. The daemon owns every field.
 type SessionInfo struct {
-	ID      string      `json:"id"`
-	Kind    SessionKind `json:"kind"`
-	Title   string      `json:"title"`
-	Harness string      `json:"harness,omitempty"`
-	Model   string      `json:"model,omitempty"`
+	ID    string      `json:"id"`
+	Kind  SessionKind `json:"kind"`
+	Title string      `json:"title"`
+	Model string      `json:"model,omitempty"`
 	// Pinned marks Model as one the user picked for this Ask session: it is
 	// asked alone and never fails over to another model.
 	Pinned        bool         `json:"pinned,omitempty"`
@@ -71,7 +70,8 @@ type SessionInfo struct {
 	Preview string `json:"preview,omitempty"`
 	// Pending counts open permission requests.
 	Pending int `json:"pending,omitempty"`
-	// Alive is true while the agent process runs.
+	// Alive is true while the session holds something running: its tool
+	// host or a background terminal.
 	Alive bool   `json:"alive,omitempty"`
 	Error string `json:"error,omitempty"`
 	// Project, Worktree, Branch and Task bind an Agent session to Work.
@@ -145,6 +145,28 @@ const (
 	EvTitle              = "title"
 	EvGoal               = "goal"
 	EvMemory             = "memory"
+	EvNotice             = "notice"
+)
+
+// NoticeData is the data of a notice session event: one quiet line in the
+// transcript about what Rashin did to the session, never the global notice
+// broadcast. Kind is one of the Notice kinds below, empty for another note.
+type NoticeData struct {
+	Kind string `json:"kind,omitempty"`
+	Text string `json:"text"`
+}
+
+// Notice kinds: NoticeData.Kind.
+const (
+	// NoticeFresh: a session made before the native engine starts a fresh
+	// engine transcript; its log stays.
+	NoticeFresh = "fresh"
+	// NoticeLimit: a session ceiling (wall clock or tokens) stopped the turn.
+	NoticeLimit = "limit"
+	// NoticeLoop: the loop guard stopped the turn.
+	NoticeLoop = "loop"
+	// NoticePlan: the user approved the plan and building starts.
+	NoticePlan = "plan"
 )
 
 // Attachment is a file on this machine sent with a prompt.
@@ -232,7 +254,7 @@ type ToolData struct {
 	Parent string `json:"parent,omitempty"`
 }
 
-// AgentWork is one subagent as its harness reports it.
+// AgentWork is one subagent, as the task tool reports it.
 type AgentWork struct {
 	ID string `json:"id"`
 	// Name is the kind of agent, such as explore or reviewer.
@@ -281,6 +303,13 @@ const (
 	OptAllowAlways  = "allow_always"
 	OptRejectOnce   = "reject_once"
 	OptRejectAlways = "reject_always"
+)
+
+// PermissionData.Kind values that are not tool kinds: the ask tool's
+// question card, and the Plan first approval of a session's plan.
+const (
+	PermissionQuestion = "question"
+	PermissionPlan     = "plan"
 )
 
 // PermissionData is the data of a permission event.
@@ -381,8 +410,8 @@ type ChoiceData struct {
 	Engine  string   `json:"engine,omitempty"`
 }
 
-// SessionOption is one setting a harness offers beside its model and mode,
-// such as how hard to think. Category is the harness's own word for it.
+// SessionOption is one setting the session's model offers beside its model
+// and mode, such as how hard to think. Category groups it in the picker.
 type SessionOption struct {
 	ID       string   `json:"id"`
 	Name     string   `json:"name"`
@@ -391,13 +420,32 @@ type SessionOption struct {
 	Choices  []Choice `json:"choices,omitempty"`
 }
 
-// OptionsData is the data of an options event: every option the harness
+// Session option ids the native engine offers: OptionPlan on every Agent
+// session, OptionEffort on a model with reasoning.
+const (
+	// OptionPlan is Plan first: OptionOn keeps the session on read-only tools
+	// and a todo list until the user approves its plan, OptionOff works at
+	// once.
+	OptionPlan = "plan"
+	// OptionEffort is how hard a reasoning model thinks: off, low, medium or
+	// high (llm.Effort*), sent as llm.Request.Reasoning; empty leaves it to
+	// the provider.
+	OptionEffort = "effort"
+)
+
+// Values of OptionPlan.
+const (
+	OptionOn  = "on"
+	OptionOff = "off"
+)
+
+// OptionsData is the data of an options event: every option the session
 // offers now.
 type OptionsData struct {
 	Options []SessionOption `json:"options"`
 }
 
-// Command is a slash command a harness offers.
+// Command is a slash command the session offers.
 type Command struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`

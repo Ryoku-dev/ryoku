@@ -9,8 +9,8 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// proposing gives the harness a home of its own, so a team made in its
-// default folder lands there, and an agent session that proposes
+// proposing gives an agent session a place to suggest a team, while a
+// proposal cannot create its folder before the user accepts it.
 func proposing(t *testing.T) (*harness, protocol.SessionInfo) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -36,10 +36,10 @@ func newsProposal(session string) protocol.TeamProposeParams {
 func TestAProposalIsCheckedAsCreateWould(t *testing.T) {
 	h, info := proposing(t)
 	for _, bad := range []protocol.TeamCreateParams{
-		{Name: " ", Members: []protocol.Member{{Name: "Ana", Harness: "fake"}}},
-		{Name: "Ops", Members: []protocol.Member{{Name: "Ana", Harness: "nowhere"}}},
-		{Name: "Ops", Members: []protocol.Member{{Name: "Ana", Harness: "fake"}}, Routines: []protocol.RoutineDraft{{Title: "Often", Brief: "Look.", Schedule: "* * * * *"}}},
-		{Name: "Ops", Members: []protocol.Member{{Name: "Ana", Harness: "fake"}}, Approvals: "everything"},
+		{Name: " ", Members: []protocol.Member{{Name: "Ana"}}},
+		{Name: "Ops", Members: []protocol.Member{{Name: "Ana", Model: "haiku"}}},
+		{Name: "Ops", Members: []protocol.Member{{Name: "Ana"}}, Routines: []protocol.RoutineDraft{{Title: "Often", Brief: "Look.", Schedule: "* * * * *"}}},
+		{Name: "Ops", Members: []protocol.Member{{Name: "Ana"}}, Approvals: "everything"},
 	} {
 		created := refused(t, h, protocol.MTeamsCreate, bad, protocol.CodeBadRequest)
 		proposed := refused(t, h, protocol.MTeamsPropose, protocol.TeamProposeParams{Team: bad, Reason: "To try.", Session: info.ID}, protocol.CodeBadRequest)
@@ -68,7 +68,7 @@ func TestAProposalIsCheckedAsCreateWould(t *testing.T) {
 		t.Fatalf("the proposal waits as %+v", asked)
 	}
 	team := asked.Proposal.Team
-	if len(team.Members) != 3 || team.Members[1].Harness != "claude" || team.Members[1].Model != "haiku" || len(team.Routines) != 2 {
+	if len(team.Members) != 3 || team.Members[1].Model != protocol.RouteFast || len(team.Routines) != 2 {
 		t.Fatalf("the template did not fill the proposal: %+v", team)
 	}
 	for _, routine := range team.Routines {
@@ -175,7 +175,7 @@ func TestATemplateTeamAsksForTheCredentialsItLacks(t *testing.T) {
 	h, _ := proposing(t)
 	repo := do[protocol.Team](t, h, protocol.MTeamsCreate, protocol.TeamCreateParams{
 		Name: "Repo watch", Template: "repo", Folder: filepath.Join(h.dir, "repo"),
-		Members: []protocol.Member{{Name: "Reviewer", Lead: true, Harness: "fake"}},
+		Members: []protocol.Member{{Name: "Reviewer", Lead: true}},
 	})
 	request := h.pending(t)
 	if request.Kind != protocol.ApprovalRequest || request.Team != repo.ID || request.Title == "" {
@@ -188,7 +188,7 @@ func TestATemplateTeamAsksForTheCredentialsItLacks(t *testing.T) {
 
 	do[protocol.Team](t, h, protocol.MTeamsCreate, protocol.TeamCreateParams{
 		Name: "Second watch", Template: "repo", Folder: filepath.Join(h.dir, "second"),
-		Members: []protocol.Member{{Name: "Reviewer", Lead: true, Harness: "fake"}},
+		Members: []protocol.Member{{Name: "Reviewer", Lead: true}},
 	})
 	if waiting := h.s.listApprovals(protocol.ApprovalsParams{Pending: true}).Approvals; len(waiting) != 0 {
 		t.Fatalf("a credential the vault holds was asked for again: %+v", waiting)

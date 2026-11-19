@@ -19,6 +19,8 @@ import (
 type board struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
+	rows   int
 	cards  map[string]*teamsui.RoutineTablet
 	// coming rows are clicked by their place in Coming up
 	coming [comingLimit]kit.Click
@@ -31,6 +33,8 @@ type boardItem struct {
 	kind    int
 	title   string
 	count   int
+	number  int
+	of      int
 	index   int
 	run     run
 	routine protocol.Routine
@@ -43,6 +47,7 @@ const (
 	itemSection
 	itemComing
 	itemRoutine
+	itemColophon
 )
 
 func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimensions {
@@ -50,6 +55,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 	runs := comingRuns(gtx.Now, snapshot, &page.schedules, comingLimit)
 	b.month.Want(e, gtx.Now)
 	items := b.items(snapshot, runs)
+	b.rows = len(items)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			content := look.PaneHeaderContent{
@@ -64,9 +70,11 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 			return dimensions
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-				return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-					return b.layoutItem(gtx, e, page, snapshot, runs, items[index], index == len(items)-1)
+			return b.sheet.Layout(gtx, e.Theme, look.PageFor(protocol.TabRoutines), func(gtx layout.Context) layout.Dimensions {
+				return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+						return b.layoutItem(gtx, e, page, snapshot, runs, items[index], index == len(items)-1)
+					})
 				})
 			})
 		}),
@@ -76,7 +84,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 func (b *board) items(snapshot state.Snapshot, runs []run) []boardItem {
 	items := []boardItem{{kind: itemLead}}
 	if len(snapshot.Teams) == 0 && !snapshot.Settings.Features["schedules"] {
-		return append(items, boardItem{kind: itemNoTeam})
+		return append(items, boardItem{kind: itemNoTeam}, boardItem{kind: itemColophon})
 	}
 	items = append(items, boardItem{kind: itemRuns})
 	if len(runs) > 0 {
@@ -107,7 +115,20 @@ func (b *board) items(snapshot state.Snapshot, runs []run) []boardItem {
 		}
 	}
 	b.prune(listed)
-	return items
+	sections := 0
+	for _, item := range items {
+		if item.kind == itemSection {
+			sections++
+		}
+	}
+	number := 0
+	for index := range items {
+		if items[index].kind == itemSection {
+			number++
+			items[index].number, items[index].of = number, sections
+		}
+	}
+	return append(items, boardItem{kind: itemColophon})
 }
 
 // cards of deleted routines go with them
@@ -139,6 +160,10 @@ func (b *board) layoutItem(
 		bottom = th.Sp.S5
 	}
 	switch item.kind {
+	case itemColophon:
+		return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return b.sheet.Colophon(gtx, th, look.PageFor(protocol.TabRoutines))
+		})
 	case itemLead:
 		return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.layoutLead(gtx, e, snapshot, runs)
@@ -150,7 +175,7 @@ func (b *board) layoutItem(
 	case itemRuns:
 		return b.layoutRuns(gtx, e)
 	case itemSection:
-		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, item.title, item.count))
+		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: item.title, Count: item.count, Number: item.number, Of: item.of}))
 	case itemComing:
 		return layout.Inset{Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.layoutComing(gtx, e, snapshot, item)

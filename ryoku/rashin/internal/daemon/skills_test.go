@@ -8,9 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"ryoku-rashin/internal/client"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
@@ -26,8 +24,6 @@ type skillTeams struct {
 func (t *skillTeams) SkillsOff(string) []string { return t.off }
 
 func (t *skillTeams) Brief(protocol.SessionInfo) string { return "" }
-
-func (t *skillTeams) ToolEnv(protocol.SessionInfo) map[string]string { return nil }
 
 func (t *skillTeams) ScreenGranted(protocol.SessionInfo) bool { return false }
 
@@ -56,29 +52,20 @@ func onSets(result protocol.SkillsResult) []string {
 	return on
 }
 
-func TestATeamSocketReadsOnlyItsTeamsSkills(t *testing.T) {
+func TestATeamToolHostReadsOnlyItsTeamsSkills(t *testing.T) {
 	d, team := skillsDaemon(t)
-	if _, err := d.agentSandbox(team); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(d.closeAgentSockets)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	conn, err := client.Dial(ctx, client.Options{Client: protocol.ClientCLI, Socket: paths.AgentSocket(team.ID)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
+	ctx := context.Background()
+	host := d.ToolHost(team)
 
 	var listed protocol.SkillsResult
-	if err := conn.Call(ctx, protocol.MSkillsList, protocol.Empty{}, &listed); err != nil {
+	if err := host.Call(ctx, protocol.MSkillsList, protocol.Empty{}, &listed); err != nil {
 		t.Fatal(err)
 	}
 	if on := onSets(listed); !slices.Equal(on, []string{"superpowers", "speckit"}) {
-		t.Fatalf("the team's socket lists %v as on", on)
+		t.Fatalf("the team's tools list %v as on", on)
 	}
 	var found protocol.SkillsSearchResult
-	if err := conn.Call(ctx, protocol.MSkillsSearch, protocol.SkillsSearchParams{Query: "propose a change with openspec"}, &found); err != nil {
+	if err := host.Call(ctx, protocol.MSkillsSearch, protocol.SkillsSearchParams{Query: "propose a change with openspec"}, &found); err != nil {
 		t.Fatal(err)
 	}
 	for _, skill := range found.Skills {
@@ -87,13 +74,13 @@ func TestATeamSocketReadsOnlyItsTeamsSkills(t *testing.T) {
 		}
 	}
 	for _, off := range []string{"openspec/openspec-propose", "egm/egm-draft"} {
-		if err := conn.Call(ctx, protocol.MSkillsGet, protocol.SkillParams{ID: off}, nil); err == nil {
+		if err := host.Call(ctx, protocol.MSkillsGet, protocol.SkillParams{ID: off}, nil); err == nil {
 			t.Fatalf("the team read %s", off)
 		}
 	}
 	var read protocol.SkillContent
-	if err := conn.Call(ctx, protocol.MSkillsGet, protocol.SkillParams{ID: "superpowers/test-driven-development"}, &read); err != nil || !strings.HasPrefix(read.Text, "---\nname: test-driven-development") {
-		t.Fatalf("reading a skill on the team's socket: %v", err)
+	if err := host.Call(ctx, protocol.MSkillsGet, protocol.SkillParams{ID: "superpowers/test-driven-development"}, &read); err != nil || !strings.HasPrefix(read.Text, "---\nname: test-driven-development") {
+		t.Fatalf("reading a skill in the team's tools: %v", err)
 	}
 
 	// anyone else gets every set that is on for every model
@@ -143,31 +130,5 @@ func TestATeamSandboxReadsItsSkillsAndCannotChangeThem(t *testing.T) {
 	}
 	if body, _ := os.ReadFile(skill); strings.Contains(string(body), "changed") {
 		t.Fatal("the sandbox changed a skill")
-	}
-}
-
-func TestAnAgentIsBriefedOnTheSkillsAndATeamTaskThroughItsTeam(t *testing.T) {
-	d, team := skillsDaemon(t)
-	ordinary, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := d.agentBrief(ordinary)
-	_, section, found := strings.Cut(text, "\nSkills\n")
-	if !found {
-		t.Fatalf("no Skills section in the brief:\n%s", text)
-	}
-	section, _, _ = strings.Cut(section, "\nTeams\n")
-	result, _ := d.sessionSkills(ordinary)
-	for _, want := range []string{result.Root, "Superpowers", "OpenSpec", "Spec Kit", "rashin skills setup speckit"} {
-		if !strings.Contains(section, want) {
-			t.Errorf("the Skills section lacks %q:\n%s", want, section)
-		}
-	}
-	if strings.Contains(section, "Elephant") {
-		t.Errorf("a set off for every model is in the brief:\n%s", section)
-	}
-	if strings.Contains(d.agentBrief(team), "\nSkills\n") {
-		t.Error("a team task is told the skills outside its team's brief")
 	}
 }

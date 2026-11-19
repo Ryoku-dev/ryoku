@@ -98,7 +98,7 @@ func (m *memorySection) layout(gtx layout.Context, e *env.Env, team protocol.Tea
 	if m.open.Clicked(gtx) {
 		e.OpenMemory(env.MemoryPlace{Filter: env.MemoryTeams, Scope: teamScope(team.ID)})
 	}
-	return kit.Section(th.Theme, i18n.T("Memory"), func(gtx layout.Context) layout.Dimensions {
+	return look.Section(gtx, th, look.Head{Title: i18n.T("Memory")}, func(gtx layout.Context) layout.Dimensions {
 		return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions {
 			claim, proof := memoryLead(team, all, total)
 			children := []layout.FlexChild{
@@ -117,7 +117,7 @@ func (m *memorySection) layout(gtx layout.Context, e *env.Env, team protocol.Tea
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
 						if index == 0 {
 							return m.preview.Layout(gtx, th.Theme)
 						}
@@ -127,7 +127,7 @@ func (m *memorySection) layout(gtx layout.Context, e *env.Env, team protocol.Tea
 			)
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 		})
-	})(gtx)
+	})
 }
 
 // a team with memory off says so instead of a count that means nothing

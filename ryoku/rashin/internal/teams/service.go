@@ -18,7 +18,6 @@ import (
 
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/core"
-	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/skills"
@@ -37,11 +36,9 @@ type Service struct {
 	settings func() protocol.Settings
 	sessions core.TeamSessions
 	now      func() time.Time
-	// defaultHarness is the registry's default harness for these settings,
-	// the last step of the engine chain
-	defaultHarness func(protocol.Settings) string
-	// signedIn reports whether a team is signed in to a harness
-	signedIn func(harness, team string) (time.Time, bool)
+	// models is the gateway's model listing, which a task's model must
+	// resolve in before its session starts; nil checks only the model's shape
+	models func(ctx context.Context, p protocol.ModelsParams) (protocol.ModelsResult, error)
 	// teamsSettings are the teams settings last seen, so a change is told
 	// from what it changed
 	teamsSettings protocol.TeamsSettings
@@ -78,7 +75,7 @@ type Service struct {
 // decided, and returns what the waiting agent is told.
 type approvalEffect func(ctx context.Context, rec *approvalRecord, p protocol.ApprovalDecideParams) (string, error)
 
-// caller is the team task a call from an agent's MCP server belongs to.
+// caller is the team task a call from a session's team tools belongs to.
 type caller struct {
 	Team    string
 	Task    string
@@ -100,7 +97,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	background, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID, signedIn: registry.SignedIn,
+		events: events, settings: settings, now: time.Now, vault: v,
 		runs: make(map[string]*run), background: background, cancel: cancel,
 	}
 	var err error
@@ -129,11 +126,9 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 
 // Bind hands the service the session manager and starts what runs by itself:
 // queued tasks, the routine clock and the daily pruning. Tasks a restart
-// left while every team is paused stop, and team homes every team on a
-// harness once shared become one team's own first.
+// left while every team is paused stop.
 func (s *Service) Bind(sessions core.TeamSessions) {
 	settings := s.settings()
-	s.migrateHomes()
 	s.mu.Lock()
 	s.sessions = sessions
 	s.teamsSettings = settings.Teams

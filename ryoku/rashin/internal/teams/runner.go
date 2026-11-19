@@ -13,19 +13,18 @@ import (
 
 	i18n "ryoku-i18n"
 
-	registry "ryoku-rashin/internal/harness"
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
 // run is a team task while an Agent session works it. Token is what the
-// session's MCP server proves the run with; a run ends with its task.
+// session's team tools prove the run with; a run ends with its task.
 type run struct {
 	Session, Task, Team, Member, Token string
 	Lead                               bool
 	Started                            time.Time
-	// Ready is set once the session's engine is set up; from then on Model,
-	// the model the session last reported, follows a switch the user makes
-	Ready bool
+	// Model is the model the session last reported once it was made, so a
+	// switch the user makes is told from it
 	Model string
 	// timer ends the task at its time limit
 	timer *time.Timer
@@ -45,10 +44,10 @@ const (
 func (s *Service) createTask(ctx context.Context, p protocol.TeamTaskCreateParams) (protocol.TeamTask, error) {
 	model := strings.TrimSpace(p.Model)
 	if !protocol.ValidEngineModel(model) {
-		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A model id has at most %d characters and no spaces.", protocol.EngineModelMax))
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A model is a route such as auto, or a provider's model such as provider/model, without spaces."))
 	}
 	if !protocol.ValidEngineOptions(p.Options) {
-		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A harness takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("A model takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
 	}
 	options := p.Options
 	if len(options) == 0 {
@@ -224,31 +223,65 @@ func (s *Service) retryTask(_ context.Context, p protocol.TeamTaskRetryParams) (
 // runAgain readies an ended task to run again in a new session, on its
 // member's engine as it is now.
 func runAgain(t *protocol.TeamTask, now time.Time) {
-	t.Status, t.Waiting, t.Report, t.Reason, t.SignIn = protocol.TaskReady, "", nil, "", ""
+	t.Status, t.Waiting, t.Report, t.Reason = protocol.TaskReady, "", nil, ""
 	t.Session, t.Started, t.Ended, t.Read, t.Steps = "", nil, nil, false, 0
-	t.Harness, t.Model, t.Options = "", "", nil
+	t.Model, t.Options = "", nil
 	t.Updated = now
 }
 
 // deleteTask stops a task, then removes it and the pieces it handed out.
 // Their sessions stay, so the conversations can still be read.
 func (s *Service) deleteTask(ctx context.Context, id string) error {
-	if _, ok := s.state.task(id); !ok {
+	task, ok := s.state.task(id)
+	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No task %s.", id))
 	}
 	if _, err := s.stopTask(ctx, id, i18n.T("You deleted it.")); err != nil {
 		return err
 	}
 	for _, piece := range s.state.tasks(func(p protocol.TeamTask) bool { return p.Parent == id }) {
+		if err := s.stopTaskSessions(ctx, piece); err != nil {
+			return err
+		}
+		if err := paths.RemoveWritableTree(paths.ToolHome(piece.Team, piece.ID)); err != nil {
+			return err
+		}
 		if err := s.state.removeTask(piece.ID); err != nil {
 			return err
 		}
 		s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: piece.ID})
 	}
+	if err := s.stopTaskSessions(ctx, task); err != nil {
+		return err
+	}
+	if err := paths.RemoveWritableTree(paths.ToolHome(task.Team, task.ID)); err != nil {
+		return err
+	}
 	if err := s.state.removeTask(id); err != nil {
 		return err
 	}
 	s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: id})
+	return nil
+}
+
+func (s *Service) stopTaskSessions(ctx context.Context, task protocol.TeamTask) error {
+	if s.sessions == nil {
+		return nil
+	}
+	stop := func(session string) error {
+		if _, ok := s.sessions.Info(session); ok {
+			return s.sessions.Stop(ctx, session)
+		}
+		return nil
+	}
+	for _, session := range task.Sessions {
+		if err := stop(session); err != nil {
+			return err
+		}
+	}
+	if task.Session != "" && !slices.Contains(task.Sessions, task.Session) {
+		return stop(task.Session)
+	}
 	return nil
 }
 
@@ -326,22 +359,20 @@ func teamLimit(team protocol.Team, settings protocol.TeamsSettings) int {
 	return protocol.DefaultTeamsPerTeam
 }
 
-// start brings a claimed task up as an Agent session: the engine resolved
-// for it, in the team's folder under the team's approvals, then the task as
-// the session's goal, which starts its first turn. The task keeps the
-// engine it started with; an option the harness refuses is left at the
-// harness's default and said so in the ledger. A harness not signed in for
-// teams blocks it; one that is runs in its team home, put back as it was
-// signed in.
+// start brings a claimed task up as an Agent session: on the engine resolved
+// for it, which must resolve in the gateway, in the team's folder under the
+// team's approvals, then the task as the session's goal, which starts its
+// first turn. The task keeps the engine it started with; one whose model
+// cannot run ends blocked with what to change, and a retry runs it again.
 func (s *Service) start(task protocol.TeamTask) {
 	ctx := s.background
-	var harnessID, model, signIn string
+	var model string
 	var options map[string]string
 	fail := func(session string, reason string) {
 		ended, ok := s.endTask(task.ID, func(t *protocol.TeamTask) {
-			t.Status, t.Reason, t.SignIn = protocol.TaskBlocked, reason, signIn
-			if harnessID != "" {
-				t.Harness, t.Model, t.Options = harnessID, model, maps.Clone(options)
+			t.Status, t.Reason = protocol.TaskBlocked, reason
+			if model != "" {
+				t.Model, t.Options = model, maps.Clone(options)
 			}
 		})
 		if session != "" {
@@ -368,18 +399,9 @@ func (s *Service) start(task protocol.TeamTask) {
 		fail("", i18n.T("The member it was given to is no longer on the team."))
 		return
 	}
-	harnessID, model, options = s.taskEngine(member, task)
-	if harnessID == "" {
-		fail("", i18n.T("No harness is installed to run it."))
-		return
-	}
-	if _, signed := s.signedIn(harnessID, team.ID); !signed {
-		signIn = harnessID
-		fail("", i18n.Tf("This team is not signed in to %s. Sign it in for Teams, then retry the task.", registry.Name(harnessID, s.settings())))
-		return
-	}
-	if err := s.RestoreHome(harnessID, team.ID); err != nil {
-		fail("", i18n.Tf("Rashin could not put the team's %s home back as it was signed in: %v", registry.Name(harnessID, s.settings()), err))
+	model, options = s.taskEngine(member, task)
+	if problem := s.modelProblem(ctx, model); problem != "" {
+		fail("", i18n.Tf("%s Pick another model for %s or set this one up in Settings, then retry the task.", problem, member.Name))
 		return
 	}
 	if err := os.MkdirAll(team.Folder, 0o700); err != nil {
@@ -387,7 +409,7 @@ func (s *Service) start(task protocol.TeamTask) {
 		return
 	}
 	info, err := s.sessions.New(ctx, protocol.SessionNewParams{
-		Kind: protocol.KindAgent, Harness: harnessID, Cwd: team.Folder, Title: task.Title, Origin: protocol.OriginTeam,
+		Kind: protocol.KindAgent, Model: model, Options: maps.Clone(options), Cwd: team.Folder, Title: task.Title, Origin: protocol.OriginTeam,
 		Team: team.ID, TeamTask: task.ID, Member: member.ID, Approvals: team.Approvals,
 	})
 	if err != nil {
@@ -399,12 +421,13 @@ func (s *Service) start(task protocol.TeamTask) {
 	current, known := s.state.task(task.ID)
 	if r == nil || !known || !taskIsOpen(current) {
 		s.mu.Unlock()
+		s.halt(info.ID)
 		return
 	}
-	r.Session = info.ID
+	r.Session, r.Model = info.ID, model
 	current.Session = info.ID
 	current.Sessions = append(current.Sessions, info.ID)
-	current.Harness, current.Model, current.Options = harnessID, model, maps.Clone(options)
+	current.Model, current.Options = model, maps.Clone(options)
 	current.Updated = s.now()
 	err = s.state.putTask(current)
 	s.mu.Unlock()
@@ -413,31 +436,10 @@ func (s *Service) start(task protocol.TeamTask) {
 		return
 	}
 	s.emitTask(current)
-	if err := s.sessions.Start(ctx, info.ID); err != nil {
-		fail(info.ID, i18n.Tf("The harness did not start: %v", err))
-		return
-	}
-	if model != "" {
-		if err := s.sessions.SetModel(ctx, info.ID, model); err != nil {
-			fail(info.ID, i18n.Tf("The model %s could not be used: %v", model, err))
-			return
-		}
-	}
-	var refused []string
-	for _, option := range slices.Sorted(maps.Keys(options)) {
-		if err := s.sessions.SetOption(ctx, info.ID, option, options[option]); err != nil {
-			refused = append(refused, option)
-			s.record(protocol.Activity{
-				Actor: "Rashin", Action: "task.option", Target: task.Title, OK: false, Team: team.ID, Task: task.ID, Initiator: protocol.InitiatorRashin,
-				Detail: i18n.Tf("%s's %s %s was not available; it ran with the harness default.", member.Name, option, options[option]),
-			})
-		}
-	}
 	if !s.live(task.ID, info.ID) {
 		s.halt(info.ID)
 		return
 	}
-	s.engage(task.ID, info.ID, model, refused)
 	if _, err := s.sessions.Goal(ctx, protocol.GoalParams{ID: info.ID, Op: protocol.GoalSet, Objective: objective(task), MaxTurns: task.MaxTurns}); err != nil {
 		fail(info.ID, i18n.Tf("The task could not be set as the goal: %v", err))
 		return
@@ -445,44 +447,8 @@ func (s *Service) start(task protocol.TeamTask) {
 	_, initiator := s.taskActor(task)
 	s.record(protocol.Activity{
 		Actor: member.Name, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID, Initiator: initiator,
-		Detail: i18n.Tf("%s started work on it with %s.", member.Name, s.engineWords(harnessID, model)),
+		Detail: i18n.Tf("%s started work on it with %s.", member.Name, s.engineWords(model)),
 	})
-}
-
-// engage marks a run's engine set up: the options its harness refused leave
-// the task's record, and the model its session runs on is the one a later
-// switch is told from.
-func (s *Service) engage(taskID, session, model string, refused []string) {
-	info, _ := s.sessions.Info(session)
-	s.mu.Lock()
-	r := s.runs[taskID]
-	t, ok := s.state.task(taskID)
-	if r == nil || r.Session != session || !ok {
-		s.mu.Unlock()
-		return
-	}
-	r.Ready, r.Model = true, info.Model
-	if model != "" {
-		r.Model = model
-	}
-	changed := false
-	for _, option := range refused {
-		if _, had := t.Options[option]; had {
-			delete(t.Options, option)
-			changed = true
-		}
-	}
-	if changed {
-		if len(t.Options) == 0 {
-			t.Options = nil
-		}
-		t.Updated = s.now()
-		changed = s.state.putTask(t) == nil
-	}
-	s.mu.Unlock()
-	if changed {
-		s.emitTask(t)
-	}
 }
 
 // objective is what a task's session works toward: the brief, under the
@@ -518,7 +484,7 @@ func (s *Service) live(task, session string) bool {
 // the day's spend counts it, and the session is let go once its turn is
 // over. It reports false when the task had already ended.
 func (s *Service) endTask(id string, change func(*protocol.TeamTask)) (protocol.TeamTask, bool) {
-	// the session is asked before the lock, as engage does
+	// the session is asked before the lock, so its manager never waits on it
 	var steps int
 	if t, ok := s.state.task(id); ok && t.Session != "" && s.sessions != nil {
 		info, _ := s.sessions.Info(t.Session)
@@ -723,7 +689,7 @@ func (s *Service) recoverRuns() {
 		if t.Started != nil {
 			started = *t.Started
 		}
-		found[t.ID] = &run{Session: t.Session, Task: t.ID, Team: t.Team, Member: t.Member, Token: runToken(), Lead: member.Lead, Started: started, Ready: true, Model: info.Model}
+		found[t.ID] = &run{Session: t.Session, Task: t.ID, Team: t.Team, Member: t.Member, Token: runToken(), Lead: member.Lead, Started: started, Model: info.Model}
 		if !held {
 			carryOn = append(carryOn, t.Session)
 			if t.Status != protocol.TaskWorking || t.Waiting != "" {
@@ -827,7 +793,7 @@ func teamLead(team protocol.Team) protocol.Member {
 	return protocol.Member{}
 }
 
-// runToken is a fresh secret a run's MCP server proves itself with.
+// runToken is a fresh secret a run's team tools prove the run with.
 func runToken() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])

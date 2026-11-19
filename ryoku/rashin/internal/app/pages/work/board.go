@@ -17,6 +17,8 @@ import (
 type board struct {
 	header  look.PaneHeader
 	scroll  look.Scroller
+	sheet   look.Sheet
+	rows    int
 	filters kit.Filters
 	// the board's Team is the team the filter shows, "" for every team
 	tasks teamsui.TaskBoard
@@ -29,6 +31,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 	snapshot := e.Snapshot()
 	b.keepTeam(snapshot)
 	rows, total := b.tasks.Rows(gtx, snapshot)
+	b.rows = 4 + rows
 	b.month.Want(e, gtx.Now)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -45,25 +48,44 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(snapshot.Teams) == 0 || total == 0 && b.tasks.Team == "" {
-				return b.layoutEmpty(gtx, e, page, len(snapshot.Teams) > 0)
+				return b.sheet.Layout(gtx, e.Theme, look.PageFor(protocol.TabWork), func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return b.layoutEmpty(gtx, e, page, len(snapshot.Teams) > 0)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Bottom: e.Theme.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return b.sheet.Colophon(gtx, e.Theme, look.PageFor(protocol.TabWork))
+								})
+							})
+						}),
+					)
+				})
 			}
 			th := e.Theme
-			return b.scroll.Layout(gtx, th, 3+rows, func(gtx layout.Context, index int) layout.Dimensions {
-				return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
-					switch index {
-					case 0:
-						return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							claim, proof := boardLead(gtx.Now, snapshot)
-							return look.Monument(gtx, th, claim, proof)
-						})
-					case 1:
-						return b.layoutFinished(gtx, e)
-					case 2:
-						return layout.Inset{Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return b.layoutFilters(gtx, e, snapshot)
-						})
-					}
-					return b.tasks.LayoutRow(gtx, e, index-3)
+			return b.sheet.Layout(gtx, th, look.PageFor(protocol.TabWork), func(gtx layout.Context) layout.Dimensions {
+				return b.scroll.Layout(gtx, th, b.rows, func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
+						switch index {
+						case 0:
+							return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								claim, proof := boardLead(gtx.Now, snapshot)
+								return look.Monument(gtx, th, claim, proof)
+							})
+						case 1:
+							return b.layoutFinished(gtx, e)
+						case 2:
+							return layout.Inset{Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return b.layoutFilters(gtx, e, snapshot)
+							})
+						case 3 + rows:
+							return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return b.sheet.Colophon(gtx, th, look.PageFor(protocol.TabWork))
+							})
+						}
+						return b.tasks.LayoutRow(gtx, e, index-3)
+					})
 				})
 			})
 		}),

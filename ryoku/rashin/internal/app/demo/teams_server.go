@@ -149,10 +149,7 @@ func (s *server) normaliseMembers(members []protocol.Member) ([]protocol.Member,
 			return nil, badRequest(i18n.Tf("Two members are called %s.", member.Name))
 		}
 		names[strings.ToLower(member.Name)] = true
-		member.Harness, member.Model = strings.TrimSpace(member.Harness), strings.TrimSpace(member.Model)
-		if member.Harness != "" && !slices.ContainsFunc(s.data.snapshot.Harnesses, func(harness protocol.HarnessInfo) bool { return harness.ID == member.Harness }) {
-			return nil, badRequest(i18n.Tf("No harness %s on this computer.", member.Harness))
-		}
+		member.Model = strings.TrimSpace(member.Model)
 		if !protocol.ValidEngineModel(member.Model) || !protocol.ValidEngineOptions(member.Options) {
 			return nil, badRequest(i18n.T("That model or option cannot be used."))
 		}
@@ -497,6 +494,8 @@ func (s *server) newTeamTask(team protocol.Team, member, title, brief, origin, r
 		ID: t.newID("task"), Team: team.ID, Title: title, Brief: brief, Status: protocol.TaskReady, Member: member,
 		Origin: origin, Routine: routine, MaxTurns: team.Budget.TaskTurns, Model: model, Options: options, Created: now, Updated: now,
 	}
+	assigned, _ := teamMember(team, member)
+	startEngine(&task, assigned, s.data.snapshot.Settings)
 	s.record(protocol.Activity{Action: "task.create", Target: title, OK: true, Team: team.ID, Task: task.ID})
 	if s.mayWork(team) {
 		task = s.beginTeamTask(team, task)
@@ -513,9 +512,10 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	task.Status, task.Waiting, task.Started, task.Updated = protocol.TaskWorking, "", &now, now
 	task.Turns, task.Usage = 0, protocol.TokenUsage{}
 	member, _ := teamMember(team, task.Member)
-	startEngine(&task, member, s.data.snapshot.Settings, s.registryHarness())
+	startEngine(&task, member, s.data.snapshot.Settings)
 	task.Session = fmt.Sprintf("agent-%s-%d", task.ID, len(task.Sessions)+1)
 	task.Sessions = append(append([]string(nil), task.Sessions...), task.Session)
+	s.data.options[task.Session] = task.Options
 	transcript := teamTranscript(task, []line{said(i18n.T("I'm reading the brief and the team's folder before I start."))})
 	for index := range transcript {
 		transcript[index].TS = now
@@ -524,7 +524,7 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	t.sessions = append([]protocol.SessionInfo{teamSession(team, task, transcript, i18n.T("Reading the brief."), i18n.T("Reading the brief"))}, t.sessions...)
 	s.record(protocol.Activity{
 		Actor: "Rashin", Initiator: protocol.InitiatorRashin, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID,
-		Detail: i18n.Tf("%s started work on it with %s, %s.", member.Name, s.harnessName(task.Harness), engineModel(task.Model)),
+		Detail: i18n.Tf("%s started work on it with %s.", member.Name, engineModel(task.Model)),
 	})
 	return task
 }
@@ -980,16 +980,6 @@ func (s *server) holdEveryTeam(paused bool) {
 		s.startQueued(team)
 		s.emitTeam(team.ID)
 	}
-}
-
-// a harness by its name, its id when it is gone
-func (s *server) harnessName(id string) string {
-	for _, harness := range s.data.snapshot.Harnesses {
-		if harness.ID == id {
-			return harness.Name
-		}
-	}
-	return id
 }
 
 func engineModel(model string) string {

@@ -32,7 +32,6 @@ const (
 	lanePitch         = 14
 	graphRowHeight    = 30
 	graphHeaderHeight = 28
-	maxRefChips       = 3
 	// room between a row's slab and the list's right edge
 	rowEdge = 8
 )
@@ -176,7 +175,7 @@ func (v *viewState) layoutEntry(gtx layout.Context, e *env.Env, index int) layou
 	if hover > 0 {
 		inset := max(1, gtx.Dp(1))
 		slab := image.Rect(cols.lanes, inset, size.X-gtx.Dp(rowEdge), size.Y-inset)
-		kit.FillCut(gtx.Ops, slab, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
+		look.RowWash(gtx, th, slab, hover, 0, false)
 	}
 	row.input.register(gtx, size)
 
@@ -185,7 +184,8 @@ func (v *viewState) layoutEntry(gtx layout.Context, e *env.Env, index int) layou
 	})
 	ink, quiet, faint := th.R.Fg, th.R.Fg2, th.R.Fg3
 	if selected {
-		ink, quiet, faint = th.R.OnSel, th.R.OnSel2, th.R.OnSel2
+		ink, faint = look.RowInk(th, true)
+		quiet = faint
 	}
 	if entry.kind == rowWIP {
 		cell(gtx, cols.text, cols.end, size.Y, false, func(gtx layout.Context) layout.Dimensions {
@@ -223,7 +223,7 @@ func (v *viewState) layoutLanes(gtx layout.Context, e *env.Env, row *rowState, e
 	at := image.Pt(max(0, size.X-marker.X-gtx.Dp(3)), (size.Y-marker.Y)/2)
 	look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(marker)}, func(gtx layout.Context) layout.Dimensions {
 		return row.expand.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return drawChip(gtx, e, nil, i18n.Tf("+%d", hidden), e.Theme.R.Stone4, e.Theme.R.Fg2, color.NRGBA{})
+			return drawChip(gtx, e, nil, i18n.Tf("+%d", hidden), e.Theme.R.Field, e.Theme.R.Fg2, color.NRGBA{})
 		})
 	})
 	return layout.Dimensions{Size: size}
@@ -237,7 +237,7 @@ func (v *viewState) layoutCommitDescription(gtx layout.Context, e *env.Env, row 
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = max(0, maxChips)
-			return v.layoutRefChips(gtx, e, refs, entry.layout.Color, &row.refTip)
+			return v.layoutRefChips(gtx, e, refs, entry.layout.Color, false, row, entry)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(refs) == 0 {
@@ -253,7 +253,7 @@ func (v *viewState) layoutWIPText(gtx layout.Context, e *env.Env, wip protocol.W
 	th := e.Theme
 	ink, faint := th.R.Fg2, th.R.Fg3
 	if selected {
-		ink, faint = th.R.OnSel, th.R.OnSel2
+		ink, faint = look.RowInk(th, true)
 	}
 	counts := strings.Join(nonZeroCounts(wip.Staged, wip.Modified, wip.Untracked, wip.Conflicted), ", ")
 	agent := strings.TrimSpace(wip.Agent)
@@ -267,7 +267,7 @@ func (v *viewState) layoutWIPText(gtx layout.Context, e *env.Env, wip protocol.W
 			case agent == "":
 				return layout.Dimensions{}
 			case selected:
-				return kit.RawText(th.Theme, th.T.Label, th.R.OnSel2, agentLabel(agent))(gtx)
+				return kit.RawText(th.Theme, th.T.Label, faint, agentLabel(agent))(gtx)
 			default:
 				return kit.Claim(th.Theme, agentTone(agent), agentLabel(agent))(gtx)
 			}
@@ -292,12 +292,23 @@ func nonZeroCounts(staged, modified, untracked, conflicted int) []string {
 	return counts
 }
 
-func (v *viewState) layoutRefChips(gtx layout.Context, e *env.Env, refs []protocol.GitRef, lane int, tip *look.Tip) layout.Dimensions {
+func (v *viewState) layoutRefChips(gtx layout.Context, e *env.Env, refs []protocol.GitRef, lane int, expanded bool, row *rowState, entry graphEntry) layout.Dimensions {
 	chips := v.refChips(refs)
 	if len(chips) == 0 {
 		return layout.Dimensions{}
 	}
-	shown := min(maxRefChips, len(chips))
+	if expanded {
+		return look.Flow{Gap: 3, LineGap: 3}.Layout(gtx, len(chips), func(gtx layout.Context, index int) layout.Dimensions {
+			return v.layoutRefChip(gtx, e, chips[index], lane)
+		})
+	}
+	shown := min(2, len(chips))
+	if gtx.Constraints.Max.X < gtx.Dp(230) {
+		shown = min(1, shown)
+	}
+	if gtx.Constraints.Max.X < gtx.Dp(64) {
+		shown = 0
+	}
 	children := make([]layout.FlexChild, 0, shown*2)
 	for index := range shown {
 		chip := chips[index]
@@ -309,20 +320,16 @@ func (v *viewState) layoutRefChips(gtx layout.Context, e *env.Env, refs []protoc
 		}))
 	}
 	if len(chips) > shown {
-		rest := chips[shown:]
-		labels := make([]string, len(rest))
-		for index := range rest {
-			labels[index] = rest[index].label
-		}
-		children = append(children,
-			layout.Rigid(layout.Spacer{Width: 3}.Layout),
+		children = append(children, layout.Rigid(layout.Spacer{Width: 3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				body := func(gtx layout.Context) layout.Dimensions {
-					return drawChip(gtx, e, nil, i18n.Tf("+%d", len(rest)), e.Theme.R.Stone4, e.Theme.R.Fg2, color.NRGBA{})
+				if row.refMore.Clicked(gtx) {
+					v.selectEntry(e, entry)
+					v.detailOpen = true
 				}
-				return tip.Layout(gtx, e.Theme, e.Overlays, look.Clauses(labels...), body)
-			}),
-		)
+				return row.refMore.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return drawChip(gtx, e, nil, i18n.Tf("+%d", len(chips)-shown), e.Theme.R.Field, e.Theme.R.Fg2, color.NRGBA{})
+				})
+			}))
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
@@ -380,12 +387,12 @@ func (v *viewState) layoutRefChip(gtx layout.Context, e *env.Env, chip refChip, 
 	case chipRemote:
 		outline = th.R.Vein
 	case chipTag:
-		ink = th.R.Amber
-		fill = palette.Mix(th.R.Field, ink, .18)
+		ink = th.R.Fg2
+		fill = th.R.Field
 	case chipHead:
-		fill, ink = th.R.Fg, th.R.Stone1
+		fill, ink = th.R.Select(), th.R.OnContainer
 	case chipWorktree:
-		fill, icon = th.R.Stone4, look.Icon.Folder
+		fill, icon = th.R.Field, look.Icon.Folder
 	}
 	return drawChip(gtx, e, icon, chip.label, fill, ink, outline)
 }
@@ -408,10 +415,10 @@ func drawChip(gtx layout.Context, e *env.Env, icon *widget.Icon, label string, f
 	bounds := image.Rect(0, 0, text.Size.X+2*inset+lead, height)
 	cut := gtx.Dp(th.Cut.Token)
 	if fill.A != 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, fill)
+		kit.Fill(gtx, th.Theme, bounds, cut, fill)
 	}
 	if outline.A != 0 {
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), outline)
+		kit.Stroke(gtx, th.Theme, bounds, cut, max(1, gtx.Dp(1)), outline)
 	}
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: bounds.Max}

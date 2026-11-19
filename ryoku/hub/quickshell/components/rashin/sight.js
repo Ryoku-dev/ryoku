@@ -88,7 +88,7 @@ function defaults() {
     var values = {
         on: true, enabled: true, tapKey: "Alt_R", highlightKey: "Alt_L",
         highlight: true, mode: "explain", target: "", ocrLanguages: ["eng"],
-        localOnly: false, engine: "ask", model: "",
+        localOnly: false, model: "",
         bubble: ["translate", "explain", "ask"], pinned: [],
         "summarize.style": "points",
         "deepread.lenses": ["factcheck", "assumptions", "concepts", "contrasts", "related", "passages", "section"],

@@ -134,7 +134,7 @@ Rectangle {
             });
         }
         if (models.length === 0)
-            rows.push({ kind: "note", disabled: true, label: I18n.tr("Models load with the harness"), sub: I18n.tr("Send an Agent message first") });
+            rows.push({ kind: "note", disabled: true, label: I18n.tr("No Agent models available"), sub: I18n.tr("Check Rashin's model providers") });
         return rows;
     }
 

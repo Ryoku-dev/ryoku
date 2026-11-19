@@ -2,6 +2,8 @@ package config
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"ryoku-rashin/internal/protocol"
@@ -53,6 +55,72 @@ func TestLoadFallsBackToTheDefaultLocalAddress(t *testing.T) {
 	for id, address := range want {
 		if s.Providers.Local[id] != address {
 			t.Fatalf("local = %#v", s.Providers.Local)
+		}
+	}
+}
+
+// Rashin's own llama.cpp is never configured to stay up forever, never runs a
+// program that is not there, and light work only goes to a routable model.
+func TestRashinModelsSettings(t *testing.T) {
+	if got := Defaults().Providers.Models.IdleMinutes; got != protocol.DefaultLocalIdleMinutes {
+		t.Fatalf("default idle minutes = %d", got)
+	}
+	s := fromRaw(rawSettings(t, `{"version":2,"providers":{"models":{"idleMinutes":9999,"binary":"bin/llama-server","light":"tiny"}}}`))
+	if m := s.Providers.Models; m.IdleMinutes != protocol.LocalIdleMinutesMax || m.Binary != "" || m.Light != "" {
+		t.Fatalf("models = %#v", m)
+	}
+	binary := filepath.Join(t.TempDir(), "llama-server")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	patch, _ := json.Marshal(map[string]any{"providers": map[string]any{"models": map[string]any{"binary": binary, "light": "rashin-models/lfm3-omni-2b", "remoteFirst": true}}})
+	next, err := Merge(Defaults(), patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := next.Providers.Models; m.Binary != binary || m.Light != "rashin-models/lfm3-omni-2b" || !m.RemoteFirst {
+		t.Fatalf("models = %#v", m)
+	}
+	for _, bad := range []map[string]any{
+		{"binary": filepath.Join(t.TempDir(), "missing")},
+		{"binary": "llama-server"},
+		{"light": "tiny"},
+	} {
+		patch, _ := json.Marshal(map[string]any{"providers": map[string]any{"models": bad}})
+		if _, err := Merge(Defaults(), patch); err == nil {
+			t.Fatalf("%v was accepted", bad)
+		}
+	}
+	if _, err := Merge(Defaults(), json.RawMessage(`{"providers":{"local":{"rashin-models":"http://127.0.0.1:8080/v1"}}}`)); err == nil {
+		t.Fatal("rashin-models was given an address")
+	}
+}
+
+func TestModelOverrideValidationAndAutomaticReset(t *testing.T) {
+	base := Defaults()
+	patch := json.RawMessage(`{"providers":{"models":{"overrides":{"lfm3-omni-2b":{"device":"Vulkan0","context":16384,"kvType":"q8_0"}}}}}`)
+	next, err := Merge(base, patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := next.Providers.Models.Overrides["lfm3-omni-2b"]; got.Context != 16384 || got.KVType != protocol.LocalKVQ8 {
+		t.Fatalf("override = %+v", got)
+	}
+	reset, err := Merge(next, json.RawMessage(`{"providers":{"models":{"overrides":{"lfm3-omni-2b":null}}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reset.Providers.Models.Overrides["lfm3-omni-2b"]; ok {
+		t.Fatal("automatic reset retained override")
+	}
+	for _, bad := range []string{
+		`{"providers":{"models":{"overrides":{"lfm3-omni-2b":{"context":131072}}}}}`,
+		`{"providers":{"models":{"overrides":{"lfm3-omni-2b":{"kvType":"q4_0"}}}}}`,
+		`{"providers":{"models":{"overrides":{"../outside":{"device":"cpu"}}}}}`,
+		`{"providers":{"models":{"overrides":{"lfm3-omni-2b":{"device":"Vulkan0\nkey = x"}}}}}`,
+	} {
+		if _, err := Merge(base, json.RawMessage(bad)); err == nil {
+			t.Fatalf("accepted unsafe override %s", bad)
 		}
 	}
 }

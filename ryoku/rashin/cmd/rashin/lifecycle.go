@@ -15,7 +15,7 @@ import (
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/client"
 	"ryoku-rashin/internal/config"
-	"ryoku-rashin/internal/harness"
+	"ryoku-rashin/internal/daemon"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -25,7 +25,7 @@ func init() {
 	register(&Command{Name: "off", Group: "lifecycle", Summary: "Turn Rashin off.", Run: runOff})
 	register(&Command{Name: "status", Group: "lifecycle", Usage: "[--json]", Summary: "Show Rashin status without starting it.", Run: runStatus})
 	register(&Command{Name: "ensure", Group: "lifecycle", Summary: "Make sure the daemon is ready.", Run: runEnsure})
-	register(&Command{Name: "migrate", Group: "lifecycle", Summary: "Migrate Rashin 1 settings and remove old state.", Run: runMigrate})
+	register(&Command{Name: "migrate", Group: "lifecycle", Summary: "Migrate old Rashin settings and agent state.", Run: runMigrate})
 }
 
 func runOn(args []string) int {
@@ -108,7 +108,6 @@ func runStatus(args []string) int {
 			conn.Close()
 		}
 	}
-	status.InstalledHarnesses = harness.Installed(settings)
 	if jsonMode {
 		value := struct {
 			protocol.Status
@@ -189,22 +188,14 @@ func runMigrate(args []string) int {
 			}
 		}
 	}
-	for _, path := range legacyHarnessConfigs() {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		text := string(content)
-		if strings.Contains(text, "127.0.0.1:8788") || strings.Contains(text, "localhost:8788") {
-			fmt.Fprintln(os.Stdout, i18n.Tf("Update the old Prowl gateway address in %s.", path))
-		}
+	teams, err := daemon.MigrateNativeEngine()
+	if err != nil {
+		return report(err)
+	}
+	for _, team := range teams {
+		fmt.Fprintln(os.Stdout, i18n.Tf("Removed old agent sign-in for team %s.", team))
 	}
 	return 0
-}
-
-func legacyHarnessConfigs() []string {
-	home := paths.Home()
-	return []string{filepath.Join(home, ".hermes/config.yaml"), filepath.Join(home, ".codex/config.toml"), filepath.Join(home, ".claude/settings.json"), filepath.Join(home, ".config/opencode/opencode.json"), filepath.Join(home, ".omp/agent/models.yml")}
 }
 
 func removeIfExists(path string) bool {

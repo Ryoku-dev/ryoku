@@ -21,13 +21,15 @@ import (
 const (
 	projectPrefix  = "project:"
 	worktreePrefix = "worktree:"
+	viewPrefix     = "view:"
 )
 
 func worktreeRowID(project, path string) string { return worktreePrefix + project + "\x00" + path }
-
+func viewRowID(project, view string) string     { return viewPrefix + project + "\x00" + view }
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	state := &p.state
 	snapshot := e.Snapshot()
+	selected, hasSelected := state.selectedWorktree(e)
 	rows := make([]look.SideRow, 0, len(snapshot.Projects)*4)
 	for _, project := range snapshot.Projects {
 		state.ensureProjectData(e, project.ID)
@@ -39,13 +41,34 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		if !open {
 			continue
 		}
+		if project.ID == state.project {
+			for _, view := range projectViews {
+				_, title, gloss := look.ProjectView(view)
+				row := look.SideRow{ID: viewRowID(project.ID, view), Title: title, Depth: 1}
+				if e.Theme.Desktop.Gloss {
+					row.Facts = gloss
+				}
+				rows = append(rows, row)
+			}
+		}
 		for _, worktree := range snapshot.Worktrees[project.ID] {
-			rows = append(rows, worktreeRow(e.Theme, snapshot, worktree))
+			row := worktreeRow(e.Theme, snapshot, worktree)
+			if project.ID == state.project && worktreeScoped(state.tab) && hasSelected && worktree.Path == selected.Path {
+				row.Strong = true
+			}
+			rows = append(rows, row)
 		}
 	}
 	state.list.Empty = i18n.T("Projects you add are listed here with their worktrees.")
 	dimensions := state.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Rows: rows}}, state.selectedRow(e))
 	for _, event := range state.list.Events() {
+		if rest, ok := strings.CutPrefix(event.ID, viewPrefix); ok {
+			project, view, _ := strings.Cut(rest, "\x00")
+			if event.Kind == look.SideOpen {
+				e.NavigateWork(project, view, state.worktree)
+			}
+			continue
+		}
 		project, worktree, isWorktree := splitRowID(event.ID)
 		switch event.Kind {
 		case look.SideToggle:
@@ -72,6 +95,9 @@ func worktreeScoped(view string) bool { return view == TabOverview || view == Ta
 func (p *pageState) selectedRow(e *env.Env) string {
 	if p.project == "" {
 		return ""
+	}
+	if p.listShown && !p.collapsed[p.project] {
+		return viewRowID(p.project, p.tab)
 	}
 	if worktree, ok := p.selectedWorktree(e); ok && worktreeScoped(p.tab) && !p.collapsed[p.project] {
 		return worktreeRowID(p.project, worktree.Path)

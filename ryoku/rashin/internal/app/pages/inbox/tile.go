@@ -8,8 +8,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
@@ -36,7 +34,7 @@ func (t *tile) layout(gtx layout.Context, th *look.Theme, body layout.Widget) la
 	})
 	call := record.Stop()
 	if hover > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Fg, tokens.AlphaHoverPlane*hover))
+		look.RowWash(gtx, th, image.Rectangle{Max: dimensions.Size}, hover, 0, false)
 	}
 	call.Add(gtx.Ops)
 	return dimensions

@@ -13,7 +13,6 @@ import (
 	"gioui.org/op/clip"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 
 	"ryoku-rashin/internal/protocol"
@@ -160,11 +159,9 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 	}
 	height := len(slash.matches)*row + 2*edge
 	bounds := image.Rect(0, 0, width, height)
-	cut := gtx.Dp(th.Cut.Mid)
-
+	cut := gtx.Dp(th.Cut.Menu)
 	macro := op.Record(gtx.Ops)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Stone4)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	kit.SlabSurface(gtx, th, bounds, cut, th.Planes().Card)
 	for index, command := range slash.matches {
 		top := edge + index*row
 		area := clip.Rect(image.Rect(edge, top, width-edge, top+row)).Push(gtx.Ops)
@@ -173,8 +170,10 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 		semantic.Button.Add(gtx.Ops)
 		pointer.CursorPointer.Add(gtx.Ops)
 		area.Pop()
+		ink, detail := th.R.Fg, th.R.Fg2
 		if index == slash.cursor {
-			kit.FillCut(gtx.Ops, image.Rect(edge, top, width-edge, top+row), gtx.Dp(th.Cut.Small), palette.Mix(th.R.Stone4, th.R.Fg, .06))
+			kit.Fill(gtx, th, image.Rect(edge, top, width-edge, top+row), gtx.Dp(th.Cut.Small), th.R.Select())
+			ink, detail = th.R.OnContainer, th.R.OnContainer
 		}
 		offset := op.Offset(image.Pt(inset, top)).Push(gtx.Ops)
 		line := gtx
@@ -183,20 +182,20 @@ func (state *composerState) layoutSlash(gtx layout.Context, th *theme.Theme, opt
 			layout.Inset{Top: 6, Bottom: 6}.Layout(line, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Detail, Color: th.R.Fg, MaxLines: 1}.Layout(gtx, th, state.slashLabel(command))
+						return kit.Label{Style: th.T.Detail, Color: ink, MaxLines: 1}.Layout(gtx, th, state.slashLabel(command))
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return kit.Label{Style: th.T.Caption, Color: th.R.Fg2, MaxLines: 1}.Layout(gtx, th, command.Description)
+						return kit.Label{Style: th.T.Caption, Color: detail, MaxLines: 1}.Layout(gtx, th, command.Description)
 					}),
 				)
 			})
 		} else {
 			layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(line,
-				layout.Rigid(kit.RawText(th, th.T.Mono, th.R.Fg, state.slashLabel(command))),
+				layout.Rigid(kit.RawText(th, th.T.Mono, ink, state.slashLabel(command))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 				layout.Rigid(kit.RawText(th, th.T.MonoSm, th.R.Fg3, command.Hint)),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Flexed(1, kit.RawText(th, th.T.Caption, th.R.Fg2, command.Description)),
+				layout.Flexed(1, kit.RawText(th, th.T.Caption, detail, command.Description)),
 			)
 		}
 		offset.Pop()

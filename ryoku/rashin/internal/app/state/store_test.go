@@ -75,6 +75,25 @@ func TestConnectionEpochAdvancesOnReadyTransitions(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsBrokenLocalEventsWithoutLosingLastModel(t *testing.T) {
+	store := New(nil)
+	store.ApplySnapshot(protocol.Snapshot{Local: protocol.LocalResult{
+		Models: []protocol.LocalModel{{ID: "lfm3", Name: "LFM3 Omni 2B", State: protocol.LocalInstalled}},
+	}})
+	if err := store.Apply(protocol.Event{Event: protocol.EvtLocalChanged, Data: json.RawMessage(`{`)}); err == nil {
+		t.Fatal("invalid local.changed was accepted")
+	}
+	if got := store.Snapshot().Local.Models; len(got) != 1 || got[0].Name != "LFM3 Omni 2B" {
+		t.Fatalf("invalid local.changed erased the installed model: %+v", got)
+	}
+	if err := store.Apply(protocol.Event{Event: protocol.EvtLocalProgress, Data: json.RawMessage(`{`)}); err == nil {
+		t.Fatal("invalid local.progress was accepted")
+	}
+	if got := store.Snapshot().LocalProgress; len(got) != 0 {
+		t.Fatalf("invalid local.progress added a download: %+v", got)
+	}
+}
+
 func TestStoreSnapshotAndEventsStayOrdered(t *testing.T) {
 	store := New(nil)
 	older := protocol.SessionInfo{ID: "ask-old", Kind: protocol.KindAsk, Title: "Older", Updated: time.Unix(10, 0)}

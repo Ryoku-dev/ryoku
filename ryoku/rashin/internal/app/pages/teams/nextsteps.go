@@ -22,9 +22,8 @@ const stepsShown = 4
 type stepKind uint8
 
 const (
-	stepMemberHarness stepKind = iota
-	stepDefaultHarness
-	stepSignIn
+	stepMemberModel stepKind = iota
+	stepDefaultModel
 	stepCredential
 	stepMail
 	stepFirstTask
@@ -36,16 +35,14 @@ type nextStep struct {
 	// key names the step for as long as it stands, so hiding it keeps it hidden
 	key, line, action string
 	kind              stepKind
-	// the routine to turn on, the task a credential request waits in, or the harness to sign in
+	// the routine to turn on, or the task a credential request waits in
 	subject protocol.Routine
 	task    string
-	harness string
 }
 
 type stepRow struct {
 	act  kit.Plaque
 	hide kit.IconPlaque
-	tip  look.Tip
 }
 
 // the Overview's card of next steps, built from the snapshot alone
@@ -97,21 +94,19 @@ func (n *nextSteps) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.act.Layout(gtx, th.Theme) }),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return row.tip.Layout(gtx, th, e.Overlays, row.hide.Description, func(gtx layout.Context) layout.Dimensions {
-						return row.hide.Layout(gtx, th.Theme)
-					})
-				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.hide.Layout(gtx, th.Theme) }),
 			)
 		}
 	}
-	return section(th, i18n.T("Next steps"), func(gtx layout.Context) layout.Dimensions {
-		return kit.SlabRows(gtx, th.Theme, rows...)
-	})
+	return func(gtx layout.Context) layout.Dimensions {
+		return look.Section(gtx, th, look.Head{Title: i18n.T("Next steps")}, func(gtx layout.Context) layout.Dimensions {
+			return kit.SlabRows(gtx, th.Theme, rows...)
+		})
+	}
 }
 
-// what the team lacks, most blocking first: an engine that cannot start or is not signed in for teams, a credential
-// or a mail account its work waits on, a first task, then routines that are off; at most stepsShown, less what the user hid
+// a model that cannot run, a pending credential, a mail account, a first task, then routines that are off
+// at most stepsShown, less what the user hid
 func teamSteps(snapshot appstate.Snapshot, team protocol.Team, hidden []string) []nextStep {
 	var steps []nextStep
 	add := func(step nextStep) {
@@ -119,28 +114,26 @@ func teamSteps(snapshot appstate.Snapshot, team protocol.Team, hidden []string) 
 			steps = append(steps, step)
 		}
 	}
-	// before the harness list arrives every engine would read as missing
-	if len(snapshot.Harnesses) > 0 {
-		defaultMissing := false
-		for _, member := range team.Members {
-			if !teamsui.MemberEngine(snapshot, member).Missing {
-				continue
-			}
-			if member.Harness == "" {
-				defaultMissing = true
-				continue
-			}
-			add(nextStep{key: "harness:" + member.ID + ":" + member.Harness, kind: stepMemberHarness, line: i18n.Tf("%s's harness is not installed.", member.Name), action: i18n.T("Change it")})
+	defaultMissing := false
+	for _, member := range team.Members {
+		engine := teamsui.MemberEngine(snapshot, member)
+		if !engine.Missing {
+			continue
 		}
-		if defaultMissing {
-			add(nextStep{key: "harness:default", kind: stepDefaultHarness, line: i18n.T("The harness its members run on by default is not installed."), action: i18n.T("Open Settings")})
+		if member.Model == "" {
+			defaultMissing = true
+			continue
 		}
-		// one step a harness, however many members run on it
-		for _, harness := range teamsui.TeamHarnesses(snapshot, team) {
-			if teamsui.NotSignedIn(harness, team.ID) {
-				add(nextStep{key: "signin:" + harness.ID, kind: stepSignIn, line: i18n.Tf("%s is not signed in for Teams.", harness.Name), action: i18n.T("Sign in for Teams"), harness: harness.ID})
-			}
-		}
+		add(nextStep{
+			key: "model:" + member.ID + ":" + member.Model, kind: stepMemberModel,
+			line: i18n.Tf("%s's model cannot run now.", member.Name), action: i18n.T("Change model"),
+		})
+	}
+	if defaultMissing {
+		add(nextStep{
+			key: "model:default", kind: stepDefaultModel,
+			line: i18n.T("No model can run this team's members yet."), action: i18n.T("Set up a model"),
+		})
 	}
 	for _, approval := range snapshot.Approvals {
 		if approval.Team == team.ID && approval.Kind == protocol.ApprovalRequest && approval.Status == protocol.ApprovalPending {
@@ -176,12 +169,10 @@ func neverRan(snapshot appstate.Snapshot, team protocol.Team) bool {
 
 func takeStep(e *env.Env, team protocol.Team, step nextStep) {
 	switch step.kind {
-	case stepMemberHarness:
+	case stepMemberModel:
 		openTeam(e, team.ID, env.TeamSettings)
-	case stepDefaultHarness:
-		e.OpenSettings("teams")
-	case stepSignIn:
-		teamsui.SignInForTeams(e, step.harness, team.ID, nil)
+	case stepDefaultModel:
+		e.OpenSettings("providers")
 	case stepCredential:
 		// the value is typed into the request's own card, on its task or in the Inbox
 		if step.task != "" {

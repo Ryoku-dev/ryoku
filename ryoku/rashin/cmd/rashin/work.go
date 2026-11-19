@@ -238,14 +238,14 @@ func runTasks(args []string) int {
 		return 0
 	case "start":
 		if len(args) < 2 {
-			return usageError("tasks start <id> [--harness h]")
+			return usageError("tasks start <id> [--model id]")
 		}
-		values, err := parseOptions(args[2:], map[string]bool{"harness": true})
+		values, err := parseOptions(args[2:], map[string]bool{"model": true})
 		if err != nil {
 			return report(err)
 		}
 		var result protocol.TaskStartResult
-		if err := conn.Call(context.Background(), protocol.MTasksStart, protocol.TaskStartParams{ID: args[1], Harness: values["harness"]}, &result); err != nil {
+		if err := conn.Call(context.Background(), protocol.MTasksStart, protocol.TaskStartParams{ID: args[1], Model: values["model"]}, &result); err != nil {
 			return report(err)
 		}
 		fmt.Fprintf(os.Stdout, "%s\t%s\n", result.Session.ID, result.Worktree.Path)

@@ -27,6 +27,7 @@ func TestDemoStartupEnablesOnlyTheFeatureBeingShown(t *testing.T) {
 		{"agent settings", Options{Route: protocol.TabSettings, SettingsSection: "agents"}, []string{"mcp"}},
 		{"team settings", Options{Route: protocol.TabSettings, SettingsSection: "teams"}, []string{"diskcare"}},
 		{"memory settings", Options{Route: protocol.TabSettings, SettingsSection: "memory"}, []string{"profile"}},
+		{"learning", Options{Route: protocol.TabLearning}, []string{protocol.FeatureAutolearn, protocol.FeatureDecisions, protocol.FeatureRules}},
 		{"collections", Options{Route: protocol.TabIndex, Session: "collections/saved"}, []string{"collections"}},
 		{"research", Options{Route: protocol.TabDreams, Teams: env.TeamsPlace{Team: "dream-research"}}, []string{"research"}},
 		{"scheduled Ask", Options{Route: protocol.TabRoutines, Teams: env.TeamsPlace{Routine: "routine-personal-ask"}}, []string{"schedules"}},

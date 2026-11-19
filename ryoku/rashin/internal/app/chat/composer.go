@@ -47,7 +47,7 @@ type composerState struct {
 	morph  look.Morph
 	queue  kit.Plaque
 	steer  kit.Plaque
-	attach look.IconAction
+	attach kit.IconPlaque
 	add    kit.Plaque
 	focus  anim.Tween
 
@@ -55,8 +55,8 @@ type composerState struct {
 	attachOpen  bool
 	attachFocus bool
 	images      []string
-	remove      map[string]*look.IconAction
-	unqueue     map[string]*look.IconAction
+	remove      map[string]*kit.IconPlaque
+	unqueue     map[string]*kit.IconPlaque
 
 	recall recallState
 	slash  slashState
@@ -91,8 +91,8 @@ func (state *composerState) ensure() {
 	state.add.Kind, state.add.Small = kit.PlaqueTonal, true
 	state.attachField.Mono = true
 	state.attachField.Editor.SingleLine, state.attachField.Editor.Submit = true, true
-	state.remove = make(map[string]*look.IconAction)
-	state.unqueue = make(map[string]*look.IconAction)
+	state.remove = make(map[string]*kit.IconPlaque)
+	state.unqueue = make(map[string]*kit.IconPlaque)
 }
 
 func (state *composerState) hasContent() bool {
@@ -164,11 +164,9 @@ func (state *composerState) layoutField(gtx layout.Context, th *theme.Theme, opt
 	content := record.Stop()
 
 	bounds := image.Rect(0, 0, width, height)
-	cut := gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Field)
 	focused := gtx.Focused(&state.editor) && gtx.Source.Enabled()
 	focus := look.Transition(gtx, &state.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), palette.Mix(th.R.Edge, th.R.Fg2, focus))
+	kit.FieldSurface(gtx, th, bounds, gtx.Dp(th.Cut.Mid), th.R.Field, focus, false)
 	content.Add(gtx.Ops)
 	state.layoutSlash(gtx, th, options, width)
 	return layout.Dimensions{Size: bounds.Max}
@@ -192,7 +190,7 @@ func (state *composerState) layoutEditor(gtx layout.Context, th *theme.Theme, pl
 	}
 	defer clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops).Pop()
 	ink := colorMaterial(gtx.Ops, th.R.Fg)
-	selection := colorMaterial(gtx.Ops, palette.WithAlpha(th.R.Sel, .6))
+	selection := colorMaterial(gtx.Ops, look.SelectedText(&state.look))
 	return state.editor.Layout(gtx, th.Shaper, th.T.Proof.Face, th.T.Proof.Size, ink, selection)
 }
 
@@ -217,9 +215,10 @@ func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, 
 				return dims
 			}))
 		} else {
+			state.attach.Kind, state.attach.Small = kit.PlaqueQuiet, true
 			state.attach.Icon, state.attach.Description = look.Icon.Attach, i18n.T("Attach a file")
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return state.attach.Layout(gtx, &state.look, th.R.Fg2)
+				return state.attach.Layout(gtx, th)
 			}))
 		}
 	}
@@ -238,6 +237,10 @@ func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, 
 		return state.layoutHint(gtx, th, options)
 	}))
 	if options.Busy && state.hasContent() {
+		state.queue.Kind = kit.PlaqueGold
+		if options.Answer.Asked {
+			state.queue.Kind = kit.PlaqueTonal
+		}
 		state.steer.Label, state.queue.Label = i18n.T("Steer"), i18n.T("Queue")
 		children = append(children,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.steer.Layout(gtx, th) }),
@@ -246,7 +249,7 @@ func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, 
 		)
 	} else {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return state.layoutSendStop(gtx, th, options.Busy)
+			return state.layoutSendStop(gtx, th, options.Busy, options.Answer.Asked)
 		}))
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
@@ -318,9 +321,12 @@ func (state *composerState) layoutHint(gtx layout.Context, th *theme.Theme, opti
 	})
 }
 
-func (state *composerState) layoutSendStop(gtx layout.Context, th *theme.Theme, busy bool) layout.Dimensions {
+func (state *composerState) layoutSendStop(gtx layout.Context, th *theme.Theme, busy, asked bool) layout.Dimensions {
 	icon, ink := look.Icon.Send, th.R.OnGold
 	state.send.Kind, state.send.Description = kit.PlaqueGold, i18n.T("Send")
+	if asked {
+		state.send.Kind, ink = kit.PlaqueTonal, th.R.Fg
+	}
 	if busy {
 		icon, ink = look.Icon.Stop, th.R.Fg2
 		state.send.Kind, state.send.Description = kit.PlaqueQuiet, i18n.T("Stop")
@@ -351,7 +357,7 @@ func (state *composerState) layoutQueue(gtx layout.Context, th *theme.Theme, que
 		}
 		remove := state.unqueue[prompt.ID]
 		if remove == nil {
-			remove = &look.IconAction{Icon: look.Icon.Close, Description: i18n.T("Remove from the queue")}
+			remove = &kit.IconPlaque{Kind: kit.PlaqueQuiet, Small: true, Icon: look.Icon.Close, Description: i18n.T("Remove from the queue")}
 			state.unqueue[prompt.ID] = remove
 		}
 		if remove.Clicked(gtx) {
@@ -384,7 +390,7 @@ func (state *composerState) layoutChip(
 	gtx layout.Context,
 	th *theme.Theme,
 	lead, text string,
-	remove *look.IconAction,
+	remove *kit.IconPlaque,
 	hug bool,
 ) layout.Dimensions {
 	height := gtx.Dp(32)
@@ -416,12 +422,12 @@ func (state *composerState) layoutChip(
 			}),
 			body,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return remove.Layout(gtx, &state.look, th.R.Fg3) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return remove.Layout(gtx, th) }),
 		)
 	})
 	call := record.Stop()
 	bounds, cut := image.Rect(0, 0, dimensions.Size.X, height), gtx.Dp(th.Cut.Small)
-	kit.SlabSurface(gtx, th, bounds, cut, th.R.Slab)
+	kit.SlabOutline(gtx, th, bounds, cut)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(dimensions.Size.X, height)}
 }
@@ -452,12 +458,18 @@ func (state *composerState) processAnswer(gtx layout.Context, options ComposerOp
 
 func answerHint(keys AnswerKeys) string {
 	switch {
+	case keys.Plan:
+		return i18n.T("Enter starts building, Esc keeps planning")
 	case keys.Allow && keys.Refuse:
 		return i18n.T("Enter allows once, Esc refuses")
 	case keys.Allow:
 		return i18n.T("Enter allows once")
-	default:
+	case keys.Refuse:
 		return i18n.T("Esc refuses")
+	case keys.Asked:
+		return i18n.T("Choose an answer above")
+	default:
+		return ""
 	}
 }
 

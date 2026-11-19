@@ -1,8 +1,6 @@
 package teams
 
 import (
-	"image"
-
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -38,7 +36,7 @@ func (p *Page) layoutTeamHeader(gtx layout.Context, e *env.Env, team protocol.Te
 		}
 	}
 	facts := []look.HeaderFact{{Text: i18n.Tf("Led by %s, %s", lead.Name, membersWord(len(team.Members)))}}
-	if runs := runsFact(e.Snapshot(), team.Members); runs != "" {
+	if runs := runsFact(teamEngines(e.Snapshot(), team.Members)); runs != "" {
 		facts = append(facts, look.HeaderFact{Text: runs})
 	}
 	// the folder, the one link, stands after however many facts there are
@@ -47,7 +45,7 @@ func (p *Page) layoutTeamHeader(gtx layout.Context, e *env.Env, team protocol.Te
 		Title: team.Name,
 		Facts: append(facts, look.HeaderFact{Text: paths.Short(team.Folder), Kind: look.FactLink}),
 		Actions: []look.HeaderAction{
-			{Icon: look.Icon.Add, Description: i18n.T("Give the team a task")},
+			{Icon: look.Icon.Add, Label: i18n.T("Give a task")},
 			pause,
 		},
 		Menu: []kit.MenuItem{
@@ -86,17 +84,13 @@ func (p *Page) layoutTeamTabs(gtx layout.Context, e *env.Env, team protocol.Team
 			p.tabs.Selected = index
 		}
 	}
-	// a tab label sits 12 inside its box so the strip starts 12 early to put the first label under the title
-	dimensions := layout.Inset{Left: 9}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dimensions := layout.Inset{Left: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return p.tabs.Layout(gtx, th.Theme)
 	})
 	if index, changed := p.tabs.Changed(); changed && index < len(teamViews) {
 		openTeam(e, team.ID, teamViews[index])
 	}
-	line := max(1, gtx.Dp(1))
-	width := gtx.Constraints.Max.X
-	look.FillRect(gtx, image.Rect(0, dimensions.Size.Y-line, width, dimensions.Size.Y), th.R.Vein)
-	return layout.Dimensions{Size: image.Pt(width, dimensions.Size.Y)}
+	return dimensions
 }
 
 func (p *Page) layoutTeamView(gtx layout.Context, e *env.Env, team protocol.Team) layout.Dimensions {

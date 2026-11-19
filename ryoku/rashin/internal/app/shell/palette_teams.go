@@ -22,7 +22,7 @@ func (s *uiShell) teamsCommands(e *env.Env) []paletteAction {
 	if s.router.TeamsMode() {
 		switchMode.label = i18n.T("Back to Rashin")
 	}
-	return []paletteAction{
+	actions := []paletteAction{
 		{icon: look.Icon.Add, label: i18n.T("Give a team a task"), kind: command, run: func() { e.NewTeamTask("") }},
 		{icon: look.Icon.Teams, label: i18n.T("New team"), kind: command, run: func() {
 			s.navigateTeams(env.TeamsPlace{Tab: protocol.TabTeams, Draft: env.DraftTeam})
@@ -41,6 +41,11 @@ func (s *uiShell) teamsCommands(e *env.Env) []paletteAction {
 		}},
 		{icon: look.Icon.Dreams, label: i18n.T("Dreams"), kind: "Ctrl 3", run: func() { s.openDestination(protocol.TabDreams) }},
 	}
+	for index := range actions {
+		actions[index].group = i18n.T("Commands")
+		actions[index].crumb = look.Crumb(actions[index].group, actions[index].label)
+	}
+	return actions
 }
 
 // every team, the open tasks and the newest finished ones, and every routine
@@ -58,7 +63,8 @@ func (s *uiShell) teamsPlaces(snapshot state.Snapshot) []paletteAction {
 			place.Tab, icon, kind = protocol.TabDreams, look.Icon.Dreams, i18n.T("Dream")
 		}
 		actions = append(actions, paletteAction{
-			icon: icon, label: team.Name, kind: kind, run: func() { s.navigateTeams(place) },
+			icon: icon, label: team.Name, kind: kind, group: i18n.T("Teams"),
+			crumb: look.Crumb(i18n.T("Teams"), kind, team.Name), run: func() { s.navigateTeams(place) },
 		})
 	}
 	finished := 0
@@ -70,14 +76,17 @@ func (s *uiShell) teamsPlaces(snapshot state.Snapshot) []paletteAction {
 			finished++
 		}
 		place := env.TeamsPlace{Tab: protocol.TabWork, Task: task.ID}
+		teamName := teamsui.TeamName(snapshot.Teams, task.Team)
 		actions = append(actions, paletteAction{
-			icon: look.Icon.Tasks, label: task.Title, kind: teamsui.TeamName(snapshot.Teams, task.Team), run: func() { s.navigateTeams(place) },
+			icon: look.Icon.Tasks, label: task.Title, kind: teamName, group: i18n.T("Work"),
+			crumb: look.Crumb(i18n.T("Teams"), i18n.T("Work"), teamName, task.Title), run: func() { s.navigateTeams(place) },
 		})
 	}
 	for _, routine := range snapshot.Routines {
 		place := env.TeamsPlace{Tab: protocol.TabRoutines, Routine: routine.ID}
 		actions = append(actions, paletteAction{
-			icon: look.Icon.Routine, label: routine.Title, kind: i18n.T("Routine"), run: func() { s.navigateTeams(place) },
+			icon: look.Icon.Routine, label: routine.Title, kind: i18n.T("Routine"), group: i18n.T("Routines"),
+			crumb: look.Crumb(i18n.T("Teams"), i18n.T("Routines"), routine.Title), run: func() { s.navigateTeams(place) },
 		})
 	}
 	return actions
@@ -100,32 +109,39 @@ func (s *uiShell) teamsPlaceAction(snapshot state.Snapshot, place Place) (palett
 		return paletteAction{}, false
 	case place.TeamTask != "":
 		task, ok := snapshot.TeamTasks[place.TeamTask]
-		return paletteAction{icon: look.Icon.Tasks, label: task.Title, kind: teamsui.TeamName(snapshot.Teams, task.Team), run: run}, ok
+		teamName := teamsui.TeamName(snapshot.Teams, task.Team)
+		return paletteAction{icon: look.Icon.Tasks, label: task.Title, kind: teamName, group: i18n.T("Work"),
+			crumb: look.Crumb(i18n.T("Teams"), i18n.T("Work"), teamName, task.Title), run: run}, ok
 	case place.Routine != "":
 		for _, routine := range snapshot.Routines {
 			if routine.ID == place.Routine {
-				return paletteAction{icon: look.Icon.Routine, label: routine.Title, kind: i18n.T("Routine"), run: run}, true
+				return paletteAction{icon: look.Icon.Routine, label: routine.Title, kind: i18n.T("Routine"), group: i18n.T("Routines"),
+					crumb: look.Crumb(i18n.T("Teams"), i18n.T("Routines"), routine.Title), run: run}, true
 			}
 		}
 		return paletteAction{}, false
 	case place.Credential != "":
 		for _, credential := range snapshot.Vault.Credentials {
 			if credential.ID == place.Credential {
-				return paletteAction{icon: look.Icon.Key, label: credential.Name, kind: i18n.T("Credential"), run: run}, true
+				return paletteAction{icon: look.Icon.Key, label: credential.Name, kind: i18n.T("Credential"), group: i18n.T("Vault"),
+					crumb: look.Crumb(i18n.T("Teams"), i18n.T("Vault"), credential.Name), run: run}, true
 			}
 		}
 		return paletteAction{}, false
 	case place.Team != "":
 		team, ok := teamsui.TeamByID(snapshot.Teams, place.Team)
 		if team.Dream != nil {
-			return paletteAction{icon: look.Icon.Dreams, label: team.Name, kind: i18n.T("Dream"), run: run}, ok
+			return paletteAction{icon: look.Icon.Dreams, label: team.Name, kind: i18n.T("Dream"), group: i18n.T("Dreams"),
+				crumb: look.Crumb(i18n.T("Teams"), i18n.T("Dreams"), team.Name), run: run}, ok
 		}
-		return paletteAction{icon: look.Icon.Teams, label: team.Name, kind: i18n.T("Team"), run: run}, ok
+		return paletteAction{icon: look.Icon.Teams, label: team.Name, kind: i18n.T("Team"), group: i18n.T("Teams"),
+			crumb: look.Crumb(i18n.T("Teams"), team.Name), run: run}, ok
 	}
 	items, count := destinations(true)
 	for _, item := range items[:count] {
 		if item.tab == place.Tab {
-			return paletteAction{icon: item.icon, label: item.label, run: func() { s.openDestination(place.Tab) }}, true
+			return paletteAction{icon: item.icon, label: item.label, group: item.label,
+				crumb: look.Crumb(i18n.T("Teams"), item.label), run: func() { s.openDestination(place.Tab) }}, true
 		}
 	}
 	return paletteAction{}, false

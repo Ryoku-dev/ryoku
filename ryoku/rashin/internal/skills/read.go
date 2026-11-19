@@ -15,9 +15,18 @@ import (
 // Get reads a skill's SKILL.md, or one of its files named relative to the
 // skill's folder, with the skill's other files a reader may open next. It
 // reads only inside that folder: a path that climbs out of it or passes
-// through a link is refused, and so is a skill of a set that is off.
+// through a link is refused, and so is a skill of a set that is off. A
+// managed skill is "managed/<name>"; a shadowed one is never read.
 func (l *Library) Get(params protocol.SkillParams, off []string) (protocol.SkillContent, error) {
 	setID, name, _ := strings.Cut(params.ID, "/")
+	if setID == protocol.ManagedSkillSet {
+		for _, s := range l.Managed().Visible(off) {
+			if s.Name == name {
+				return readSkill(params, filepath.Dir(s.Path))
+			}
+		}
+		return protocol.SkillContent{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No skill %s.", params.ID))
+	}
 	found := false
 	for _, e := range l.entries() {
 		if e.set == setID && e.name == name {
@@ -28,6 +37,16 @@ func (l *Library) Get(params protocol.SkillParams, off []string) (protocol.Skill
 	if !found || !on(setID, off) {
 		return protocol.SkillContent{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No skill %s.", params.ID))
 	}
+	root, err := l.Root()
+	if err != nil {
+		return protocol.SkillContent{}, err
+	}
+	return readSkill(params, skillFile(root, setID, name, ""))
+}
+
+// readSkill reads params.File (SKILL.md when empty) of the skill whose
+// folder is folder, refusing a path that leaves it or passes through a link.
+func readSkill(params protocol.SkillParams, folder string) (protocol.SkillContent, error) {
 	file := params.File
 	if file == "" {
 		file = "SKILL.md"
@@ -36,16 +55,16 @@ func (l *Library) Get(params protocol.SkillParams, off []string) (protocol.Skill
 	if !filepath.IsLocal(filepath.FromSlash(file)) || path.Clean(file) != file {
 		return protocol.SkillContent{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a file of the skill %s.", params.File, params.ID))
 	}
-	root, err := l.Root()
-	if err != nil {
-		return protocol.SkillContent{}, err
-	}
-	folder := skillFile(root, setID, name, "")
 	target := filepath.Join(folder, filepath.FromSlash(file))
 	if err := noLinks(folder, file); err != nil {
 		return protocol.SkillContent{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("%s is not a file of the skill %s.", params.File, params.ID))
 	}
-	body, err := os.ReadFile(target)
+	root, err := os.OpenRoot(folder)
+	if err != nil {
+		return protocol.SkillContent{}, err
+	}
+	defer root.Close()
+	body, err := root.ReadFile(filepath.FromSlash(file))
 	if errors.Is(err, fs.ErrNotExist) {
 		return protocol.SkillContent{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("The skill %s has no file %s.", params.ID, file))
 	}

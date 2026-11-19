@@ -23,6 +23,19 @@ func TestBareWordAskDetection(t *testing.T) {
 	}
 }
 
+func TestHiddenCommandsStayOutOfHelp(t *testing.T) {
+	register(&Command{Name: "__hidden-test-command", Group: "internal", Run: func([]string) int { return 0 }})
+	t.Cleanup(func() { delete(commands, "__hidden-test-command") })
+	if _, ok := lookup("__hidden-test-command"); !ok {
+		t.Fatal("hidden command cannot be dispatched")
+	}
+	for _, command := range sortedCommands() {
+		if command.Name == "__hidden-test-command" {
+			t.Fatal("hidden command leaked into help")
+		}
+	}
+}
+
 func TestIsCommandHelperUsesRegistryWithoutDispatching(t *testing.T) {
 	for _, command := range sortedCommands() {
 		if code := run([]string{"__is-command", command.Name}); code != 0 {
@@ -140,6 +153,22 @@ func TestParseOpenAcceptsTheFeaturesSettingsViewInEitherOrder(t *testing.T) {
 	} {
 		if _, err := parseOpen(args); err == nil {
 			t.Fatalf("%q accepted the Features settings view outside Settings", args)
+		}
+	}
+}
+
+func TestParseOpenProvidersViewIsSettingsOnly(t *testing.T) {
+	params, err := parseOpen([]string{"--tab", protocol.TabSettings, "--view", "providers"})
+	if err != nil || params.View != "providers" {
+		t.Fatalf("providers route = %#v, %v", params, err)
+	}
+	for _, args := range [][]string{
+		{"--view", "providers"},
+		{"--tab", protocol.TabProjects, "--view", "providers"},
+		{"--tab", protocol.TabSettings, "--project", "hyperion", "--view", "providers"},
+	} {
+		if _, err := parseOpen(args); err == nil {
+			t.Fatalf("providers view was accepted outside Settings: %v", args)
 		}
 	}
 }

@@ -18,16 +18,12 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// body width from which the list and the selected worktree stand side by side
-const overviewSplit = 860
-
 type overviewState struct {
 	list     look.Scroller
 	detail   look.Scroller
 	rows     map[string]*worktreeRowState
 	fresh    kit.Plaque
-	more     look.IconAction
-	moreTip  look.Tip
+	more     kit.IconPlaque
 	toolMenu kit.Menu
 
 	create  createWorktree
@@ -40,24 +36,23 @@ type overviewState struct {
 }
 
 type worktreeRowState struct {
-	tablet   kit.Tablet
+	tablet   resourceRow
 	start    kit.Plaque
 	session  kit.Plaque
 	changes  kit.Plaque
 	terminal kit.IconPlaque
 	folder   kit.IconPlaque
 	more     kit.IconPlaque
-	tips     [3]look.Tip
 	menu     kit.Menu
 
 	showLog, trust, rerun kit.Plaque
-	log                   look.Unfold
+	log                   kit.Disclosure
 	logOpen               bool
 	setup                 protocol.SetupResult
 	ports                 protocol.PortsResult
 	portsLoaded           bool
 	portOpen              map[int]*kit.Plaque
-	sessions              map[string]*kit.Tablet
+	sessions              map[string]*resourceRow
 }
 
 func (o *overviewState) init() { o.rows = make(map[string]*worktreeRowState) }
@@ -65,14 +60,13 @@ func (o *overviewState) init() { o.rows = make(map[string]*worktreeRowState) }
 func (o *overviewState) row(path string) *worktreeRowState {
 	row := o.rows[path]
 	if row == nil {
-		row = &worktreeRowState{portOpen: make(map[int]*kit.Plaque), sessions: make(map[string]*kit.Tablet)}
+		row = &worktreeRowState{portOpen: make(map[int]*kit.Plaque), sessions: make(map[string]*resourceRow)}
 		o.rows[path] = row
 	}
 	return row
 }
 
 func (o *overviewState) layout(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
-	th := e.Theme
 	snapshot := e.Snapshot()
 	worktrees := snapshot.Worktrees[page.project]
 	selected, ok := page.selectedWorktree(e)
@@ -82,29 +76,7 @@ func (o *overviewState) layout(gtx layout.Context, e *env.Env, page *pageState) 
 	page.worktree = selected.Path
 	list := func(gtx layout.Context) layout.Dimensions { return o.layoutList(gtx, e, page, worktrees, selected) }
 	detail := func(gtx layout.Context) layout.Dimensions { return o.layoutDetail(gtx, e, page, selected) }
-	if gtx.Constraints.Max.X < gtx.Dp(overviewSplit) {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(260))
-				return list(gtx)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
-			layout.Flexed(1, detail),
-		)
-	}
-	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			width := gtx.Dp(380)
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-			return list(gtx)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			size := image.Pt(max(1, gtx.Dp(1)), gtx.Constraints.Max.Y)
-			look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
-			return layout.Dimensions{Size: size}
-		}),
-		layout.Flexed(1, detail),
-	)
+	return (splitPane{Stacked: 260}).Layout(gtx, e.Theme, list, detail)
 }
 
 func (o *overviewState) layoutEmpty(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
@@ -134,7 +106,6 @@ func (o *overviewState) layoutList(
 				return o.list.Layout(gtx, th, len(worktrees), func(gtx layout.Context, index int) layout.Dimensions {
 					worktree := worktrees[index]
 					row := o.row(worktree.Path)
-					row.tablet.Pane = th.R.Stone2
 					row.start.Kind, row.start.Small, row.start.Label = kit.PlaqueTonal, true, i18n.T("New session")
 					if row.start.Clicked(gtx) {
 						page.newSession(e, worktree.Path)
@@ -142,9 +113,9 @@ func (o *overviewState) layoutList(
 					if row.tablet.Clicked(gtx) {
 						e.NavigateWork(page.project, TabOverview, worktree.Path)
 					}
-					content := worktreeTablet(th, snapshot, worktree)
+					content := worktreeResource(snapshot, worktree)
 					content.Action = &row.start
-					return row.tablet.Layout(gtx, th.Theme, content, worktree.Path == selected.Path, false)
+					return row.tablet.Layout(gtx, th, content, worktree.Path == selected.Path)
 				})
 			}),
 		)
@@ -159,7 +130,7 @@ func (o *overviewState) layoutTools(gtx layout.Context, e *env.Env, page *pageSt
 		info, _ := page.projectInfo(e)
 		o.openNew(e, page, info)
 	}
-	o.more.Icon, o.more.Description = look.Icon.More, i18n.T("Clean up, prune and repair")
+	o.more.Kind, o.more.Icon, o.more.Description = kit.PlaqueQuiet, look.Icon.More, i18n.T("Clean up, prune and repair")
 	if o.more.Clicked(gtx) {
 		o.openTools(gtx, e, page)
 	}
@@ -167,9 +138,7 @@ func (o *overviewState) layoutTools(gtx layout.Context, e *env.Env, page *pageSt
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return o.fresh.Layout(gtx, th.Theme) }),
 		layout.Flexed(1, layout.Spacer{}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return o.moreTip.Layout(gtx, th, e.Overlays, o.more.Description, func(gtx layout.Context) layout.Dimensions {
-				return o.more.Layout(gtx, th, th.R.Fg2)
-			})
+			return o.more.Layout(gtx, th.Theme)
 		}),
 	)
 }
@@ -181,7 +150,7 @@ func (o *overviewState) openTools(gtx layout.Context, e *env.Env, page *pageStat
 		{Label: i18n.T("Repair worktree links")},
 	}
 	tag := &o.toolMenu
-	box := gtx.Dp(28)
+	box := gtx.Dp(32)
 	anchor := e.Overlays.AnchorOf(&o.more.Clickable, image.Pt(box, box))
 	e.Overlays.Open(tag, anchor, look.Placement{Align: look.End}, func(gtx layout.Context) layout.Dimensions {
 		dimensions := o.toolMenu.Layout(gtx, e.Theme.Theme, items)
@@ -212,14 +181,10 @@ func (o *overviewState) repair(e *env.Env, page *pageState) {
 	})
 }
 
-func worktreeTablet(th *look.Theme, snapshot appstate.Snapshot, worktree protocol.WorktreeInfo) kit.TabletContent {
-	content := kit.TabletContent{Title: worktree.Name, Facts: worktreeBranch(worktree), FactsMono: true, Progress: -1}
-	glyph := look.Icon.Branch
+func worktreeResource(snapshot appstate.Snapshot, worktree protocol.WorktreeInfo) resourceContent {
+	content := resourceContent{Title: worktree.Name, Facts: worktreeBranch(worktree), Mark: look.Icon.Branch}
 	if worktree.Main {
-		glyph = look.Icon.Folder
-	}
-	content.Mark = func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, look.IconWidget(glyph, 18, th.R.Fg3))
+		content.Mark = look.Icon.Folder
 	}
 	content.Claim, content.Tone = worktreeClaim(snapshot, worktree)
 	if status := worktree.Status; status != nil {
@@ -276,6 +241,17 @@ func (o *overviewState) layoutDetail(gtx layout.Context, e *env.Env, page *pageS
 	o.commits.load(e, page.project, gtx.Now)
 	sections := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return o.layoutIdentity(gtx, e, page, worktree, row) },
+		func(gtx layout.Context) layout.Dimensions {
+			changed := 0
+			if status := worktree.Status; status != nil {
+				changed = status.Staged + status.Modified + status.Untracked + status.Conflicted
+			}
+			return look.SpecStrip(gtx, th, []look.Spec{
+				{Label: i18n.T("Sessions"), Value: kit.Pad2(len(worktree.Sessions))},
+				{Label: i18n.T("Changed"), Value: kit.Pad2(changed)},
+				{Label: i18n.T("Ports"), Value: kit.Pad2(len(row.ports.Ports))},
+			})
+		},
 		func(gtx layout.Context) layout.Dimensions { return look.Facts(gtx, th, worktreeFacts(th, worktree)) },
 	}
 	if state := setupState(worktree, row); state != protocol.SetupDone && state != protocol.SetupNone && state != "" {
@@ -287,25 +263,33 @@ func (o *overviewState) layoutDetail(gtx layout.Context, e *env.Env, page *pageS
 		trend, ok := o.commits.shown(page.project)
 		return look.HoldUntil(gtx, ok, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
 	})
+	ruled := 0
 	if len(worktree.Sessions) > 0 {
-		sections = append(sections, func(gtx layout.Context) layout.Dimensions { return o.layoutSessions(gtx, e, worktree, row) })
+		ruled++
 	}
 	if len(row.ports.Ports) > 0 {
-		sections = append(sections, func(gtx layout.Context) layout.Dimensions { return o.layoutPorts(gtx, e, row) })
+		ruled++
 	}
-	inset := th.Sp.S5
-	if gtx.Constraints.Max.X < gtx.Dp(560) {
-		inset = th.Sp.S4
-	}
-	return o.detail.Layout(gtx, th, len(sections), func(gtx layout.Context, index int) layout.Dimensions {
-		top, bottom := th.Sp.S4, th.Sp.S1
-		if index == len(sections)-1 {
-			bottom = th.Sp.S5
-		}
-		return layout.Inset{Top: top, Bottom: bottom, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(look.ReadingColumnWidth))
-			return sections[index](gtx)
+	ordinal := 0
+	if len(worktree.Sessions) > 0 {
+		ordinal++
+		number := ordinal
+		sections = append(sections, func(gtx layout.Context) layout.Dimensions {
+			return o.layoutSessions(gtx, e, worktree, row, number, ruled)
 		})
+	}
+	if len(row.ports.Ports) > 0 {
+		ordinal++
+		number := ordinal
+		sections = append(sections, func(gtx layout.Context) layout.Dimensions { return o.layoutPorts(gtx, e, row, number, ruled) })
+	}
+	return o.detail.Layout(gtx, th, len(sections)+1, func(gtx layout.Context, index int) layout.Dimensions {
+		if index == len(sections) {
+			return detailColumn(gtx, th, th.Sp.S3, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
+				return page.sheet.Colophon(gtx, th, page.sheetPage(e))
+			})
+		}
+		return detailColumn(gtx, th, th.Sp.S4, th.Sp.S1, sections[index])
 	})
 }
 
@@ -355,12 +339,10 @@ func (o *overviewState) layoutActs(gtx layout.Context, e *env.Env, worktree prot
 		func(gtx layout.Context) layout.Dimensions { return row.session.Layout(gtx, th.Theme) },
 		func(gtx layout.Context) layout.Dimensions { return row.changes.Layout(gtx, th.Theme) },
 	}
-	for index, icon := range icons {
+	for _, icon := range icons {
 		icon.plaque.Kind, icon.plaque.Description = kit.PlaqueQuiet, icon.tip
 		widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
-			return row.tips[index].Layout(gtx, th, e.Overlays, icon.tip, func(gtx layout.Context) layout.Dimensions {
-				return icon.plaque.Layout(gtx, th.Theme)
-			})
+			return icon.plaque.Layout(gtx, th.Theme)
 		})
 	}
 	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(widgets), func(gtx layout.Context, index int) layout.Dimensions {
@@ -507,16 +489,16 @@ func workingTreeWords(status *protocol.WorktreeStatus) string {
 	return strings.Join(parts, ", ")
 }
 
-func sectionTitle(th *look.Theme, title string) layout.Widget {
+func sectionTitle(th *look.Theme, title string, number, of int) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, kit.Text(th.Theme, th.T.Title, th.R.Fg, title))
+		return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: title, Number: number, Of: of}))
 	}
 }
 
-func (o *overviewState) layoutSessions(gtx layout.Context, e *env.Env, worktree protocol.WorktreeInfo, row *worktreeRowState) layout.Dimensions {
+func (o *overviewState) layoutSessions(gtx layout.Context, e *env.Env, worktree protocol.WorktreeInfo, row *worktreeRowState, number, of int) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	children := []layout.FlexChild{layout.Rigid(sectionTitle(th, i18n.T("Sessions")))}
+	children := []layout.FlexChild{layout.Rigid(sectionTitle(th, i18n.T("Sessions"), number, of))}
 	for _, id := range worktree.Sessions {
 		info, ok := snapshot.Sessions[id]
 		if !ok {
@@ -524,24 +506,21 @@ func (o *overviewState) layoutSessions(gtx layout.Context, e *env.Env, worktree 
 		}
 		tablet := row.sessions[id]
 		if tablet == nil {
-			tablet = new(kit.Tablet)
+			tablet = new(resourceRow)
 			row.sessions[id] = tablet
 		}
-		tablet.Pane = th.R.Stone2
 		if tablet.Clicked(gtx) {
 			e.Navigate(protocol.TabAgent, id)
 		}
-		content := kit.TabletContent{Title: info.Title, Facts: info.Activity, Progress: -1}
-		if content.Facts == "" {
-			content.Facts = info.Preview
+		facts := info.Activity
+		if facts == "" {
+			facts = info.Preview
 		}
-		content.Mark = func(gtx layout.Context) layout.Dimensions {
-			return layout.Center.Layout(gtx, look.IconWidget(look.Icon.Agents, 18, th.R.Fg3))
-		}
-		content.Claim, content.Tone = sessionClaim(info)
+		claim, tone := sessionClaim(info)
+		content := resourceContent{Title: info.Title, Facts: facts, Claim: claim, Tone: tone, Mark: look.Icon.Agents}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return tablet.Layout(gtx, th.Theme, content, false, false)
+				return tablet.Layout(gtx, th, content, false)
 			})
 		}))
 	}
@@ -574,11 +553,11 @@ func (o *overviewState) loadPorts(e *env.Env, worktree protocol.WorktreeInfo, ro
 	e.Call(protocol.MWorktreesPorts, protocol.WorktreeRef{Path: worktree.Path}, &row.ports, func(error) {})
 }
 
-func (o *overviewState) layoutPorts(gtx layout.Context, e *env.Env, row *worktreeRowState) layout.Dimensions {
+func (o *overviewState) layoutPorts(gtx layout.Context, e *env.Env, row *worktreeRowState, number, of int) layout.Dimensions {
 	th := e.Theme
 	ports := row.ports.Ports
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(sectionTitle(th, i18n.T("Listening"))),
+		layout.Rigid(sectionTitle(th, i18n.T("Listening"), number, of)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(ports), func(gtx layout.Context, index int) layout.Dimensions {
 				port := ports[index]
@@ -687,7 +666,8 @@ func (o *overviewState) layoutSetup(
 			)
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return row.log.Layout(gtx, th, row.logOpen, func(gtx layout.Context) layout.Dimensions {
+			row.log.Open = row.logOpen
+			return row.log.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: th.Sp.S3}.Layout(gtx, look.Paragraph(th, th.T.Mono, th.R.Fg2, setupLog(row.setup)))
 			})
 		}))

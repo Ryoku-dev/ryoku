@@ -133,3 +133,30 @@ func TestDiskCareOffCannotClean(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDiskCareCountsModelsRuntimeAndTeamToolCaches(t *testing.T) {
+	d, _ := diskTestDaemon(t)
+	for path, body := range map[string]string{
+		filepath.Join(paths.ModelsDir(), "owner", "model", "weights.gguf"): "weights",
+		filepath.Join(paths.LlamaRuntimeDir(), "llama-b1", "llama-server"): "runtime",
+		filepath.Join(paths.ToolCache("team-one"), "download"):             "cache",
+		filepath.Join(paths.ToolHome("team-one", "task-one"), "note"):      "scratch",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	usage, err := d.measureDisk(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]int64{"models": 7, "runtime": 7, "cache": 5, "toolhomes": 7} {
+		item := diskItem(usage.Items, id)
+		if item == nil || item.Bytes != want {
+			t.Fatalf("%s = %+v, want %d bytes", id, item, want)
+		}
+	}
+}

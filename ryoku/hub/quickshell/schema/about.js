@@ -103,6 +103,8 @@ var rows = [
       control: "handoff", command: link("https://github.com/googlefonts/geologica"), actionText: "Visit", keywords: ["credits", "thanks", "font"] },
     { id: "credit-martian-mono", section: "credits", label: "Martian Mono", detail: "Rashin and Lithic data type (OFL-1.1), by Evil Martians",
       control: "handoff", command: link("https://github.com/evilmartians/mono"), actionText: "Visit", keywords: ["credits", "thanks", "font"] },
+    { id: "credit-oh-my-pi", section: "credits", label: "oh-my-pi", detail: "Rashin agent engine (MIT), by Can Bölük and Mario Zechner",
+      control: "handoff", command: link("https://github.com/can1357/oh-my-pi"), actionText: "Visit", keywords: ["credits", "thanks", "rashin", "agent", "engine"] },
     { id: "credit-hermes-agent", section: "credits", label: "Hermes Agent", detail: "Rashin memory safety (MIT), by Nous Research",
       control: "handoff", command: link("https://github.com/NousResearch/hermes-agent"), actionText: "Visit", keywords: ["credits", "thanks"] },
     { id: "credit-openclaw", section: "credits", label: "OpenClaw", detail: "Rashin memory filters (MIT), by OpenClaw Foundation",

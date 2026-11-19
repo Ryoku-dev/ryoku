@@ -18,35 +18,21 @@ import (
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
-	"ryoku-rashin/internal/sandbox"
 )
 
 type fakeAsker struct{ runner core.Runner }
 
 func (f fakeAsker) NewAsk(core.AskOptions) core.Runner { return f.runner }
 
-type fakeHarnesses struct {
-	runner  core.Runner
-	opts    core.HarnessOptions
-	list    []protocol.HarnessInfo
-	probed  []protocol.HarnessProbeParams
-	base    sandbox.Spec
-	learned func()
+type fakeAgents struct {
+	runner core.Runner
+	opts   core.AgentOptions
 }
 
-func (f *fakeHarnesses) List(context.Context, bool) ([]protocol.HarnessInfo, error) {
-	return f.list, nil
-}
-func (f *fakeHarnesses) NewAgent(_ context.Context, opts core.HarnessOptions) (core.Runner, error) {
+func (f *fakeAgents) NewAgent(_ context.Context, opts core.AgentOptions) (core.Runner, error) {
 	f.opts = opts
 	return f.runner, nil
 }
-func (f *fakeHarnesses) Probe(_ context.Context, params protocol.HarnessProbeParams, base sandbox.Spec) (protocol.HarnessProbeResult, error) {
-	f.probed = append(f.probed, params)
-	f.base = base
-	return protocol.HarnessProbeResult{OK: true, Message: "started"}, nil
-}
-func (f *fakeHarnesses) OnLearned(fn func()) { f.learned = fn }
 
 type fakeWork struct {
 	sessions     core.SessionControl
@@ -175,6 +161,7 @@ type fakeRunner struct {
 	cancel      func()
 	permission  func(string, string) error
 	stop        func() error
+	announce    func(context.Context, core.Sink) error
 	mu          sync.Mutex
 	permissions []string
 	alive       bool
@@ -208,10 +195,10 @@ func (f *fakeRunner) SetMode(context.Context, string, core.Sink) error  { return
 func (f *fakeRunner) SetOption(context.Context, string, string, core.Sink) error {
 	return nil
 }
-func (f *fakeRunner) Start(context.Context, core.Sink) error {
-	f.mu.Lock()
-	f.alive = true
-	f.mu.Unlock()
+func (f *fakeRunner) Announce(ctx context.Context, sink core.Sink) error {
+	if f.announce != nil {
+		return f.announce(ctx, sink)
+	}
 	return nil
 }
 func (f *fakeRunner) Alive() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.alive }
@@ -620,17 +607,17 @@ func TestReadClearsUnread(t *testing.T) {
 	}
 }
 
-func TestPrepareSessionCwdUsedByHarness(t *testing.T) {
+func TestPrepareSessionCwdUsedByAgent(t *testing.T) {
 	isolateDaemon(t)
 	runner := &fakeRunner{alive: true, prompt: func(context.Context, core.PromptInput, core.Sink) (core.TurnResult, error) {
 		return core.TurnResult{Stop: protocol.StopEnd}, nil
 	}}
-	harnesses := &fakeHarnesses{runner: runner}
+	agents := &fakeAgents{runner: runner}
 	work := &fakeWork{prepared: protocol.SessionNewParams{Cwd: "/prepared", Worktree: "/prepared", Branch: "rashin/test"}}
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, harnesses, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, agents, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Project: "project", Worktree: "new"})
 	if err != nil {
 		t.Fatal(err)
@@ -641,8 +628,8 @@ func TestPrepareSessionCwdUsedByHarness(t *testing.T) {
 	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Text: "go"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if harnesses.opts.Cwd != "/prepared" {
-		t.Fatalf("harness cwd = %q", harnesses.opts.Cwd)
+	if agents.opts.Cwd != "/prepared" {
+		t.Fatalf("agent cwd = %q", agents.opts.Cwd)
 	}
 }
 
@@ -667,12 +654,12 @@ func TestWorkHooksCheckpointAndFinishAgentTurn(t *testing.T) {
 	runner := &fakeRunner{alive: true, prompt: func(context.Context, core.PromptInput, core.Sink) (core.TurnResult, error) {
 		return core.TurnResult{Stop: protocol.StopEnd}, nil
 	}}
-	harnesses := &fakeHarnesses{runner: runner}
+	agents := &fakeAgents{runner: runner}
 	work := &fakeWork{checkpoint: true, after: make(chan int, 1)}
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, harnesses, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, agents, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Project: "project"})
 	if err != nil {
 		t.Fatal(err)
@@ -864,7 +851,7 @@ func TestStopStaysStoppingThroughQueuedPromptDecision(t *testing.T) {
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, &fakeHarnesses{runner: runner}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, &fakeAgents{runner: runner}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)
@@ -976,11 +963,11 @@ func TestSetModelAgentCanIdleStop(t *testing.T) {
 	runner := &fakeRunner{alive: true, prompt: func(context.Context, core.PromptInput, core.Sink) (core.TurnResult, error) {
 		return core.TurnResult{}, nil
 	}}
-	harnesses := &fakeHarnesses{runner: runner}
+	agents := &fakeAgents{runner: runner}
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly, IdleStopMinutes: 1}}
 	}
-	manager := newSessionManager(nil, harnesses, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, agents, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)
@@ -1003,7 +990,7 @@ func TestAgentCwdDefaultsHomeAndRejectsRelative(t *testing.T) {
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, &fakeHarnesses{}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, &fakeAgents{}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)
@@ -1013,6 +1000,62 @@ func TestAgentCwdDefaultsHomeAndRejectsRelative(t *testing.T) {
 	}
 	if _, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: "relative"}); err == nil {
 		t.Fatal("relative cwd was accepted")
+	}
+}
+
+func TestAgentCreationAnnouncesModelModeAndOptions(t *testing.T) {
+	isolateDaemon(t)
+	runner := &fakeRunner{announce: func(_ context.Context, sink core.Sink) error {
+		sink.Emit(protocol.EvModel, protocol.ChoiceData{Current: "provider/model"})
+		sink.Emit(protocol.EvMode, protocol.ChoiceData{Current: protocol.ApprovalsAsk})
+		sink.Emit(protocol.EvOptions, protocol.OptionsData{Options: []protocol.SessionOption{{ID: protocol.OptionPlan, Current: protocol.OptionOn}}})
+		return nil
+	}}
+	agents := &fakeAgents{runner: runner}
+	settings := func() protocol.Settings {
+		return protocol.Settings{Agent: protocol.AgentSettings{Model: "provider/model", Approvals: protocol.ApprovalsAsk}}
+	}
+	manager := newSessionManager(nil, agents, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	info, err := manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Options: map[string]string{protocol.OptionPlan: protocol.OptionOn}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agents.opts.Session.Model != "provider/model" || agents.opts.Options[protocol.OptionPlan] != protocol.OptionOn {
+		t.Fatalf("agent options = %+v", agents.opts)
+	}
+	session, _ := manager.get(info.ID)
+	events, err := session.log.Since(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 3 || events[0].Kind != protocol.EvModel || events[1].Kind != protocol.EvMode || events[2].Kind != protocol.EvOptions {
+		t.Fatalf("initial events = %+v", events)
+	}
+}
+
+func TestAskCreationAnnouncesModelModeAndOptions(t *testing.T) {
+	isolateDaemon(t)
+	runner := &fakeRunner{announce: func(_ context.Context, sink core.Sink) error {
+		sink.Emit(protocol.EvModel, protocol.ChoiceData{Current: protocol.RouteFast})
+		sink.Emit(protocol.EvMode, protocol.ChoiceData{Current: protocol.ApprovalsReadOnly})
+		sink.Emit(protocol.EvOptions, protocol.OptionsData{Options: []protocol.SessionOption{}})
+		return nil
+	}}
+	settings := func() protocol.Settings {
+		return protocol.Settings{Ask: protocol.AskSettings{Model: protocol.RouteFast}}
+	}
+	manager := newSessionManager(fakeAsker{runner: runner}, nil, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	info, err := manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAsk})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, _ := manager.get(info.ID)
+	events, err := session.log.Since(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 3 || events[0].Kind != protocol.EvModel || events[1].Kind != protocol.EvMode || events[2].Kind != protocol.EvOptions {
+		t.Fatalf("initial Ask events = %+v", events)
 	}
 }
 
@@ -1100,11 +1143,11 @@ func TestSessionShutdownHonorsDeadline(t *testing.T) {
 		},
 		stop: func() error { <-release; return nil },
 	}
-	harnesses := &fakeHarnesses{runner: runner}
+	agents := &fakeAgents{runner: runner}
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, harnesses, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, agents, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)
@@ -1247,7 +1290,7 @@ func TestRevertRefusesWaitingSessionInWorktree(t *testing.T) {
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, &fakeHarnesses{}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, &fakeAgents{}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	running, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: "/work", Worktree: "/work"})
 	if err != nil {
 		t.Fatal(err)
@@ -1356,7 +1399,7 @@ func TestFirstAskQuestionSetsSingleLineTitle(t *testing.T) {
 	}
 }
 
-func TestAnAgentSessionIsNamedAfterWhatItWasFirstAskedUntilItsHarnessNamesIt(t *testing.T) {
+func TestAnAgentSessionIsNamedAfterItsFirstQuestion(t *testing.T) {
 	isolateDaemon(t)
 	runner := &fakeRunner{alive: true, prompt: func(_ context.Context, _ core.PromptInput, sink core.Sink) (core.TurnResult, error) {
 		return core.TurnResult{Stop: protocol.StopEnd}, nil
@@ -1364,7 +1407,7 @@ func TestAnAgentSessionIsNamedAfterWhatItWasFirstAskedUntilItsHarnessNamesIt(t *
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager := newSessionManager(nil, &fakeHarnesses{runner: runner}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager := newSessionManager(nil, &fakeAgents{runner: runner}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)

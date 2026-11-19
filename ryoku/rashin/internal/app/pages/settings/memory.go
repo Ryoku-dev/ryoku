@@ -105,9 +105,9 @@ func (p *Page) memoryBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widg
 		return m.layoutTitle(gtx, th, memoryProof(settings, snapshot.Memory))
 	}
 	return spacedBlocks(th, append(blocks, title),
-		m.usingGroup(e, settings),
-		m.modelGroup(e, gtx.Now, settings, snapshot.Memory),
-		m.fadingGroup(e, settings),
+		m.usingGroup(e, settings, p.defaults.Memory, p.changed),
+		m.modelGroup(e, gtx.Now, settings, snapshot.Memory, p.defaults.Memory.Model, p.changed.learner),
+		m.fadingGroup(e, settings, p.defaults.Memory.FadeMonths, p.changed.fade),
 		m.engineGroup(e, snapshot),
 		m.importGroup(th),
 	)
@@ -119,7 +119,7 @@ func (m *memoryPanel) layoutTitle(gtx layout.Context, th *look.Theme, proof stri
 	m.forget.Kind, m.forget.Small, m.forget.Label = kit.PlaqueDangerLine, true, i18n.T("Forget everything")
 	words := func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Memory"))),
+			layout.Rigid(look.SectionHead(th, ordinal(sectionMemory))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, proof)),
 		)
@@ -289,7 +289,7 @@ func dependent(on bool, control layout.Widget) layout.Widget {
 	}
 }
 
-func (m *memoryPanel) usingGroup(e *env.Env, settings protocol.MemorySettings) layout.Widget {
+func (m *memoryPanel) usingGroup(e *env.Env, settings, stock protocol.MemorySettings, diff changes) layout.Widget {
 	th := e.Theme
 	using := settings.Asked && settings.Use
 	m.use.Value, m.learn.Value, m.sessions.Value = using, settings.Learn, settings.Sessions
@@ -313,8 +313,10 @@ func (m *memoryPanel) usingGroup(e *env.Env, settings protocol.MemorySettings) l
 	}
 	rows := []look.Setting{
 		{
-			Title:  i18n.T("Use memory"),
-			Detail: i18n.T("Answers can draw on what Rashin remembers about you, your projects and your teams. Off keeps what it remembers and uses none of it."),
+			Title:   i18n.T("Use memory"),
+			Detail:  i18n.T("Answers can draw on what Rashin remembers about you, your projects and your teams. Off keeps what it remembers and uses none of it."),
+			Changed: diff.memoryUse,
+			Reset:   func() { set(e, "memory", map[string]any{"asked": stock.Asked, "use": stock.Use}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Use memory"), &m.use, func(on bool) {
 					patch := map[string]any{"asked": true, "use": on}
@@ -326,20 +328,30 @@ func (m *memoryPanel) usingGroup(e *env.Env, settings protocol.MemorySettings) l
 				})
 			},
 		},
-		{Title: i18n.T("Learn from conversations"), Detail: learnDetail, Control: dependent(using, toggle(i18n.T("Learn from conversations"), &m.learn, "learn"))},
+		{
+			Title: i18n.T("Learn from conversations"), Detail: learnDetail,
+			Changed: diff.memoryLearn, Reset: func() { set(e, "memory", map[string]any{"learn": stock.Learn}) },
+			Control: dependent(using, toggle(i18n.T("Learn from conversations"), &m.learn, "learn")),
+		},
 		{
 			Title:   i18n.T("Search past conversations"),
 			Detail:  i18n.T("When you ask about an earlier conversation, Rashin may look through your past asks and sessions, and shows which ones it opened."),
+			Changed: diff.sessions,
+			Reset:   func() { set(e, "memory", map[string]any{"sessions": stock.Sessions}) },
 			Control: dependent(using, toggle(i18n.T("Search past conversations"), &m.sessions, "sessions")),
 		},
 		{
 			Title:   i18n.T("Memory in agent sessions"),
-			Detail:  i18n.T("Harnesses you start from Rashin can read and remember through Rashin's memory tools. Each remembered thing shows in the session."),
+			Detail:  i18n.T("Rashin's native agents can read and remember through its memory tools. Each remembered thing appears in the session."),
+			Changed: diff.agents,
+			Reset:   func() { set(e, "memory", map[string]any{"agents": stock.Agents}) },
 			Control: dependent(using, toggle(i18n.T("Memory in agent sessions"), &m.agents, "agents")),
 		},
 		{
-			Title:  i18n.T("Suggestions from teams"),
-			Detail: suggestions[suggestAt].Detail,
+			Title:   i18n.T("Suggestions from teams"),
+			Detail:  suggestions[suggestAt].Detail,
+			Changed: diff.suggestions,
+			Reset:   func() { set(e, "memory", map[string]any{"teamSuggestions": stock.TeamSuggestions}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				dimensions := look.Named(gtx, i18n.T("Suggestions from teams"), func(gtx layout.Context) layout.Dimensions {
 					return m.teams.LayoutOptions(gtx, th, e.Overlays, suggestions, suggestAt)
@@ -357,6 +369,8 @@ func (m *memoryPanel) usingGroup(e *env.Env, settings protocol.MemorySettings) l
 		{
 			Title:   i18n.T("Keep sensitive topics"),
 			Detail:  i18n.T("Health, beliefs, money, relationships and similar topics are left out unless you turn this on. Passwords, keys and tokens are never kept."),
+			Changed: diff.sensitive,
+			Reset:   func() { set(e, "memory", map[string]any{"sensitive": stock.Sensitive}) },
 			Control: toggle(i18n.T("Keep sensitive topics"), &m.sensitive, "sensitive"),
 		},
 	}
@@ -365,7 +379,7 @@ func (m *memoryPanel) usingGroup(e *env.Env, settings protocol.MemorySettings) l
 
 var learners = []string{protocol.LearnLocal, protocol.LearnLocalFirst, protocol.LearnAny}
 
-func (m *memoryPanel) modelGroup(e *env.Env, now time.Time, settings protocol.MemorySettings, status *protocol.MemoryStatus) layout.Widget {
+func (m *memoryPanel) modelGroup(e *env.Env, now time.Time, settings protocol.MemorySettings, status *protocol.MemoryStatus, stock string, changed bool) layout.Widget {
 	th := e.Theme
 	options := []look.SelectOption{
 		{Label: i18n.T("Local models only"), Detail: i18n.T("Nothing leaves this computer. Learning waits until a local model answers.")},
@@ -379,8 +393,10 @@ func (m *memoryPanel) modelGroup(e *env.Env, now time.Time, settings protocol.Me
 		}
 	}
 	rows := []look.Setting{{
-		Title:  i18n.T("Learns with"),
-		Detail: options[at].Detail,
+		Title:   i18n.T("Learns with"),
+		Detail:  options[at].Detail,
+		Changed: changed,
+		Reset:   func() { set(e, "memory", map[string]any{"model": stock}) },
 		Control: func(gtx layout.Context) layout.Dimensions {
 			dimensions := look.Named(gtx, i18n.T("Learns with"), func(gtx layout.Context) layout.Dimensions {
 				return m.model.LayoutOptions(gtx, th, e.Overlays, options, at)
@@ -441,7 +457,7 @@ func learnerWords(now time.Time, learner protocol.MemoryLearner) (claim string, 
 
 var fades = []int{0, 6, 12, 18}
 
-func (m *memoryPanel) fadingGroup(e *env.Env, settings protocol.MemorySettings) layout.Widget {
+func (m *memoryPanel) fadingGroup(e *env.Env, settings protocol.MemorySettings, stock int, changed bool) layout.Widget {
 	th := e.Theme
 	labels := []string{i18n.T("Never"), i18n.T("After 6 months"), i18n.T("After a year"), i18n.T("After 18 months")}
 	at := 0
@@ -451,8 +467,10 @@ func (m *memoryPanel) fadingGroup(e *env.Env, settings protocol.MemorySettings) 
 		}
 	}
 	rows := []look.Setting{{
-		Title:  i18n.T("Forget unused memories"),
-		Detail: i18n.T("A memory no answer has used in that time is forgotten. Pinned memories never fade."),
+		Title:   i18n.T("Forget unused memories"),
+		Detail:  i18n.T("A memory no answer has used in that time is forgotten. Pinned memories never fade."),
+		Changed: changed,
+		Reset:   func() { set(e, "memory", map[string]any{"fadeMonths": stock}) },
 		Control: func(gtx layout.Context) layout.Dimensions {
 			dimensions := look.Named(gtx, i18n.T("Forget unused memories"), func(gtx layout.Context) layout.Dimensions {
 				return m.fade.Layout(gtx, th, e.Overlays, labels, at)
@@ -529,7 +547,7 @@ func (m *memoryPanel) engineGroup(e *env.Env, snapshot state.Snapshot) layout.Wi
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions { return m.layoutEngineActs(gtx, th, settings, picked) })
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Engine"))),
+			layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Engine")})),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabRows(gtx, th.Theme, rows...) }),
 		)

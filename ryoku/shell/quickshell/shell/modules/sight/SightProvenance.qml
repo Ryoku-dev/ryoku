@@ -10,7 +10,6 @@ Item {
     required property var panel
     property real s: 1
     property string model: ""
-    property string engine: ""
     property bool localModel: false
     property bool localOnly: false
     property bool copied: false
@@ -63,7 +62,6 @@ Item {
             width: details.availableWidth
             readonly property real lithicScale: root.s
             spacing: 8 * root.s
-            Label { width: parent.width; typeRole: "detail"; inkRole: "fg2"; text: I18n.tr("Engine: %1").arg(root.engine); wrapMode: Text.Wrap; elide: Text.ElideNone }
             Label { width: parent.width; typeRole: "detail"; inkRole: "fg2"; text: I18n.tr("Model: %1").arg(root.model); wrapMode: Text.Wrap; elide: Text.ElideNone }
             Label { width: parent.width; typeRole: "detail"; inkRole: "fg2"; text: root.localOnly ? I18n.tr("Local models only: On") : I18n.tr("Local models only: Off") }
             SightActionButton { s: root.s; text: I18n.tr("Change in Settings"); onClicked: { details.close(); root.panel.settings(false); } }

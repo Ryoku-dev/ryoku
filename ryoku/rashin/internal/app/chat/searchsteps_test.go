@@ -18,7 +18,7 @@ func TestSearchStepsCountDistinctToolKinds(t *testing.T) {
 	if progress.searches != 2 || progress.pages != 4 || progress.files != 1 {
 		t.Fatalf("wrong tool counts: %#v", progress)
 	}
-	if got := progress.text(); got != "Searched 2 · Read 4 pages · Read 1 file" {
+	if got := progress.text(); got != "Searched 2, Read 4 pages, Read 1 file" {
 		t.Fatalf("summary = %q", got)
 	}
 }

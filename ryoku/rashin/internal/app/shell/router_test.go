@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"gioui.org/io/event"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/layout"
@@ -82,7 +83,7 @@ func TestReplaceStandsInForThePlaceWithoutGrowingHistory(t *testing.T) {
 	}
 }
 
-func TestPaneArrivesAfreshOnlyForAnotherDestinationOrProject(t *testing.T) {
+func TestPaneArrivesForAnotherDestinationProjectOrSection(t *testing.T) {
 	home := Place{Tab: protocol.TabAsk}
 	first := Place{Tab: protocol.TabAsk, Session: "ask-one"}
 	if home.arrival() != first.arrival() {
@@ -102,6 +103,11 @@ func TestPaneArrivesAfreshOnlyForAnotherDestinationOrProject(t *testing.T) {
 	mail := Place{Tab: protocol.TabTeams, Team: "team-mail"}
 	if crew.arrival() != spend.arrival() || crew.arrival() == mail.arrival() || crew.key() == mail.key() {
 		t.Fatal("a team's views must share an arrival and a key that another team does not")
+	}
+	skills := Place{Tab: protocol.TabLearning, SettingsSection: "skills"}
+	rules := Place{Tab: protocol.TabLearning, SettingsSection: "rules"}
+	if skills.arrival() == rules.arrival() {
+		t.Fatal("Learning sections must arrive as distinct page parts")
 	}
 }
 
@@ -123,6 +129,12 @@ func TestShortcutsReachTheirActions(t *testing.T) {
 	if router.PaletteOpen {
 		t.Fatal("Escape did not close search")
 	}
+	board.press("/", 0)
+	if !router.PaletteOpen {
+		t.Fatal("slash at rest did not open search")
+	}
+	board.frame()
+	board.press(key.NameEscape, 0)
 	board.press("N", key.ModShortcut)
 	board.press("B", key.ModShortcut)
 	board.press("\\", key.ModShortcut)
@@ -159,6 +171,11 @@ func TestShortcutsReachTheirActions(t *testing.T) {
 	if router.Tab != protocol.TabIndex {
 		t.Fatalf("Ctrl 5 in Rashin went to %q, Rashin has four destinations", router.Tab)
 	}
+	router.Navigate(protocol.TabLearning, "")
+	board.press("5", key.ModShortcut)
+	if router.Tab != protocol.TabLearning {
+		t.Fatalf("Ctrl 5 moved Learning from the tree foot to %q", router.Tab)
+	}
 	board.press("+", key.ModShortcut)
 	if zoom != 10 {
 		t.Fatalf("Ctrl plus zoom delta = %d", zoom)
@@ -166,6 +183,30 @@ func TestShortcutsReachTheirActions(t *testing.T) {
 	board.press("0", key.ModShortcut)
 	if zoom != 0 {
 		t.Fatalf("Ctrl 0 zoom delta = %d", zoom)
+	}
+}
+
+func TestSlashLeavesFocusedTextAloneUntilComposerIsEmpty(t *testing.T) {
+	router := NewRouter(protocol.TabAsk, "", nil)
+	board := newKeyboard(router)
+	editor := new(int)
+	board.after = func(gtx layout.Context) {
+		event.Op(gtx.Ops, editor)
+		gtx.Event(key.Filter{Focus: editor, Name: "/"})
+		gtx.Event(key.FocusFilter{Target: editor})
+	}
+	board.input.Source().Execute(key.FocusCmd{Tag: editor})
+	board.frame()
+	allowed := false
+	router.CanSearch = func(gtx layout.Context) bool { return allowed && gtx.Focused(editor) }
+	board.press("/", 0)
+	if router.PaletteOpen {
+		t.Fatal("slash took text from a focused draft")
+	}
+	allowed = true
+	board.press("/", 0)
+	if !router.PaletteOpen {
+		t.Fatal("slash in an empty composer did not open search")
 	}
 }
 
@@ -237,6 +278,10 @@ func TestEachModeGoesBackToWhereItWasLeft(t *testing.T) {
 	router.Navigate(protocol.TabSettings, "")
 	if !router.TeamsMode() {
 		t.Fatal("Settings opened from Teams left Teams mode")
+	}
+	router.Navigate(protocol.TabLearning, "")
+	if !router.TeamsMode() {
+		t.Fatal("Learning opened from Teams left Teams mode")
 	}
 	router.SwitchMode()
 	if current := router.Current(); current.Tab != protocol.TabAgent || current.Session != "agent-one" {

@@ -134,7 +134,7 @@ func TestARestartArmsTheTimeLimitFromTheStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	again.now = h.clock.now
-	again.defaultHarness = h.s.defaultHarness
+	again.SetModels(listModels)
 	t.Cleanup(func() {
 		_ = again.Close()
 		// a recovered task can still be filing its last snapshot as the test

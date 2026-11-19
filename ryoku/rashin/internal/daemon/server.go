@@ -15,7 +15,6 @@ import (
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/config"
-	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/teams"
@@ -42,8 +41,9 @@ type connection struct {
 	// the daemon accepted it.
 	app bool
 	// session is the team session whose own socket this connection came in
-	// on; such a connection calls only that session's agent tools. Empty on
-	// the main socket.
+	// on; such a connection only reads the indexes its team may read. For
+	// the in-process connection of the tool host (toolhost.go) it is the
+	// session whose tools call. Empty on the main socket.
 	session string
 }
 
@@ -110,20 +110,9 @@ func (c *connection) serve() {
 func (c *connection) handle(frame protocol.Frame) {
 	ctx := context.Background()
 	var refused error
-	// a connection on a session's own socket is a team task's agent, or the
-	// harness of an Ask that is read-only
-	ask := false
 	if c.session != "" {
-		info, ok := c.daemon.manager.Info(c.session)
-		ask = ok && info.Kind == protocol.KindAsk && info.Team == ""
-	}
-	switch {
-	case ask:
-		refused = askGate(frame.Method)
-	case c.session != "":
-		refused = agentGate(c.session, frame.Method, frame.Params)
-		ctx = teams.WithAgentSession(ctx, c.session)
-	default:
+		refused = agentGate(frame.Method)
+	} else {
 		refused = c.daemon.mainGate(c, frame.Method, frame.Params)
 	}
 	if refused != nil {
@@ -143,7 +132,7 @@ func (c *connection) handle(frame protocol.Frame) {
 	}
 	var result any
 	var err error
-	if c.session != "" && !ask && agentIndex[frame.Method] {
+	if c.session != "" {
 		result, err = c.daemon.agentIndexCall(ctx, c, frame.Method, frame.Params)
 	} else {
 		result, err = c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
@@ -379,12 +368,6 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return protocol.Empty{}, d.manager.setOption(ctx, p)
-	case protocol.MSessionStart:
-		p, err := unmarshal[protocol.SessionRef](raw)
-		if err != nil {
-			return nil, err
-		}
-		return protocol.Empty{}, d.manager.start(ctx, p.ID)
 	case protocol.MSessionRename:
 		p, err := unmarshal[protocol.RenameParams](raw)
 		if err != nil {
@@ -556,23 +539,30 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.deps.Gateway.Usage(ctx, p.Days)
-	case protocol.MHarnessesList:
-		p, err := unmarshal[protocol.HarnessesListParams](raw)
+	case protocol.MModelsProbe:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.ModelProbeParams](raw)
 		if err != nil {
 			return nil, err
 		}
-		list, err := d.deps.Harnesses.List(ctx, p.Refresh)
-		out := protocol.HarnessesResult{Harnesses: list}
-		if err == nil && p.Refresh {
-			d.Broadcast(protocol.EvtHarnessesChanged, out)
+		return d.deps.Gateway.Probe(ctx, p)
+	case protocol.MLocalDevices:
+		if err := requireApp(c); err != nil {
+			return nil, err
 		}
-		return out, err
-	case protocol.MHarnessesProbe:
-		return d.probeHarness(ctx, c, raw)
-	case protocol.MHarnessesTeamsOpen:
-		return d.openTeamsHome(c, raw)
-	case protocol.MHarnessesTeamsDone:
-		return d.finishTeamsHome(raw)
+		if d.deps.Local == nil {
+			return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Rashin's own models are not available."))
+		}
+		return protocol.LocalDevicesResult{Devices: d.deps.Local.Devices(ctx)}, nil
+	case protocol.MLocalModels, protocol.MLocalDownload, protocol.MLocalCancel, protocol.MLocalRemove,
+		protocol.MLocalSearch, protocol.MLocalAdd, protocol.MLocalRuntimeInstall, protocol.MLocalStart, protocol.MLocalStop:
+		return d.localCall(ctx, c, method, raw)
+	case protocol.MLearningSkills, protocol.MLearningSkillDelete, protocol.MLearningDecisions, protocol.MLearningDecisionDelete,
+		protocol.MLearningRules, protocol.MLearningRuleSave, protocol.MLearningRuleDelete, protocol.MLearningRuleForge,
+		protocol.MLearningGrievances, protocol.MLearningGrievancesClear:
+		return d.learningCall(ctx, c, method, raw)
 	case protocol.MIndexList:
 		list, err := d.deps.Indexer.List(ctx)
 		return protocol.IndexesResult{Indexes: list}, err
@@ -992,11 +982,6 @@ func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (prot
 	if err != nil {
 		return protocol.Settings{}, err
 	}
-	// an instance removed later leaves the default unknown; only a new
-	// choice is checked, so unrelated changes still save
-	if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
-		return protocol.Settings{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
-	}
 	next, err = config.SaveMerged(next)
 	if err != nil {
 		return protocol.Settings{}, err
@@ -1017,9 +1002,12 @@ func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (prot
 	}
 	d.applyAPI()
 	d.stateChanged()
-	// a new address is a different server: its running state and models follow it
-	if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
+	// A changed address or runtime setting may change the provider catalogue.
+	if d.deps.Gateway != nil && (!maps.Equal(next.Providers.Local, current.Providers.Local) || !next.Providers.Models.Equal(current.Providers.Models)) {
 		d.broadcastProviders(ctx)
+	}
+	if d.deps.Local != nil && !next.Providers.Models.Equal(current.Providers.Models) {
+		d.Broadcast(protocol.EvtLocalChanged, d.deps.Local.Models(ctx))
 	}
 	return next, nil
 }
@@ -1156,14 +1144,6 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 		Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(),
 		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
 		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(), Unscoped: !sandbox.Scoped(),
-		InstalledHarnesses: harness.Installed(settings),
-	}
-	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
-		for _, h := range list {
-			if h.Installed {
-				status.Harnesses++
-			}
-		}
 	}
 	if list, err := d.deps.Indexer.List(ctx); err == nil {
 		status.Indexes = len(list)
@@ -1180,15 +1160,11 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	harnesses, err := d.deps.Harnesses.List(ctx, false)
-	if err != nil {
-		return protocol.Snapshot{}, err
-	}
 	indexes, err := d.deps.Indexer.List(ctx)
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes, Screens: d.screens.list().Screens}
+	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions, Settings: d.Settings(), Providers: providers, Indexes: indexes, Screens: d.screens.list().Screens, Local: d.localResult(ctx)}
 	if d.deps.Work != nil {
 		snapshot.Projects = d.deps.Work.Projects(ctx)
 		snapshot.Tasks = d.deps.Work.Tasks(ctx)

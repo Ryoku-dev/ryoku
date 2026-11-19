@@ -9,8 +9,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// The skill tools' names, the same in an agent's rashin MCP server and in
-// Ask.
+// The skill tools' names, the same in every mode that offers them.
 const (
 	ToolSkills = "skills"
 	ToolSkill  = "skill"
@@ -20,8 +19,7 @@ const (
 const skillsMax = 20
 
 // SkillTool is one of the tools that find and read the built-in skills.
-// Agents get them from the rashin MCP server and Ask from its own tool list,
-// from this one definition.
+// The engine's Rashin tools serve them from this one definition.
 type SkillTool struct {
 	Name        string
 	Description string

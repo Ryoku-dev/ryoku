@@ -1,15 +1,18 @@
 package daemon
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	i18n "ryoku-i18n"
-	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
@@ -19,6 +22,16 @@ import (
 // the user's session bus and the system bus, display, SSH agent and keyring,
 // and a daemon to start.
 var agentUnset = []string{"DBUS_SESSION_BUS_ADDRESS", "DBUS_SYSTEM_BUS_ADDRESS", "WAYLAND_DISPLAY", "DISPLAY", "SSH_AUTH_SOCK", "GNOME_KEYRING_CONTROL", "RASHIN_DAEMON"}
+
+// keptEnv is what a team task's tools keep of the daemon's environment:
+// where programs are, language and terminal, who they run as, and how the
+// network and its certificates are reached. Everything else, API keys and
+// tokens a login session exported included, stays outside the sandbox.
+var keptEnv = []string{
+	"PATH", "LANG", "LANGUAGE", "TERM", "COLORTERM", "TZ", "USER", "LOGNAME", "SHELL", "XDG_RUNTIME_DIR",
+	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy",
+	"SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE",
+}
 
 // sandboxBase is what every team sandbox starts from. It never sees what
 // Rashin always hides (alwaysHidden) or the paths Settings > Teams adds, has
@@ -66,7 +79,8 @@ func (d *Daemon) scopeCommand() string {
 }
 
 // privateDirs are Rashin's own: its state and cache, the teams' and dreams'
-// folders, the login keyrings and the vaults, resolved.
+// folders, the login keyrings and the vaults, resolved. The tool homes lie
+// in the state dir, so every team's stays hidden from every other.
 func privateDirs() []string {
 	dirs := []string{paths.StateDir(), paths.CacheDir(), paths.TeamsHome(), paths.DreamsHome(), paths.Keyrings(), paths.VaultDir(), paths.LegacyVaultDir()}
 	for index, dir := range dirs {
@@ -75,17 +89,14 @@ func privateDirs() []string {
 	return dirs
 }
 
-// alwaysHidden are hidden from every team agent and every harness Check
-// whatever the settings say: Rashin's private dirs, the places credentials
-// live (protocol.TeamsAlwaysHidden) and every harness's own state under the
-// user's home, resolved. A team's harness runs in a team home of its own.
+// alwaysHidden are hidden from every team task whatever the settings say:
+// Rashin's private dirs and the places credentials live
+// (protocol.TeamsAlwaysHidden), other coding agents' logins included,
+// resolved.
 func alwaysHidden() []string {
 	dirs := privateDirs()
 	for _, path := range protocol.TeamsAlwaysHiddenPaths() {
 		dirs = append(dirs, paths.Resolved(paths.Expand(path)))
-	}
-	for _, path := range harness.StatePaths() {
-		dirs = append(dirs, paths.Resolved(path))
 	}
 	slices.Sort(dirs)
 	return slices.Compact(dirs)
@@ -124,9 +135,9 @@ func hiddenFolder(folder string) bool {
 	})
 }
 
-// programDirs are the dirs of the running daemon and of the rashin command
-// agents are handed, so a build run from /tmp or /dev/shm still starts its
-// MCP server inside a sandbox.
+// programDirs are the dirs of the running daemon and of the rashin command,
+// so a build run from /tmp or /dev/shm still starts its tool host inside a
+// sandbox.
 func (d *Daemon) programDirs() []string {
 	var dirs []string
 	running, _ := os.Executable()
@@ -142,17 +153,29 @@ func (d *Daemon) programDirs() []string {
 	return dirs
 }
 
-// agentSandbox is the sandbox a team session's agent runs in: its team's
-// folder, created when missing, and its own socket where the daemon's would
-// be, so the tools it is handed reach the daemon only as that session. Its
-// team's built-in skills show read-only where they lie, inside the data dir
-// it otherwise sees empty, so the paths its brief names work. A folder
-// inside what Rashin always hides is refused.
+// agentSandbox is the sandbox a team session's tool host runs its file and
+// shell tools in: its team's folder, created when missing, and its own
+// socket where the daemon's would be, so the rashin command typed into its
+// shell reaches the daemon only as that session. It starts from an empty
+// environment that keeps only keptEnv and the locale, so no key a login
+// exported enters, and HOME and the XDG dirs point at the task's scratch
+// home, with the XDG cache at its team's cache, kept across tasks. Its
+// team's skills show read-only where they lie, inside the data dir it
+// otherwise sees empty, so the paths its brief names work. A folder inside
+// what Rashin always hides is refused.
 func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
 	if hiddenFolder(paths.Resolved(info.Cwd)) {
 		return nil, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.Tf("The team's folder %s is inside a place Rashin hides from every team. Choose another folder.", paths.Short(info.Cwd)))
 	}
 	if err := os.MkdirAll(info.Cwd, 0o700); err != nil {
+		return nil, err
+	}
+	task := info.TeamTask
+	if task == "" {
+		task = info.ID
+	}
+	home, cache, err := prepareToolHome(info.Team, task)
+	if err != nil {
 		return nil, err
 	}
 	dir, err := d.openAgentSocket(info.ID)
@@ -163,7 +186,10 @@ func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) 
 	spec := d.sandboxBase()
 	spec.Folder = paths.Resolved(info.Cwd)
 	spec.Binds = []sandbox.Bind{{Source: paths.Resolved(dir), Target: runtime}}
-	spec.Env = map[string]string{"RASHIN_SOCKET": filepath.Join(runtime, filepath.Base(paths.AgentSocket(info.ID)))}
+	spec.Writable = append(spec.Writable, home, cache)
+	spec.ClearEnv = true
+	spec.Env = toolEnv(home, cache)
+	spec.Env["RASHIN_SOCKET"] = filepath.Join(runtime, filepath.Base(paths.AgentSocket(info.ID)))
 	spec.Unset = agentUnset
 	if d.deps.Teams != nil {
 		spec = withAccess(spec, d.deps.Teams.Access(info))
@@ -172,6 +198,90 @@ func (d *Daemon) agentSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) 
 		spec.ReadOnly = append(spec.ReadOnly, paths.Resolved(dir))
 	}
 	return &spec, nil
+}
+
+// toolEnv is the whole environment of a team task's tools: keptEnv and the
+// locale's LC_* of the daemon's, then HOME and the XDG base dirs at home,
+// the cache at cache.
+func toolEnv(home, cache string) map[string]string {
+	env := make(map[string]string)
+	for _, name := range keptEnv {
+		if value, ok := os.LookupEnv(name); ok {
+			env[name] = value
+		}
+	}
+	for _, entry := range os.Environ() {
+		if name, value, ok := strings.Cut(entry, "="); ok && strings.HasPrefix(name, "LC_") {
+			env[name] = value
+		}
+	}
+	env["HOME"] = home
+	env["XDG_CONFIG_HOME"] = filepath.Join(home, ".config")
+	env["XDG_DATA_HOME"] = filepath.Join(home, ".local", "share")
+	env["XDG_STATE_HOME"] = filepath.Join(home, ".local", "state")
+	env["XDG_CACHE_HOME"] = cache
+	return env
+}
+
+// toolHomeDirs are made in every scratch home, so programs that expect the
+// XDG dirs find them.
+var toolHomeDirs = []string{".config", filepath.Join(".local", "share"), filepath.Join(".local", "state")}
+
+// prepareToolHome creates a team task's scratch home and its team's cache,
+// both 0700 under paths.ToolHomes(), and gives the home a git config that
+// includes the user's, so commits made there carry the user's name; git
+// skips an include that is missing. It returns both resolved.
+func prepareToolHome(team, task string) (home, cache string, err error) {
+	if !toolHomeName(team) || !toolHomeName(task) {
+		return "", "", errors.New(i18n.T("A team task's tools need a team and a task."))
+	}
+	home, cache = paths.ToolHome(team, task), paths.ToolCache(team)
+	if err := paths.EnsureDir(paths.StateDir()); err != nil {
+		return "", "", err
+	}
+	for _, dir := range []string{paths.ToolHomes(), filepath.Dir(home), home, cache} {
+		if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+			return "", "", err
+		}
+		info, err := os.Lstat(dir)
+		if err != nil {
+			return "", "", err
+		}
+		if !info.IsDir() {
+			return "", "", fmt.Errorf("tool home %q is not a directory", dir)
+		}
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return "", "", err
+		}
+	}
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return "", "", err
+	}
+	defer root.Close()
+	for _, dir := range toolHomeDirs {
+		if err := root.MkdirAll(dir, 0o700); err != nil {
+			return "", "", err
+		}
+	}
+	if info, err := root.Lstat(".gitconfig"); errors.Is(err, fs.ErrNotExist) {
+		include := fmt.Sprintf("# Rashin: your git identity, read from your own config.\n[include]\n\tpath = %s\n\tpath = %s\n",
+			filepath.Join(paths.Home(), ".gitconfig"), filepath.Join(paths.ConfigHome(), "git", "config"))
+		if err := root.WriteFile(".gitconfig", []byte(include), 0o600); err != nil {
+			return "", "", err
+		}
+	} else if err != nil {
+		return "", "", err
+	} else if !info.Mode().IsRegular() {
+		return "", "", fmt.Errorf("tool home %q has an unsafe git config", home)
+	}
+	return paths.Resolved(home), paths.Resolved(cache), nil
+}
+
+// toolHomeName reports a team or task id that names one folder: not empty,
+// no separator, not "." or "..", and not the per-team "cache".
+func toolHomeName(name string) bool {
+	return name != "" && name != "." && name != ".." && name != "cache" && !strings.ContainsRune(name, filepath.Separator)
 }
 
 // screenSandbox is the sandbox the apps on a team session's screen run in;
@@ -188,41 +298,4 @@ func (d *Daemon) screenSandbox(id string) *sandbox.Spec {
 		spec = withAccess(spec, protocol.TeamAccess{Hidden: d.deps.Teams.Access(info).Hidden})
 	}
 	return &spec
-}
-
-// probeSandbox is the sandbox harnesses.probe starts a harness in: a team
-// agent's, without a team's own access, socket or tools.
-func (d *Daemon) probeSandbox() sandbox.Spec {
-	spec := d.sandboxBase()
-	spec.Unset = agentUnset
-	return spec
-}
-
-// askSandbox is the sandbox a harness that answers an Ask runs in while the
-// Ask is read-only. It hides nothing, as it is the user's own harness
-// answering the user, but the whole host is read-only, its folder and
-// Rashin's own programs show again where the private /tmp or /dev/shm would
-// cover them, and its runtime dir is an empty one of its own: no session bus
-// to start something outside it, no display, and the Ask's own socket where
-// the daemon's would be, so its tools reach the daemon only as that Ask.
-func (d *Daemon) askSandbox(info protocol.SessionInfo) (*sandbox.Spec, error) {
-	dir, err := d.openAgentSocket(info.ID)
-	if err != nil {
-		return nil, err
-	}
-	folder := info.Cwd
-	if folder == "" {
-		folder = paths.Home()
-	}
-	folder = paths.Resolved(folder)
-	runtime := paths.Resolved(paths.RuntimeDir())
-	return &sandbox.Spec{
-		Dir:        folder,
-		ReadOnly:   append(d.programDirs(), folder),
-		RuntimeDir: filepath.Dir(runtime),
-		Binds:      []sandbox.Bind{{Source: paths.Resolved(dir), Target: runtime}},
-		Env:        map[string]string{"RASHIN_SOCKET": filepath.Join(runtime, filepath.Base(paths.AgentSocket(info.ID)))},
-		Unset:      agentUnset,
-		Scope:      d.scopeCommand(),
-	}, nil
 }

@@ -64,15 +64,29 @@ func (a *activityState) layout(gtx layout.Context, e *env.Env, page *pageState) 
 	return layout.Inset{Left: th.Sp.S4, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S2}.Layout(gtx,
+					look.SectionHead(th, look.Head{Title: i18n.T("Project history"), Number: 1, Of: 1}))
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return look.SpecStrip(gtx, th, []look.Spec{{Label: i18n.T("Entries"), Value: kit.Pad2(len(a.items))}})
+				})
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				head := [...]string{i18n.T("When"), i18n.T("Who"), i18n.T("What"), i18n.T("On"), ""}
 				dimensions := layoutActivityRow(gtx, columns, gtx.Dp(36), func(column int) layout.Widget {
-					return kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, head[column])
+					return kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, head[column])
 				})
 				look.FillRect(gtx, image.Rect(0, dimensions.Size.Y-max(1, gtx.Dp(1)), dimensions.Size.X, dimensions.Size.Y), th.R.Vein)
 				return dimensions
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return a.scroll.Layout(gtx, th, len(a.items), func(gtx layout.Context, index int) layout.Dimensions {
+				return a.scroll.Layout(gtx, th, len(a.items)+1, func(gtx layout.Context, index int) layout.Dimensions {
+					if index == len(a.items) {
+						return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return page.sheet.Colophon(gtx, th, page.sheetPage(e))
+						})
+					}
 					item := a.items[index]
 					return layoutActivityRow(gtx, columns, gtx.Dp(40), func(column int) layout.Widget {
 						return activityCell(th, gtx.Now, names, item, column)

@@ -48,12 +48,12 @@ func (p *Page) promptsBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wid
 			b.load(e)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Prompt library"))),
+			layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Prompt library")})),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.T("Type / in Ask to use a prompt, template or snippet. Built-ins stay unchanged, but you can copy them."))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
+				return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
 					if index == 0 {
 						return b.add.Layout(gtx, th.Theme)
 					}
@@ -77,25 +77,31 @@ func (p *Page) promptsBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wid
 			builtins++
 			continue
 		}
-		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions { return b.row(gtx, e, item) })
+		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return b.row(gtx, e, item)
+			})
+		})
 	}
 	if builtins > 0 {
 		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
 			if b.builtins.toggled(gtx) {
 				b.builtinsOpen = !b.builtinsOpen
 			}
-			return foldSlab(gtx, th, 1, func(gtx layout.Context, _ int) layout.Dimensions {
-				return b.builtins.layout(gtx, th, b.builtinsOpen, foldHead{
-					Title:  i18n.Tf("Built-in prompts (%d)", builtins),
-					Detail: i18n.T("Templates you can view and copy"),
-				}, func(gtx layout.Context) layout.Dimensions {
-					rows := make([]layout.FlexChild, 0, builtins)
-					for _, item := range b.items {
-						if item.BuiltIn {
-							rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.row(gtx, e, item) }))
+			return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return foldSlab(gtx, th, 1, func(gtx layout.Context, _ int) layout.Dimensions {
+					return b.builtins.layout(gtx, th, b.builtinsOpen, foldHead{
+						Title:  i18n.Tf("Built-in prompts (%d)", builtins),
+						Detail: i18n.T("Templates you can view and copy"),
+					}, func(gtx layout.Context) layout.Dimensions {
+						rows := make([]layout.FlexChild, 0, builtins)
+						for _, item := range b.items {
+							if item.BuiltIn {
+								rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.row(gtx, e, item) }))
+							}
 						}
-					}
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+					})
 				})
 			})
 		})

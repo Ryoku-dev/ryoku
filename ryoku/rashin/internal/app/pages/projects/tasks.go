@@ -2,7 +2,6 @@ package projects
 
 import (
 	"fmt"
-	"image"
 	"strings"
 
 	"gioui.org/layout"
@@ -32,10 +31,9 @@ type tasksState struct {
 	start, done, gate kit.Plaque
 	worktree          kit.Plaque
 	more              kit.IconPlaque
-	moreTip           look.Tip
 	menu              kit.Menu
 	answers           map[string]*kit.Plaque
-	sessions          map[string]*kit.Tablet
+	sessions          map[string]*resourceRow
 
 	create   createTask
 	planner  planTasks
@@ -44,7 +42,7 @@ type tasksState struct {
 }
 
 type taskRow struct {
-	tablet kit.Tablet
+	tablet resourceRow
 	act    kit.Plaque
 }
 
@@ -57,7 +55,7 @@ type taskItem struct {
 func (t *tasksState) init() {
 	t.rows = make(map[string]*taskRow)
 	t.answers = make(map[string]*kit.Plaque)
-	t.sessions = make(map[string]*kit.Tablet)
+	t.sessions = make(map[string]*resourceRow)
 }
 
 func (t *tasksState) layout(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
@@ -85,29 +83,7 @@ func (t *tasksState) layout(gtx layout.Context, e *env.Env, page *pageState) lay
 		)
 	}
 	detail := func(gtx layout.Context) layout.Dimensions { return t.layoutDetail(gtx, e, page, selected, tasks) }
-	if gtx.Constraints.Max.X < gtx.Dp(overviewSplit) {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(280))
-				return list(gtx)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
-			layout.Flexed(1, detail),
-		)
-	}
-	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			width := gtx.Dp(380)
-			gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-			return list(gtx)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			size := image.Pt(max(1, gtx.Dp(1)), gtx.Constraints.Max.Y)
-			look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
-			return layout.Dimensions{Size: size}
-		}),
-		layout.Flexed(1, detail),
-	)
+	return (splitPane{}).Layout(gtx, th, list, detail)
 }
 
 func (t *tasksState) layoutDialogs(gtx layout.Context, e *env.Env, page *pageState) {
@@ -164,18 +140,13 @@ func (t *tasksState) layoutRow(gtx layout.Context, e *env.Env, page *pageState, 
 		row = new(taskRow)
 		t.rows[task.ID] = row
 	}
-	row.tablet.Pane = th.R.Stone2
 	if row.tablet.Clicked(gtx) {
 		t.selected = task.ID
 	}
-	// the group header already names the state so the row doesn't say it again
-	content := kit.TabletContent{Title: task.Title, Facts: taskFacts(task, tasks), Progress: -1}
-	_, content.Tone = taskClaim(task)
+	content := resourceContent{Title: task.Title, Facts: taskFacts(task, tasks), Mark: look.Icon.Tasks}
+	content.Claim, content.Tone = taskClaim(task)
 	if products := task.Products; products.Added+products.Removed > 0 {
 		content.Proof = fmt.Sprintf("+%d −%d", products.Added, products.Removed)
-	}
-	content.Mark = func(gtx layout.Context) layout.Dimensions {
-		return layout.Center.Layout(gtx, look.IconWidget(look.Icon.Tasks, 18, th.R.Fg3))
 	}
 	if label := taskActLabel(task); label != "" {
 		row.act.Kind, row.act.Small, row.act.Label = kit.PlaqueTonal, true, label
@@ -185,7 +156,7 @@ func (t *tasksState) layoutRow(gtx layout.Context, e *env.Env, page *pageState, 
 			t.act(e, page, task)
 		}
 	}
-	return row.tablet.Layout(gtx, th.Theme, content, task.ID == t.selected, false)
+	return row.tablet.Layout(gtx, th, content, task.ID == t.selected)
 }
 
 func taskItems(tasks []protocol.TaskInfo) []taskItem {
@@ -271,7 +242,7 @@ func (t *tasksState) act(e *env.Env, page *pageState, task protocol.TaskInfo) {
 		return
 	}
 	var result protocol.TaskStartResult
-	e.Call(protocol.MTasksStart, protocol.TaskStartParams{ID: task.ID, Harness: task.Harness}, &result, func(err error) {
+	e.Call(protocol.MTasksStart, protocol.TaskStartParams{ID: task.ID, Model: task.Model}, &result, func(err error) {
 		if err != nil {
 			page.fail(err)
 			return

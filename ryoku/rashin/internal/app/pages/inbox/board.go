@@ -11,14 +11,17 @@ import (
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
 	"ryoku-rashin/internal/app/state"
+	"ryoku-rashin/internal/protocol"
 )
 
 // the Now board of Teams mode
 type board struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
 	needs  teamsui.NeedCards
 	tiles  map[string]*tile
+	rows   int
 	links  map[string]*kit.Click
 
 	templates teamsui.Templates
@@ -41,11 +44,13 @@ const (
 	itemNeed
 	itemColumns
 	itemStart
+	itemColophon
 )
 
 func (b *board) layout(gtx layout.Context, e *env.Env, needs []teamsui.Need) layout.Dimensions {
 	snapshot := e.Snapshot()
 	items := b.items(snapshot, needs)
+	b.rows = len(items)
 	b.bringIntoView(items)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -61,9 +66,11 @@ func (b *board) layout(gtx layout.Context, e *env.Env, needs []teamsui.Need) lay
 			return dimensions
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-				return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
-					return b.layoutItem(gtx, e, snapshot, needs, items[index], index == len(items)-1)
+			return b.sheet.Layout(gtx, e.Theme, look.PageFor(protocol.TabInbox), func(gtx layout.Context) layout.Dimensions {
+				return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
+						return b.layoutItem(gtx, e, snapshot, needs, items[index], index == len(items)-1)
+					})
 				})
 			})
 		}),
@@ -81,9 +88,9 @@ func (b *board) items(snapshot state.Snapshot, needs []teamsui.Need) []boardItem
 		}
 	}
 	if len(snapshot.Teams) == 0 {
-		return append(items, boardItem{kind: itemStart, count: len(shown)})
+		return append(items, boardItem{kind: itemStart, count: len(shown)}, boardItem{kind: itemColophon})
 	}
-	return append(items, boardItem{kind: itemColumns})
+	return append(items, boardItem{kind: itemColumns}, boardItem{kind: itemColophon})
 }
 
 // the sidebar or a task page asked for a need, by its own id or by its task's
@@ -113,13 +120,18 @@ func (b *board) layoutItem(
 	last bool,
 ) layout.Dimensions {
 	th := e.Theme
+	if item.kind == itemColophon {
+		return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return b.sheet.Colophon(gtx, th, look.PageFor(protocol.TabInbox))
+		})
+	}
 	switch item.kind {
 	case itemLead:
 		return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layoutLead(gtx, th, snapshot, len(needs))
 		})
 	case itemNeeds:
-		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, i18n.T("Needs you"), item.count))
+		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("Needs you"), Number: 1, Of: 5, Count: item.count}))
 	case itemNeed:
 		return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.needs.Layout(gtx, e, item.need)

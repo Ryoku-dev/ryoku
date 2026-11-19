@@ -82,6 +82,29 @@ func TestAutoUsesModelForFrench(t *testing.T) {
 	}
 }
 
+func TestWritingUsesLightAutoRouteUnlessModelPinned(t *testing.T) {
+	for _, tc := range []struct {
+		name, model string
+		local       bool
+		want        string
+	}{
+		{name: "auto", want: protocol.RouteAuto},
+		{name: "local only", local: true, want: protocol.RouteAuto},
+		{name: "pinned", model: "ollama-local/qwen", want: "ollama-local/qwen"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &testClient{reply: "Rewritten."}
+			if _, _, err := complete(context.Background(), client, tc.model, tc.local, "Rewrite.", "Original."); err != nil {
+				t.Fatal(err)
+			}
+			req := client.request
+			if req.Model != tc.want || !req.Light || req.LocalOnly != tc.local || req.Strict != (tc.model != "") {
+				t.Fatalf("request: %+v", req)
+			}
+		})
+	}
+}
+
 func TestLocalFrenchDoesNotCallModel(t *testing.T) {
 	client := &testClient{}
 	checked := false

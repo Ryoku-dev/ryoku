@@ -26,6 +26,13 @@ func (t *tasksState) layoutDetail(
 	th := e.Theme
 	sections := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return t.layoutIdentity(gtx, e, page, task) },
+		func(gtx layout.Context) layout.Dimensions {
+			return look.SpecStrip(gtx, th, []look.Spec{
+				{Label: i18n.T("Sessions"), Value: kit.Pad2(len(task.Sessions))},
+				{Label: i18n.T("Depends on"), Value: kit.Pad2(len(task.Deps))},
+				{Label: i18n.T("Questions"), Value: kit.Pad2(len(task.Gates))},
+			})
+		},
 	}
 	for index := range task.Gates {
 		if gate := task.Gates[index]; gate.Resolution == "" {
@@ -33,24 +40,20 @@ func (t *tasksState) layoutDetail(
 		}
 	}
 	sections = append(sections, func(gtx layout.Context) layout.Dimensions {
-		return look.Facts(gtx, th, taskFactRows(th, task, tasks))
+		return look.Facts(gtx, th, taskFactRows(e, task, tasks))
 	})
 	if len(task.Sessions) > 0 {
 		sections = append(sections, func(gtx layout.Context) layout.Dimensions { return t.layoutSessions(gtx, e, task) })
 	}
-	inset := th.Sp.S5
-	if gtx.Constraints.Max.X < gtx.Dp(560) {
-		inset = th.Sp.S4
-	}
+	sections = append(sections, func(gtx layout.Context) layout.Dimensions {
+		return page.sheet.Colophon(gtx, th, page.sheetPage(e))
+	})
 	return t.detail.Layout(gtx, th, len(sections), func(gtx layout.Context, index int) layout.Dimensions {
-		bottom := th.Sp.S1
+		top, bottom := th.Sp.S4, th.Sp.S1
 		if index == len(sections)-1 {
-			bottom = th.Sp.S5
+			top, bottom = th.Sp.S5, th.Sp.S3
 		}
-		return layout.Inset{Top: th.Sp.S4, Bottom: bottom, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(look.ReadingColumnWidth))
-			return sections[index](gtx)
-		})
+		return detailColumn(gtx, th, top, bottom, sections[index])
 	})
 }
 
@@ -108,9 +111,7 @@ func (t *tasksState) layoutActs(gtx layout.Context, e *env.Env, page *pageState,
 		widgets = append(widgets, func(gtx layout.Context) layout.Dimensions { return t.worktree.Layout(gtx, th.Theme) })
 	}
 	widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
-		return t.moreTip.Layout(gtx, th, e.Overlays, t.more.Description, func(gtx layout.Context) layout.Dimensions {
-			return t.more.Layout(gtx, th.Theme)
-		})
+		return t.more.Layout(gtx, th.Theme)
 	})
 	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(widgets), func(gtx layout.Context, index int) layout.Dimensions {
 		return widgets[index](gtx)
@@ -184,7 +185,8 @@ func (t *tasksState) layoutGate(gtx layout.Context, e *env.Env, page *pageState,
 	})
 }
 
-func taskFactRows(th *look.Theme, task protocol.TaskInfo, tasks []protocol.TaskInfo) []look.FactRow {
+func taskFactRows(e *env.Env, task protocol.TaskInfo, tasks []protocol.TaskInfo) []look.FactRow {
+	th := e.Theme
 	rows := make([]look.FactRow, 0, 8)
 	if len(task.Deps) > 0 {
 		names := make([]string, 0, len(task.Deps))
@@ -195,8 +197,10 @@ func taskFactRows(th *look.Theme, task protocol.TaskInfo, tasks []protocol.TaskI
 		}
 		rows = append(rows, look.FactRow{Label: i18n.T("Waits for"), Value: strings.Join(names, ", ")})
 	}
-	if task.Harness != "" {
-		rows = append(rows, look.FactRow{Label: i18n.T("Harness"), Value: task.Harness})
+	if task.Model != "" {
+		rows = append(rows, look.FactRow{Label: i18n.T("Model"), Value: env.ModelWords(e, task.Model)})
+	} else {
+		rows = append(rows, look.FactRow{Label: i18n.T("Model"), Value: i18n.T("Project default")})
 	}
 	products := task.Products
 	if products.Branch != "" {
@@ -226,7 +230,7 @@ func taskFactRows(th *look.Theme, task protocol.TaskInfo, tasks []protocol.TaskI
 func (t *tasksState) layoutSessions(gtx layout.Context, e *env.Env, task protocol.TaskInfo) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	children := []layout.FlexChild{layout.Rigid(sectionTitle(th, i18n.T("Sessions")))}
+	children := []layout.FlexChild{layout.Rigid(sectionTitle(th, i18n.T("Sessions"), 1, 1))}
 	for _, id := range task.Sessions {
 		info, ok := snapshot.Sessions[id]
 		if !ok {
@@ -234,24 +238,21 @@ func (t *tasksState) layoutSessions(gtx layout.Context, e *env.Env, task protoco
 		}
 		tablet := t.sessions[id]
 		if tablet == nil {
-			tablet = new(kit.Tablet)
+			tablet = new(resourceRow)
 			t.sessions[id] = tablet
 		}
-		tablet.Pane = th.R.Stone2
 		if tablet.Clicked(gtx) {
 			e.Navigate(protocol.TabAgent, id)
 		}
-		content := kit.TabletContent{Title: info.Title, Facts: info.Activity, Progress: -1}
-		if content.Facts == "" {
-			content.Facts = info.Preview
+		facts := info.Activity
+		if facts == "" {
+			facts = info.Preview
 		}
-		content.Mark = func(gtx layout.Context) layout.Dimensions {
-			return layout.Center.Layout(gtx, look.IconWidget(look.Icon.Agents, 18, th.R.Fg3))
-		}
-		content.Claim, content.Tone = sessionClaim(info)
+		claim, tone := sessionClaim(info)
+		content := resourceContent{Title: info.Title, Facts: facts, Claim: claim, Tone: tone, Mark: look.Icon.Agents}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return tablet.Layout(gtx, th.Theme, content, false, false)
+				return tablet.Layout(gtx, th, content, false)
 			})
 		}))
 	}

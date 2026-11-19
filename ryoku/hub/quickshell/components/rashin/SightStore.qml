@@ -9,8 +9,6 @@ QtObject {
     id: store
 
     property bool active: false
-    property var roster: []
-    property string askHarness: ""
     property var installed: []
     property bool languagesReady: false
     property string languageError: ""
@@ -32,16 +30,6 @@ QtObject {
         : store.frame.reason === "no-keyboard-access" ? I18n.tr("Needs keyboard access") : I18n.tr("Off")
     readonly property string tapLabel: store.keyLabel("tapKey", "Alt_R", "Right Alt")
     readonly property string highlightLabel: store.keyLabel("highlightKey", "Alt_L", "Left Alt")
-    readonly property string engine: String(ShellSettings.get("sight.engine", "ask"))
-    readonly property string effectiveEngine: store.engine === "ask" ? store.askHarness || "providers" : store.engine
-    readonly property var engines: [{ label: "Same as Ask", value: "ask" }, { label: "Rashin's providers", value: "providers" }]
-        .concat(store.roster.map(h => ({ label: h.name || h.id, value: h.id })))
-    readonly property var suggestions: {
-        if (store.effectiveEngine === "providers")
-            return Sight.modelSuggestions(store.providerModels);
-        var harness = store.roster.find(h => h.id === store.effectiveEngine);
-        return harness && harness.models ? harness.models : [];
-    }
     readonly property var defaults: Sight.defaults()
     property bool savingCollection: false
     property bool gestureWriting: false
@@ -252,13 +240,12 @@ QtObject {
 
     function modelOptions(query) {
         if (!store.modelListRequested) return [];
-        return store.effectiveEngine === "providers" ? Sight.modelSuggestions(store.providerModels, query)
-            : Sight.modelSuggestions({ models: store.suggestions.map(m => Object.assign({}, m, { available: m.available !== false })) }, query);
+        return Sight.modelSuggestions(store.providerModels, query);
     }
 
     function checkModel() {
         store.modelIssue = "";
-        if (!store.active || store.effectiveEngine !== "providers" || !store.savedModel
+        if (!store.active || !store.savedModel
                 || ["auto", "auto:fast", "auto:smart"].indexOf(store.savedModel) >= 0)
             return;
         if (savedModelProc.running || providerProc.running)
@@ -269,14 +256,10 @@ QtObject {
     }
 
     onSavedModelChanged: checkModel()
-    onEffectiveEngineChanged: {
-        modelListRequested = false;
-        checkModel();
-    }
     function loadModels() {
         if (!store.active) return;
         store.modelListRequested = true;
-        if (store.effectiveEngine !== "providers" || modelProc.running) return;
+        if (modelProc.running) return;
         store.modelError = "";
         modelProc.running = true;
     }
@@ -360,7 +343,7 @@ QtObject {
         environment: Spawn.env
         stdout: StdioCollector { id: savedModelOut }
         onExited: (code, status) => {
-            if (!store.active || store.effectiveEngine !== "providers") return;
+            if (!store.active) return;
             if (store.checkedModel !== store.savedModel) { store.checkModel(); return; }
             try {
                 if (code !== 0) throw new Error("models");
@@ -378,7 +361,7 @@ QtObject {
         environment: Spawn.env
         stdout: StdioCollector { id: providerOut }
         onExited: (code, status) => {
-            if (!store.active || store.effectiveEngine !== "providers") return;
+            if (!store.active) return;
             if (store.checkedModel !== store.savedModel) { store.checkModel(); return; }
             if (code === 0) {
                 try {

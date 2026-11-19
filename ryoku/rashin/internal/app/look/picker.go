@@ -80,7 +80,7 @@ func (p *picker) match(options []SelectOption) {
 	words := strings.Fields(strings.ToLower(p.query))
 	p.matches = p.matches[:0]
 	for index, option := range options {
-		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group)
+		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group + " " + strings.Join(option.Chips, " "))
 		found := true
 		for _, word := range words {
 			if !strings.Contains(text, word) {
@@ -159,8 +159,10 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			}
 			p.revealCursor = true
 		default:
-			if index := p.matches[p.cursor]; !options[index].Disabled {
-				picked = index
+			if p.cursor >= 0 && p.cursor < len(p.matches) {
+				if index := p.matches[p.cursor]; !options[index].Disabled {
+					picked = index
+				}
 			}
 		}
 	}
@@ -213,7 +215,7 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			p.revealCursor = true
 		}
 		p.viewport = gtx.Constraints.Max.Y
-		if p.revealCursor {
+		if p.revealCursor && p.list.Position.Count > 0 {
 			p.reveal()
 			p.revealCursor = false
 		}
@@ -244,6 +246,9 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 		railContext := gtx
 		railContext.Constraints = layout.Exact(dimensions.Size)
 		p.rail.Layout(railContext, th.Theme, &p.list, len(p.matches))
+		if p.revealCursor && p.list.Position.Count > 0 {
+			gtx.Execute(op.InvalidateCmd{})
+		}
 		return dimensions
 	}))
 	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -264,11 +269,24 @@ func (p *picker) reveal() {
 	first := p.list.Position.First
 	if p.cursor < first || p.cursor == first && p.list.Position.Offset > 0 {
 		p.list.ScrollTo(p.cursor)
-	} else if shown := max(1, p.list.Position.Count-1); p.cursor >= first+shown {
+		return
+	}
+	if p.cursor >= first+p.list.Position.Count {
 		p.list.ScrollTo(p.cursor)
-		if p.cursor < len(p.rowHeights) && p.rowHeights[p.cursor] > 0 {
-			p.list.Position.Offset = min(0, p.rowHeights[p.cursor]-p.viewport)
-		}
+		return
+	}
+	top := -p.list.Position.Offset
+	for at := first; at < p.cursor; at++ {
+		top += p.rowHeights[at]
+	}
+	height := p.rowHeights[p.cursor]
+	if height <= 0 {
+		return
+	}
+	if top < 0 || height >= p.viewport {
+		p.list.Position.Offset += top
+	} else if bottom := top + height; bottom > p.viewport {
+		p.list.Position.Offset += bottom - p.viewport
 	}
 }
 
@@ -318,20 +336,30 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 		record := op.Record(gtx.Ops)
 		content := gtx
 		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap-lead), gtx.Constraints.Max.Y)}
-		said := layout.Flex{Axis: layout.Vertical}.Layout(content,
+		children := []layout.FlexChild{
 			layout.Rigid(p.layoutLabel(th, option.Label)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if option.Detail == "" {
 					return layout.Dimensions{}
 				}
-				return layout.Inset{Top: 2}.Layout(gtx, Paragraph(th, th.T.Detail, th.R.Fg2, option.Detail))
+				return layout.Inset{Top: th.Sp.S1}.Layout(gtx, Paragraph(th, th.T.Detail, th.R.Fg2, option.Detail))
 			}),
-		)
+		}
+		if len(option.Chips) > 0 {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return Flow{Gap: th.Sp.S1, LineGap: th.Sp.S1}.Layout(gtx, len(option.Chips), func(gtx layout.Context, i int) layout.Dimensions {
+						return Chip(th, nil, option.Chips[i], palette.Idle)(gtx)
+					})
+				})
+			}))
+		}
+		said := layout.Flex{Axis: layout.Vertical}.Layout(content, children...)
 		call := record.Stop()
 		size := image.Pt(width, max(gtx.Dp(tokens.SizeMenuItem), said.Size.Y+gtx.Dp(16)))
 		hover := Transition(gtx, &row.hover, raised, th.Motion.HoverIn, th.Motion.HoverOut)
 		if hover > 0 {
-			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.Mix(th.R.Stone4, th.R.Fg, tokens.AlphaHoverPlane*hover))
+			kit.Fill(gtx, th.Theme, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Hover(), hover))
 		}
 		top := (size.Y - said.Size.Y) / 2
 		if chosen {

@@ -111,12 +111,8 @@ func (d *Daemon) compareStart(ctx context.Context, c *connection, p protocol.Com
 		}
 	}
 	for index, model := range append([]string{info.Model}, models...) {
-		harness := ""
-		if index == 0 {
-			harness = info.Harness
-		}
 		lane, err := d.manager.newSession(ctx, protocol.SessionNewParams{
-			Kind: protocol.KindAsk, Harness: harness, Model: model, Title: info.Title, Origin: "compare",
+			Kind: protocol.KindAsk, Model: model, Title: info.Title, Origin: "compare",
 			Temporary: true, Mode: protocol.ApprovalsReadOnly, Memory: info.Memory,
 		})
 		if err != nil {

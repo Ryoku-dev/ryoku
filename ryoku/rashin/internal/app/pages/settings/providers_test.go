@@ -44,6 +44,7 @@ func TestProviderStateNamesWhatStandsBetweenTheReaderAndAnAnswer(t *testing.T) {
 		{protocol.ProviderInfo{Enabled: true, Configured: true}, "Not answering"},
 		{protocol.ProviderInfo{Enabled: true, Configured: true, Keyless: true, Local: true}, "Not running"},
 		{protocol.ProviderInfo{Enabled: true, Configured: true, Keyless: true, Local: true, Running: true}, "No model yet"},
+		{protocol.ProviderInfo{Enabled: true, Configured: true, Keyless: true, Local: true, OnDemand: true, Models: 1, Available: 1}, "Starts when needed"},
 		{protocol.ProviderInfo{Enabled: true, Configured: true, Keyless: true, Local: true, Running: true, Models: 3, Available: 3}, "Ready"},
 	}
 	for _, test := range cases {
@@ -64,6 +65,8 @@ func TestProviderMetaSaysRunningOrHowToStart(t *testing.T) {
 	}{
 		{protocol.ProviderInfo{Local: true, Keyless: true, Running: true, Models: 3}, "", "Running, 3 models"},
 		{protocol.ProviderInfo{Local: true, Keyless: true, Running: true, Models: 1}, "2 answers this week", "Running, 1 model, 2 answers this week"},
+		{protocol.ProviderInfo{Local: true, OnDemand: true, Models: 1}, "", "Starts when needed, 1 model"},
+		{protocol.ProviderInfo{Local: true, OnDemand: true, Running: true, Models: 2}, "", "Running, 2 models"},
 		{protocol.ProviderInfo{Local: true, Keyless: true, Note: "Install Ollama and run ollama serve."}, "", "Install Ollama and run ollama serve."},
 		{protocol.ProviderInfo{Local: true, Keyless: true, Note: "Install Ollama and run ollama serve."}, "2 answers this week", "Install Ollama and run ollama serve."},
 		{protocol.ProviderInfo{Tier: protocol.TierPaid, Models: 4}, "", "Paid, no key yet, 4 models"},
@@ -84,9 +87,15 @@ func TestProviderMetaSaysRunningOrHowToStart(t *testing.T) {
 
 func TestLocalProvidersAreGroupedApartInTheirOwnOrder(t *testing.T) {
 	local, online := splitProviders([]protocol.ProviderInfo{
-		{ID: "ollama-local", Local: true}, {ID: "groq"}, {ID: "llamacpp", Local: true}, {ID: "openai"},
+		{ID: "ollama-local", Local: true}, {ID: "groq"}, {ID: "llamacpp", Local: true},
+		{ID: "other-local", Local: true}, {ID: "openai"}, {ID: protocol.ProviderRashinModels, Local: true},
 	})
-	if len(local) != 2 || local[0].ID != "ollama-local" || local[1].ID != "llamacpp" || len(online) != 2 || online[0].ID != "groq" {
-		t.Fatalf("local = %v, online = %v", local, online)
+	want := []string{protocol.ProviderRashinModels, protocol.ProviderLlamaCpp, protocol.ProviderOllamaLocal, "other-local"}
+	got := make([]string, len(local))
+	for at, provider := range local {
+		got[at] = provider.ID
+	}
+	if !reflect.DeepEqual(got, want) || len(online) != 2 || online[0].ID != "groq" {
+		t.Fatalf("local = %v, online = %v; local order want %v", got, online, want)
 	}
 }

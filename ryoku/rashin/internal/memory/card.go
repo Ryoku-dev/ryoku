@@ -280,7 +280,8 @@ func (e *Engine) rewriteCard(ctx context.Context, model learnModel, old string, 
 	zero := 0.0
 	reply, _, err := complete(ctx, e.deps.Client, llm.Request{
 		Model:       model.Model,
-		Strict:      true,
+		LocalOnly:   model.Local,
+		Light:       true,
 		Temperature: &zero,
 		MaxTokens:   cardReplyTokens,
 		Messages: []llm.Message{

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"ryoku-rashin/internal/engine/tool"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/vault"
 )
@@ -85,7 +86,7 @@ func TestHTTPCheckInitializesAndListsTools(t *testing.T) {
 			if !initialized {
 				t.Error("tools requested before initialized")
 			}
-			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"read"},{"name":"search"}]}}`))
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"read","inputSchema":{"type":"object"}},{"name":"search","inputSchema":{"type":"object"}}]}}`))
 		default:
 			t.Errorf("unexpected method %s", request.Method)
 		}
@@ -124,7 +125,9 @@ func TestDisabledServersNeverStart(t *testing.T) {
 	if checked.State != "off" {
 		t.Fatal(checked.State)
 	}
-	if len(store.Ready(context.Background())) != 0 {
+	if len(store.Tools(context.Background(), tool.Env{Settings: func() protocol.Settings {
+		return protocol.Settings{Features: map[string]bool{protocol.FeatureMCP: true}}
+	}})) != 0 {
 		t.Fatal("disabled server offered to agent")
 	}
 }

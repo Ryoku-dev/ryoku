@@ -34,6 +34,8 @@ func teamTranscript(task protocol.TeamTask, lines []line) []protocol.SessionEven
 	set := goal
 	set.Status, set.Turns, set.Reason, set.Ended = protocol.GoalActive, 0, "", nil
 	add(protocol.EvGoal, protocol.GoalData{Goal: set})
+	add(protocol.EvModel, protocol.ChoiceData{Current: task.Model})
+	add(protocol.EvOptions, protocol.OptionsData{Options: demoOptions(task.Options, task.Model == demoPaidID)})
 	add(protocol.EvUser, protocol.UserData{Text: goal.Objective})
 	turn := 1
 	add(protocol.EvTurnStart, protocol.TurnStartData{Turn: turn})
@@ -96,9 +98,8 @@ func teamSession(team protocol.Team, task protocol.TeamTask, events []protocol.S
 		ID:        task.Session,
 		Kind:      protocol.KindAgent,
 		Title:     task.Title,
-		Harness:   task.Harness,
 		Model:     task.Model,
-		Mode:      "default",
+		Mode:      team.Approvals,
 		Cwd:       team.Folder,
 		Origin:    protocol.OriginTeam,
 		Created:   task.Created,
@@ -111,7 +112,7 @@ func teamSession(team protocol.Team, task protocol.TeamTask, events []protocol.S
 		Approvals: team.Approvals,
 	}
 	if info.Model == "" {
-		info.Model = "default"
+		info.Model = demoLocalID
 	}
 	if task.Started != nil {
 		info.Created = *task.Started
@@ -170,12 +171,14 @@ func lastTurnSteps(events []protocol.SessionEvent) int {
 	return steps
 }
 
-// a task starts on its member's engine through the defaults chain, with what was asked for this task alone on top
-func startEngine(task *protocol.TeamTask, member protocol.Member, settings protocol.Settings, fallback string) {
-	harness, model, options := protocol.ResolveEngine(member, settings, fallback)
-	task.Harness = harness
+// a task starts on its member's model through the defaults chain, with task options taking precedence
+func startEngine(task *protocol.TeamTask, member protocol.Member, settings protocol.Settings) {
+	model, options := protocol.ResolveEngine(member, settings)
 	if task.Model == "" {
 		task.Model = model
+	}
+	if task.Model == "" {
+		task.Model = demoLocalID
 	}
 	if len(task.Options) == 0 {
 		task.Options = options

@@ -7,8 +7,10 @@ import (
 
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
+	"gioui.org/op/clip"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -22,6 +24,7 @@ type diskBlock struct {
 	refresh, clean, cancel kit.Plaque
 	buttons                map[string]*kit.Plaque
 	confirm                kit.Dialog
+	danger                 kit.Confirm
 	list                   layout.List
 	selected               protocol.DiskItem
 	err                    string
@@ -122,9 +125,9 @@ func (p *Page) diskBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widget
 					side := gtx.Dp(10)
 					bounds := image.Rect(0, 0, side, side)
 					if item.ID == "checkpoints" {
-						kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(2), max(1, gtx.Dp(1)), th.R.Fg3)
+						kit.Stroke(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Token), max(1, gtx.Dp(1)), th.R.Fg3)
 					} else {
-						kit.FillCut(gtx.Ops, bounds, gtx.Dp(2), diskCategoryInk(th, item.ID))
+						kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Token), diskCategoryInk(th, item.ID))
 					}
 					return layout.Dimensions{Size: image.Pt(side, side)}
 				}),
@@ -148,7 +151,7 @@ func (p *Page) diskBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widget
 		})
 	}
 	return spacedBlocks(th, blocks, func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Disk")))}
+		children := []layout.FlexChild{layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Disk")}))}
 		if d.err != "" {
 			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout), layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, d.err)))
 		}
@@ -161,53 +164,76 @@ func (d *diskBlock) bar(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	width, height := gtx.Constraints.Max.X, gtx.Dp(18)
 	bounds := image.Rect(0, 0, width, height)
-	kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), th.R.Stone4)
+	cut := gtx.Dp(th.Cut.Token)
+	kit.Fill(gtx, th.Theme, bounds, cut, th.R.Field)
 	var total int64
 	for _, item := range d.usage.Items {
 		if item.ID != "checkpoints" {
 			total += max(0, item.Bytes)
 		}
 	}
-	x := 0
-	for _, item := range d.usage.Items {
-		if item.ID == "checkpoints" {
-			continue
+	if total > 0 && width > 0 {
+		shape := clip.Outline{Path: kit.Shape(gtx, th.Theme, bounds, cut, cut, cut, cut)}.Op().Push(gtx.Ops)
+		x := 0
+		var used int64
+		for _, item := range d.usage.Items {
+			if item.ID == "checkpoints" || item.Bytes <= 0 {
+				continue
+			}
+			used += item.Bytes
+			next := min(width, int(float64(width)*float64(used)/float64(total)))
+			kit.Fill(gtx, th.Theme, image.Rect(x, 0, next, height), 0, diskCategoryInk(th, item.ID))
+			x = next
 		}
-		if total == 0 {
-			break
-		}
-		next := min(width, x+int(float64(width)*float64(max(0, item.Bytes))/float64(total)))
-		ink := diskCategoryInk(th, item.ID)
-		kit.FillCut(gtx.Ops, image.Rect(x, 0, max(x, next-2), height), min(gtx.Dp(th.Cut.Small), max(0, (next-x-2)/2)), ink)
-		x = next
+		shape.Pop()
 	}
 	semantic.LabelOp(i18n.T("Agent disk use by category")).Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(width, height)}
 }
 
 func diskCategoryInk(th *look.Theme, id string) color.NRGBA {
+	// one neutral progression keeps warning, failure and selection inks for their own meanings
+	step := 0
 	switch id {
-	case "teams":
-		return th.R.Jade
 	case "dreams":
-		return th.R.Lapis
-	case "harness":
-		return th.R.Amber
+		step = 1
+	case "models":
+		step = 2
+	case "runtime":
+		step = 3
+	case "toolhomes", "tasks":
+		step = 4
 	case "logs":
-		return th.R.Jasper
+		step = 5
 	case "cache":
-		return th.R.Fg2
-	case "tasks":
-		return th.R.Sel
-	default:
-		return th.R.Fg3
+		step = 6
 	}
+	return palette.SRGBAlpha(th.R.Fg, th.R.Field, .26+float32(step)*.11)
 }
 
 func (d *diskBlock) overlay(gtx layout.Context, e *env.Env) bool {
 	if !e.Feature("diskcare") {
-		d.confirm.Open = false
+		d.confirm.Open, d.danger.Dialog.Open = false, false
 		return false
+	}
+	if d.danger.Dialog.Open {
+		d.danger.Danger = true
+		if d.danger.Layout(gtx, e.Theme.Theme, i18n.T("Delete listed files?"),
+			i18n.T("Only the files you reviewed will be removed. Your project files and sign-ins stay. Changed files are not removed."),
+			i18n.T("Delete listed files"), "") && !d.clean.Busy {
+			d.clean.Busy = true
+			result := new(protocol.DiskUsage)
+			e.Call(protocol.MDiskClean, protocol.DiskCleanParams{Plan: d.selected.Plan}, result, func(err error) {
+				d.clean.Busy = false
+				if err != nil {
+					d.err = err.Error()
+					e.Report(err)
+				} else {
+					d.usage, d.err = *result, ""
+				}
+			})
+		}
+		return d.danger.Dialog.Open
 	}
 	if !d.confirm.Open {
 		return false
@@ -215,20 +241,8 @@ func (d *diskBlock) overlay(gtx layout.Context, e *env.Env) bool {
 	if d.cancel.Clicked(gtx) {
 		d.confirm.Dismiss(gtx)
 	}
-	if d.clean.Clicked(gtx) && !d.clean.Busy {
-		d.clean.Busy = true
-		result := new(protocol.DiskUsage)
-		e.Call(protocol.MDiskClean, protocol.DiskCleanParams{Plan: d.selected.Plan}, result, func(err error) {
-			d.clean.Busy = false
-			if err != nil {
-				d.err = err.Error()
-				e.Report(err)
-			} else {
-				d.usage = *result
-				d.err = ""
-			}
-			d.confirm.Open = false
-		})
+	if d.clean.Clicked(gtx) {
+		d.confirm.Open, d.danger.Dialog.Open = false, true
 	}
 	d.confirm.Width = 640
 	d.confirm.Layout(gtx, e.Theme.Theme, i18n.T("Delete only these files?"), func(gtx layout.Context) layout.Dimensions {
@@ -244,7 +258,8 @@ func (d *diskBlock) overlay(gtx layout.Context, e *env.Env) bool {
 			}),
 		)
 	}, func(gtx layout.Context) layout.Dimensions {
-		return infraPlaque(gtx, e, &d.clean, i18n.T("Delete listed files"))
+		d.clean.Kind, d.clean.Small, d.clean.Label = kit.PlaqueTonal, true, i18n.T("Continue to delete")
+		return d.clean.Layout(gtx, e.Theme.Theme)
 	}, func(gtx layout.Context) layout.Dimensions {
 		return infraPlaque(gtx, e, &d.cancel, i18n.T("Keep files"))
 	})

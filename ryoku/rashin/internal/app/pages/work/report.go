@@ -63,7 +63,7 @@ func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, session string, f
 	if t.files == nil {
 		t.files = make(map[string]*kit.Plaque)
 	}
-	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(files), func(gtx layout.Context, index int) layout.Dimensions {
+	return look.Flow{Gap: e.Theme.Sp.S2, LineGap: e.Theme.Sp.S2}.Layout(gtx, len(files), func(gtx layout.Context, index int) layout.Dimensions {
 		path := files[index]
 		plaque := t.files[path]
 		if plaque == nil {
@@ -83,7 +83,7 @@ func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, session string, f
 	})
 }
 
-// how long it worked and in how many steps opens its transcript; a notch says a step failed or waited on the user
+// how long it worked and in how many steps opens its transcript; a tone mark says a step failed or waited
 func (t *taskView) layoutHow(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
 	th := e.Theme
 	title, tone := teamsui.Worked(snapshot, task)
@@ -94,7 +94,7 @@ func (t *taskView) layoutHow(gtx layout.Context, e *env.Env, snapshot state.Snap
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			size := gtx.Dp(th.Cut.Notch)
-			kit.Notch(gtx.Ops, image.Point{}, size, th.R.Stone(tone))
+			kit.ToneMark(gtx, th.Theme, image.Rectangle{Max: image.Pt(size, size)}, tone)
 			return layout.Dimensions{Size: image.Pt(size, size)}
 		}),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),

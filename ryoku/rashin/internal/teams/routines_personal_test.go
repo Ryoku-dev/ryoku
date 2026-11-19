@@ -134,7 +134,7 @@ func TestDisabledSetupDoesNotHoldAnExistingTask(t *testing.T) {
 
 func TestResearchPresentationKeepsItsCitedSources(t *testing.T) {
 	h := scheduledHarness(t)
-	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Compare the battery-health references.", Name: "Battery research", Preset: "research", Folder: filepath.Join(h.dir, "dreams", "research"), Harness: "fake"})
+	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Compare the battery-health references.", Name: "Battery research", Preset: "research", Folder: filepath.Join(h.dir, "dreams", "research")})
 	ref := h.agent(t, dream.Dream.Task)
 	h.readyToPresent(t, dream, ref)
 	source := "https://docs.kernel.org/power/power_supply_class.html"
@@ -206,7 +206,7 @@ func TestAnOutstandingQuestionCanFinishWhileSchedulesTurnOff(t *testing.T) {
 
 func TestDisablingResearchStopsItsDreamAndBlocksEveryRestartPath(t *testing.T) {
 	h := scheduledHarness(t)
-	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Compare the battery-health references.", Name: "Battery research", Preset: "research", Folder: filepath.Join(h.dir, "dreams", "research"), Harness: "fake"})
+	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Compare the battery-health references.", Name: "Battery research", Preset: "research", Folder: filepath.Join(h.dir, "dreams", "research")})
 	ref := h.agent(t, dream.Dream.Task)
 	setTeamFeature(h, "research", false)
 	waitFor(t, "the research session to stop", func() bool { return h.sessions.wasStopped(ref.Session) })
@@ -224,7 +224,7 @@ func TestDisablingResearchStopsItsDreamAndBlocksEveryRestartPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.s.pump()
-	h.s.runDream(dream.ID, protocol.InitiatorYou)
+	h.s.runDream(dream.ID)
 	if task := h.task(t, queued.ID); task.Status != protocol.TaskReady {
 		t.Fatalf("a queued research task started while the feature was off: %+v", task)
 	}

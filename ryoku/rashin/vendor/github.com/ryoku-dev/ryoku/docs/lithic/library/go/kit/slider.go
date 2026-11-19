@@ -125,14 +125,14 @@ func (s *Slider) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 		trackY := (size.Y - trackHeight) / 2
 		track := image.Rect(0, trackY, size.X, trackY+trackHeight)
 		trackInk := palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
-		FillCut(gtx.Ops, track, 0, disabledInk(gtx, th, trackInk))
+		Fill(gtx, th, track, barCut(th, track), disabledInk(gtx, th, trackInk))
 
 		handleWidth := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderHandleWidth)))
 		handleHeight := max(1, gtx.Dp(unit.Dp(tokens.SizeSliderHandleHeight)))
 		handleX := int(float32(max(0, size.X-handleWidth))*s.drag.Value + .5)
 		doneEnd := min(size.X, handleX+handleWidth/2)
 		if doneEnd > 0 {
-			Blade(gtx.Ops, image.Rect(0, trackY, doneEnd, trackY+trackHeight), disabledInk(gtx, th, th.R.Fg2))
+			FillBlade(gtx, th, image.Rect(0, trackY, doneEnd, trackY+trackHeight), disabledInk(gtx, th, th.R.Fg2))
 		}
 		handleBounds = image.Rect(handleX, (size.Y-handleHeight)/2, handleX+handleWidth, (size.Y+handleHeight)/2)
 		handleCut = min(handleBounds.Dx()/2, handleBounds.Dy()/4)

@@ -80,7 +80,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 	items := []kit.MenuItem{
 		{Icon: look.Icon.Rename, Label: i18n.T("Rename"), Shortcut: "F2"},
-		{Icon: look.Icon.Agents, Label: i18n.T("Move to Agent")},
+		{Icon: look.Icon.Agents, Label: i18n.T("Move to agent")},
 		{Divider: true},
 		{Icon: look.Icon.Delete, Label: i18n.T("Delete"), Danger: true},
 	}

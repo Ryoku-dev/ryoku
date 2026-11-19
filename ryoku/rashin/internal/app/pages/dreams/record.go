@@ -65,8 +65,7 @@ func progress(snapshot state.Snapshot, dream protocol.Team) (share float64, capt
 	return share, i18n.Tf("Phase %d of %d: %s, %d of %d pieces done", position, len(protocol.DreamPhases), phaseWord(phase), done, len(pieces))
 }
 
-// the month's spend with its finished tasks counted from the tasks that really ended done,
-// so an attempt that stopped on a sign-in and went on as the same task never counts
+// a dream's month counts only tasks that actually ended done, not attempts retried on the same task
 func doneSpend(snapshot state.Snapshot, dream protocol.Team, spend protocol.TeamSpend) protocol.TeamSpend {
 	days := slices.Clone(spend.Days)
 	for index := range days {
@@ -85,17 +84,14 @@ func doneSpend(snapshot state.Snapshot, dream protocol.Team, spend protocol.Team
 	return spend
 }
 
-// one member's work this round as the daemon recorded it: the engine each of its tasks really ran on
+// one member's work this round as the daemon recorded it: the model each of its tasks really ran on
 type builder struct {
-	member  protocol.Member
-	tasks   []protocol.TeamTask
-	engines []ranOn
+	member protocol.Member
+	tasks  []protocol.TeamTask
+	models []string
 }
 
-// a harness and the model id it was given, as the task recorded them
-type ranOn struct{ harness, model string }
-
-// everyone who worked this round, the manager first, each with the harness and model of the tasks they ran
+// everyone who worked this round, the manager first, each with the models of the tasks they ran
 func builders(snapshot state.Snapshot, dream protocol.Team) []builder {
 	tasks := roundPieces(snapshot, dream)
 	if task, ok := standingTask(snapshot, dream); ok {
@@ -116,9 +112,8 @@ func builders(snapshot state.Snapshot, dream protocol.Team) []builder {
 			at = len(list) - 1
 		}
 		list[at].tasks = append(list[at].tasks, task)
-		harness, model, _ := teamsui.TaskEngineIDs(snapshot, task)
-		if engine := (ranOn{harness, model}); !slices.Contains(list[at].engines, engine) {
-			list[at].engines = append(list[at].engines, engine)
+		if model, _ := teamsui.TaskEngineIDs(snapshot, task); !slices.Contains(list[at].models, model) {
+			list[at].models = append(list[at].models, model)
 		}
 	}
 	return list

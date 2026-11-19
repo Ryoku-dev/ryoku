@@ -36,6 +36,8 @@ type taskView struct {
 	id     string
 	header look.PaneHeader
 	column look.Scroller
+	sheet  look.Sheet
+	rows   int
 	side   look.Scroller
 	prose  chat.Prose
 	view   chat.View
@@ -59,6 +61,7 @@ type taskView struct {
 func (t *taskView) open(id string) {
 	t.id = id
 	t.prose, t.view = chat.Prose{}, chat.View{}
+	t.rows = 0
 	t.how.Open, t.details.Open, t.attached = false, false, ""
 	t.column.Position, t.side.Position = layout.Position{}, layout.Position{}
 	t.presence = teamsui.Presence{}
@@ -81,7 +84,12 @@ func (t *taskView) layout(gtx layout.Context, e *env.Env, page *Page, task proto
 			return t.layoutHeader(gtx, e, page, snapshot, task, session)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.layoutPresence(gtx, e, snapshot, task) }),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return t.layoutBody(gtx, e, snapshot, task, session) }),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			page := look.PartPage(protocol.TabWork, 1, task.Title, "")
+			return t.sheet.Layout(gtx, e.Theme, page, func(gtx layout.Context) layout.Dimensions {
+				return t.layoutBody(gtx, e, snapshot, task, session)
+			})
+		}),
 	)
 }
 
@@ -197,6 +205,10 @@ func (t *taskView) layoutBody(gtx layout.Context, e *env.Env, snapshot state.Sna
 		}
 		// narrower, the details follow the report and everything scrolls together
 		items := append(t.items(e, snapshot, task, session, size.Y), aside)
+		items = append(items, func(gtx layout.Context) layout.Dimensions {
+			return t.sheet.Colophon(gtx, e.Theme, look.PartPage(protocol.TabWork, 1, task.Title, ""))
+		})
+		t.rows = len(items)
 		return t.column.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
 			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
 				return padItem(gtx, e.Theme, index, len(items), items[index])
@@ -213,6 +225,10 @@ func (t *taskView) layoutBody(gtx layout.Context, e *env.Env, snapshot state.Sna
 		t.layoutLive(column, e, snapshot, task, session, nil)
 	} else {
 		items := t.items(e, snapshot, task, session, size.Y)
+		items = append(items, func(gtx layout.Context) layout.Dimensions {
+			return t.sheet.Colophon(gtx, e.Theme, look.PartPage(protocol.TabWork, 1, task.Title, ""))
+		})
+		t.rows = len(items)
 		t.column.Layout(column, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
 			return padItem(gtx, e.Theme, index, len(items), items[index])
 		})

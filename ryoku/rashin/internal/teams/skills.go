@@ -1,7 +1,6 @@
 package teams
 
 import (
-	"slices"
 	"strings"
 
 	i18n "ryoku-i18n"
@@ -33,7 +32,7 @@ func (s *Service) skillsBrief(team protocol.Team, lead bool) string {
 	if s.skills == nil {
 		return ""
 	}
-	off := append(slices.Clone(s.settings().Skills.Off), team.SkillsOff...)
+	off := skills.Off(s.settings(), team.SkillsOff...)
 	result, err := s.skills.List(off)
 	if err != nil {
 		return ""

@@ -5,6 +5,7 @@ import (
 	"image"
 	"testing"
 
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -28,6 +29,94 @@ func comparisonLabelBounds(c *conversation, label string) (image.Rectangle, bool
 		}
 	}
 	return image.Rectangle{}, false
+}
+
+func TestAnswerFooterControlsAndPickerKeepTheirSpace(t *testing.T) {
+	for _, width := range []int{760, 1200} {
+		c := newConversation(image.Pt(width, 800))
+		c.model = comparisonTranscript(t, "source", "The answer under the controls", true)
+		c.view.SetFeatures(func(id string) bool { return id == "compare" || id == "share" })
+		c.view.SetAnswers(AnswerOptions{
+			SessionID: "source",
+			Choices: func(string) ([]look.SelectOption, []string, int) {
+				return []look.SelectOption{{Label: "A model"}}, []string{"model"}, 0
+			},
+			Call: func(string, any, any, func(error)) {},
+		})
+		for range 3 {
+			c.layout()
+		}
+		bounds := func(label string) image.Rectangle {
+			t.Helper()
+			rect, ok := comparisonLabelBounds(c, label)
+			if !ok {
+				labels := []string{}
+				for _, node := range c.frame.router.AppendSemantics(nil) {
+					if node.Desc.Label != "" {
+						labels = append(labels, node.Desc.Label)
+					}
+				}
+				t.Fatalf("%d: missing control %q; labels: %v", width, label, labels)
+			}
+			return rect
+		}
+		gap := c.frame.context().Dp(c.frame.theme.Sp.S2)
+		answer := bounds("The answer under the controls")
+		compare := bounds("Compare")
+		share := bounds("Share as a picture")
+		if compare.Max.X+gap > share.Min.X || compare.Min.Y >= share.Max.Y || share.Min.Y >= compare.Max.Y {
+			t.Errorf("%d: footer controls lack a %d px horizontal gap: %v and %v", width, gap, compare, share)
+		}
+		usage := bounds("source")
+		if usage.Min.X != answer.Min.X || usage.Min.Y <= compare.Max.Y {
+			t.Errorf("%d: usage did not stand on the answer's reading column below the actions: answer %v, usage %v, actions %v", width, answer, usage, compare)
+		}
+		c.view.ensureState().turnVisual(1).compare = &compareVisual{source: "source", picking: true, models: [2]string{"model", ""}}
+		c.layout()
+		c.layout()
+		label := bounds("Choose up to two other models")
+		start := bounds("Compare answers")
+		cancel := bounds("Cancel")
+		if label.Min.X <= answer.Min.X || label.Max.Y >= start.Min.Y || start.Max.X+gap > cancel.Min.X {
+			t.Errorf("%d: comparison picker is cramped or out of column: label %v, compare %v, cancel %v, footer %v", width, label, start, cancel, compare)
+		}
+	}
+}
+
+func TestOpeningComparisonKeepsNoticesAndWorkInTheReadingColumn(t *testing.T) {
+	c := newConversation(image.Pt(1200, 800))
+	c.model = NewModel(protocol.SessionInfo{ID: "source", Kind: protocol.KindAsk})
+	for _, item := range []struct {
+		kind string
+		data any
+	}{
+		{protocol.EvUser, protocol.UserData{Text: "Why did it stop?"}},
+		{protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}},
+		{protocol.EvTool, protocol.ToolData{Call: "one", Title: "Read state", Status: protocol.ToolDone}},
+		{protocol.EvThought, protocol.TextData{Message: "thought", Delta: "Checking why it stopped."}},
+		{protocol.EvTool, protocol.ToolData{Call: "two", Title: "Read logs", Status: protocol.ToolDone}},
+		{protocol.EvNotice, protocol.NoticeData{Text: "The loop guard stopped the repeated command."}},
+		{protocol.EvText, protocol.TextData{Message: "answer", Delta: "The answer stays in its column."}},
+		{protocol.EvAnswer, protocol.AnswerData{Via: "source"}},
+		{protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd}},
+	} {
+		c.model.Apply(testEvent(t, c.model.LastSeq()+1, item.kind, item.data))
+	}
+	c.view.SetFeatures(func(id string) bool { return id == "compare" })
+	c.view.SetAnswers(AnswerOptions{SessionID: "source"})
+	c.view.ensureState().turnVisual(1).compare = &compareVisual{source: "source", picking: true}
+	for range 3 {
+		c.layout()
+	}
+	for _, name := range []string{"Worked", "The loop guard stopped the repeated command."} {
+		bounds, ok := comparisonLabelBounds(c, name)
+		if !ok {
+			t.Fatalf("comparison hid %q", name)
+		}
+		if bounds.Min.X < (c.frame.size.X-c.frame.context().Dp(look.ReadingColumnWidth))/2 {
+			t.Errorf("%q escaped the reading column: %v", name, bounds)
+		}
+	}
 }
 
 func TestDisabledComparisonKeepsTheExistingAnswerSurface(t *testing.T) {

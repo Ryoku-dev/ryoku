@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,10 +18,12 @@ import (
 	"unicode/utf8"
 
 	i18n "ryoku-i18n"
-	"ryoku-rashin/internal/ask/command"
+	"ryoku-rashin/internal/command"
 	"ryoku-rashin/internal/core"
+	"ryoku-rashin/internal/engine"
+	"ryoku-rashin/internal/engine/tool"
 	gitcore "ryoku-rashin/internal/git"
-	"ryoku-rashin/internal/harness"
+	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
@@ -59,8 +62,30 @@ type managedSession struct {
 	goalIdle  int
 	// goalTurn is set while a turn that started under an active goal runs
 	goalTurn bool
+	// goalWrapUp is set once the goal's token budget is spent, while its one
+	// wrap-up turn is due or running
+	goalWrapUp bool
+	// freshNoticed is set once the session was told it goes on from a fresh
+	// engine context
+	freshNoticed bool
 	// asks are Rashin's own open questions, by request, waiting for an option
 	asks map[string]chan string
+	// options are the options the session was created with, handed to its
+	// first runner; later runners resume them from the runner's state
+	options map[string]string
+	// autoTitle is the title the session took from its first question, which
+	// a light model may replace once that turn has an answer
+	autoTitle string
+}
+
+// announcer is a runner that reports its model, mode and options without a
+// turn, so a new session shows them before anything is asked.
+type announcer interface {
+	Announce(ctx context.Context, sink core.Sink) error
+}
+
+type steerer interface {
+	Steer(core.PromptInput) bool
 }
 
 // promptTurn is how a turn starts: reserved when the caller already holds
@@ -78,20 +103,24 @@ type sessionManager struct {
 	mu        sync.Mutex
 	items     map[string]*managedSession
 	asker     core.Asker
-	harnesses core.Harnesses
+	agents    core.Agents
 	work      core.Work
 	settings  func() protocol.Settings
 	broadcast func(string, any)
 	changed   func()
 	warn      func(string, ...any)
-	// brief is what an agent session is told ahead of its first prompt,
-	// askBrief what a harness answering an Ask is, and prepare readies an
-	// agent's folder; the daemon sets them, tests leave them nil
-	brief    func(protocol.SessionInfo) string
-	askBrief func(protocol.SessionInfo) string
-	prepare  func(protocol.SessionInfo)
-	// tools are the MCP servers an agent session is handed
-	tools      func(protocol.SessionInfo) []core.MCPServer
+	// light names a session after its first exchange; nil keeps the title
+	// taken from the first question
+	light llm.Client
+	// models lists the gateway's models, for the profile a goal's text is
+	// written for; nil writes it for a full-size model
+	models func(context.Context) []protocol.ModelInfo
+	// brief is the session part of an agent's system prompt and prepare
+	// readies an agent's folder; the daemon sets them, tests leave them nil
+	brief   func(protocol.SessionInfo) string
+	prepare func(protocol.SessionInfo)
+	// tools say which of Rashin's own tools an agent session has
+	tools      func(protocol.SessionInfo) core.ToolContext
 	prepareAsk func(context.Context, protocol.SessionInfo, core.PromptInput, core.Sink) (core.PromptInput, error)
 	// ended hears that a session was stopped or deleted, so what it held ends too
 	ended func(id string)
@@ -100,18 +129,16 @@ type sessionManager struct {
 	// sets both, tests leave them nil
 	teams   core.Teams
 	watched func() bool
-	// sandbox is the sandbox a team session's agent runs in, and askSandbox
-	// the one a harness that answers an Ask runs in while it is read-only;
-	// the daemon sets them, tests leave them nil
-	sandbox    func(protocol.SessionInfo) (*sandbox.Spec, error)
-	askSandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
+	// sandbox is the sandbox every tool of a team session runs in; the
+	// daemon sets it, tests leave it nil
+	sandbox func(protocol.SessionInfo) (*sandbox.Spec, error)
 	// memory hears every finished turn and every deleted session; the
 	// daemon sets it when memory is built in, tests leave it nil
 	memory core.Memory
 }
 
-func newSessionManager(asker core.Asker, harnesses core.Harnesses, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
-	return &sessionManager{items: make(map[string]*managedSession), asker: asker, harnesses: harnesses, work: work, settings: settings, broadcast: broadcast, changed: changed, warn: warn}
+func newSessionManager(asker core.Asker, agents core.Agents, work core.Work, settings func() protocol.Settings, broadcast func(string, any), changed func(), warn func(string, ...any)) *sessionManager {
+	return &sessionManager{items: make(map[string]*managedSession), asker: asker, agents: agents, work: work, settings: settings, broadcast: broadcast, changed: changed, warn: warn}
 }
 
 // Info is a session's info. A session the manager does not hold is read
@@ -148,14 +175,36 @@ func (m *sessionManager) Prompt(ctx context.Context, p protocol.PromptParams) (p
 }
 
 func (m *sessionManager) newSession(ctx context.Context, p protocol.SessionNewParams) (protocol.SessionInfo, error) {
-	if p.Kind == protocol.KindAgent && m.work != nil && (p.Project != "" || p.Worktree != "") {
-		prepared, err := m.work.PrepareSession(ctx, p)
-		if err != nil {
-			return protocol.SessionInfo{}, err
-		}
-		p = prepared
+	p, err := m.prepared(ctx, p)
+	if err != nil {
+		return protocol.SessionInfo{}, err
 	}
-	return m.create(p)
+	info, err := m.create(p)
+	if err != nil || info.TeamTask != "" {
+		return info, err
+	}
+	m.announce(ctx, info.ID)
+	current, _ := m.Info(info.ID)
+	return current, nil
+}
+
+// prepared is p with the folder Work readies for an Agent session bound to
+// a project or worktree.
+func (m *sessionManager) prepared(ctx context.Context, p protocol.SessionNewParams) (protocol.SessionNewParams, error) {
+	if p.Kind == protocol.KindAgent && m.work != nil && (p.Project != "" || p.Worktree != "") {
+		return m.work.PrepareSession(ctx, p)
+	}
+	return p, nil
+}
+
+// localModel says a model id names a model on this computer.
+func localModel(model string) bool {
+	for _, provider := range protocol.LocalProviders {
+		if strings.HasPrefix(model, provider+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *sessionManager) get(id string) (*managedSession, error) {
@@ -180,7 +229,8 @@ func (m *sessionManager) get(id string) (*managedSession, error) {
 
 func (m *sessionManager) restoreForkHandoff(s *managedSession) {
 	info := s.log.Info()
-	if info.Kind != protocol.KindAgent || info.Parent == "" {
+	// a fork the engine resumes from its own transcript needs no handoff
+	if info.Kind != protocol.KindAgent || info.Parent == "" || hasEngineTranscript(info) {
 		return
 	}
 	events, err := s.log.Since(0)
@@ -232,21 +282,29 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if p.Kind == protocol.KindAgent {
 		state = protocol.StateStopped
 	}
-	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Harness: strings.TrimSpace(p.Harness), Model: p.Model, Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task, Temporary: p.Temporary, Memory: memory}
-	// an Ask a harness answers runs it from the home folder and starts on the
-	// harness's own model, which Rashin's routes do not name
-	if info.Kind == protocol.KindAsk && info.Harness != "" {
-		info.Cwd = paths.Home()
-	} else if info.Model == "" && info.Kind == protocol.KindAsk {
-		info.Model = m.settings().Ask.Model
-	}
-	// only the client says an Ask may change the machine: the bar and the
-	// terminal never do, so theirs stay read-only whatever the default is
-	if info.Kind == protocol.KindAsk && protocol.KnownApprovals(p.Mode) {
-		info.Mode = p.Mode
-	}
-	// a team task's session works under its team's approvals, not the agent default
-	if info.Kind == protocol.KindAgent {
+	info := protocol.SessionInfo{ID: id, Kind: p.Kind, Title: p.Title, Model: strings.TrimSpace(p.Model), Cwd: p.Cwd, Origin: origin, State: state, Created: now, Updated: now, Project: p.Project, Worktree: p.Worktree, Branch: p.Branch, Task: p.Task, Temporary: p.Temporary, Memory: memory}
+	var options map[string]string
+	switch info.Kind {
+	case protocol.KindAsk:
+		// a Theia capture with no model picked stays light work
+		if info.Model == "" && origin != protocol.OriginSight {
+			info.Model = m.settings().Ask.Model
+		}
+		// only the client says an Ask may change the machine: the bar and the
+		// terminal never do, so theirs stay read-only whatever the default is
+		if protocol.KnownApprovals(p.Mode) {
+			info.Mode = p.Mode
+		}
+	case protocol.KindAgent:
+		agent := m.settings().Agent
+		if info.Model == "" {
+			info.Model = agent.Model
+		}
+		if info.Model == "" {
+			info.Model = protocol.RouteAuto
+		}
+		options = agentOptions(p.Options, agent)
+		// a team task's session works under its team's approvals, not the agent default
 		info.Team, info.TeamTask, info.Member = p.Team, p.TeamTask, p.Member
 		if protocol.KnownApprovals(p.Approvals) {
 			info.Approvals = p.Approvals
@@ -256,7 +314,7 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	if err != nil {
 		return protocol.SessionInfo{}, err
 	}
-	s := &managedSession{log: log, attached: make(map[eventTarget]struct{}), permissions: make(map[string]struct{}), lastActivity: now}
+	s := &managedSession{log: log, attached: make(map[eventTarget]struct{}), permissions: make(map[string]struct{}), lastActivity: now, options: options}
 	s.coalescer = store.NewCoalescer(func(kind string, data any) error { return m.persist(s, kind, data) })
 	m.mu.Lock()
 	m.items[id] = s
@@ -267,18 +325,59 @@ func (m *sessionManager) create(p protocol.SessionNewParams) (protocol.SessionIn
 	return info, nil
 }
 
+// agentOptions are a new Agent session's options: the ones it was created
+// with, else the agent settings', with Plan first from agent.plan when
+// neither says.
+func agentOptions(given map[string]string, agent protocol.AgentSettings) map[string]string {
+	source := given
+	if len(source) == 0 {
+		source = agent.Options
+	}
+	options := make(map[string]string, len(source)+1)
+	for id, value := range source {
+		options[id] = value
+	}
+	if _, ok := options[protocol.OptionPlan]; !ok {
+		options[protocol.OptionPlan] = protocol.OptionOff
+		if agent.Plan {
+			options[protocol.OptionPlan] = protocol.OptionOn
+		}
+	}
+	return options
+}
+
+// announce has a new Agent session's runner report its model, mode and
+// options, so they are on screen before the first prompt. Building the
+// runner starts nothing.
+func (m *sessionManager) announce(ctx context.Context, id string) {
+	s, err := m.get(id)
+	if err != nil {
+		return
+	}
+	runner, err := m.ensureRunner(ctx, s)
+	if err != nil {
+		if m.warn != nil {
+			m.warn("announce session %s: %v", id, err)
+		}
+		return
+	}
+	if a, ok := runner.(announcer); ok {
+		if err := a.Announce(ctx, &runnerSink{manager: m, session: s}); err != nil && m.warn != nil {
+			m.warn("announce session %s: %v", id, err)
+		}
+	}
+	_ = s.coalescer.Flush()
+}
+
 func (m *sessionManager) persist(s *managedSession, kind string, data any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if kind == protocol.EvModel {
 		var model protocol.ChoiceData
 		if decode(data, &model) {
-			if id := s.log.Info().Harness; id != "" {
-				model.Engine = harness.Name(id, m.settings())
-				model.Local = false
-			} else if model.Engine == "" {
+			if model.Engine == "" {
 				model.Engine = "providers"
-				model.Local = strings.HasPrefix(model.Current, protocol.ProviderOllamaLocal+"/") || strings.HasPrefix(model.Current, protocol.ProviderLlamaCpp+"/")
+				model.Local = localModel(model.Current)
 			}
 			data = model
 		}
@@ -563,43 +662,20 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 		s.startDone = make(chan struct{})
 		info := s.log.Info()
 		resume := s.log.Runner()
-		harness := info.Harness
-		if harness == "" && info.Kind == protocol.KindAgent {
-			harness = m.settings().Agent.Harness
-		}
+		options := s.options
 		s.mu.Unlock()
 
 		var runner core.Runner
 		var err error
-		switch {
-		case info.Kind == protocol.KindAsk && harness == "":
-			runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
-		case info.Kind == protocol.KindAsk:
-			runner, err = m.askHarness(ctx, s, info, resume)
+		switch info.Kind {
+		case protocol.KindAsk:
+			if m.asker == nil {
+				err = protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Ask is not available."))
+			} else {
+				runner = m.asker.NewAsk(core.AskOptions{Session: info, Settings: m.settings})
+			}
 		default:
-			// a team task's session keeps its team's approvals; others follow the setting
-			approvals := func() string {
-				if own := s.log.Info().Approvals; own != "" {
-					return own
-				}
-				return m.settings().Agent.Approvals
-			}
-			options := core.HarnessOptions{Session: info, Harness: harness, Cwd: info.Cwd, Approvals: approvals, Resume: resume}
-			if m.brief != nil {
-				options.Brief = func() string { return m.brief(s.log.Info()) }
-			}
-			if m.tools != nil {
-				options.Tools = m.tools(info)
-			}
-			if info.Team != "" && m.sandbox != nil {
-				options.Sandbox, err = m.sandbox(info)
-			}
-			if err == nil {
-				runner, err = m.harnesses.NewAgent(ctx, options)
-			}
-			if err == nil && m.prepare != nil {
-				go m.prepare(info)
-			}
+			runner, err = m.newAgent(ctx, s, info, options, resume)
 		}
 		var alive bool
 		var state json.RawMessage
@@ -623,14 +699,81 @@ func (m *sessionManager) ensureRunner(ctx context.Context, s *managedSession) (c
 			return nil, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("The session is stopping."))
 		}
 		s.runner = runner
+		s.options = nil
 		s.lastActivity = time.Now()
 		if info.Kind == protocol.KindAgent {
-			_ = s.log.Update(func(i *protocol.SessionInfo) { i.Harness = harness; i.Alive = alive; i.State = protocol.StateIdle }, state)
+			_ = s.log.Update(func(i *protocol.SessionInfo) { i.Alive = alive }, state)
 			m.emitInfoLocked(s)
 		}
 		s.mu.Unlock()
 		return runner, nil
 	}
+}
+
+// newAgent builds an Agent session's runner on the native engine. Nothing
+// starts: a team session's tool host comes up at its first tool call.
+func (m *sessionManager) newAgent(ctx context.Context, s *managedSession, info protocol.SessionInfo, options map[string]string, resume json.RawMessage) (core.Runner, error) {
+	if m.agents == nil {
+		return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Agents are not available."))
+	}
+	if options == nil {
+		options = agentOptions(nil, m.settings().Agent)
+	}
+	// a team task's session keeps its team's approvals; others follow what
+	// the user picked for the session, else the setting as it is now
+	approvals := func() string {
+		current := s.log.Info()
+		if current.Approvals != "" {
+			return current.Approvals
+		}
+		if protocol.KnownApprovals(current.Mode) {
+			return current.Mode
+		}
+		return m.settings().Agent.Approvals
+	}
+	opts := core.AgentOptions{Session: info, Settings: m.settings, Cwd: info.Cwd, Approvals: approvals, Options: options, Resume: resume}
+	if m.brief != nil {
+		opts.Brief = func() string { return m.brief(s.log.Info()) }
+	}
+	if m.tools != nil {
+		opts.Tools = m.tools(info)
+	} else {
+		opts.Tools = core.ToolContext{Session: info.ID, Cwd: info.Cwd}
+	}
+	if info.Team != "" && m.sandbox != nil {
+		spec, err := m.sandbox(info)
+		if err != nil {
+			return nil, err
+		}
+		opts.Sandbox = spec
+	}
+	runner, err := m.agents.NewAgent(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	m.noticeFormerHarness(s, info)
+	if m.prepare != nil {
+		go m.prepare(info)
+	}
+	return runner, nil
+}
+
+// noticeFormerHarness tells the user that a conversation an external harness
+// held goes on with Rashin's own engine from a fresh start: the harness kept
+// its context to itself, and the log alone is not a transcript the engine
+// can resume. A fork carries its source's conversation as a handoff instead.
+func (m *sessionManager) noticeFormerHarness(s *managedSession, info protocol.SessionInfo) {
+	if info.Turns == 0 || hasEngineTranscript(info) {
+		return
+	}
+	s.mu.Lock()
+	told := s.freshNoticed || s.forkHandoff != nil
+	s.freshNoticed = true
+	s.mu.Unlock()
+	if told {
+		return
+	}
+	_ = s.coalescer.Emit(protocol.EvNotice, protocol.NoticeData{Kind: protocol.NoticeFresh, Text: i18n.T("This conversation began with an external harness. Rashin goes on from a fresh context; the earlier turns stay readable above.")})
 }
 
 func (m *sessionManager) prompt(ctx context.Context, p protocol.PromptParams, handoff *protocol.Handoff) (protocol.PromptResult, int64, error) {
@@ -650,8 +793,8 @@ func (m *sessionManager) promptOptions(ctx context.Context, p protocol.PromptPar
 	if p.Run = strings.TrimSpace(p.Run); p.Run != "" {
 		// refused before the turn exists, so the client can still send the
 		// command to a terminal
-		if info := s.log.Info(); info.Kind != protocol.KindAsk || info.Harness != "" {
-			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation on Rashin's providers runs a command for you. Run it in a terminal."))
+		if info := s.log.Info(); info.Kind != protocol.KindAsk {
+			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Only an Ask conversation runs a command for you. Run it in a terminal."))
 		}
 		if reason, needs := command.NeedsTerminal(p.Run); needs {
 			return protocol.PromptResult{}, 0, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("This command needs a terminal: %s.", reason))
@@ -769,14 +912,15 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		i.Error = ""
 		i.TurnStarted = &started
 		i.Steps = 0
-		// A harness may send a better title later; until it does, a session is
+		// Until a light model names it after its first exchange, a session is
 		// named after what it was first asked, or every row reads the same. A
 		// prompt that is only an attachment is named after that.
 		if i.Title == "" {
 			i.Title = questionTitle(p.Text)
-		}
-		if i.Title == "" && len(p.Images) > 0 {
-			i.Title = questionTitle(filepath.Base(p.Images[0].Path))
+			if i.Title == "" && len(p.Images) > 0 {
+				i.Title = questionTitle(filepath.Base(p.Images[0].Path))
+			}
+			s.autoTitle = i.Title
 		}
 		i.Alive = alive
 	}, state)
@@ -795,7 +939,7 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		s.mu.Unlock()
 		return protocol.PromptResult{}, before, err
 	}
-	input := core.PromptInput{Turn: turn, Text: p.Text, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, Run: p.Run, History: history}
+	input := core.PromptInput{Turn: turn, Text: p.Text, Goal: turnOptions.goal, Images: p.Images, Terminal: p.Terminal, Handoff: handoff, Origin: info.Origin, Run: p.Run, History: history}
 	input.Glance = turnOptions.glance
 	if turnOptions.say != "" {
 		input.Text = turnOptions.say
@@ -809,6 +953,81 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 // clipped at a word as a task's title is.
 func questionTitle(question string) string {
 	return protocol.ClipWords(strings.Join(strings.Fields(question), " "), 60)
+}
+
+// titlePrompt asks a light model for a session's title, in the shape the
+// small-model rules want: one task, a positive frame, the format shown.
+const titlePrompt = `Name the conversation below with a short title of 2 to 6 words, in the language the user wrote in.
+Reply with the title only, plain text, no quotes and no final period.
+Example: Fix the failing login test
+Example: Plan a trip to Kyoto`
+
+// lightTitle names a session after its first exchange with one light model
+// call. It leaves the title alone when the call fails or the user renamed the
+// session meanwhile, so want, the title taken from the first question, stays.
+func (m *sessionManager) lightTitle(id, want string) {
+	last, err := m.lastExchange(id)
+	if err != nil || strings.TrimSpace(last.question) == "" {
+		return
+	}
+	question, _ := tool.ClipRunes(strings.TrimSpace(last.question), 1200)
+	answer, _ := tool.ClipRunes(strings.TrimSpace(last.answer), 1200)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	temperature := 0.2
+	stream, err := m.light.Stream(ctx, llm.Request{
+		Light:       true,
+		Temperature: &temperature,
+		MaxTokens:   32,
+		Reasoning:   llm.EffortOff,
+		Messages: []llm.Message{
+			{Role: llm.RoleSystem, Content: titlePrompt},
+			{Role: llm.RoleUser, Content: "User: " + question + "\n\nAnswer: " + answer},
+		},
+	})
+	if err != nil {
+		return
+	}
+	defer stream.Close()
+	var text strings.Builder
+	for {
+		delta, err := stream.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return
+		}
+		text.WriteString(delta.Text)
+	}
+	title := cleanTitle(text.String())
+	if title == "" {
+		return
+	}
+	s, err := m.get(id)
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	if s.log.Info().Title != want {
+		s.mu.Unlock()
+		return
+	}
+	_ = s.log.Update(func(i *protocol.SessionInfo) { i.Title = title }, nil)
+	s.autoTitle = ""
+	m.emitInfoLocked(s)
+	s.mu.Unlock()
+	m.changed()
+}
+
+// cleanTitle is the first line of a model's title with quotes, markup and a
+// final period taken off, clipped like a question title.
+func cleanTitle(text string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(text), "\n")
+	line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Title:"))
+	line = strings.Trim(line, "\"'`*#_ ")
+	line = strings.TrimSuffix(line, ".")
+	return questionTitle(line)
 }
 
 func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner core.Runner, input core.PromptInput, done chan struct{}) {
@@ -894,8 +1113,12 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	}
 	s.mu.Lock()
 	calls := s.turnCalls
+	want := s.autoTitle
 	s.mu.Unlock()
-	onward := m.goalAfterTurn(s, stop, calls)
+	if input.Turn == 1 && want != "" && ended.Title == want && stop == protocol.StopEnd && m.light != nil && !ended.Temporary && ended.Team == "" {
+		go m.lightTitle(ended.ID, want)
+	}
+	onward := m.goalAfterTurn(s, stop, calls, result.Usage)
 
 	var queued *protocol.QueuedPrompt
 	var goal *protocol.Goal
@@ -929,7 +1152,7 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 		}
 	}
 	if goal != nil {
-		shown, say := goalTurn(*goal)
+		shown, say := m.goalPrompt(s, *goal)
 		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: shown}, promptTurn{reserved: true, goal: goal.Turns > 0, say: say}); promptErr != nil && m.warn != nil {
 			m.warn("goal turn session %s: %v", info.ID, promptErr)
 		}
@@ -1053,10 +1276,31 @@ func (m *sessionManager) steer(ctx context.Context, p protocol.PromptParams) (pr
 		result, _, err := m.prompt(ctx, p, nil)
 		return result, err
 	}
+	runner := s.runner
+	info := s.log.Info()
+	s.mu.Unlock()
+	// the engine takes the message into the running turn at its next round,
+	// so nothing the turn did is thrown away
+	if steerer, ok := runner.(steerer); ok && p.Run == "" {
+		if steerer.Steer(core.PromptInput{Turn: info.Turns, Text: p.Text, Images: p.Images, Origin: info.Origin}) {
+			_ = s.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: p.Text, Images: p.Images})
+			s.mu.Lock()
+			s.lastActivity = time.Now()
+			s.mu.Unlock()
+			m.changed()
+			return protocol.PromptResult{Turn: info.Turns}, nil
+		}
+	}
+	s.mu.Lock()
+	if !s.running {
+		s.mu.Unlock()
+		result, _, err := m.prompt(ctx, p, nil)
+		return result, err
+	}
 	s.steering = true
 	done := s.turnDone
 	cancel := s.cancel
-	runner := s.runner
+	runner = s.runner
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -1111,7 +1355,16 @@ func (m *sessionManager) revertTurn(ctx context.Context, p protocol.TurnParams) 
 	if info.Worktree != "" && m.worktreeRunning(info.Worktree) {
 		return protocol.GitOpResult{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("A session is still running in this worktree."))
 	}
-	return m.work.RevertTurn(ctx, info, p.Turn)
+	result, err := m.work.RevertTurn(ctx, info, p.Turn)
+	if err != nil {
+		return result, err
+	}
+	// the engine's transcript still holds the turns whose files went back,
+	// so the next prompt tells the model they did
+	if noteErr := engine.NoteRevert(info, p.Turn); noteErr != nil && m.warn != nil {
+		m.warn("note revert session %s turn %d: %v", info.ID, p.Turn, noteErr)
+	}
+	return result, nil
 }
 
 // checkpointRefs is where Work keeps each session's turn checkpoints, one
@@ -1210,12 +1463,17 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 	if openTurn >= 0 {
 		copied = copied[:openTurn]
 	}
-	info, err := m.newSession(ctx, protocol.SessionNewParams{
-		Kind: sourceInfo.Kind, Harness: sourceInfo.Harness, Cwd: sourceInfo.Cwd,
+	params, err := m.prepared(ctx, protocol.SessionNewParams{
+		Kind: sourceInfo.Kind, Cwd: sourceInfo.Cwd,
 		Model: sourceInfo.Model, Title: sourceInfo.Title, Origin: sourceInfo.Origin,
+		Mode: sourceInfo.Mode, Approvals: sourceInfo.Approvals, Options: forkOptions(copied),
 		Project: sourceInfo.Project, Worktree: sourceInfo.Worktree, Branch: sourceInfo.Branch, Task: sourceInfo.Task,
 		Memory: sourceInfo.Memory,
 	})
+	if err != nil {
+		return protocol.SessionInfo{}, err
+	}
+	info, err := m.create(params)
 	if err != nil {
 		return protocol.SessionInfo{}, err
 	}
@@ -1251,6 +1509,14 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 			}
 		}
 	}
+	// the engine goes on from what the source's engine kept up to the fork;
+	// a source an external harness held has no such transcript, so its
+	// visible conversation goes along as a handoff instead
+	if err := engine.CopyTranscript(sourceInfo, info, turns); err != nil {
+		_ = m.delete(info.ID)
+		return protocol.SessionInfo{}, err
+	}
+	handoff := sourceInfo.Kind == protocol.KindAgent && !hasEngineTranscript(sourceInfo)
 	target.mu.Lock()
 	state := protocol.StateIdle
 	if sourceInfo.Kind == protocol.KindAgent {
@@ -1271,14 +1537,50 @@ func (m *sessionManager) fork(ctx context.Context, p protocol.ForkParams) (proto
 		target.mu.Unlock()
 		return protocol.SessionInfo{}, err
 	}
-	if sourceInfo.Kind == protocol.KindAgent {
+	if handoff {
 		target.forkHandoff = &protocol.Handoff{From: sourceInfo.ID, Title: sourceInfo.Title, Question: "Forked session context", Answer: forkTranscript(copied)}
 	}
 	m.emitInfoLocked(target)
 	info = target.log.Info()
 	target.mu.Unlock()
+	if info.Kind == protocol.KindAgent {
+		m.announce(ctx, info.ID)
+		info, _ = m.Info(info.ID)
+	}
 	m.changed()
 	return info, nil
+}
+
+// forkOptions takes the option values visible at the fork point, not the
+// source's later runner state.
+func forkOptions(events []protocol.SessionEvent) map[string]string {
+	var options map[string]string
+	for _, event := range events {
+		if event.Kind != protocol.EvOptions {
+			continue
+		}
+		var data protocol.OptionsData
+		if json.Unmarshal(event.Data, &data) != nil {
+			continue
+		}
+		if options == nil {
+			options = make(map[string]string)
+		}
+		for _, option := range data.Options {
+			options[option.ID] = option.Current
+		}
+	}
+	return options
+}
+
+// hasEngineTranscript says the native engine has kept a transcript of the
+// session: always for a temporary one, which keeps it in memory.
+func hasEngineTranscript(info protocol.SessionInfo) bool {
+	if info.Temporary {
+		return true
+	}
+	_, err := os.Stat(paths.EngineTranscript(info.ID))
+	return err == nil
 }
 
 func forkTranscript(events []protocol.SessionEvent) string {
@@ -1365,7 +1667,13 @@ func (m *sessionManager) setMode(ctx context.Context, p protocol.SetModeParams) 
 	state := r.State()
 	s.mu.Lock()
 	s.lastActivity = time.Now()
-	_ = s.log.Update(func(i *protocol.SessionInfo) { i.Mode = p.Mode }, state)
+	_ = s.log.Update(func(i *protocol.SessionInfo) {
+		if i.Kind == protocol.KindAgent {
+			i.Approvals = p.Mode
+		} else {
+			i.Mode = p.Mode
+		}
+	}, state)
 	m.emitInfoLocked(s)
 	s.mu.Unlock()
 	m.changed()
@@ -1388,37 +1696,8 @@ func (m *sessionManager) setOption(ctx context.Context, p protocol.SetOptionPara
 	return nil
 }
 
-// start brings an agent session's process up before its first prompt, so the
-// model and options it will use are on screen while the user still decides
-// what to ask. The idle stop takes it down again if nothing follows.
-func (m *sessionManager) start(ctx context.Context, id string) error {
-	s, err := m.get(id)
-	if err != nil {
-		return err
-	}
-	r, err := m.ensureRunner(ctx, s)
-	if err != nil {
-		return err
-	}
-	if err := r.Start(ctx, &runnerSink{manager: m, session: s}); err != nil {
-		return err
-	}
-	m.touch(s, r)
-	return nil
-}
-
-// Start, SetModel, SetOption, Goal, Cancel, Stop and Delete are the session
-// controls Teams runs a task's session with.
-func (m *sessionManager) Start(ctx context.Context, id string) error { return m.start(ctx, id) }
-
-func (m *sessionManager) SetModel(ctx context.Context, id, model string) error {
-	return m.setModel(ctx, protocol.SetModelParams{ID: id, Model: model})
-}
-
-func (m *sessionManager) SetOption(ctx context.Context, id, option, value string) error {
-	return m.setOption(ctx, protocol.SetOptionParams{ID: id, Option: option, Value: value})
-}
-
+// Goal, Continue, Cancel, Stop and Delete are the session controls Teams runs
+// a task's session with, beside SessionControl.
 func (m *sessionManager) Goal(ctx context.Context, p protocol.GoalParams) (protocol.SessionInfo, error) {
 	return m.goal(ctx, p)
 }
@@ -1612,6 +1891,9 @@ func (m *sessionManager) discard(info protocol.SessionInfo) {
 	if m.memory != nil {
 		m.memory.SessionDeleted(info.ID)
 	}
+	if info.Temporary {
+		engine.DropTranscript(info.ID)
+	}
 }
 
 // withTemporary adds the temporary sessions the manager holds, of kind or
@@ -1780,7 +2062,7 @@ func (m *sessionManager) idleStop(now time.Time) {
 		s.mu.Lock()
 		running, pending, runner, lastActivity := s.running, len(s.permissions), s.runner, s.lastActivity
 		s.mu.Unlock()
-		// an Ask a harness answers holds its process up just as an agent does
+		// an Ask's background terminal holds it up just as an agent's tool host does
 		due := !running && pending == 0 && runner != nil && runner.Alive() && now.Sub(lastActivity) >= time.Duration(minutes)*time.Minute
 		if due {
 			go func(id string) { _ = m.stop(id) }(info.ID)

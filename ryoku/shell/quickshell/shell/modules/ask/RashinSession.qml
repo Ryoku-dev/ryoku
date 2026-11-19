@@ -234,7 +234,7 @@ Scope {
             pendingHandoff = callback;
             return;
         }
-        client.call("session.handoff", { id: id, run: true }, function(info, error) {
+        client.call("session.handoff", { id: id, model: String(state.model || ""), run: true }, function(info, error) {
             if (error) {
                 root.fail(String(error.message || ""));
                 return;

@@ -1,17 +1,19 @@
 package state
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"ryoku-rashin/internal/paths"
 )
 
 func TestAppPreferencesPersistTheFrame(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 	want := AppPreferences{
-		Width: 1612, Height: 1043, ZoomPercent: 110, SidebarFolded: true, SidePanelOpen: true, ReduceMotion: true,
-		Colours: ColoursWallpaper, Contrast: ContrastHigh, Tint: TintMedium,
+		Width: 1612, Height: 1043, ZoomPercent: 110, SidebarFolded: true, SidePanelOpen: true,
 		HiddenSteps: map[string][]string{"team-a": {"mail", "routine:r1"}},
 	}
 	if err := SaveAppPreferences(want); err != nil {
@@ -20,6 +22,35 @@ func TestAppPreferencesPersistTheFrame(t *testing.T) {
 	got := LoadAppPreferences()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("preferences = %#v, want %#v", got, want)
+	}
+}
+
+// A file written while Rashin kept its own look still opens the window where
+// it was; the old look and harness keys are dropped by the next save.
+func TestAppPreferencesFromBeforeTheDesktopLookStillOpen(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	path := paths.AppState()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := `{"width":1400,"height":900,"zoomPercent":120,"reduceMotion":true,"colours":"wallpaper","contrast":"high","tint":"medium","agentModels":{"codex":"gpt-5.6"}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := LoadAppPreferences()
+	if got.Width != 1400 || got.Height != 900 || got.ZoomPercent != 120 {
+		t.Fatalf("an old file opened at %dx%d zoom %d, want 1400x900 zoom 120", got.Width, got.Height, got.ZoomPercent)
+	}
+	if err := SaveAppPreferences(got); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"width":1400,"height":900,"zoomPercent":120}`; string(saved) != want {
+		t.Fatalf("saved %s, want %s", saved, want)
 	}
 }
 
@@ -32,31 +63,5 @@ func TestAppPreferencesNormalizeZoom(t *testing.T) {
 	}
 	if got := (AppPreferences{ZoomPercent: 900}).Normalize().ZoomPercent; got != MaxZoom {
 		t.Fatalf("maximum zoom = %d", got)
-	}
-}
-
-func TestAppPreferencesNormalizeLook(t *testing.T) {
-	if got := (AppPreferences{}).Normalize(); got.Contrast != ContrastStandard || got.Tint != TintLow {
-		t.Fatalf("default look = %q, %q, want standard and low", got.Contrast, got.Tint)
-	}
-	if got := (AppPreferences{Contrast: "loud", Tint: "heavy"}).Normalize(); got.Contrast != ContrastStandard || got.Tint != TintLow {
-		t.Fatalf("unknown words gave %q, %q, want standard and low", got.Contrast, got.Tint)
-	}
-	if got := (AppPreferences{Contrast: ContrastHigh, Tint: TintOff}).Normalize(); got.Contrast != ContrastHigh || got.Tint != TintOff {
-		t.Fatalf("known words became %q, %q", got.Contrast, got.Tint)
-	}
-}
-
-func TestAppPreferencesOpenInTheRyokuColours(t *testing.T) {
-	if got := (AppPreferences{}).Normalize().Colours; got != ColoursRyoku {
-		t.Fatalf("default colours = %q, want the ryoku.dev stock", got)
-	}
-	if got := (AppPreferences{Colours: "sepia"}).Normalize().Colours; got != ColoursRyoku {
-		t.Fatalf("an unknown word gave %q, want the ryoku.dev stock", got)
-	}
-	for _, word := range []string{ColoursRyokuLight, ColoursWallpaper} {
-		if got := (AppPreferences{Colours: word}).Normalize().Colours; got != word {
-			t.Fatalf("%q became %q", word, got)
-		}
 	}
 }

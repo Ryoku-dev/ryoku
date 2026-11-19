@@ -64,7 +64,7 @@ func TestComposerWritingIssuesReadWithoutBackticksInEveryDesign(t *testing.T) {
 		t.Run(style.String(), func(t *testing.T) {
 			for _, mode := range []palette.Mode{palette.Dark, palette.Light} {
 				frame := newChatFrame(image.Pt(520, 320))
-				frame.theme = look.New(mode, palette.Look{})
+				frame.theme = look.NewWithRoles(palette.FromPalette(palette.Load(mode), palette.Look{}))
 				frame.theme.Design = style
 				f := newComposerWritingFixture()
 				state := f.composer.ensureState()
@@ -251,7 +251,7 @@ func TestComposerWritingReviewScrollsWithoutOverlappingFooter(t *testing.T) {
 			for _, count := range []int{4, 8} {
 				t.Run(style.String()+"/"+strconv.Itoa(int(mode))+"/"+strconv.Itoa(count), func(t *testing.T) {
 					frame := newChatFrame(image.Pt(520, 320))
-					frame.theme = look.New(mode, palette.Look{})
+					frame.theme = look.NewWithRoles(palette.FromPalette(palette.Load(mode), palette.Look{}))
 					frame.theme.Design = style
 					fixture := newComposerWritingFixture()
 					state := fixture.composer.ensureState()

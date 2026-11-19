@@ -36,13 +36,13 @@ func execute() (int, error) {
 	pngPath := flag.String("png", "", i18n.T("Render one frame or contact sheet to a PNG and exit"))
 	size := flag.String("size", "", i18n.T("Window or PNG size as WIDTHxHEIGHT"))
 	demoMode := flag.Bool("demo", false, i18n.T("Use the in-process demo daemon"))
-	route := flag.String("route", "", i18n.T("Initial route: ask, agent, projects, index, settings, inbox, teams, teams/<team>, work/<task>, routines, vault or activity"))
-	tab := flag.String("tab", "", i18n.T("Initial tab: ask, agent, projects, index, settings, inbox, teams, work, routines, vault or activity"))
+	route := flag.String("route", "", i18n.T("Initial route: ask, agent, projects, index, memory, learning, settings, inbox, teams, work, routines, vault or activity"))
+	tab := flag.String("tab", "", i18n.T("Initial tab: ask, agent, projects, index, memory, learning, settings, inbox, teams, work, routines, vault or activity"))
 	session := flag.String("session", "", i18n.T("Open this session"))
 	project := flag.String("project", "", i18n.T("Open this project"))
 	view := flag.String("view", "", i18n.T("Project view: overview, graph, changes, tasks or activity"))
 	worktree := flag.String("worktree", "", i18n.T("Open this worktree"))
-	mode := flag.String("mode", "", i18n.T("Palette for this run, over the Colours setting: dark, light or follow"))
+	mode := flag.String("mode", "", i18n.T("Force dark, light or follow for this run (LITHIC_MODE)"))
 	zoom := flag.Int("zoom", 0, i18n.T("App zoom percent from 80 to 150"))
 	script := flag.String("script", "", i18n.T("Storyboard event script"))
 	shotText := flag.String("shots", "", i18n.T("Storyboard shot times in milliseconds"))
@@ -148,7 +148,7 @@ func openParams(target routeTarget) protocol.UIOpenParams {
 		Session: target.session, Tab: target.tab, Project: target.project, View: target.workTab, Worktree: target.worktree,
 		Team: target.teams.Team, TeamTask: target.teams.Task, Routine: target.teams.Routine, Credential: target.teams.Credential,
 	}
-	if target.tab == protocol.TabSettings {
+	if target.tab == protocol.TabSettings || target.tab == protocol.TabLearning {
 		params.View = target.settingsSection
 	}
 	if target.teams.View != "" {
@@ -179,6 +179,9 @@ func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree
 		if tab != target.teams.Tab {
 			target.teams = env.TeamsPlace{}
 		}
+		if tab != target.tab {
+			target.settingsSection = ""
+		}
 		target.tab = tab
 	}
 	if session != "" {
@@ -188,7 +191,7 @@ func applyLaunchTarget(target routeTarget, tab, session, project, view, worktree
 		target.project = project
 	}
 	if view != "" {
-		if target.tab == protocol.TabSettings && target.project == "" {
+		if (target.tab == protocol.TabSettings || target.tab == protocol.TabLearning) && target.project == "" {
 			target.settingsSection = view
 		} else {
 			target.workTab = view
@@ -244,7 +247,7 @@ func parseRouteTarget(value string) routeTarget {
 				target.worktree = "/" + strings.TrimPrefix(target.worktree, "/")
 			}
 		}
-	case protocol.TabSettings:
+	case protocol.TabSettings, protocol.TabLearning:
 		if len(parts) > 1 {
 			target.settingsSection = parts[1]
 		}

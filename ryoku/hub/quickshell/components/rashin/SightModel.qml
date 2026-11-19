@@ -20,7 +20,7 @@ Column {
         id: field
         property bool edited: false
         width: Math.min(parent.width, LithicTokens.size.settingsFieldMax)
-        placeholderText: I18n.tr("Auto")
+        placeholderText: I18n.tr("Light model")
         Accessible.name: I18n.tr("Theia model")
         onTextEdited: field.edited = true
         onEditingFinished: {
@@ -62,15 +62,15 @@ Column {
         visible: root.store.modelIssue !== "" && String(root.value || "") !== ""
         width: parent.width
         text: root.store.modelIssue === "no-key"
-            ? I18n.tr("%1 needs a key for %2. Add one in Rashin > Settings > Providers, or use Auto.").arg(root.store.modelIdentity.model).arg(root.store.modelIdentity.provider)
-            : I18n.tr("%1 is not available now. Check Rashin > Settings > Providers, or use Auto.").arg(root.store.modelIdentity.model)
+            ? I18n.tr("%1 needs a key for %2. Add one in Rashin > Settings > Providers, or use the light model.").arg(root.store.modelIdentity.model).arg(root.store.modelIdentity.provider)
+            : I18n.tr("%1 is not available now. Check Rashin > Settings > Providers, or use the light model.").arg(root.store.modelIdentity.model)
         typeRole: "detail"
         wrapMode: Text.Wrap
         elide: Text.ElideNone
     }
     Plaque {
         visible: root.store.modelIssue !== "" && String(root.value || "") !== ""
-        text: I18n.tr("Use Auto")
+        text: I18n.tr("Use light model")
         kind: "quiet"
         small: true
         onClicked: {

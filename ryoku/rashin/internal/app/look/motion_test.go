@@ -26,7 +26,7 @@ func newMotionFrame(t *testing.T) *motionFrame {
 	previous := anim.Reduced()
 	anim.SetReduce(false)
 	t.Cleanup(func() { anim.SetReduce(previous) })
-	return &motionFrame{now: time.Unix(100, 0), theme: New(0, palette.Look{})}
+	return &motionFrame{now: time.Unix(100, 0), theme: NewWithRoles(palette.Signature(true))}
 }
 
 func (frame *motionFrame) context() layout.Context {
@@ -101,30 +101,5 @@ func TestRiseAnimatesOnlyWhatArrivesAfterTheFirstFrame(t *testing.T) {
 	draw("session")
 	if draw("session") {
 		t.Fatal("content at rest asked for another frame")
-	}
-}
-
-func TestUnfoldTakesNoRoomAndNoInputWhileClosed(t *testing.T) {
-	frame := newMotionFrame(t)
-	var unfold Unfold
-	laid := 0
-	draw := func(open bool) layout.Dimensions {
-		dimensions := unfold.Layout(frame.context(), frame.theme, open, func(gtx layout.Context) layout.Dimensions {
-			laid++
-			return layout.Dimensions{Size: image.Pt(200, 120)}
-		})
-		frame.finish(time.Second)
-		return dimensions
-	}
-	if size := draw(false).Size; size.Y != 0 || laid != 0 {
-		t.Fatalf("closed content took %v and was laid out %d times", size, laid)
-	}
-	draw(true)
-	if size := draw(true).Size; size.Y != 120 {
-		t.Fatalf("open content stands %d tall, want 120", size.Y)
-	}
-	draw(false)
-	if size := draw(false).Size; size.Y != 0 {
-		t.Fatalf("content folded away still takes %d", size.Y)
 	}
 }

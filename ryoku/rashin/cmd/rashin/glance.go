@@ -54,8 +54,7 @@ func runGlance(args []string) int {
 	flags.Var(&images, "image", i18n.T("Image path; may be repeated."))
 	flags.Var(&options, "option", i18n.T("Action option as key=value; may be repeated."))
 	flags.StringVar(&p.Target, "target", "", i18n.T("Translation language."))
-	flags.StringVar(&p.Engine, "engine", "ask", i18n.T("Ask, providers, or a harness id."))
-	flags.StringVar(&p.Model, "model", "", i18n.T("Model id; empty uses the engine's default."))
+	flags.StringVar(&p.Model, "model", "", i18n.T("Model id; empty uses the default."))
 	flags.BoolVar(&p.Local, "local", false, i18n.T("Use only models on this computer."))
 	flags.StringVar(&p.Session, "session", "", i18n.T("Continue a conversation."))
 	if err := flags.Parse(args); err != nil {

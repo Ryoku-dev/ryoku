@@ -17,6 +17,7 @@ import (
 var discoverableFeatureIDs = []string{
 	"compare", "research", "schedules", "prompts", "enhance", "askwriting", "analyze", "audio", "video", "share",
 	"quote", "history", "searchsteps", "mindmap", "artifacts", "collections", "profile", "setupcards", "mcp", "diskcare",
+	protocol.FeatureAutolearn, protocol.FeatureDecisions, protocol.FeatureRules, protocol.FeatureGrievances,
 }
 
 func (s *stage) wantFeatures(enabled ...string) {
@@ -49,7 +50,7 @@ func (s *stage) scrollToFeatureControl(name string) {
 				scroll = -scroll
 			}
 		}
-		at := f32.Pt(float32(s.size.X-20), float32(s.size.Y/2))
+		at := f32.Pt(float32(s.size.X*2/3), float32(s.size.Y/2))
 		s.queue(
 			pointer.Event{Kind: pointer.Move, Position: at},
 			pointer.Event{Kind: pointer.Scroll, Position: at, Scroll: f32.Pt(0, scroll)},
@@ -66,7 +67,7 @@ func TestFeaturesSettingsRouteOpensFromDemoStartupAndUIFocus(t *testing.T) {
 		if place := stage.shell.router.Current(); place.Tab != protocol.TabSettings || place.SettingsSection != "features" {
 			t.Fatalf("demo route opened %#v, want settings/features", place)
 		}
-		if _, shown := stage.named("0 of 20 on"); !shown {
+		if _, shown := stage.named("0 of 24 on"); !shown {
 			t.Fatalf("the demo route did not show Features; on screen: %v", stage.names())
 		}
 		stage.wantFeatures()
@@ -79,7 +80,7 @@ func TestFeaturesSettingsRouteOpensFromDemoStartupAndUIFocus(t *testing.T) {
 		if place := stage.shell.router.Current(); place.Tab != protocol.TabSettings || place.SettingsSection != "features" {
 			t.Fatalf("startup opened %#v, want settings/features", place)
 		}
-		if _, shown := stage.named("0 of 20 on"); !shown {
+		if _, shown := stage.named("0 of 24 on"); !shown {
 			t.Fatalf("startup lost the Features section after its first frame; on screen: %v", stage.names())
 		}
 	})
@@ -98,7 +99,7 @@ func TestFeaturesSettingsRouteOpensFromDemoStartupAndUIFocus(t *testing.T) {
 		if place := stage.shell.router.Current(); place.Tab != protocol.TabSettings || place.SettingsSection != "features" {
 			t.Fatalf("ui.open focus opened %#v, want settings/features", place)
 		}
-		if _, shown := stage.named("0 of 20 on"); !shown {
+		if _, shown := stage.named("0 of 24 on"); !shown {
 			t.Fatalf("ui.open focus did not show Features; on screen: %v", stage.names())
 		}
 	})
@@ -119,7 +120,7 @@ func TestCompareModelsSwitchChangesTheDaemonAndAnswerSurface(t *testing.T) {
 	stage.await("Compare models reaches settings.features.compare", func() bool { return stage.settings().Features["compare"] })
 	stage.wantFeatures("compare")
 	stage.open("settings/features")
-	if _, shown := stage.named("1 of 20 on"); !shown {
+	if _, shown := stage.named("1 of 24 on"); !shown {
 		t.Fatalf("the feature count did not follow the switch; on screen: %v", stage.names())
 	}
 
@@ -136,12 +137,12 @@ func TestCompareModelsSwitchChangesTheDaemonAndAnswerSurface(t *testing.T) {
 	}
 }
 
-func TestFeatureBulkButtonsChangeAllTwentyFeatures(t *testing.T) {
+func TestFeatureBulkButtonsChangeAllTwentyFourFeatures(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 900))
 	stage.open("settings/features")
 	stage.wantFeatures()
 	stage.click("Turn all on")
-	stage.await("all twenty optional features turn on", func() bool {
+	stage.await("all twenty-four optional features turn on", func() bool {
 		for _, id := range discoverableFeatureIDs {
 			if !stage.settings().Features[id] {
 				return false
@@ -150,11 +151,11 @@ func TestFeatureBulkButtonsChangeAllTwentyFeatures(t *testing.T) {
 		return true
 	})
 	stage.wantFeatures(discoverableFeatureIDs...)
-	if _, shown := stage.named("20 of 20 on"); !shown {
+	if _, shown := stage.named("24 of 24 on"); !shown {
 		t.Fatalf("the count does not show every feature on; on screen: %v", stage.names())
 	}
 	stage.click("Turn all off")
-	stage.await("all twenty optional features turn off", func() bool {
+	stage.await("all twenty-four optional features turn off", func() bool {
 		for _, id := range discoverableFeatureIDs {
 			if stage.settings().Features[id] {
 				return false
@@ -163,25 +164,41 @@ func TestFeatureBulkButtonsChangeAllTwentyFeatures(t *testing.T) {
 		return true
 	})
 	stage.wantFeatures()
-	if _, shown := stage.named("0 of 20 on"); !shown {
+	if _, shown := stage.named("0 of 24 on"); !shown {
 		t.Fatalf("the count does not show every feature off; on screen: %v", stage.names())
 	}
+}
+func TestLearningFeatureSwitchesPersistIndependently(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 900))
+	stage.open("settings/features")
+	for _, feature := range []struct{ id, name string }{
+		{protocol.FeatureAutolearn, "Learn skills from its work"},
+		{protocol.FeatureDecisions, "Remember project decisions"},
+		{protocol.FeatureRules, "Stream rules and make-a-rule"},
+		{protocol.FeatureGrievances, "Tool reports"},
+	} {
+		stage.scrollToFeatureControl(feature.name)
+		stage.click(feature.name)
+		id := feature.id
+		stage.await(feature.name+" turns on", func() bool { return stage.settings().Features[id] })
+	}
+	stage.wantFeatures(protocol.FeatureAutolearn, protocol.FeatureDecisions, protocol.FeatureRules, protocol.FeatureGrievances)
 }
 
 func TestRashinExplainsAllOffAndLinksToFeatures(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 900))
 	stage.open("settings/rashin")
-	if _, shown := stage.named("20 optional features are off"); !shown {
+	if _, shown := stage.named("24 optional features are off"); !shown {
 		t.Fatalf("Rashin does not explain the quiet default; on screen: %v", stage.names())
 	}
 	stage.click("Open Features")
-	if _, shown := stage.named("0 of 20 on"); !shown {
+	if _, shown := stage.named("0 of 24 on"); !shown {
 		t.Fatalf("Features did not open its controls; on screen: %v", stage.names())
 	}
 	stage.click("Turn all on")
 	stage.await("Compare models turns on", func() bool { return stage.settings().Features["compare"] })
 	stage.open("settings/rashin")
-	if _, shown := stage.named("20 optional features are off"); shown {
+	if _, shown := stage.named("24 optional features are off"); shown {
 		t.Fatal("the all-off explanation remains after features turn on")
 	}
 }

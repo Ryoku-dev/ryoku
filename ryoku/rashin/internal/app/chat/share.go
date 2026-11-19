@@ -82,7 +82,7 @@ func renderAnswerPicture(th *look.Theme, question, answer string, date time.Time
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(look.RyokuMark(28, th.R.Fg)),
+						layout.Rigid(look.RashinMark(28, th.R.Fg)),
 						layout.Rigid(layout.Spacer{Width: 13}.Layout),
 						layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Rashin"))),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -115,9 +115,9 @@ func renderAnswerPicture(th *look.Theme, question, answer string, date time.Time
 	tile := image.NewRGBA(image.Rect(0, 0, width, min(tileHeight, height)))
 	for top := 0; top < height; top += tileHeight {
 		operations.Reset()
-		paint.Fill(&operations, th.R.Ground)
+		paint.Fill(&operations, th.Planes().Pane)
 		offset := op.Offset(image.Pt(0, -top)).Push(&operations)
-		kit.FillCut(&operations, image.Rect(12, 12, width-12, height-12), gtx.Dp(th.Cut.Mid), th.R.Stone2)
+		kit.SlabSurface(gtx, th.Theme, image.Rect(12, 12, width-12, height-12), gtx.Dp(th.Cut.Mid), th.Planes().Card)
 		gtx.Constraints = layout.Constraints{Max: image.Pt(width, maxHeight)}
 		body(gtx)
 		offset.Pop()

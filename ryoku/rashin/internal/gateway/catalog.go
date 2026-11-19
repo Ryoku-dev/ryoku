@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"ryoku-rashin/internal/gateway/textcalls"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -37,8 +38,10 @@ type provider struct {
 	// (see discover.go).
 	Models []model `json:"models"`
 
-	// running is a local provider's server answering when it was last asked
-	running bool
+	// running is a local provider's server answering when it was last asked;
+	// onDemand is rashin-models with installed models, started when needed
+	running  bool
+	onDemand bool
 }
 
 // listingSpec says where and how a provider lists its models.
@@ -67,6 +70,19 @@ type model struct {
 	Vision      bool   `json:"vision"`
 	QualityRank int    `json:"qualityRank"`
 	SpeedRank   int    `json:"speedRank"`
+	// Params is the parameter count, 0 when unknown; local routing sorts on
+	// it and light work takes the smallest.
+	Params int64 `json:"params"`
+	Audio  bool  `json:"audio"`
+	// Light marks a model small enough for light work: a local model of
+	// class light, of at most protocol.LightParams, or of unknown size.
+	Light bool `json:"light"`
+	// ToolDialect is a textcalls dialect for a model that writes its tool
+	// calls as text and takes its tools in the prompt; "" is native.
+	ToolDialect string `json:"toolDialect"`
+	// ReplayReasoning sends an assistant's reasoning back as
+	// reasoning_content, for models that lose their thread without it.
+	ReplayReasoning bool `json:"replayReasoning"`
 
 	// listed is a model only the provider's own listing names
 	listed bool
@@ -130,6 +146,9 @@ func loadCatalog() (catalog, error) {
 			}
 			if _, exists := seen[m.ID]; exists {
 				return catalog{}, fmt.Errorf("provider %q repeats model %q", p.ID, m.ID)
+			}
+			if m.ToolDialect != "" && (m.ToolDialect == textcalls.Auto || !textcalls.Valid(m.ToolDialect)) {
+				return catalog{}, fmt.Errorf("provider %q model %q has unknown tool dialect %q", p.ID, m.ID, m.ToolDialect)
 			}
 			if p.ID == "openrouter" && !strings.HasSuffix(m.ID, ":free") {
 				return catalog{}, fmt.Errorf("OpenRouter model %q is not a free route", m.ID)

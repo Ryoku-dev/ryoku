@@ -29,9 +29,12 @@ type pageState struct {
 	list      look.SideList
 	listMenu  kit.Menu
 	collapsed map[string]bool
+	listShown bool
 	header    look.PaneHeader
 	tabs      kit.Tabs
 	rise      look.Rise
+	risen     string
+	sheet     look.Sheet
 
 	add      addDialog
 	forget   forgetDialog
@@ -193,23 +196,40 @@ func (p *pageState) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 	p.ensureProjectData(e, p.project)
 	return p.layoutProject(gtx, e)
 }
+func (p *pageState) sheetPage(e *env.Env) look.SheetPage {
+	if p.project == "" {
+		return look.PageFor(protocol.TabProjects)
+	}
+	n, name, gloss := look.ProjectView(p.tab)
+	page := look.PartPage(protocol.TabProjects, n, name, gloss)
+	if info, ok := p.projectInfo(e); ok {
+		page.Where = look.Where(i18n.T("Projects"), info.Name, name)
+		page.Facts = []string{info.Name}
+	}
+	return page
+}
 
 func (p *pageState) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.header.Layout(gtx, e.Theme, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Projects")})
-		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			p.add.start.Kind, p.add.start.Label = kit.PlaqueGold, i18n.T("Add project")
-			if p.add.start.Clicked(gtx) {
-				p.add.ask(e)
-			}
-			empty := kit.Empty{
-				Icon: look.Icon.Projects, Title: i18n.T("No projects yet"),
-				Body:    i18n.T("Add a folder with a Git repository to work in worktrees, review changes, plan tasks and read its history."),
-				Actions: []*kit.Plaque{&p.add.start},
-			}
-			return empty.Layout(gtx, e.Theme.Theme)
-		}),
-	)
+	th := e.Theme
+	return p.sheet.Layout(gtx, th, p.sheetPage(e), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.header.Layout(gtx, th, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Projects")})
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				p.add.start.Kind, p.add.start.Label = kit.PlaqueGold, i18n.T("Add project")
+				if p.add.start.Clicked(gtx) {
+					p.add.ask(e)
+				}
+				return kit.Empty{
+					Icon: look.Icon.Projects, Title: i18n.T("No projects yet"),
+					Body:    i18n.T("Add a folder with a Git repository to work in worktrees, review changes, plan tasks and read its history."),
+					Actions: []*kit.Plaque{&p.add.start},
+				}.Layout(gtx, th.Theme)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return p.sheet.Colophon(gtx, th, p.sheetPage(e))
+			}),
+		)
+	})
 }

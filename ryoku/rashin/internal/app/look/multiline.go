@@ -15,7 +15,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
@@ -115,16 +114,15 @@ func (m *MultiLine) layoutBox(gtx layout.Context, th *Theme) layout.Dimensions {
 	if name != "" {
 		semantic.LabelOp(name).Add(gtx.Ops)
 	}
-	written := m.Editor.Layout(inner, th.Shaper, style.Face, style.Size, editorInk(gtx.Ops, th.R.Fg), editorInk(gtx.Ops, palette.WithAlpha(th.R.Sel, .6)))
+	written := m.Editor.Layout(inner, th.Shaper, style.Face, style.Size, editorInk(gtx.Ops, th.R.Fg), editorInk(gtx.Ops, SelectedText(th)))
 	area.Pop()
 	call := record.Stop()
 
 	bounds := image.Rectangle{Max: image.Pt(width, max(written.Size.Y, inner.Constraints.Min.Y)+2*pad)}
 	cut := gtx.Dp(th.Cut.Mid)
-	kit.FillCut(gtx.Ops, bounds, cut, th.R.Field)
 	focused := gtx.Focused(&m.Editor) && gtx.Source.Enabled()
 	lit := Transition(gtx, &m.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), palette.Mix(th.R.Edge, th.R.Fg2, lit))
+	kit.FieldSurface(gtx, th.Theme, bounds, cut, th.R.Field, lit, false)
 	stack := op.Offset(image.Pt(side, pad)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	stack.Pop()

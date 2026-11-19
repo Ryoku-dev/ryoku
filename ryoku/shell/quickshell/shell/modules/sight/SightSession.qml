@@ -29,12 +29,10 @@ Scope {
     property string errorCode: ""
     property string errorText: ""
     property string model: ""
-    property string engine: ""
     property bool localModel: false
     property string keptId: ""
     signal answerArrived()
 
-    ShellSetting { id: engineSetting; path: "sight.engine"; fallback: "ask" }
     ShellSetting { id: modelSetting; path: "sight.model"; fallback: "" }
     ShellSetting { id: localSetting; path: "sight.localOnly"; fallback: false }
     ShellSetting { id: proofreadEngineSetting; path: "sight.proofread.engine"; fallback: "auto" }
@@ -100,7 +98,7 @@ Scope {
         const params = {
             session: sessionId, mode: action.question ? "ask" : mode, question: action.question, text: action.text,
             images: card.kind === "text" ? [] : [{ path: String(card.image || "") }],
-            language: root.languageName, target: action.target, source: action.source, engine: String(engineSetting.value || "ask"),
+            language: root.languageName, target: action.target, source: action.source,
             model: String(modelSetting.value || ""), local: localSetting.value === true
         };
         if (action.options !== undefined)
@@ -243,7 +241,6 @@ Scope {
         } else if (kind === "model") {
             model = String(data.model || data.current || "");
             localModel = data.local === true;
-            engine = String(data.engine || "");
         } else if (kind === "error") {
             fail(data);
         } else if (kind === "turn_end") {
@@ -301,7 +298,7 @@ Scope {
     function handoff() {
         if (!sessionId || busy) return;
         const token = lease;
-        client.call("session.handoff", { id: sessionId, run: true }, function(result, error) {
+        client.call("session.handoff", { id: sessionId, model: String(root.model || modelSetting.value || ""), run: true }, function(result, error) {
             if (token.closed) return;
             if (error) { root.fail(error); return; }
             const sessionId = String(result.id || result.session && result.session.id || "");

@@ -1,6 +1,18 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin runs Ask, Agents, Teams and Dreams on one native engine.** External
+  ACP harnesses and team sign-in are gone; local models run on demand before
+  free remote models. Learning is opt-in, and the app follows the desktop's
+  four styles. Adapted engine work credits oh-my-pi (MIT).
+- **Rashin sets each local model up for the computer it runs on.** It reads
+  the model's GGUF header and the hardware (a discrete card before an
+  integrated GPU, then the processor), picks context, offload and cache to
+  fit, retries smaller when a load fails, and says before a download whether
+  a model fits, splits, is too big or can't do Rashin's work. Models can be
+  added from a Hugging Face repository or link, or a `.gguf` file, with the
+  best quant preselected; each model's settings stay Automatic unless
+  overridden (`ryoku/rashin/internal/localmodels/plan.go`, `hardware.go`).
 - **Theia's and Rashin's long menus scroll inside the screen.** Theia's language
   and "..." menus and the Rashin app's pickers hold about ten rows, open on the
   side with room without covering their button, and scroll with the wheel and

@@ -24,6 +24,7 @@ func (v *View) SetFeatures(f func(string) bool) { v.ensureState().features = f }
 func (v *View) SetArtifactActions(call func(string, any, any, func(error)), open func(string), notify func(string)) {
 	state := v.ensureState()
 	state.artifactCall, state.artifactOpen, state.artifactNotify = call, open, notify
+	state.call, state.notify = call, notify
 }
 
 func (state *viewState) feature(id string) bool {
@@ -144,7 +145,7 @@ func (state *viewState) layoutMarkdownList(gtx layout.Context, th *look.Theme, k
 			} else {
 				size := gtx.Dp(5)
 				at := image.Pt(indent+gtx.Dp(6), (line-size)/2)
-				kit.FillCut(gtx.Ops, image.Rectangle{Min: at, Max: at.Add(image.Pt(size, size))}, gtx.Dp(1), th.R.Fg3)
+				kit.Fill(gtx, th.Theme, image.Rectangle{Min: at, Max: at.Add(image.Pt(size, size))}, gtx.Dp(th.Cut.Small), th.R.Fg3)
 			}
 			offset := op.Offset(image.Pt(indent+gutter, 0)).Push(gtx.Ops)
 			body := gtx
@@ -272,22 +273,26 @@ func (state *viewState) layoutArtifact(gtx layout.Context, th *look.Theme, key s
 	if state.artifactCall == nil {
 		return layout.Dimensions{}
 	}
-	if visual.preview.ID != "" && !visual.pending {
-		if !gtx.Now.Before(visual.check) {
-			visual.pending = true
-			visual.check = gtx.Now.Add(2 * time.Second)
-			var result protocol.ArtifactErrorsResult
-			state.artifactCall(protocol.MArtifactErrors, protocol.ArtifactErrorsParams{ID: visual.preview.ID}, &result, func(err error) {
-				visual.pending = false
-				if err == nil {
-					visual.errors = result.Errors
-				} else {
-					visual.preview = protocol.ArtifactOpenResult{}
-					visual.errors = nil
-				}
-			})
+	checkProblems := func() {
+		visual.pending = true
+		visual.check = time.Time{}
+		var result protocol.ArtifactErrorsResult
+		state.artifactCall(protocol.MArtifactErrors, protocol.ArtifactErrorsParams{ID: visual.preview.ID}, &result, func(err error) {
+			visual.pending = false
+			if err == nil {
+				visual.errors = result.Errors
+			} else {
+				visual.preview = protocol.ArtifactOpenResult{}
+				visual.errors = nil
+			}
+		})
+	}
+	if visual.preview.ID != "" && !visual.check.IsZero() {
+		if !gtx.Now.Before(visual.check) && !visual.pending {
+			checkProblems()
+		} else if gtx.Now.Before(visual.check) {
+			gtx.Execute(op.InvalidateCmd{At: visual.check})
 		}
-		gtx.Execute(op.InvalidateCmd{At: visual.check})
 	}
 	return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -306,6 +311,7 @@ func (state *viewState) layoutArtifact(gtx layout.Context, th *look.Theme, key s
 						state.artifactNotice(err.Error())
 					} else {
 						visual.preview = result
+						visual.check = gtx.Now.Add(2 * time.Second)
 						if state.artifactOpen != nil {
 							state.artifactOpen(result.URL)
 						}
@@ -320,6 +326,14 @@ func (state *viewState) layoutArtifact(gtx layout.Context, th *look.Theme, key s
 		if visual.preview.ID != "" {
 			children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 				layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg2, i18n.Tf("%d problems in the preview", len(visual.errors)))))
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				button := state.plaque(key + ":check")
+				button.Kind, button.Label = kit.PlaqueQuiet, i18n.T("Check preview")
+				if button.Clicked(gtx) && !visual.pending {
+					checkProblems()
+				}
+				return button.Layout(gtx, th.Theme)
+			}))
 			if len(visual.errors) > 0 {
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					button := state.plaque(key + ":repair")

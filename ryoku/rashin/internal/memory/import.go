@@ -39,7 +39,8 @@ func (e *Engine) importText(ctx context.Context, p protocol.MemoryImportParams) 
 	zero := 0.0
 	reply, _, err := complete(ctx, e.deps.Client, llm.Request{
 		Model:       model.Model,
-		Strict:      true,
+		LocalOnly:   model.Local,
+		Light:       true,
 		Temperature: &zero,
 		MaxTokens:   importReplyTokens,
 		Messages: []llm.Message{

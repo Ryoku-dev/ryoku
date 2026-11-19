@@ -353,10 +353,7 @@ func (r *Rail) layoutDestination(gtx layout.Context, th *theme.Theme, state *rai
 		} else {
 			state.notch.Set(gtx, 0)
 		}
-		notchSize := int(float32(gtx.Dp(th.Cut.Notch))*state.notch.Value(gtx) + .5)
-		if notchSize > 0 {
-			Notch(gtx.Ops, image.Point{}, notchSize, th.R.Amber)
-		}
+		toneMark(gtx, th, image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(th.Cut.Notch), th.R.Amber, state.notch.Value(gtx))
 		ink := th.R.Fg2
 		if selected {
 			ink = th.R.OnSel

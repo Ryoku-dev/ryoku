@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +33,7 @@ func goalManager(t *testing.T, act func(turn int, text string, sink core.Sink, m
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	manager = newSessionManager(nil, &fakeHarnesses{runner: runner}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	manager = newSessionManager(nil, &fakeAgents{runner: runner}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +78,16 @@ func TestAGoalRunsUntilTheAgentCompletesIt(t *testing.T) {
 		}
 		return core.TurnResult{}, nil
 	})
+	runner := manager.agents.(*fakeAgents).runner.(*fakeRunner)
+	original := runner.prompt
+	var flagsMu sync.Mutex
+	var flags []bool
+	runner.prompt = func(ctx context.Context, in core.PromptInput, sink core.Sink) (core.TurnResult, error) {
+		flagsMu.Lock()
+		flags = append(flags, in.Goal)
+		flagsMu.Unlock()
+		return original(ctx, in, sink)
+	}
 	if handled, err := manager.goalCommand(context.Background(), info.ID, "/goal Make the parser total"); !handled || err != nil {
 		t.Fatalf("handled %v err %v", handled, err)
 	}
@@ -86,8 +97,14 @@ func TestAGoalRunsUntilTheAgentCompletesIt(t *testing.T) {
 		t.Fatalf("goal = %+v", goal)
 	}
 	texts := sent()
-	if len(texts) != 3 || !strings.Contains(texts[0], "<objective>Make the parser total</objective>") || !strings.Contains(texts[1], "Continue the goal") {
+	if len(texts) != 3 || !strings.Contains(texts[0], "<objective>\nMake the parser total\n</objective>") || !strings.Contains(texts[1], "Continue the goal") {
 		t.Fatalf("sent %q", texts)
+	}
+	flagsMu.Lock()
+	gotFlags := slices.Clone(flags)
+	flagsMu.Unlock()
+	if !slices.Equal(gotFlags, []bool{false, true, true}) {
+		t.Fatalf("goal turns reached the runner with flags %v", gotFlags)
 	}
 	events, err := manager.items[info.ID].log.Since(0)
 	if err != nil {
@@ -147,6 +164,26 @@ func TestAGoalStopsAtItsBudgetAndPausesWhenItStalls(t *testing.T) {
 	}
 	if _, err := cancelled.goal(context.Background(), protocol.GoalParams{ID: cancelledInfo.ID, Op: protocol.GoalPause}); err == nil {
 		t.Fatal("a finished goal was paused")
+	}
+}
+
+// A token ceiling gives the agent one wrap-up turn and then stops without
+// claiming that the user's objective was completed.
+func TestGoalTokenBudgetWrapsUpThenStops(t *testing.T) {
+	manager, info, sent := goalManager(t, func(turn int, _ string, sink core.Sink, _ *sessionManager, _ string) (core.TurnResult, error) {
+		stepTurn(turn, sink)
+		return core.TurnResult{Usage: &protocol.TokenUsage{Input: 60, Output: 40}}, nil
+	})
+	if _, err := manager.goal(context.Background(), protocol.GoalParams{ID: info.ID, Op: protocol.GoalSet, Objective: "Complete the parser", MaxTokens: 100}); err != nil {
+		t.Fatal(err)
+	}
+	settled := waitGoal(t, manager, info.ID, func(goal *protocol.Goal) bool { return goal.Status != protocol.GoalActive })
+	if goal := settled.Goal; goal.Status != protocol.GoalStopped || goal.Turns != 2 || goal.Tokens != 200 || goal.MaxTokens != 100 {
+		t.Fatalf("token budget ended at %+v", goal)
+	}
+	texts := sent()
+	if len(texts) != 2 || !strings.Contains(texts[1], "budget is spent") {
+		t.Fatalf("wrap-up turn = %q", texts)
 	}
 }
 

@@ -337,7 +337,7 @@ Parts of Rashin's memory are adapted from OpenAI Codex
 (https://github.com/openai/codex) at commit b75ec48a: the phase 1 and phase 2
 memory templates in the learner's prompts (internal/memory/prompts.go), the
 phase 1 output schema (internal/memory/llmjson.go), how a conversation is
-selected and stripped of what the harness injected (internal/memory/input.go),
+selected and stripped of injected instructions (internal/memory/input.go),
 the shape of the card (internal/memory/card.go), the ad hoc note wording of the
 remember tool (internal/brief/memorytools.go) and the rule that memory is
 history, not proof (internal/memory/render). It is a modified version: the
@@ -550,8 +550,8 @@ SOFTWARE.
 
 Provider logos (lobe-icons)
 
-The Rashin app names AI providers and agent harnesses with their marks from
-lobe-icons by LobeHub (https://github.com/lobehub/lobe-icons) at commit
+The Rashin app names AI providers with their marks from lobe-icons by LobeHub
+(https://github.com/lobehub/lobe-icons) at commit
 ea434b96: the mono SVGs of packages/static-svg, which
 bin/ryoku-dev-sync-provider-logos renders into the masks under
 internal/app/look/logos/masks, beside the upstream LICENSE. It is a modified
@@ -590,9 +590,9 @@ heartbeat procedure in skills/paperclip/SKILL.md, the hiring guide and
 checklist under skills/paperclip-create-agent/references, and
 skills/paperclip-converting-plans-to-tasks/SKILL.md. It is a modified
 version: the rules are rewritten for a dream's manager, which asks the user
-only design or task questions, hires on a signed-in harness without an
-approval step, hands out pieces with delegate and works one standing goal in
-place of heartbeats.
+only design or task questions, hires native agents without an approval step,
+hands out pieces with delegate and works one standing goal in place of
+heartbeats.
 
 Copyright (c) 2025 Paperclip AI
 
@@ -1150,3 +1150,68 @@ the following restrictions:
     misrepresented as being the original software.
 
 3. This notice may not be removed or altered from any source distribution.
+
+Agent engine, tools and self-improvement workflows
+
+Parts of Rashin's agent engine, tool descriptions, system prompts and
+self-improvement workflows are derived from oh-my-pi
+(https://github.com/can1357/oh-my-pi) at commit c7fff67, itself a fork of
+Mario Zechner's pi-mono. It is a modified version: Rashin reimplements the
+engine loop, recovery, tool-call dialect parsing, edits, subagents, compaction,
+managed skills and auto-learn, project decision memory, stream rules, judged
+checks and tool reports in Go; rewrites prompts for small local models; and
+leaves out ACP, RPC, browser, desktop control and remote memory.
+
+Copyright (c) 2025 Mario Zechner
+Copyright (c) 2025-2026 Can Bölük
+Copyright (c) 2026 Stencil Labs, Inc.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Regular expression engine (regexp2)
+
+Rashin vendors github.com/dlclark/regexp2 by Doug Clark under the MIT license
+for stream rules.
+
+Copyright (c) Doug Clark
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Rashin can download llama.cpp (MIT) and model weights at the user's request
+under their respective licences; neither is shipped with this package.

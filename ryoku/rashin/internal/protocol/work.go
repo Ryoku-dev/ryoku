@@ -44,13 +44,15 @@ type CleanupPolicy struct {
 
 // ProjectSettings are per project and live in the daemon, never in the repo.
 type ProjectSettings struct {
-	BaseRef      string        `json:"baseRef,omitempty"`
-	WorktreeRoot string        `json:"worktreeRoot,omitempty"`
-	BranchPrefix string        `json:"branchPrefix,omitempty"`
-	Setup        string        `json:"setup,omitempty"`
-	CopyIgnored  []string      `json:"copyIgnored,omitempty"`
-	Harness      string        `json:"harness,omitempty"`
-	Cleanup      CleanupPolicy `json:"cleanup"`
+	BaseRef      string   `json:"baseRef,omitempty"`
+	WorktreeRoot string   `json:"worktreeRoot,omitempty"`
+	BranchPrefix string   `json:"branchPrefix,omitempty"`
+	Setup        string   `json:"setup,omitempty"`
+	CopyIgnored  []string `json:"copyIgnored,omitempty"`
+	// Model is the route or provider/model the project's Agent sessions and
+	// tasks start on; empty follows agent.model.
+	Model   string        `json:"model,omitempty"`
+	Cleanup CleanupPolicy `json:"cleanup"`
 	// TrustedScripts are sha256 sums of repository setup scripts the user
 	// approved (.rashin/setup).
 	TrustedScripts []string `json:"trustedScripts,omitempty"`
@@ -587,16 +589,18 @@ type TaskProducts struct {
 
 // TaskInfo is a durable work item, separate from the sessions that work on it.
 type TaskInfo struct {
-	ID       string       `json:"id"`
-	Project  string       `json:"project"`
-	Title    string       `json:"title"`
-	Goal     string       `json:"goal"`
-	Status   string       `json:"status"`
-	Deps     []string     `json:"deps,omitempty"`
-	Gates    []Gate       `json:"gates,omitempty"`
-	Worktree string       `json:"worktree,omitempty"`
-	Sessions []string     `json:"sessions,omitempty"`
-	Harness  string       `json:"harness,omitempty"`
+	ID       string   `json:"id"`
+	Project  string   `json:"project"`
+	Title    string   `json:"title"`
+	Goal     string   `json:"goal"`
+	Status   string   `json:"status"`
+	Deps     []string `json:"deps,omitempty"`
+	Gates    []Gate   `json:"gates,omitempty"`
+	Worktree string   `json:"worktree,omitempty"`
+	Sessions []string `json:"sessions,omitempty"`
+	// Model is the route or provider/model the task's sessions start on;
+	// empty follows the project's, then agent.model.
+	Model    string       `json:"model,omitempty"`
 	Products TaskProducts `json:"products"`
 	Order    int          `json:"order"`
 	Created  time.Time    `json:"created"`
@@ -619,11 +623,11 @@ type TaskCreateParams struct {
 	Title   string   `json:"title"`
 	Goal    string   `json:"goal,omitempty"`
 	Deps    []string `json:"deps,omitempty"`
-	Harness string   `json:"harness,omitempty"`
+	Model   string   `json:"model,omitempty"`
 }
 
 // TaskUpdateParams applies a JSON merge patch to a task (title, goal, status,
-// deps, harness, order).
+// deps, model, order).
 type TaskUpdateParams struct {
 	ID    string          `json:"id"`
 	Patch json.RawMessage `json:"patch"`
@@ -637,9 +641,9 @@ type TaskRef struct {
 // TaskStartParams starts a task: a new worktree from Base (or the project base)
 // and an Agent session in it prompted with the goal.
 type TaskStartParams struct {
-	ID      string `json:"id"`
-	Harness string `json:"harness,omitempty"`
-	Base    string `json:"base,omitempty"`
+	ID    string `json:"id"`
+	Model string `json:"model,omitempty"`
+	Base  string `json:"base,omitempty"`
 }
 
 // TaskStartResult names what was created.

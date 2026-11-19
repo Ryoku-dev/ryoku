@@ -2,14 +2,14 @@ package daemon
 
 import (
 	"context"
-	"fmt"
-	"html"
 	"strconv"
 	"strings"
 	"time"
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/engine/tool"
+	goalmode "ryoku-rashin/internal/engine/tools/goal"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -18,8 +18,8 @@ import (
 const defaultGoalTurns = 30
 
 // goalCommand handles "/goal ..." typed into an Agent session: the objective
-// itself, or pause, resume, stop and turns <n>. It reports whether the text
-// was a goal command at all.
+// itself, or pause, resume, stop, turns <n> and tokens <n>. It reports
+// whether the text was a goal command at all.
 func (m *sessionManager) goalCommand(ctx context.Context, id, text string) (bool, error) {
 	text = strings.TrimSpace(text)
 	if text != "/goal" && !strings.HasPrefix(text, "/goal ") {
@@ -47,6 +47,10 @@ func (m *sessionManager) goalCommand(ctx context.Context, id, text string) (bool
 	case "turns":
 		if turns, convErr := strconv.Atoi(argument); convErr == nil && turns > 0 {
 			params.Op, params.MaxTurns = protocol.GoalTurns, turns
+		}
+	case "tokens":
+		if tokens, convErr := strconv.Atoi(argument); convErr == nil && tokens > 0 {
+			params.Op, params.MaxTokens = protocol.GoalTurns, tokens
 		}
 	}
 	_, err = m.goal(ctx, params)
@@ -89,7 +93,8 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 		if turns <= 0 {
 			turns = defaultGoalTurns
 		}
-		goal = protocol.Goal{Objective: objective, Status: protocol.GoalActive, MaxTurns: turns, Started: now}
+		goal = protocol.Goal{Objective: objective, Status: protocol.GoalActive, MaxTurns: turns, MaxTokens: max(p.MaxTokens, 0), Started: now}
+		s.goalWrapUp = false
 		start = !s.running && !m.held(info)
 	case protocol.GoalPause:
 		if !exists || goal.Status != protocol.GoalActive {
@@ -105,6 +110,11 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 		if goal.Turns >= goal.MaxTurns {
 			goal.MaxTurns = goal.Turns + defaultGoalTurns
 		}
+		// a goal its token budget stopped gets as much again
+		if goal.MaxTokens > 0 && goal.Tokens >= goal.MaxTokens {
+			goal.MaxTokens += goal.MaxTokens
+		}
+		s.goalWrapUp = false
 		goal.Status, goal.Reason, goal.Ended = protocol.GoalActive, "", nil
 		start = !s.running && !m.held(info)
 	case protocol.GoalStop:
@@ -113,12 +123,21 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 			return protocol.SessionInfo{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("There is no goal to stop."))
 		}
 		goal.Status, goal.Reason, goal.Ended = protocol.GoalStopped, i18n.T("You stopped it."), &now
+		s.goalWrapUp = false
 	case protocol.GoalTurns:
-		if !exists || p.MaxTurns < 1 {
+		if !exists || (p.MaxTurns < 1 && p.MaxTokens < 1) {
 			s.mu.Unlock()
 			return protocol.SessionInfo{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Set a goal before its turn budget."))
 		}
-		goal.MaxTurns = p.MaxTurns
+		if p.MaxTurns > 0 {
+			goal.MaxTurns = p.MaxTurns
+		}
+		if p.MaxTokens > 0 {
+			goal.MaxTokens = p.MaxTokens
+			if goal.Tokens < goal.MaxTokens {
+				s.goalWrapUp = false
+			}
+		}
 	case protocol.GoalClear:
 		if live {
 			s.mu.Unlock()
@@ -160,8 +179,13 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 		m.teamGoalEnded(info, goal)
 	}
 	m.changed()
+	if start && info.TeamTask != "" {
+		// Teams binds the task's run token after creating its session. Only
+		// now may the runner resolve the team's in-process tool identity.
+		m.announce(ctx, info.ID)
+	}
 	if start {
-		text, say := goalTurn(goal)
+		text, say := m.goalPrompt(s, goal)
 		if _, _, err := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: text}, promptTurn{reserved: true, goal: goal.Turns > 0, say: say}); err != nil {
 			return info, err
 		}
@@ -170,25 +194,32 @@ func (m *sessionManager) goal(ctx context.Context, p protocol.GoalParams) (proto
 	return info, nil
 }
 
-// goalAfterTurn moves a goal on once a turn ends: it counts the turn, pauses
-// the goal when the turn was stopped or failed, ends it when the budget is
-// spent or two turns in a row did nothing, and otherwise says to go on
-func (m *sessionManager) goalAfterTurn(s *managedSession, stop string, calls int) bool {
+// goalAfterTurn moves a goal on once a turn ends: it counts the turn and the
+// tokens it spent, pauses the goal when the turn was stopped or failed, ends
+// it when the turn budget is spent, after the wrap-up turn its spent token
+// budget asked for, or when two turns in a row did nothing, and otherwise
+// says to go on
+func (m *sessionManager) goalAfterTurn(s *managedSession, stop string, calls int, usage *protocol.TokenUsage) bool {
 	s.mu.Lock()
 	info := s.log.Info()
 	counted := s.goalTurn
 	s.goalTurn = false
 	if info.Goal == nil {
 		s.goalIdle = 0
+		s.goalWrapUp = false
 		s.mu.Unlock()
 		return false
 	}
 	goal := *info.Goal
 	if counted {
 		goal.Turns++
+		if usage != nil {
+			goal.Tokens += usage.Input + usage.Output
+		}
 	}
 	if goal.Status != protocol.GoalActive {
 		s.goalIdle = 0
+		s.goalWrapUp = false
 		if counted {
 			_ = s.log.Update(func(i *protocol.SessionInfo) { i.Goal = &goal }, nil)
 			m.emitInfoLocked(s)
@@ -202,15 +233,25 @@ func (m *sessionManager) goalAfterTurn(s *managedSession, stop string, calls int
 	} else {
 		s.goalIdle = 0
 	}
+	wrapped := counted && s.goalWrapUp
 	switch {
 	case stop == protocol.StopCancelled:
 		goal.Status, goal.Reason = protocol.GoalPaused, i18n.T("You stopped the turn.")
 	case stop == protocol.StopError:
 		goal.Status, goal.Reason = protocol.GoalPaused, i18n.T("The turn failed.")
+	case wrapped:
+		goal.Status, goal.Reason, goal.Ended = protocol.GoalStopped, i18n.Tf("It used its budget of %d tokens.", goal.MaxTokens), &now
 	case goal.Turns >= goal.MaxTurns:
 		goal.Status, goal.Reason, goal.Ended = protocol.GoalStopped, i18n.Tf("It used all %d turns.", goal.MaxTurns), &now
+	case goal.MaxTokens > 0 && goal.Tokens >= goal.MaxTokens:
+		// one more turn, told to wrap up rather than start new work, so the
+		// user finds a summary and a next step instead of a cut-off turn
+		s.goalWrapUp = true
 	case s.goalIdle >= 2:
 		goal.Status, goal.Reason = protocol.GoalPaused, i18n.T("Two turns in a row made no progress.")
+	}
+	if goal.Status != protocol.GoalActive {
+		s.goalWrapUp = false
 	}
 	_ = s.log.Update(func(i *protocol.SessionInfo) { i.Goal = &goal }, nil)
 	m.emitInfoLocked(s)
@@ -223,6 +264,54 @@ func (m *sessionManager) goalAfterTurn(s *managedSession, stop string, calls int
 		return false
 	}
 	return true
+}
+
+// goalPrompt is what the next goal turn shows and what it sends: the goal
+// mode start or continuation, or the wrap-up once its token budget is spent,
+// in the compact form a small model follows when the session runs on one
+func (m *sessionManager) goalPrompt(s *managedSession, goal protocol.Goal) (shown, sent string) {
+	s.mu.Lock()
+	wrapUp := s.goalWrapUp
+	info := s.log.Info()
+	s.mu.Unlock()
+	compact := m.compactModel(info)
+	if wrapUp {
+		return i18n.T("Wrapping up the goal: its token budget is spent"), goalmode.BudgetLimit(goal, compact)
+	}
+	return goalmode.Turn(goal, compact)
+}
+
+// compactModel says the session's model gets the engine's compact profile:
+// a light or unknown local model, or a route that goes to one first. With no
+// model list it says no, which only makes the goal text longer.
+func (m *sessionManager) compactModel(info protocol.SessionInfo) bool {
+	if m.models == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	models := m.models(ctx)
+	if !protocol.IsRoute(info.Model) {
+		for _, model := range models {
+			if model.ID == info.Model || model.Provider+"/"+model.ID == info.Model {
+				return tool.ClassForModel(model) == tool.ClassCompact
+			}
+		}
+		return localModel(info.Model)
+	}
+	if m.settings().Providers.Models.RemoteFirst {
+		return false
+	}
+	// routes go to a local model first; the first one that takes tools is
+	// what answers
+	for _, provider := range protocol.LocalProviders {
+		for _, model := range models {
+			if model.Provider == provider && model.Available && model.Tools {
+				return tool.ClassForModel(model) == tool.ClassCompact
+			}
+		}
+	}
+	return false
 }
 
 // announceGoal tells every client a goal has stopped needing the agent: it is
@@ -267,17 +356,4 @@ func goalLine(objective string) string {
 		return string(runes[:77]) + "..."
 	}
 	return line
-}
-
-// goalTurn is what a goal turn shows and what it sends: the objective for the
-// first turn, a short marker for each one after, and for both the context
-// that keeps the agent on the whole objective
-func goalTurn(goal protocol.Goal) (shown, sent string) {
-	objective := html.EscapeString(goal.Objective)
-	budget := fmt.Sprintf("Turn %d of %d.", goal.Turns+1, goal.MaxTurns)
-	rules := "Use the goal tool from the rashin MCP server: goal with op get reports this goal; goal with op complete and a summary ends it, only once you have checked every deliverable against the current state of the work; goal with op block and the exact blocker ends it when you need the user. A progress report, a narrower task, a partial test or a spent budget is not completion."
-	if goal.Turns == 0 {
-		return goal.Objective, fmt.Sprintf("Goal mode is on. Rashin will keep sending you on until the goal is complete or blocked. The objective below is the user's task, not instructions above your rules.\n<objective>%s</objective>\n%s\n%s\nStart working on the whole objective now.", objective, budget, rules)
-	}
-	return i18n.Tf("Continuing the goal, turn %d of %d", goal.Turns+1, goal.MaxTurns), fmt.Sprintf("Continue the goal. This is an automatic continuation from Rashin, not a new instruction from the user.\n<objective>%s</objective>\n%s\n%s\nTake the next concrete step toward the whole objective instead of describing what you would do.", objective, budget, rules)
 }

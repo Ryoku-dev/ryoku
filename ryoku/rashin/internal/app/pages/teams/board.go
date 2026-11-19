@@ -59,6 +59,7 @@ func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 							}
 							return b.layoutMonth(gtx, e)
 						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.colophon(gtx, e) }),
 					)
 				})
 			})
@@ -71,7 +72,7 @@ func (b *board) layoutHeader(gtx layout.Context, e *env.Env, p *Page) layout.Dim
 		Title:    i18n.T("Teams"),
 		Scrolled: b.scroll.Position.First > 0 || b.scroll.Position.Offset > 0,
 		Actions: []look.HeaderAction{
-			{Icon: look.Icon.Add, Label: i18n.T("New team")},
+			{Icon: look.Icon.Add, Label: i18n.T("New team"), Gold: true},
 			{Icon: look.Icon.Import, Label: i18n.T("Import team"), Description: i18n.T("Make a team from a file another team was exported to")},
 		},
 	}
@@ -89,20 +90,34 @@ func (b *board) layoutHeader(gtx layout.Context, e *env.Env, p *Page) layout.Dim
 // the sentence that says how the teams stand, one line of proof under it as the Inbox leads, and what keeps Rashin up
 func (b *board) layoutLead(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot) layout.Dimensions {
 	th := e.Theme
-	children := []layout.FlexChild{
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.Monument(gtx, th, boardSentence(snapshot.Teams), boardProof(gtx.Now, snapshot))
-		}),
+	working, needs := 0, 0
+	for _, team := range snapshot.Teams {
+		_, tone, active := teamsui.TeamStanding(team)
+		if active {
+			working++
+		}
+		if tone == palette.Attention {
+			needs++
+		}
 	}
-	// with no team yet there is nothing that could keep it up
-	if len(snapshot.Teams) > 0 {
-		children = append(children,
-			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, upSentence(gtx.Now, snapshot))),
-		)
-	}
-	// the column already stands S4 under the header, S3 more meets the Inbox's lead
 	return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.Monument(gtx, th, boardSentence(snapshot.Teams), boardProof(gtx.Now, snapshot))
+			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.SpecStrip(gtx, th, []look.Spec{
+					{Label: i18n.T("Teams"), Value: kit.Pad2(len(snapshot.Teams))},
+					{Label: i18n.T("Working"), Value: kit.Pad2(working)},
+					{Label: i18n.T("Need you"), Value: kit.Pad2(needs), Lit: needs > 0},
+				})
+			}),
+		}
+		if len(snapshot.Teams) > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, upSentence(gtx.Now, snapshot))))
+		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
@@ -157,7 +172,7 @@ func (b *board) layoutTiles(gtx layout.Context, e *env.Env, p *Page, snapshot ap
 		p.New(e)
 	}
 	working := teamsui.Working(snapshot)
-	return tileGrid(gtx, len(teams)+1, func(gtx layout.Context, index int) layout.Dimensions {
+	return tileGrid(gtx, e.Theme, len(teams)+1, func(gtx layout.Context, index int) layout.Dimensions {
 		if index == len(teams) {
 			return b.layoutCreate(gtx, e.Theme)
 		}

@@ -54,3 +54,19 @@ func TestATeamIsBriefedOnItsOwnSkillSets(t *testing.T) {
 		t.Fatalf("a member's brief:\n%s", member)
 	}
 }
+
+func TestTeamBriefHidesManagedSkillsWhileAutolearnIsOff(t *testing.T) {
+	h := newHarness(t, 0)
+	library := skills.New(filepath.Join(t.TempDir(), "builtin"))
+	managed := library.WithManaged(filepath.Join(t.TempDir(), "managed"))
+	if _, err := managed.Create("release-check", "Use when preparing a release.", "1. Check the release."); err != nil {
+		t.Fatal(err)
+	}
+	h.s.SetSkills(library)
+	team := h.newTeam(t, "Docs", nil)
+	ref := h.agent(t, h.newTask(t, team, "Write the release notes.").ID)
+	info, _ := h.sessions.Info(ref.Session)
+	if brief := h.s.Brief(info); strings.Contains(brief, "release-check") || strings.Contains(brief, managed.Dir()) {
+		t.Fatalf("managed skills leaked into the team brief while disabled:\n%s", brief)
+	}
+}

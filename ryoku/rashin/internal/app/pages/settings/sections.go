@@ -1,8 +1,6 @@
 package settings
 
 import (
-	"strings"
-
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -31,27 +29,28 @@ func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 	if version == "" {
 		version = i18n.T("unknown")
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.Monument(gtx, th, i18n.T("Rashin is on."), rashinProof(snapshot))
-		}),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.SettingsSection(gtx, th, i18n.T("Rashin"), []look.Setting{
-				{
-					Title:   i18n.T("Running"),
-					Detail:  i18n.T("While Rashin is off nothing runs, nothing is indexed and it uses no memory."),
-					Control: func(gtx layout.Context) layout.Dimensions { return p.turnOff.Layout(gtx, th.Theme) },
-				},
-				{
-					Title:   i18n.Tf("Version %s", version),
-					Detail:  i18n.Tf("The daemon writes what it does to %s.", paths.Short(paths.DaemonLog())),
-					Control: func(gtx layout.Context) layout.Dimensions { return p.log.Layout(gtx, th.Theme) },
-				},
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.featuresOff(gtx, e) }),
-	)
+	rows := []look.Setting{
+		{
+			Title:   i18n.T("Running"),
+			Detail:  i18n.T("While Rashin is off nothing runs, nothing is indexed and it uses no memory."),
+			Control: func(gtx layout.Context) layout.Dimensions { return p.turnOff.Layout(gtx, th.Theme) },
+		},
+		{
+			Title:   i18n.Tf("Version %s", version),
+			Detail:  i18n.Tf("The daemon writes what it does to %s.", paths.Short(paths.DaemonLog())),
+			Control: func(gtx layout.Context) layout.Dimensions { return p.log.Layout(gtx, th.Theme) },
+		},
+	}
+	return look.Section(gtx, th, ordinal(sectionRashin), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.Monument(gtx, th, i18n.T("Rashin is on."), rashinProof(snapshot))
+			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.featuresOff(gtx, e) }),
+		)
+	})
 }
 
 // the proof counts what the daemon reports, so the claim never outruns it
@@ -81,10 +80,13 @@ func rashinProof(snapshot state.Snapshot) string {
 
 func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	snapshot := e.Snapshot()
-	settings := snapshot.Settings.Ask
-	p.models.Load(e, snapshot)
-	options, ids, selected := p.models.Choices(settings.Model)
+	settings := e.Snapshot().Settings.Ask
+	stock := p.defaults.Ask
+	// filled again only when the stored model moved, so a pick stands until the daemon has it
+	if !p.askFilled || settings.Model != p.askStored {
+		p.askModel.Set(settings.Model, nil)
+		p.askStored, p.askFilled = settings.Model, true
+	}
 	p.habits.Value = settings.Habits
 	mayIDs := [...]string{protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto}
 	mayLabels := []string{i18n.T("Never"), i18n.T("After asking you"), i18n.T("Without asking (YOLO)")}
@@ -94,45 +96,29 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			selectedMay = index
 		}
 	}
-	answerers, answering := env.AskEngines(snapshot)
-	answererLabels := make([]string, len(answerers))
-	for index, answerer := range answerers {
-		answererLabels[index] = answerer.Name
-		if !answerer.Installed {
-			answererLabels[index] = i18n.Tf("%s (not installed)", answerer.Name)
-		}
-	}
-	return look.SettingsSection(gtx, th, i18n.T("Ask"), []look.Setting{
+	return look.SettingsSection(gtx, th, ordinal(sectionAsk), []look.Setting{
 		{
-			Title:  i18n.T("Answer with"),
-			Detail: answererDetail(answerers[answering]),
+			Title:   i18n.T("Ask answers with"),
+			Detail:  i18n.T("Auto tries a model on this computer first, then a free provider. Name a model to use only that one; paid models run only when you pick them."),
+			Below:   true,
+			Changed: p.changed.askModel,
+			Reset:   func() { set(e, "ask", map[string]any{"model": stock.Model}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(260)
-				dimensions := p.answerWith.Layout(gtx, th, e.Overlays, answererLabels, answering)
-				if index, changed := p.answerWith.Changed(); changed && index < len(answerers) {
-					set(e, "ask", map[string]any{"harness": answerers[index].ID})
+				dimensions := p.askModel.Layout(gtx, e)
+				if _, picked := p.askModel.Changed(); picked {
+					model, _ := p.askModel.Value()
+					set(e, "ask", map[string]any{"model": routed(model)})
 				}
 				return dimensions
 			},
 		},
 		{
-			Title:  i18n.T("Providers answer on"),
-			Detail: i18n.T("Auto picks a free model that is up and fits the question, one on this computer first. A model named here is asked first and another takes over when it can't answer. A paid model answers only when you name it."),
+			Title:   i18n.T("Ask changes this machine"),
+			Detail:  i18n.T("What a new ask in this app starts with: it only proposes commands, runs them once you allow each, or runs them by itself. Asks from the bar and the terminal never change anything."),
+			Changed: p.changed.askApprovals,
+			Reset:   func() { set(e, "ask", map[string]any{"approvals": stock.Approvals}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(260)
-				p.route.Searched = true
-				dimensions := p.route.LayoutOptions(gtx, th, e.Overlays, options, selected)
-				if index, changed := p.route.Changed(); changed && index < len(ids) {
-					set(e, "ask", map[string]any{"model": ids[index]})
-				}
-				return dimensions
-			},
-		},
-		{
-			Title:  i18n.T("Ask changes this machine"),
-			Detail: i18n.T("What a new ask in this app starts with: it only proposes commands, runs them once you allow each, or runs them by itself. Asks from the bar and the terminal never change anything."),
-			Control: func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(260)
+				gtx.Constraints.Min.X = gtx.Dp(selectWidth)
 				dimensions := p.askMay.Layout(gtx, th, e.Overlays, mayLabels, selectedMay)
 				if index, changed := p.askMay.Changed(); changed && index < len(mayIDs) {
 					set(e, "ask", map[string]any{"approvals": mayIDs[index]})
@@ -141,8 +127,10 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			},
 		},
 		{
-			Title:  i18n.T("Learn from the shell"),
-			Detail: i18n.T("Ask reads the commands you run often, so its answers fit how you work. They stay on this machine."),
+			Title:   i18n.T("Learn from the shell"),
+			Detail:  i18n.T("Ask reads the commands you run often, so its answers fit how you work. They stay on this machine."),
+			Changed: p.changed.habits,
+			Reset:   func() { set(e, "ask", map[string]any{"habits": stock.Habits}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Learn from the shell"), &p.habits, func(on bool) {
 					set(e, "ask", map[string]any{"habits": on})
@@ -152,35 +140,13 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 	})
 }
 
-// what changes with what answers, said where it is picked
-func answererDetail(answerer env.AskEngine) string {
-	switch {
-	case answerer.ID == "":
-		return i18n.T("Rashin's own router answers with the models below and Ask's own tools. A harness such as Codex, Claude Code or omp can answer new asks here instead, with its own models, tools and sign-in. Asks from the bar and the terminal always use Rashin's providers.")
-	case !answerer.Installed:
-		return i18n.Tf("%s is not installed, so a new ask here says so and is not answered. Install it under Agents or pick another.", answerer.Name)
-	default:
-		return i18n.Tf("%s answers new asks in this app with its own models, tools and sign-in, and what Ask may change still holds. Asks you already have keep what answered them, and asks from the bar and the terminal use Rashin's providers.", answerer.Name)
-	}
-}
-
 func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	snapshot := e.Snapshot()
-	settings := snapshot.Settings.Agent
-	harnessLabels, harnessIDs, selectedHarness := []string{}, []string{}, 0
-	for _, harness := range snapshot.Harnesses {
-		if !harness.Installed {
-			continue
-		}
-		if harness.ID == settings.Harness {
-			selectedHarness = len(harnessIDs)
-		}
-		harnessLabels, harnessIDs = append(harnessLabels, harness.Name), append(harnessIDs, harness.ID)
-	}
-	if len(harnessIDs) == 0 {
-		harnessLabels, harnessIDs = []string{i18n.T("None installed")}, []string{""}
-	}
+	settings := e.Snapshot().Settings.Agent
+	stock := p.defaults.Agent
+	// the form keeps itself on agent.model and agent.options and saves every pick there
+	p.agentModel.Parts, p.agentModel.Agents = env.ModelOptions|env.ModelCheck, true
+	p.agentModel.FollowAgent(e)
 	approvalIDs := [...]string{protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto}
 	approvalLabels := []string{i18n.T("Before it changes anything"), i18n.T("Before every action"), i18n.T("Never (YOLO)")}
 	selectedApproval := 0
@@ -189,26 +155,43 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 			selectedApproval = index
 		}
 	}
+	p.plan.Value = settings.Plan
 	p.idle.Value, p.idle.Min, p.idle.Max, p.idle.Step, p.idle.Unit = settings.IdleStopMinutes, 1, 120, 1, i18n.T("min")
 	p.notices.Value = e.Notices
-	rows := []look.Setting{
+	return look.SettingsSection(gtx, th, ordinal(sectionAgents), []look.Setting{
 		{
-			Title:  i18n.T("New sessions run"),
-			Detail: i18n.T("The harness a new session starts with. Picking another when you start one changes it here too."),
-			Control: func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(260)
-				dimensions := p.harness.Layout(gtx, th, e.Overlays, harnessLabels, selectedHarness)
-				if index, changed := p.harness.Changed(); changed && index < len(harnessIDs) && harnessIDs[index] != "" {
-					set(e, "agent", map[string]any{"harness": harnessIDs[index]})
+			Title:   i18n.T("New sessions use"),
+			Detail:  i18n.T("The model a new session starts on and how hard it thinks. Auto takes one on this computer first. Picking another when you start a session changes it here too."),
+			Below:   true,
+			Changed: p.changed.agentModel,
+			Reset: func() {
+				// the patch merges options key by key, so each one picked is sent as null to go
+				options := make(map[string]any, len(settings.Options))
+				for id := range settings.Options {
+					options[id] = nil
 				}
-				return dimensions
+				set(e, "agent", map[string]any{"model": stock.Model, "options": options})
+			},
+			Control: func(gtx layout.Context) layout.Dimensions { return p.agentModel.Layout(gtx, e) },
+		},
+		{
+			Title:   i18n.T("Plan first"),
+			Detail:  i18n.T("A new session reads, then writes a plan, and changes nothing until you approve it."),
+			Changed: p.changed.plan,
+			Reset:   func() { set(e, "agent", map[string]any{"plan": stock.Plan}) },
+			Control: func(gtx layout.Context) layout.Dimensions {
+				return namedSwitch(gtx, th, i18n.T("Plan first"), &p.plan, func(on bool) {
+					set(e, "agent", map[string]any{"plan": on})
+				})
 			},
 		},
 		{
-			Title:  i18n.T("An agent asks you"),
-			Detail: i18n.T("Never lets it edit files and run commands without a question. Use it only where you can undo what it does."),
+			Title:   i18n.T("An agent asks you"),
+			Detail:  i18n.T("Never lets it edit files and run commands without a question. Use it only where you can undo what it does."),
+			Changed: p.changed.agentApprovals,
+			Reset:   func() { set(e, "agent", map[string]any{"approvals": stock.Approvals}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Dp(260)
+				gtx.Constraints.Min.X = gtx.Dp(selectWidth)
 				dimensions := p.approvals.Layout(gtx, th, e.Overlays, approvalLabels, selectedApproval)
 				if index, changed := p.approvals.Changed(); changed && index < len(approvalIDs) {
 					set(e, "agent", map[string]any{"approvals": approvalIDs[index]})
@@ -217,15 +200,19 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 			},
 		},
 		{
-			Title:  i18n.T("Tell me when an agent needs me"),
-			Detail: i18n.T("A desktop notification when one asks, fails or finishes while Rashin is not the window in front."),
+			Title:   i18n.T("Tell me when an agent needs me"),
+			Detail:  i18n.T("A desktop notification when one asks, fails or finishes while Rashin is not the window in front."),
+			Changed: p.changed.notices,
+			Reset:   func() { e.SetNotices(true) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Tell me when an agent needs me"), &p.notices, e.SetNotices)
 			},
 		},
 		{
-			Title:  i18n.T("Stop an idle agent after"),
-			Detail: i18n.T("Its process ends and frees its memory. The session resumes when you write to it."),
+			Title:   i18n.T("Stop an idle agent after"),
+			Detail:  i18n.T("Its tools and background commands stop and free their memory. The session picks up again when you write to it."),
+			Changed: p.changed.idle,
+			Reset:   func() { set(e, "agent", map[string]any{"idleStopMinutes": stock.IdleStopMinutes}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				dimensions := p.idle.Layout(gtx, th.Theme)
 				if p.idle.Changed() {
@@ -234,85 +221,20 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 				return dimensions
 			},
 		},
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.SettingsSection(gtx, th, i18n.T("Agents"), rows)
-		}),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHarnesses(gtx, e, snapshot) }),
-	)
-}
-
-func (p *Page) layoutHarnesses(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
-	th := e.Theme
-	// what can run stands above what still has to be installed
-	rows := make([]look.Setting, 0, len(snapshot.Harnesses))
-	for _, harness := range snapshot.Harnesses {
-		if harness.Installed && !harness.Custom {
-			rows = append(rows, look.Setting{
-				Title: harness.Name, Detail: harnessDetail(harness),
-				Control: kit.Text(th.Theme, th.T.Label, th.R.Fg2, i18n.T("Installed")),
-			})
-		}
-	}
-	rows = append(rows, p.install.Rows(gtx, e, snapshot)...)
-	children := []layout.FlexChild{
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Flexed(1, kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Harnesses"))),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.install.Again(gtx, e) }),
-			)
-		}),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Your own harnesses"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
-			i18n.T("Any program that speaks the Agent Client Protocol can run sessions. Give it a name and the command that starts it."))),
-	}
-	children = append(children,
-		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutInstances(gtx, e) }),
-	)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-}
-
-func harnessDetail(harness protocol.HarnessInfo) string {
-	parts := make([]string, 0, 7)
-	if harness.Version != "" {
-		parts = append(parts, harness.Version)
-	}
-	if capabilities := harness.Capabilities; capabilities != nil {
-		add := func(has bool, word string) {
-			if has {
-				parts = append(parts, word)
-			}
-		}
-		add(capabilities.LoadSession, i18n.T("resumes sessions"))
-		add(capabilities.Models, i18n.T("offers models"))
-		add(len(capabilities.Modes) > 0, i18n.T("has modes"))
-		add(capabilities.Images, i18n.T("reads images"))
-	}
-	detail := strings.Join(parts, ", ")
-	if facts := env.HarnessFacts(harness); len(facts) > 0 {
-		if detail != "" {
-			detail += ". "
-		}
-		detail += env.FactsSentence(facts)
-	}
-	return detail
+	})
 }
 
 func (p *Page) layoutIndex(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	settings := e.Snapshot().Settings.Index
+	stock := p.defaults.Index
 	p.system.Value, p.semantic.Value = settings.System, settings.Semantic
-	return look.SettingsSection(gtx, th, i18n.T("Index"), []look.Setting{
+	return look.SettingsSection(gtx, th, ordinal(sectionIndex), []look.Setting{
 		{
-			Title:  i18n.T("Read this system"),
-			Detail: i18n.T("Ask answers from your configuration, the manuals and Ryoku's documentation instead of from memory."),
+			Title:   i18n.T("Read this system"),
+			Detail:  i18n.T("Ask answers from your configuration, the manuals and Ryoku's documentation instead of from memory."),
+			Changed: p.changed.system,
+			Reset:   func() { set(e, "index", map[string]any{"system": stock.System}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Read this system"), &p.system, func(on bool) {
 					set(e, "index", map[string]any{"system": on})
@@ -320,8 +242,10 @@ func (p *Page) layoutIndex(gtx layout.Context, e *env.Env) layout.Dimensions {
 			},
 		},
 		{
-			Title:  i18n.T("Search by meaning"),
-			Detail: i18n.T("Finds code and text that mean what you asked, not only what you typed. It takes more disk and a provider that makes embeddings."),
+			Title:   i18n.T("Search by meaning"),
+			Detail:  i18n.T("Finds code and text that mean what you asked, not only what you typed. It takes more disk and a provider that makes embeddings."),
+			Changed: p.changed.semantic,
+			Reset:   func() { set(e, "index", map[string]any{"semantic": stock.Semantic}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Search by meaning"), &p.semantic, func(on bool) {
 					set(e, "index", map[string]any{"semantic": on})
@@ -329,98 +253,4 @@ func (p *Page) layoutIndex(gtx layout.Context, e *env.Env) layout.Dimensions {
 			},
 		},
 	})
-}
-
-func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimensions {
-	th := e.Theme
-	p.zoom.Value, p.zoom.Min, p.zoom.Max, p.zoom.Step, p.zoom.Unit = e.Zoom, state.MinZoom, state.MaxZoom, state.ZoomStep, "%"
-	p.motion.Value = e.ReduceMotion
-	colours := [...]string{state.ColoursRyoku, state.ColoursRyokuLight, state.ColoursWallpaper}
-	coloursDetails := [...]string{
-		i18n.T("The ryoku.dev colours: black, bone and the orange sun."),
-		i18n.T("The ryoku.dev colours in daylight: warm grey, dark ink and the orange sun."),
-		i18n.T("Colours from your wallpaper, like the rest of the desktop."),
-	}
-	contrasts := [...]string{state.ContrastStandard, state.ContrastHigh}
-	tints := [...]string{state.TintOff, state.TintLow, state.TintMedium}
-	p.colours.Labels = []string{i18n.T("Ryoku"), i18n.T("Ryoku light"), i18n.T("Wallpaper")}
-	p.colours.Selected = choiceIndex(colours[:], e.Colours)
-	p.contrast.Labels = []string{i18n.T("Standard"), i18n.T("High")}
-	p.contrast.Selected = choiceIndex(contrasts[:], e.Contrast)
-	p.tint.Labels = []string{i18n.T("Off"), i18n.T("Low"), i18n.T("Medium")}
-	p.tint.Selected = choiceIndex(tints[:], e.Tint)
-	segmented := func(control *kit.Segmented, picked func(index int)) layout.Widget {
-		return func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Dp(260)
-			dimensions := control.Layout(gtx, th.Theme)
-			if index, changed := control.Changed(); changed {
-				picked(index)
-			}
-			return dimensions
-		}
-	}
-	settings := []look.Setting{
-		{
-			Title:  i18n.T("Zoom"),
-			Detail: i18n.T("Ctrl + and Ctrl - change it from anywhere. Ctrl 0 sets it back."),
-			Control: func(gtx layout.Context) layout.Dimensions {
-				dimensions := p.zoom.Layout(gtx, th.Theme)
-				if p.zoom.Changed() {
-					e.SetZoom(p.zoom.Value)
-				}
-				return dimensions
-			},
-		},
-		{
-			Title:  i18n.T("Reduce motion"),
-			Detail: i18n.T("Everything changes at once instead of moving."),
-			Control: func(gtx layout.Context) layout.Dimensions {
-				return namedSwitch(gtx, th, i18n.T("Reduce motion"), &p.motion, e.SetReduceMotion)
-			},
-		},
-		{
-			Title:  i18n.T("Colours"),
-			Detail: coloursDetails[p.colours.Selected],
-			Control: segmented(&p.colours, func(index int) {
-				e.SetColours(colours[index])
-			}),
-		},
-		{
-			Title:  i18n.T("Contrast"),
-			Detail: i18n.T("High spreads the surfaces apart and strengthens edges."),
-			Control: segmented(&p.contrast, func(index int) {
-				e.SetLook(contrasts[index], tints[p.tint.Selected])
-			}),
-		},
-	}
-	// the stock has no wallpaper to draw from, so Tint would do nothing there
-	if colours[p.colours.Selected] == state.ColoursWallpaper {
-		settings = append(settings, look.Setting{
-			Title:  i18n.T("Tint"),
-			Detail: i18n.T("Tint draws your wallpaper's colour into the surfaces."),
-			Control: segmented(&p.tint, func(index int) {
-				e.SetLook(contrasts[p.contrast.Selected], tints[index])
-			}),
-		})
-	}
-	return look.SettingsSection(gtx, th, i18n.T("Appearance"), settings)
-}
-
-// the stored words are normalised when read, so falling back to the first option is never seen
-func choiceIndex(ids []string, value string) int {
-	for index, id := range ids {
-		if id == value {
-			return index
-		}
-	}
-	return 0
-}
-
-// read right after it is drawn: by the next frame the setting has overwritten the flip
-func namedSwitch(gtx layout.Context, th *look.Theme, name string, toggle *kit.Toggle, flipped func(on bool)) layout.Dimensions {
-	dimensions := look.Named(gtx, name, func(gtx layout.Context) layout.Dimensions { return toggle.Layout(gtx, th.Theme) })
-	if toggle.Changed() && flipped != nil {
-		flipped(toggle.Value)
-	}
-	return dimensions
 }

@@ -15,8 +15,8 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-func (state *viewState) layoutPlan(gtx layout.Context, th *look.Theme, entries []protocol.PlanEntry) layout.Dimensions {
-	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
+func (state *viewState) layoutPlan(gtx layout.Context, th *look.Theme, entries []protocol.PlanEntry, key string, live bool) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Plan")))}
 		line := gtx.Sp(th.T.Body.Line)
@@ -34,7 +34,7 @@ func (state *viewState) layoutPlan(gtx layout.Context, th *look.Theme, entries [
 					look.MiddleLeft(gtx, 0, line, func(gtx layout.Context) layout.Dimensions {
 						return kit.Flake(gtx, th.Theme, tone, 1, 9)
 					})
-					indent := gtx.Dp(21)
+					indent := gtx.Dp(th.Sp.S4)
 					offset := op.Offset(image.Pt(indent, 0)).Push(gtx.Ops)
 					body := gtx
 					body.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent)
@@ -118,7 +118,7 @@ func answerAction(action protocol.Action) Action {
 
 // what an answer offers to run stands in one slab: the command, why, how far it reaches and the way to run it
 func (state *viewState) layoutCommands(gtx layout.Context, th *look.Theme, plan *protocol.CommandPlan, key string) layout.Dimensions {
-	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		several := len(plan.Commands) > 1
 		children := make([]layout.FlexChild, 0, len(plan.Commands)*4+2)
@@ -150,7 +150,7 @@ func (state *viewState) layoutCommand(gtx layout.Context, th *look.Theme, comman
 	// it runs here, in the background, unless it needs a keyboard or the conversation cannot run it
 	here := state.runsHere && !command.Terminal
 	run := state.plaque(key + ":run")
-	run.Kind, run.Small, run.Label = kit.PlaqueLine, true, i18n.T("Run in terminal")
+	run.Kind, run.Small, run.Label = kit.PlaqueTonal, true, i18n.T("Run in terminal")
 	kind := ActRunCommand
 	if here {
 		run.Label, kind = i18n.T("Run"), ActRunHere
@@ -247,7 +247,7 @@ func (state *viewState) layoutError(gtx layout.Context, th *look.Theme, block bl
 	}
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))
-	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
+	return state.tonedSlab(gtx, th, palette.Failed, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(kit.Claim(th.Theme, palette.Failed, i18n.T("Failed"))),

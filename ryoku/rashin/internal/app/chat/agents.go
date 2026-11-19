@@ -10,7 +10,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/look"
@@ -51,14 +50,14 @@ func (state *viewState) layoutAgents(gtx layout.Context, th *look.Theme, model *
 		running = running || live
 		failed = failed || agent.Status == protocol.ToolFailed
 		clock := state.agentClock(key + ":" + agent.ID)
-		longest = max(longest, clock.elapsed(gtx.Now, agent.Millis, live && state.busy))
+		longest = max(longest, clock.elapsed(gtx.Now, agent.Millis, live && state.working))
 	}
 	visual.follow(running)
 	line := workLine{icon: look.Icon.Agents, label: agentsLabel(tool.Agents, running), prose: agentsSummary(tool.Agents), running: running, expandable: true}
 	if longest >= time.Second {
 		line.waited = waitedFor(longest)
 	}
-	if running && state.busy {
+	if running && state.working {
 		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second)})
 	}
 	if len(tool.Agents) == 1 {
@@ -69,26 +68,38 @@ func (state *viewState) layoutAgents(gtx layout.Context, th *look.Theme, model *
 		line.prose, line.failed = agent.Task, failed && !running
 		children := model.children[tool.Call]
 		line.expandable = len(agent.Steps) > 0 || agent.Output != "" || len(children) > 0
-		return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-			return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return state.layoutAgentDetail(gtx, th, model, agent, children, key+":"+agent.ID)
+		return state.slab(gtx, th, th.Sp.S2, func(gtx layout.Context) layout.Dimensions {
+			return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
+				return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					return state.layoutAgentDetail(gtx, th, model, agent, children, key+":"+agent.ID)
+				})
 			})
 		})
 	}
-	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-		return slab(gtx, th, 8, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			children := make([]layout.FlexChild, 0, len(tool.Agents)*2)
-			for index, agent := range tool.Agents {
-				if index > 0 {
-					children = append(children, layout.Rigid(layout.Spacer{Height: 2}.Layout))
+	return state.slab(gtx, th, th.Sp.S2, func(gtx layout.Context) layout.Dimensions {
+		return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
+			return state.slab(gtx, th, th.Sp.S2, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				children := make([]layout.FlexChild, 0, len(tool.Agents)*2+2)
+				for index, agent := range tool.Agents {
+					if index > 0 {
+						children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout))
+					}
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return state.layoutAgentRow(gtx, th, model, agent, key+":"+agent.ID, running)
+					}))
 				}
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return state.layoutAgentRow(gtx, th, model, agent, key+":"+agent.ID, running)
-				}))
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+				if calls := model.children[tool.Call]; len(calls) > 0 {
+					children = append(children,
+						layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return state.layoutToolLines(gtx, th, model, calls, key+":calls")
+						}),
+					)
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			})
 		})
 	})
 }
@@ -110,7 +121,7 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 	if visual.click.Clicked(gtx) && expandable {
 		visual.open = !visual.open
 	}
-	elapsed := state.agentClock(key).elapsed(gtx.Now, agent.Millis, live && state.busy)
+	elapsed := state.agentClock(key).elapsed(gtx.Now, agent.Millis, live && state.working)
 	height := gtx.Dp(32)
 	head := func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, height)
@@ -123,7 +134,7 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return state.layoutAgentMark(gtx, th, agent, live)
+				return state.layoutAgentMark(gtx, th, agent, live && state.working)
 			}),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 			layout.Rigid(kit.RawText(th.Theme, th.T.Label, th.R.Fg, name)),
@@ -161,20 +172,21 @@ func (state *viewState) layoutAgentRow(gtx layout.Context, th *look.Theme, model
 		}
 		return visual.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: headSize} })
 	})
-	if expandable && hover > 0 {
-		// the rows stand on a slab, so hover lifts toward the ink rather than to another stone
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: headSize}, gtx.Dp(th.Cut.Small), palette.WithAlpha(palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane), hover))
+	if expandable {
+		press := look.Transition(gtx, &visual.press, visual.click.Pressed(), th.Motion.Press, th.Motion.Press)
+		look.RowWash(gtx, th, image.Rectangle{Max: headSize}, hover, press, false)
 	}
 	content.Add(gtx.Ops)
 	if !expandable {
 		return dimensions
 	}
-	indent := gtx.Dp(36)
+	indent := gtx.Dp(th.Sp.S5)
 	offset := op.Offset(image.Pt(indent, headSize.Y)).Push(gtx.Ops)
 	body := gtx
 	body.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent-gtx.Dp(8))
 	body.Constraints.Min = image.Point{}
-	unfolded := visual.unfold.Layout(body, th, visual.open, func(gtx layout.Context) layout.Dimensions {
+	visual.unfold.Open = visual.open
+	unfolded := visual.unfold.Layout(body, th.Theme, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: th.Sp.S1, Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return state.layoutAgentDetail(gtx, th, model, agent, nil, key)
 		})
@@ -200,8 +212,6 @@ func (state *viewState) layoutAgentMark(gtx layout.Context, th *look.Theme, agen
 	})
 }
 
-// the steps a subagent took, its own calls when the harness reports them,
-// then what it returned
 func (state *viewState) layoutAgentDetail(gtx layout.Context, th *look.Theme, model *modelState, agent protocol.AgentWork, children []*protocol.ToolData, key string) layout.Dimensions {
 	var rows []layout.FlexChild
 	switch {

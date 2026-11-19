@@ -117,7 +117,7 @@ func (s *Service) memberChanges(old, next []protocol.Member) []string {
 		if m.Lead && !was.Lead {
 			out = append(out, i18n.Tf("Made %s the lead.", m.Name))
 		}
-		if was.Harness != m.Harness || was.Model != m.Model || !maps.Equal(was.Options, m.Options) {
+		if was.Model != m.Model || !maps.Equal(was.Options, m.Options) {
 			out = append(out, i18n.Tf("Changed %s's engine from %s to %s.", m.Name, s.memberEngineWords(was), s.memberEngineWords(m)))
 		}
 	}

@@ -588,7 +588,7 @@ FocusScope {
             placeholder: root.mode === "ask" && !(conversation.turns.ask || []).length ? I18n.tr("Ask about this") : I18n.tr("Ask a follow-up")
             onSubmitted: text => root.send(text)
         }
-        SightProvenance { id: provenance; width: parent.width; height: implicitHeight; visible: root.showProvenance; panel: root; s: root.s; model: conversation.model; engine: conversation.engine; localModel: conversation.localModel; localOnly: localSetting.value === true; copied: root.copied }
+        SightProvenance { id: provenance; width: parent.width; height: implicitHeight; visible: root.showProvenance; panel: root; s: root.s; model: conversation.model; localModel: conversation.localModel; localOnly: localSetting.value === true; copied: root.copied }
     }
     SightMore { id: more; parent: head; panel: root; anchorItem: head.moreAnchor; s: root.s }
     ParallelAnimation {

@@ -37,7 +37,7 @@ func init() {
 	register(&Command{Name: "sessions", Group: "sessions", Usage: "[ask|agent]", Summary: "List saved sessions.", Run: runSessions})
 	register(&Command{Name: "show", Group: "sessions", Usage: "<id>", Summary: "Show a saved session.", Run: runShow})
 	register(&Command{Name: "rm", Group: "sessions", Usage: "<id>", Summary: "Delete a saved session.", Run: runRemove})
-	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity|features] [--worktree path] [--route route]", Summary: "Open the Rashin app.", Run: runOpen})
+	register(&Command{Name: "open", Group: "sessions", Usage: "[--session id] [--tab tab] [--project id-or-path] [--view overview|graph|changes|tasks|activity|features|providers] [--worktree path] [--route route]", Summary: "Open the Rashin app.", Run: runOpen})
 	register(&Command{Name: "fix", Group: "sessions", Usage: "doctor | app <name> [what happened]", Summary: "Open a repair session from machine evidence.", Run: runFix})
 }
 
@@ -132,10 +132,10 @@ func parseOpen(args []string) (protocol.UIOpenParams, error) {
 			p.Project = args[1]
 		case "--view":
 			switch args[1] {
-			case "overview", "graph", "changes", "tasks", "activity", "features":
+			case "overview", "graph", "changes", "tasks", "activity", "features", "providers":
 				p.View = args[1]
 			default:
-				return p, fmt.Errorf("%s", i18n.T("Open view must be overview, graph, changes, tasks, activity, or features for Settings."))
+				return p, fmt.Errorf("%s", i18n.T("Open view must be overview, graph, changes, tasks, activity, features, or providers for Settings."))
 			}
 		case "--worktree":
 			path, err := absoluteUserPath(args[1])
@@ -152,8 +152,8 @@ func parseOpen(args []string) (protocol.UIOpenParams, error) {
 		}
 		args = args[2:]
 	}
-	if p.View == "features" && (p.Tab != protocol.TabSettings || p.Project != "") {
-		return p, fmt.Errorf("%s", i18n.T("The features view opens with --tab settings."))
+	if (p.View == "features" || p.View == "providers") && (p.Tab != protocol.TabSettings || p.Project != "") {
+		return p, fmt.Errorf("%s", i18n.T("The features and providers views open with --tab settings."))
 	}
 	return p, nil
 }
@@ -432,29 +432,12 @@ func runFix(args []string) int {
 	}
 	defer cancel()
 	defer conn.Close()
-	kind, harness := protocol.KindAsk, ""
-	var harnesses protocol.HarnessesResult
-	if err := conn.Call(context.Background(), protocol.MHarnessesList, protocol.HarnessesListParams{Refresh: true}, &harnesses); err == nil {
-		for _, item := range harnesses.Harnesses {
-			if !item.Installed {
-				continue
-			}
-			kind = protocol.KindAgent
-			if harness == "" {
-				harness = item.ID
-			}
-			if item.Default {
-				harness = item.ID
-				break
-			}
-		}
-	}
 	info := protocol.SessionInfo{}
-	if err := conn.Call(context.Background(), protocol.MSessionNew, protocol.SessionNewParams{Kind: kind, Harness: harness, Origin: protocol.OriginFix, Title: title}, &info); err != nil {
+	if err := conn.Call(context.Background(), protocol.MSessionNew, protocol.SessionNewParams{Kind: protocol.KindAgent, Origin: protocol.OriginFix, Title: title}, &info); err != nil {
 		return report(err)
 	}
 	if err := conn.Call(context.Background(), protocol.MSessionPrompt, protocol.PromptParams{ID: info.ID, Text: brief}, &protocol.PromptResult{}); err != nil {
 		return report(err)
 	}
-	return runOpen([]string{"--session", info.ID, "--tab", string(kind)})
+	return runOpen([]string{"--session", info.ID, "--tab", string(protocol.KindAgent)})
 }

@@ -44,6 +44,20 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return p.board.layout(gtx, e, p)
 }
 
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	if credential, ok := credentialByID(e.Snapshot().Vault, p.credential); ok {
+		return look.PartPage(protocol.TabVault, 1, credential.Name, "")
+	}
+	return look.PageFor(protocol.TabVault)
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.credential != "" {
+		return p.detail.scroll.Progress(4)
+	}
+	return p.board.scroll.Progress(p.board.rows)
+}
+
 func (p *Page) New(e *env.Env) { p.openAdd(e, protocol.CredentialHeader, nil) }
 
 func (p *Page) NewLabel() string { return i18n.T("Add credential") }

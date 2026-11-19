@@ -179,6 +179,7 @@ func TestMergeRejectsBadTeamsSettings(t *testing.T) {
 		`{"teams":{"hidden":["~"]}}`,
 		string(above),
 		`{"teams":{"defaults":{"model":"two words"}}}`,
+		`{"teams":{"defaults":{"model":"haiku"}}}`,
 		`{"teams":{"defaults":{"options":{"effort":""}}}}`,
 		`{"teams":{"defaults":{"options":{"a":"1","b":"1","c":"1","d":"1","e":"1","f":"1","g":"1","h":"1","i":"1"}}}}`,
 		`{"teams":{"defaults":{"approvals":"maybe"}}}`,

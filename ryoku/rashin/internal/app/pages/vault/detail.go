@@ -23,6 +23,7 @@ import (
 type detail struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
 	rise   look.Rise
 	recent recent
 
@@ -42,6 +43,7 @@ const (
 	itemForm detailItem = iota
 	itemTrust
 	itemUse
+	itemDetailColophon
 )
 
 func (d *detail) layout(gtx layout.Context, e *env.Env, p *Page, credential protocol.Credential) layout.Dimensions {
@@ -50,15 +52,17 @@ func (d *detail) layout(gtx layout.Context, e *env.Env, p *Page, credential prot
 	if !d.busy && d.stale(snapshot.Teams, credential) {
 		d.seed(credential)
 	}
-	items := []detailItem{itemForm, itemTrust, itemUse}
+	items := []detailItem{itemForm, itemTrust, itemUse, itemDetailColophon}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.layoutHeader(gtx, e, p, credential) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min = gtx.Constraints.Max
 			return d.rise.Layout(gtx, e.Theme, credential.ID, 8, func(gtx layout.Context) layout.Dimensions {
-				return d.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-					return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-						return d.layoutItem(gtx, e, snapshot, credential, items[index])
+				return d.sheet.Layout(gtx, e.Theme, look.PartPage(protocol.TabVault, 1, credential.Name, ""), func(gtx layout.Context) layout.Dimensions {
+					return d.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+						return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+							return d.layoutItem(gtx, e, snapshot, credential, items[index])
+						})
 					})
 				})
 			})
@@ -127,13 +131,15 @@ func (d *detail) layoutItem(gtx layout.Context, e *env.Env, snapshot state.Snaps
 	}
 	return layout.Inset{Top: top, Bottom: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		switch item {
+		case itemDetailColophon:
+			return d.sheet.Colophon(gtx, th, look.PartPage(protocol.TabVault, 1, credential.Name, ""))
 		case itemForm:
 			return d.layoutForm(gtx, e, snapshot.Teams, credential)
 		case itemTrust:
 			return d.layoutTrust(gtx, e, snapshot.Teams, credential)
 		default:
 			children := []layout.FlexChild{
-				layout.Rigid(look.SectionTitle(th, i18n.T("Its use"), 0)),
+				layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Its use"), Number: 2, Of: 2})),
 				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			}
 			if len(d.recent.events) == 0 {
@@ -292,7 +298,7 @@ func (d *detail) layoutTrust(gtx layout.Context, e *env.Env, teams []protocol.Te
 		d.trust = make(map[protocol.CredentialTrust]*kit.IconPlaque)
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(look.SectionTitle(th, i18n.T("Sent without asking"), len(credential.Trusted))),
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Sent without asking"), Number: 1, Of: 2, Count: len(credential.Trusted)})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 	}
 	if len(credential.Trusted) == 0 {

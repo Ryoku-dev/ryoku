@@ -18,31 +18,37 @@ const (
 	itemDay itemKind = iota
 	itemEntry
 	itemOlder
+	itemColophon
 )
 
 // one line of the page: a day's title, an entry, or the way to older ones
 type item struct {
-	kind  itemKind
-	day   string
-	count int
-	entry protocol.Activity
+	kind   itemKind
+	day    string
+	number int
+	entry  protocol.Activity
 }
 
 // the entries grouped by the day they happened, newest first
 func (p *Page) items(gtx layout.Context) []item {
 	var items []item
 	header := -1
+	number := 0
 	for _, entry := range p.ledger.entries {
 		day := dayTitle(gtx.Now, entry.Time)
 		if header < 0 || items[header].day != day {
 			header = len(items)
-			items = append(items, item{kind: itemDay, day: day})
+			number++
+			items = append(items, item{kind: itemDay, day: day, number: number})
 		}
-		items[header].count++
 		items = append(items, item{kind: itemEntry, entry: entry})
 	}
+	p.days = number
 	if p.ledger.more && len(items) > 0 {
 		items = append(items, item{kind: itemOlder})
+	}
+	if len(items) > 0 {
+		items = append(items, item{kind: itemColophon})
 	}
 	return items
 }
@@ -50,9 +56,13 @@ func (p *Page) items(gtx layout.Context) []item {
 func (p *Page) layoutItem(gtx layout.Context, e *env.Env, filter string, it item) layout.Dimensions {
 	th := e.Theme
 	switch it.kind {
+	case itemColophon:
+		return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return p.sheet.Colophon(gtx, th, p.Sheet(e))
+		})
 	case itemDay:
 		return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return kit.GroupHeader(th.Theme, it.day, it.count)(gtx)
+			return look.SectionHead(th, look.Head{Title: it.day, Number: it.number, Of: p.days})(gtx)
 		})
 	case itemOlder:
 		p.more.Kind, p.more.Small, p.more.Label, p.more.Busy = kit.PlaqueTonal, true, i18n.T("Load older"), p.ledger.loading

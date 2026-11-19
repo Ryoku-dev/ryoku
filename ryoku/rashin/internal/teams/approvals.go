@@ -18,11 +18,9 @@ import (
 const expirySweep = time.Hour
 
 // ask stores a pending approval with the exact action it would run, holds
-// the caller's task on the user, and tells the user. It waits the settings'
-// approval hours, except a spending limit card, whose no only keeps paused a
-// team that already is, a proposed team, which nothing runs without, a
-// restore notice, which asks nothing, and a dream's own question, which its
-// dream waits on: those wait until answered.
+// the caller's task on the user, and tells the user. Spending limits and
+// proposed teams wait until answered, as do a dream's own questions; other
+// approvals expire after the configured hours.
 func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action any) (protocol.Approval, error) {
 	var raw json.RawMessage
 	if action != nil {
@@ -46,7 +44,7 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 	hours := approvalHours(s.settings())
 	a.Expires = time.Time{}
 	_, dream := action.(dreamCard)
-	if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && a.Kind != protocol.ApprovalRestore && !dream {
+	if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && !dream {
 		a.Expires = now.Add(time.Duration(hours) * time.Hour)
 	}
 	a.Unwatched = s.nobodyWatching()
@@ -74,12 +72,9 @@ func (s *Service) ask(_ context.Context, c caller, a protocol.Approval, action a
 		}
 	}
 	title := i18n.Tf("%s needs you", team.Name)
-	switch a.Kind {
-	case protocol.ApprovalTeam:
+	if a.Kind == protocol.ApprovalTeam {
 		actor, initiator = s.proposer(a.Session)
 		title = i18n.T("A team is proposed")
-	case protocol.ApprovalRestore:
-		title = a.Title
 	}
 	waits := i18n.T("Waits for your answer.")
 	if !a.Expires.IsZero() {
@@ -228,8 +223,6 @@ func (s *Service) settleApproval(ctx context.Context, rec approvalRecord, p prot
 // choice's entry names the option itself, so its detail is the user's note.
 func approvalDetail(rec approvalRecord) string {
 	switch {
-	case rec.Kind == protocol.ApprovalRestore:
-		return i18n.T("Read.")
 	case rec.Status == protocol.ApprovalExpired:
 		_, detail := expiryWords(askedHours(rec))
 		return detail

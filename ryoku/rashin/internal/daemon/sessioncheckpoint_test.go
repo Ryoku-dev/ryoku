@@ -42,7 +42,7 @@ func checkpointManager(t *testing.T, work projectWork) *sessionManager {
 	settings := func() protocol.Settings {
 		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
 	}
-	return newSessionManager(nil, &fakeHarnesses{runner: answering("done")}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	return newSessionManager(nil, &fakeAgents{runner: answering("done")}, work, settings, func(string, any) {}, func() {}, func(string, ...any) {})
 }
 
 // A temporary agent conversation takes no turn checkpoint, so it has no

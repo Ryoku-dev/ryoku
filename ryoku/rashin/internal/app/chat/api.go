@@ -1,8 +1,9 @@
 // Package chat is the conversation surface of the Rashin app: the transcript
 // model reduced from session events, the transcript view (Markdown, code
-// blocks, tool calls, diffs, terminal output, plans, permission prompts, answer
-// actions) and the multi-line composer. It depends only on the protocol and the
-// Lithic library, so pages compose it without knowing how it draws.
+// blocks, tool calls, subagent boxes, diffs, terminal output, plans, requests
+// and questions, notices, answer actions) and the multi-line composer. It
+// depends only on the protocol and the Lithic library, so pages compose it
+// without knowing how it draws.
 //
 // This file is the seam the app shell codes against; the package owner
 // replaces the bodies.
@@ -185,7 +186,7 @@ func (m *Model) ModelChoice() protocol.ChoiceData {
 	return cloneChoiceData(m.state.model)
 }
 
-// ModeChoice returns the latest harness mode selection and available options.
+// ModeChoice returns the latest mode selection and available options.
 func (m *Model) ModeChoice() protocol.ChoiceData {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -195,8 +196,8 @@ func (m *Model) ModeChoice() protocol.ChoiceData {
 	return cloneChoiceData(m.state.mode)
 }
 
-// Options returns what the harness offers beside its model and mode. The
-// slice is the model's own: read it, do not change it.
+// Options returns what the session's model offers beside its model and mode.
+// The slice is the model's own: read it, do not change it.
 func (m *Model) Options() []protocol.SessionOption {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -217,7 +218,7 @@ func (m *Model) ChoiceRevision() uint64 {
 	return m.state.choices
 }
 
-// Commands returns the latest slash commands offered by the harness.
+// Commands returns the latest slash commands the session offers.
 func (m *Model) Commands() []protocol.Command {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -260,8 +261,8 @@ type View struct {
 	state *viewState
 }
 
-// Layout draws m and records the actions the user took this frame. Menus and
-// tooltips open through overlays.
+// Layout draws m and records the actions the user took this frame. Menus
+// open through overlays.
 func (v *View) Layout(gtx layout.Context, th *look.Theme, overlays *look.Overlays, m *Model) layout.Dimensions {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -274,8 +275,17 @@ func (v *View) Layout(gtx layout.Context, th *look.Theme, overlays *look.Overlay
 func (v *View) Actions() []Action { return v.ensureState().takeActions() }
 
 // AnswerKeys says which keys answer the request on screen from a composer
-// with nothing typed in it.
-type AnswerKeys struct{ Allow, Refuse bool }
+// with nothing typed in it. Hand View.Asking's value to the composer as it
+// is.
+type AnswerKeys struct {
+	Allow, Refuse bool
+	// Asked says a request is on screen at all, whatever answers it: a
+	// question takes no key, and still owns the view's gold.
+	Asked bool
+	// Plan says the request is a plan waiting to be built, so Enter starts
+	// building and Escape keeps planning.
+	Plan bool
+}
 
 // Asking reports which keys can answer the oldest request still open. It is
 // none while that request is not on screen: nobody consents to what they
@@ -300,6 +310,13 @@ func (v *View) Answer(m *Model, kind ActionKind, now time.Time) (Action, bool) {
 func (v *View) Scrolled() bool {
 	position := v.ensureState().scroller.Position
 	return position.First > 0 || position.Offset > 0
+}
+
+// Progress is how far through the transcript the reader is, from 0 to 1, and
+// below zero while all of it fits, for a running head's scroll marker.
+func (v *View) Progress() float32 {
+	state := v.ensureState()
+	return state.scroller.progress(len(state.visible) + 1)
 }
 
 // MemoryChanges lists the memory changes this transcript's lines show, so the
@@ -363,7 +380,7 @@ type ComposerOptions struct {
 	// History returns the prompts already sent here, oldest first. Up in an
 	// empty composer walks back through them. It is only called on that key.
 	History func() []string
-	// Commands returns the slash commands the harness offers. Typing a slash
+	// Commands returns the slash commands the session offers. Typing a slash
 	// lists them above the field. It is only called while a command is typed.
 	Commands func() []protocol.Command
 }
@@ -430,6 +447,9 @@ func (c *Composer) Draft() Draft {
 	state := c.ensureState()
 	return Draft{Text: state.editor.Text(), Attachments: append([]string(nil), state.images...)}
 }
+
+// HasText reports whether the composer has typed text without copying its draft or attachments.
+func (c *Composer) HasText() bool { return c.ensureState().editor.Len() != 0 }
 
 // SetDraft replaces what the composer holds, as when another conversation
 // opens with the draft it was left with.

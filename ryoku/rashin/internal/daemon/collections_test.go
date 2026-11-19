@@ -9,7 +9,7 @@ import (
 
 func TestTheiaSourceCannotBypassCollectionsGate(t *testing.T) {
 	isolateDaemon(t)
-	d := New(Deps{Asker: fakeAsker{runner: &fakeRunner{}}, Harnesses: &fakeHarnesses{runner: &fakeRunner{}}, Version: "test"})
+	d := New(Deps{Asker: fakeAsker{runner: &fakeRunner{}}, Agents: &fakeAgents{runner: &fakeRunner{}}, Version: "test"})
 	if d.feature("collections") {
 		t.Fatal("collections must start off")
 	}

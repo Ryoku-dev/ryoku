@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -14,29 +13,20 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-func TestLocalVisionCapabilitiesAreProbedAndCached(t *testing.T) {
-	for _, providerID := range protocol.LocalProviders {
+func TestLocalVisionAndToolsAreIndependent(t *testing.T) {
+	for _, providerID := range protocol.AddressedLocalProviders {
 		t.Run(providerID, func(t *testing.T) {
 			var probes atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
-				case "/v1/models":
-					_, _ = io.WriteString(w, `{"data":[{"id":"capture-model"}]}`)
+				case "/models", "/v1/models":
+					_, _ = io.WriteString(w, `{"data":[{"id":"capture-model","architecture":{"input_modalities":["text","image","audio"]},"meta":{"n_ctx":16384,"n_ctx_train":32768,"n_params":2000000000}}]}`)
 				case "/api/show":
-					var body struct {
-						Model string `json:"model"`
-					}
-					if r.Method != http.MethodPost || json.NewDecoder(r.Body).Decode(&body) != nil || body.Model != "capture-model" {
-						t.Errorf("bad Ollama probe: %s %#v", r.Method, body)
-					}
 					probes.Add(1)
-					_, _ = io.WriteString(w, `{"capabilities":["completion","vision"]}`)
+					_, _ = io.WriteString(w, `{"capabilities":["completion","vision","tools","audio"],"model_info":{"general.architecture":"lfm","lfm.context_length":32768,"general.parameter_count":2000000000},"parameters":"num_ctx 8192"}`)
 				case "/props":
-					if r.Method != http.MethodGet {
-						t.Errorf("bad llama.cpp probe: %s", r.Method)
-					}
 					probes.Add(1)
-					_, _ = io.WriteString(w, `{"modalities":{"vision":true}}`)
+					_, _ = io.WriteString(w, `{"default_generation_settings":{"n_ctx":12288},"chat_template_caps":{"supports_tool_calls":true},"modalities":{"vision":true,"audio":true}}`)
 				default:
 					http.NotFound(w, r)
 				}
@@ -45,8 +35,15 @@ func TestLocalVisionCapabilitiesAreProbedAndCached(t *testing.T) {
 			gateway := newTestGateway(t)
 			for range 2 {
 				running, models, _ := gateway.localModels(context.Background(), providerID, server.URL+"/v1", false)
-				if !running || len(models) != 1 || !models[0].Vision || models[0].Tools {
+				if !running || len(models) != 1 || !models[0].Vision || !models[0].Tools || !models[0].Audio || models[0].Params != 2e9 {
 					t.Fatalf("local models = %#v, running %v", models, running)
+				}
+				wantContext := 12288
+				if providerID == protocol.ProviderOllamaLocal {
+					wantContext = 8192
+				}
+				if models[0].Context != wantContext {
+					t.Fatalf("%s context = %d, want %d", providerID, models[0].Context, wantContext)
 				}
 			}
 			if probes.Load() != 1 {
@@ -56,17 +53,22 @@ func TestLocalVisionCapabilitiesAreProbedAndCached(t *testing.T) {
 	}
 }
 
-func TestLocalVisionProbeFailureDoesNotInventVision(t *testing.T) {
-	for _, response := range []string{`{`, `{"capabilities":["completion"]}`, `{"modalities":{"vision":false}}`} {
+func TestLlamaVisionProbeFailureDoesNotInventVision(t *testing.T) {
+	for _, response := range []string{`{`, `{"modalities":{"vision":false}}`} {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, _ = io.WriteString(w, response)
+			switch r.URL.Path {
+			case "/models":
+				_, _ = io.WriteString(w, `{"data":[{"id":"model"}]}`)
+			case "/props":
+				_, _ = io.WriteString(w, response)
+			default:
+				http.NotFound(w, r)
+			}
 		}))
 		gateway := newTestGateway(t)
-		for _, id := range protocol.LocalProviders {
-			vision, _ := gateway.localCapabilities(context.Background(), id, server.URL+"/v1", "model")
-			if vision {
-				t.Fatalf("%s invented vision from %q", id, response)
-			}
+		running, models, _ := gateway.localModels(context.Background(), protocol.ProviderLlamaCpp, server.URL+"/v1", false)
+		if !running || len(models) != 1 || models[0].Vision {
+			t.Fatalf("invented vision from %q: %#v", response, models)
 		}
 		server.Close()
 	}

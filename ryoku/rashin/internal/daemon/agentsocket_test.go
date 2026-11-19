@@ -49,16 +49,15 @@ func forbidden(err error) bool {
 	return errors.As(err, &refused) && refused.Code == protocol.CodeForbidden
 }
 
-func TestAnAgentSocketServesOnlyItsOwnSessionsTools(t *testing.T) {
+// A team session's own socket only reads the indexes its team may read: the
+// rashin command in its shell. Its team tools, goal and screen run in the
+// daemon and never come this way.
+func TestAnAgentSocketOnlyReadsIndexes(t *testing.T) {
 	isolateDaemon(t)
 	shortRuntime(t)
 	crew := &boundTeams{handled: make(chan string, 8)}
 	d := New(Deps{Teams: crew})
 	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.Home(), "Teams", "one"), Team: "team-1", TeamTask: "task-1", Member: "member-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	other, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,26 +87,16 @@ func TestAnAgentSocketServesOnlyItsOwnSessionsTools(t *testing.T) {
 	}
 	defer conn.Close()
 
-	var info protocol.SessionInfo
-	if err := conn.Call(ctx, protocol.MSessionGoal, protocol.GoalParams{ID: team.ID, Op: protocol.GoalGet}, &info); err != nil || info.ID != team.ID {
-		t.Fatalf("its own goal: %v, %+v", err, info)
-	}
-	if err := conn.Call(ctx, protocol.MTeamsAgentStatus, protocol.AgentRef{Session: team.ID, Token: "token"}, nil); err != nil {
-		t.Fatalf("a team tool: %v", err)
-	}
-	if method := <-crew.handled; method != protocol.MTeamsAgentStatus {
-		t.Fatalf("Teams heard %s", method)
-	}
 	for _, refused := range []struct {
 		method string
 		params any
 	}{
+		{protocol.MTeamsAgentStatus, protocol.AgentRef{Session: team.ID, Token: "token"}},
+		{protocol.MSessionGoal, protocol.GoalParams{ID: team.ID, Op: protocol.GoalGet}},
+		{protocol.MMemorySearch, protocol.MemorySearchParams{Query: "x"}},
 		{protocol.MVaultAdd, protocol.VaultAddParams{Name: "TOKEN", Value: "secret"}},
-		{protocol.MTeamsApprovalDecide, protocol.ApprovalDecideParams{ID: "approval-1", Decision: protocol.DecideAlways}},
-		{protocol.MSessionGoal, protocol.GoalParams{ID: other.ID, Op: protocol.GoalGet}},
 		{protocol.MSessionList, protocol.SessionListParams{}},
 		{protocol.MSessionPermission, protocol.PermissionParams{ID: team.ID, Request: "r", Option: "allow"}},
-		{protocol.MScreenAct, protocol.ScreenActParams{ID: team.ID, By: protocol.HolderUser}},
 		{protocol.MIndexAdd, protocol.IndexAddParams{Path: paths.Home()}},
 	} {
 		if err := conn.Call(ctx, refused.method, refused.params, nil); !forbidden(err) {
@@ -128,6 +117,73 @@ func TestAnAgentSocketServesOnlyItsOwnSessionsTools(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Dir(paths.AgentSocket(team.ID))); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the agent socket's dir is still there: %v", err)
+	}
+}
+
+// A team task's tools reach the daemon as that session: its team tools, its
+// own goal, and nothing that acts for the user or for another session.
+func TestATeamSessionsToolHostCallsOnlyItsOwnTools(t *testing.T) {
+	isolateDaemon(t)
+	crew := &boundTeams{handled: make(chan string, 8)}
+	d := New(Deps{Teams: crew})
+	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.Home(), "Teams", "one"), Team: "team-1", TeamTask: "task-1", Member: "member-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := d.ToolHost(team)
+	ctx := context.Background()
+	var info protocol.SessionInfo
+	if err := host.Call(ctx, protocol.MSessionGoal, protocol.GoalParams{ID: team.ID, Op: protocol.GoalGet}, &info); err != nil || info.ID != team.ID {
+		t.Fatalf("its own goal: %v, %+v", err, info)
+	}
+	if err := host.Call(ctx, protocol.MTeamsAgentStatus, protocol.AgentRef{Session: team.ID, Token: "token"}, nil); err != nil {
+		t.Fatalf("a team tool: %v", err)
+	}
+	if method := <-crew.handled; method != protocol.MTeamsAgentStatus {
+		t.Fatalf("Teams heard %s", method)
+	}
+	for _, refused := range []struct {
+		method string
+		params any
+	}{
+		{protocol.MVaultAdd, protocol.VaultAddParams{Name: "TOKEN", Value: "secret"}},
+		{protocol.MTeamsApprovalDecide, protocol.ApprovalDecideParams{ID: "approval-1", Decision: protocol.DecideAlways}},
+		{protocol.MSessionGoal, protocol.GoalParams{ID: other.ID, Op: protocol.GoalGet}},
+		{protocol.MSessionList, protocol.SessionListParams{}},
+		{protocol.MSessionPermission, protocol.PermissionParams{ID: team.ID, Request: "r", Option: "allow"}},
+		{protocol.MScreenAct, protocol.ScreenActParams{ID: team.ID, By: protocol.HolderUser}},
+		{protocol.MIndexAdd, protocol.IndexAddParams{Path: paths.Home()}},
+		{protocol.MSettingsSet, protocol.SettingsSetParams{Patch: json.RawMessage(`{"enabled":false}`)}},
+	} {
+		if err := host.Call(ctx, refused.method, refused.params, nil); !forbidden(err) {
+			t.Fatalf("%s from a team task's tools: %v, want forbidden", refused.method, err)
+		}
+	}
+	select {
+	case method := <-crew.handled:
+		t.Fatalf("a refused call reached Teams: %s", method)
+	default:
+	}
+
+	// another session's tools are no team's: never a team tool, never the
+	// app, never another session's goal
+	ordinary := d.ToolHost(other)
+	var own protocol.SessionInfo
+	if err := ordinary.Call(ctx, protocol.MSessionGoal, protocol.GoalParams{ID: other.ID, Op: protocol.GoalGet}, &own); err != nil || own.ID != other.ID {
+		t.Fatalf("ordinary session's own goal: %v, %+v", err, own)
+	}
+	if err := ordinary.Call(ctx, protocol.MTeamsAgentStatus, protocol.AgentRef{Session: team.ID, Token: "token"}, nil); !forbidden(err) {
+		t.Fatalf("a team tool from another session: %v, want forbidden", err)
+	}
+	if err := ordinary.Call(ctx, protocol.MSessionGoal, protocol.GoalParams{ID: team.ID, Op: protocol.GoalGet}, nil); !forbidden(err) {
+		t.Fatalf("a team session's goal from another session: %v, want forbidden", err)
+	}
+	if err := ordinary.Call(ctx, protocol.MModelsProbe, protocol.ModelProbeParams{Model: protocol.RouteAuto}, nil); !forbidden(err) {
+		t.Fatalf("an app-only call from a session's tools: %v, want forbidden", err)
 	}
 }
 

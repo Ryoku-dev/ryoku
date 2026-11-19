@@ -61,6 +61,12 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return p.state.layout(gtx, e)
 }
 
+// ListShown keeps the open project's views in the tree unless the sidebar is hidden.
+func (p *Page) ListShown(shown bool) { p.state.listShown = shown }
+
+// Sheet supplies the numbered view and project facts to the frame's masthead.
+func (p *Page) Sheet(e *env.Env) look.SheetPage { return p.state.sheetPage(e) }
+
 // New asks for a folder to add as a project.
 func (p *Page) New(e *env.Env) { p.state.add.ask(e) }
 

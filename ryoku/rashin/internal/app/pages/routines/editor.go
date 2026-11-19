@@ -25,6 +25,7 @@ type editor struct {
 
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
 
 	title         kit.TextField
 	brief         look.MultiLine
@@ -183,13 +184,21 @@ func (ed *editor) layout(gtx layout.Context, e *env.Env, page *Page, routine pro
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ed.layoutHeader(gtx, e, page, snapshot, routine) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			pageInfo := page.Sheet(e)
 			inset := look.ContentInset(e.Class)
-			return ed.scroll.Layout(gtx, th, 1, func(gtx layout.Context, _ int) layout.Dimensions {
-				return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return kit.DraftColumns(gtx, th.Theme,
-						func(gtx layout.Context) layout.Dimensions { return ed.layoutForm(gtx, e, snapshot, routine) },
-						func(gtx layout.Context) layout.Dimensions { return ed.aside.layout(gtx, e, ed, snapshot, routine) },
-					)
+			return ed.sheet.Layout(gtx, th, pageInfo, func(gtx layout.Context) layout.Dimensions {
+				return ed.scroll.Layout(gtx, th, 2, func(gtx layout.Context, index int) layout.Dimensions {
+					if index == 1 {
+						return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return ed.sheet.Colophon(gtx, th, pageInfo)
+						})
+					}
+					return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return kit.DraftColumns(gtx, th.Theme,
+							func(gtx layout.Context) layout.Dimensions { return ed.layoutForm(gtx, e, snapshot, routine) },
+							func(gtx layout.Context) layout.Dimensions { return ed.aside.layout(gtx, e, ed, snapshot, routine) },
+						)
+					})
 				})
 			})
 		}),

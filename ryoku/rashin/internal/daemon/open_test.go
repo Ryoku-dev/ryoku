@@ -10,7 +10,7 @@ import (
 // an agent session used to open as an empty ask.
 func TestAnOpenRequestForASessionNamesItsTab(t *testing.T) {
 	isolateDaemon(t)
-	d := New(Deps{Asker: fakeAsker{runner: &fakeRunner{}}, Harnesses: &fakeHarnesses{runner: &fakeRunner{}}, Version: "test"})
+	d := New(Deps{Asker: fakeAsker{runner: &fakeRunner{}}, Agents: &fakeAgents{runner: &fakeRunner{}}, Version: "test"})
 	ask, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAsk})
 	if err != nil {
 		t.Fatal(err)

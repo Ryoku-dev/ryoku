@@ -4,6 +4,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -53,7 +54,7 @@ func (ed *editor) layoutForm(gtx layout.Context, e *env.Env, snapshot state.Snap
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.runNow.Layout(gtx, th.Theme) })
 	}
 	if ed.problem != "" {
-		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Amber, ed.problem))
+		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Jasper, ed.problem))
 	}
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.layoutFoot(gtx, e, snapshot) })
 	children := make([]layout.FlexChild, 0, 2*len(rows))
@@ -193,7 +194,7 @@ func (ed *editor) layoutOn(gtx layout.Context, e *env.Env, snapshot state.Snapsh
 		return ed.enable.Layout(gtx, e, routine, i18n.T("On"))
 	}
 	if full && (ed.creating || !routine.Enabled) {
-		note = th.R.Amber
+		note = th.R.Stone(palette.Attention)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(toggle),

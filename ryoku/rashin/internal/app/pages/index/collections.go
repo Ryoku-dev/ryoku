@@ -15,23 +15,25 @@ import (
 )
 
 type collectionsPanel struct {
-	loaded, loading         bool
-	selected                string
-	list                    []protocol.Collection
-	items                   []protocol.CollectionItem
-	next                    string
-	total                   int
-	paging                  bool
-	more                    kit.Plaque
-	rows                    map[string]*collectionRow
-	header                  look.PaneHeader
-	scroll                  look.Scroller
-	chat, new, rename, back kit.Plaque
-	picker                  look.Select
-	dialog                  kit.Dialog
-	name                    kit.TextField
-	editing                 string
-	save, cancel            kit.Plaque
+	loaded, loading bool
+	selected        string
+	list            []protocol.Collection
+	items           []protocol.CollectionItem
+	next            string
+	total           int
+	paging          bool
+	more            kit.Plaque
+	rows            map[string]*collectionRow
+	header          look.PaneHeader
+	scroll          look.Scroller
+	reveal          look.Reveal
+	sheet           look.Sheet
+	chat            kit.Plaque
+	picker          look.Select
+	dialog          kit.Dialog
+	name            kit.TextField
+	editing         string
+	save, cancel    kit.Plaque
 }
 
 type collectionRow struct {
@@ -182,88 +184,29 @@ func (p *collectionsPanel) layout(gtx layout.Context, e *env.Env) layout.Dimensi
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-				labels, selected := make([]string, len(p.list)), 0
-				for i, item := range p.list {
-					labels[i] = item.Name
-					if item.ID == p.selected {
-						selected = i
-					}
-				}
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						if len(labels) == 0 {
-							return layout.Dimensions{}
-						}
-						d := look.Named(gtx, i18n.T("Choose collection"), func(gtx layout.Context) layout.Dimensions {
-							return p.picker.Layout(gtx, th, e.Overlays, labels, selected)
-						})
-						if at, changed := p.picker.Changed(); changed && at >= 0 && at < len(p.list) {
-							p.selected = p.list[at].ID
-							p.load(e)
-						}
-						return d
-					}),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						p.chat.Kind, p.chat.Label = kit.PlaqueGold, i18n.T("Chat with this collection")
-						p.new.Kind, p.new.Label = kit.PlaqueTonal, i18n.T("New collection")
-						p.rename.Kind, p.rename.Label = kit.PlaqueTonal, i18n.T("Rename")
-						p.back.Kind, p.back.Label = kit.PlaqueQuiet, i18n.T("Folders")
-						if p.new.Clicked(gtx) {
-							p.edit("", "")
-						}
-						if p.rename.Clicked(gtx) {
-							p.edit(p.selected, name)
-						}
-						if p.back.Clicked(gtx) {
-							p.selected = ""
-							e.Navigate(protocol.TabIndex, "")
-						}
-						if p.chat.Clicked(gtx) && len(p.items) > 0 && !p.chat.Busy {
-							p.chat.Busy = true
-							var result protocol.AskResult
-							e.Call(protocol.MCollectionsChat, protocol.CollectionChatParams{Collection: p.selected}, &result, func(err error) {
-								p.chat.Busy = false
-								if err != nil {
-									e.Notify(err.Error())
-									return
-								}
-								e.Attach(result.Session.ID, func(err error) {
-									if err != nil {
-										e.Notify(err.Error())
-										return
-									}
-									e.Navigate(protocol.TabAsk, result.Session.ID)
-								})
-							})
-						}
-						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								if len(p.items) == 0 {
-									gtx = gtx.Disabled()
-								}
-								return p.chat.Layout(gtx, th.Theme)
-							}),
-							layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{}.Layout(gtx, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.new.Layout(gtx, th.Theme) }), layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout), layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.rename.Layout(gtx, th.Theme) }), layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout), layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.back.Layout(gtx, th.Theme) }))
-							}),
-						)
-					}),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-				)
+				return p.controls(gtx, e, name)
 			})
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(p.items) == 0 {
-				return kit.Empty{Icon: look.Icon.Index, Title: i18n.T("Keep what matters"), Body: i18n.T("Save an answer or excerpt from Theia to find it here.")}.Layout(gtx, th.Theme)
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return kit.Empty{Icon: look.Icon.Index, Title: i18n.T("Keep what matters"), Body: i18n.T("Save an answer or excerpt from Theia to find it here.")}.Layout(gtx, th.Theme)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return p.sheet.Colophon(gtx, th, look.PageFor(protocol.TabIndex))
+					}),
+				)
 			}
-			count := len(p.items)
+			count := len(p.items) + 1
 			if p.next != "" {
 				count++
 			}
 			return p.scroll.Layout(gtx, th, count, func(gtx layout.Context, index int) layout.Dimensions {
 				return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+					if index == count-1 {
+						return p.sheet.Colophon(gtx, th, look.PageFor(protocol.TabIndex))
+					}
 					if index == len(p.items) {
 						p.more.Kind, p.more.Label, p.more.Busy = kit.PlaqueTonal, i18n.Tf("Load more, %d of %d items shown", len(p.items), p.total), p.paging
 						if p.more.Clicked(gtx) {
@@ -274,6 +217,88 @@ func (p *collectionsPanel) layout(gtx layout.Context, e *env.Env) layout.Dimensi
 					return p.item(gtx, e, p.items[index])
 				})
 			})
+		}),
+	)
+}
+
+func (p *collectionsPanel) controls(gtx layout.Context, e *env.Env, name string) layout.Dimensions {
+	th := e.Theme
+	labels, selected := make([]string, len(p.list)), 0
+	for i, item := range p.list {
+		labels[i] = item.Name
+		if item.ID == p.selected {
+			selected = i
+		}
+	}
+	p.chat.Kind, p.chat.Label = kit.PlaqueGold, i18n.T("Chat with this collection")
+	if p.chat.Clicked(gtx) && len(p.items) > 0 && !p.chat.Busy {
+		p.chat.Busy = true
+		var result protocol.AskResult
+		e.Call(protocol.MCollectionsChat, protocol.CollectionChatParams{Collection: p.selected}, &result, func(err error) {
+			p.chat.Busy = false
+			if err != nil {
+				e.Notify(err.Error())
+				return
+			}
+			e.Attach(result.Session.ID, func(err error) {
+				if err != nil {
+					e.Notify(err.Error())
+					return
+				}
+				e.Navigate(protocol.TabAsk, result.Session.ID)
+			})
+		})
+	}
+	selectRow := look.Setting{
+		Title: i18n.T("Collection"), Detail: i18n.T("Choose the items you want to find or ask about."),
+		Control: func(gtx layout.Context) layout.Dimensions {
+			return look.Named(gtx, i18n.T("Choose collection"), func(gtx layout.Context) layout.Dimensions {
+				return p.picker.Layout(gtx, th, e.Overlays, labels, selected)
+			})
+		},
+	}
+	chatRow := look.Setting{
+		Title: i18n.T("Ask about these items"), Detail: i18n.T("Start a conversation with this collection as context."),
+		Control: func(gtx layout.Context) layout.Dimensions {
+			if len(p.items) == 0 {
+				gtx = gtx.Disabled()
+			}
+			return p.chat.Layout(gtx, th.Theme)
+		},
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return look.SpecStrip(gtx, th, []look.Spec{
+					{Label: i18n.T("Collections"), Value: kit.Pad2(len(p.list))},
+					{Label: i18n.T("Items"), Value: kit.Pad2(p.total)},
+				})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.reveal.Group(gtx, th, 0, func(gtx layout.Context) layout.Dimensions {
+				return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Saved items"), Number: 1, Of: 2}, []look.Setting{selectRow, chatRow})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.reveal.Group(gtx, th, 1, func(gtx layout.Context) layout.Dimensions {
+				return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Organize"), Number: 2, Of: 2}, []look.Setting{
+					{Title: i18n.T("New collection"), Detail: i18n.T("Make a new place to keep related items."), Activate: func() { p.edit("", "") }},
+					{Title: i18n.T("Rename"), Detail: i18n.T("Change this collection's name."), Activate: func() { p.edit(p.selected, name) }},
+					{Title: i18n.T("Folders"), Detail: i18n.T("Return to indexed folders."), Activate: func() {
+						p.selected = ""
+						e.Navigate(protocol.TabIndex, "")
+					}},
+				})
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if at, changed := p.picker.Changed(); changed && at >= 0 && at < len(p.list) {
+				p.selected = p.list[at].ID
+				p.load(e)
+				e.Navigate(protocol.TabIndex, "collections/"+p.selected)
+			}
+			return layout.Dimensions{}
 		}),
 	)
 }

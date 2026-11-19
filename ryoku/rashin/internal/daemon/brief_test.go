@@ -21,8 +21,8 @@ func repository(t *testing.T, parts ...string) string {
 	return root
 }
 
-// Starting an agent session is what gets its folder indexed and what hands
-// the agent its brief, so the search the brief names is there when it looks.
+// The session's brief names its folder and index while indexing starts in
+// the background; no agent process is needed at creation.
 func TestAnAgentSessionIsBriefedAndItsFolderIndexed(t *testing.T) {
 	isolateDaemon(t)
 	root := repository(t, "Work", "app")
@@ -30,24 +30,21 @@ func TestAnAgentSessionIsBriefedAndItsFolderIndexed(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	harnesses := &fakeHarnesses{runner: &fakeRunner{}}
+	agents := &fakeAgents{runner: &fakeRunner{}}
 	indexer := &fakeIndexer{indexes: []protocol.IndexInfo{
 		{ID: protocol.IndexSystem, Root: "/"},
 		{ID: "a1", Name: "app", Root: root, Files: 37},
 	}}
-	d := New(Deps{Harnesses: harnesses, Indexer: indexer, Version: "test"})
-	info, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: nested})
+	d := New(Deps{Agents: agents, Indexer: indexer, Version: "test"})
+	info, err := d.manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: nested})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.manager.start(context.Background(), info.ID); err != nil {
-		t.Fatal(err)
-	}
-	if harnesses.opts.Brief == nil {
+	if agents.opts.Brief == nil {
 		t.Fatal("the agent was started with no brief")
 	}
-	text := harnesses.opts.Brief()
-	for _, want := range []string{"- Folder: " + nested, "an index of " + root + " (37 files)", "rashin search", "Rashin is Ryoku's optional assistant"} {
+	text := agents.opts.Brief()
+	for _, want := range []string{"- Folder: " + nested, "an index of " + root + " (37 files)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the brief does not say %q", want)
 		}
@@ -66,29 +63,26 @@ func TestAnAgentSessionIsBriefedAndItsFolderIndexed(t *testing.T) {
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
-	if got, _ := d.manager.Info(info.ID); !got.Alive {
-		t.Fatal("starting the session did not bring its agent up")
+	if got, _ := d.manager.Info(info.ID); got.State != protocol.StateStopped {
+		t.Fatal("a new agent session started running before its first prompt")
 	}
 }
 
-// The home directory is never indexed, so a session there is told about
-// Rashin and the vault but offered no search, and nothing is registered.
+// The home directory is never indexed, so a session there has no index in
+// its brief and nothing is registered.
 func TestASessionInTheHomeFolderIsNotIndexed(t *testing.T) {
 	isolateDaemon(t)
 	if err := os.MkdirAll(filepath.Join(paths.Home(), ".git"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	harnesses := &fakeHarnesses{runner: &fakeRunner{}}
+	agents := &fakeAgents{runner: &fakeRunner{}}
 	indexer := &fakeIndexer{}
-	d := New(Deps{Harnesses: harnesses, Indexer: indexer, Version: "test"})
-	info, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
+	d := New(Deps{Agents: agents, Indexer: indexer, Version: "test"})
+	_, err := d.manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.manager.start(context.Background(), info.ID); err != nil {
-		t.Fatal(err)
-	}
-	if text := harnesses.opts.Brief(); strings.Contains(text, "Code search\n") {
+	if text := agents.opts.Brief(); strings.Contains(text, "- Code index:") {
 		t.Error("a session in the home folder was offered a code search")
 	}
 	time.Sleep(30 * time.Millisecond)
@@ -104,16 +98,13 @@ func TestASessionInTheHomeFolderIsNotIndexed(t *testing.T) {
 func TestARepositoryNotYetIndexedIsStillOfferedForSearch(t *testing.T) {
 	isolateDaemon(t)
 	root := repository(t, "Work", "fresh")
-	harnesses := &fakeHarnesses{runner: &fakeRunner{}}
-	d := New(Deps{Harnesses: harnesses, Indexer: &fakeIndexer{}, Version: "test"})
-	info, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: root})
+	agents := &fakeAgents{runner: &fakeRunner{}}
+	d := New(Deps{Agents: agents, Indexer: &fakeIndexer{}, Version: "test"})
+	_, err := d.manager.newSession(context.Background(), protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: root})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.manager.start(context.Background(), info.ID); err != nil {
-		t.Fatal(err)
-	}
-	if text := harnesses.opts.Brief(); !strings.Contains(text, "an index of "+root+",") && !strings.Contains(text, "an index of "+root+" with") {
+	if text := agents.opts.Brief(); !strings.Contains(text, "an index of "+root+",") && !strings.Contains(text, "an index of "+root+" (") {
 		t.Errorf("the brief reads: %s", text)
 	}
 }

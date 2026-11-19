@@ -27,7 +27,7 @@ func TestDreamStartRejectsAnUnknownOrMissingPreset(t *testing.T) {
 }
 
 func TestResearchDraftRouteRoundTripsWithoutStartingTheDream(t *testing.T) {
-	draft := &protocol.DreamCreateParams{Statement: "Compare /proc values? Include charge & health.", Preset: "research", Name: "Battery #1", Folder: "/tmp/battery report", Harness: "fake", Model: "research/model", MonthTokens: 100000}
+	draft := &protocol.DreamCreateParams{Statement: "Compare /proc values? Include charge & health.", Preset: "research", Name: "Battery #1", Folder: "/tmp/battery report", Model: "research/model", MonthTokens: 100000}
 	route := teamsRoute(protocol.UIOpenParams{Tab: protocol.TabDreams, Team: "new", DreamDraft: draft})
 	var opened protocol.UIOpenParams
 	if err := parseTeamsRoute(route, &opened); err != nil {

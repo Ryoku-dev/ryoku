@@ -2,21 +2,17 @@ package hindsight
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/childproc"
 	"ryoku-rashin/internal/memory/backend"
 	"ryoku-rashin/internal/protocol"
 )
@@ -205,11 +201,11 @@ func (p *Process) start(ctx context.Context, r *running, offline bool, wait time
 			return err
 		}
 	}
-	port, err := freePort()
+	port, err := childproc.FreePort()
 	if err != nil {
 		return err
 	}
-	dbPort, err := freePort()
+	dbPort, err := childproc.FreePort()
 	if err != nil {
 		return err
 	}
@@ -237,8 +233,8 @@ func (p *Process) start(ctx context.Context, r *running, offline bool, wait time
 	// a private 0700 folder, because Hindsight reads a .env from where it runs
 	cmd.Dir = layout.run()
 	cmd.Stdout, cmd.Stderr = log, log
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
-	if err := launchLocked(cmd, r.exited); err != nil {
+	cmd.SysProcAttr = childproc.Attr()
+	if err := childproc.LaunchLocked(cmd, r.exited); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("Hindsight did not start"), err)
 	}
 	r.cmd, r.models, r.log = cmd, models, log
@@ -251,54 +247,17 @@ func (p *Process) start(ctx context.Context, r *running, offline bool, wait time
 	return nil
 }
 
-// launchLocked starts cmd from a goroutine that keeps its OS thread until the
-// child exits: Pdeathsig follows the thread that started the child, not the
-// process, so the child must not outlive that thread by accident.
-func launchLocked(cmd *exec.Cmd, exited chan struct{}) error {
-	started := make(chan error, 1)
-	go func() {
-		runtime.LockOSThread()
-		if err := cmd.Start(); err != nil {
-			started <- err
-			return
-		}
-		started <- nil
-		_ = cmd.Wait()
-		close(exited)
-	}()
-	return <-started
-}
-
 // waitHealthy polls /health until it answers 200, the child exits, the start
 // is cancelled or wait passes.
 func waitHealthy(ctx context.Context, r *running, wait time.Duration) error {
-	deadline := time.NewTimer(wait)
-	defer deadline.Stop()
-	tick := time.NewTicker(healthPeriod)
-	defer tick.Stop()
-	client := &http.Client{Timeout: 2 * time.Second}
-	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.base+"/health", nil)
-		if err != nil {
-			return err
-		}
-		req.Header.Set("Authorization", "Bearer "+r.key)
-		if resp, err := client.Do(req); err == nil {
-			_ = resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return nil
-			}
-		}
-		select {
-		case <-tick.C:
-		case <-r.exited:
-			return errors.New(i18n.Tf("Hindsight stopped while starting. Its log is %s.", r.log.Name()))
-		case <-deadline.C:
-			return errors.New(i18n.Tf("Hindsight did not answer within %s. Its log is %s.", wait, r.log.Name()))
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	err := childproc.WaitHealthy(ctx, childproc.Health{URL: r.base + "/health", Bearer: r.key, Exited: r.exited, Wait: wait, Period: healthPeriod})
+	switch {
+	case errors.Is(err, childproc.ErrExited):
+		return errors.New(i18n.Tf("Hindsight stopped while starting. Its log is %s.", r.log.Name()))
+	case errors.Is(err, childproc.ErrTimeout):
+		return errors.New(i18n.Tf("Hindsight did not answer within %s. Its log is %s.", wait, r.log.Name()))
 	}
+	return err
 }
 
 // secrets reads the API key and database password from the vault.
@@ -332,15 +291,8 @@ func (p *Process) Stop() {
 
 // terminate stops one started child and what serves it.
 func (p *Process) terminate(r *running) {
-	if r.cmd != nil && r.cmd.Process != nil {
-		group := -r.cmd.Process.Pid
-		_ = syscall.Kill(group, syscall.SIGTERM)
-		select {
-		case <-r.exited:
-		case <-time.After(p.stopWait):
-			_ = syscall.Kill(group, syscall.SIGKILL)
-			<-r.exited
-		}
+	if r.cmd != nil {
+		childproc.Terminate(r.cmd, r.exited, p.stopWait)
 	}
 	if r.models != nil {
 		r.models.close()
@@ -366,21 +318,5 @@ func (p *Process) reap() {
 	_ = cmd.Run()
 }
 
-// freePort asks the kernel for a loopback port nothing holds.
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-// newSecret is 256 random bits in hex, safe in a URL and an environment.
-func newSecret() (string, error) {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(raw), nil
-}
+// newSecret is setup.go's name for a fresh secret.
+func newSecret() (string, error) { return childproc.NewSecret() }

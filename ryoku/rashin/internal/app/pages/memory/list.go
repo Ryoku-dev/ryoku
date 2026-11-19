@@ -8,6 +8,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -223,6 +224,9 @@ func (p *Page) listItems(e *env.Env, status protocol.MemoryStatus) ([]layout.Wid
 			})
 		}
 		for _, memory := range group.memories {
+			if p.editor.IsOpen() && p.place.ID != "" && p.place.ID == memory.ID {
+				continue
+			}
 			if p.editor.IsOpen() && p.editor.ID() == memory.ID {
 				editing = len(items)
 			}
@@ -234,7 +238,7 @@ func (p *Page) listItems(e *env.Env, status protocol.MemoryStatus) ([]layout.Wid
 
 func (p *Page) rowItem(e *env.Env, status protocol.MemoryStatus, memory protocol.Memory, showScope bool, order []string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Bottom: tokens.SizeRowListGap}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if p.editor.IsOpen() && p.editor.ID() == memory.ID {
 				return layout.Inset{Top: e.Theme.Sp.S2, Bottom: e.Theme.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return p.editor.Layout(gtx, e, status.Scopes, status.Caps)
@@ -263,7 +267,7 @@ func (p *Page) rowItem(e *env.Env, status protocol.MemoryStatus, memory protocol
 	}
 }
 
-// Up and Down carry the selection fill and the keyboard to the next row
+// Up and Down carry the selection wash and the keyboard to the next row
 func (p *Page) step(order []string, from string, by int) {
 	for index, id := range order {
 		if id == from {
@@ -276,7 +280,7 @@ func (p *Page) step(order []string, from string, by int) {
 
 // a scope's header: its name and count, and a menu that forgets the whole scope
 type groupHeader struct {
-	more look.IconAction
+	more kit.IconPlaque
 	menu kit.Menu
 }
 
@@ -286,7 +290,8 @@ func (h *groupHeader) layout(gtx layout.Context, e *env.Env, group group, forget
 	items := []kit.MenuItem{{Icon: look.Icon.Delete, Label: i18n.Tf("Forget everything about %s", group.title), Danger: true}}
 	if h.more.Clicked(gtx) {
 		scope := group.scope
-		anchor := e.Overlays.AnchorOf(&h.more.Click.Clickable, image.Pt(gtx.Dp(28), gtx.Dp(28)))
+		side := gtx.Dp(tokens.SizeIconPlaqueSmall)
+		anchor := e.Overlays.AnchorOf(&h.more.Click.Clickable, image.Pt(side, side))
 		e.Overlays.Open(tag, anchor, look.Placement{}, func(gtx layout.Context) layout.Dimensions {
 			dimensions := h.menu.Layout(gtx, th.Theme, items)
 			if _, ok := h.menu.Clicked(gtx); ok {
@@ -296,10 +301,11 @@ func (h *groupHeader) layout(gtx layout.Context, e *env.Env, group group, forget
 			return dimensions
 		})
 	}
+	h.more.Kind, h.more.Small = kit.PlaqueQuiet, true
 	h.more.Icon, h.more.Description = look.Icon.More, i18n.Tf("More for %s", group.title)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(1, kit.GroupHeader(th.Theme, group.title, len(group.memories))),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return h.more.Layout(gtx, th, th.R.Fg2) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return h.more.Layout(gtx, th.Theme) }),
 	)
 }

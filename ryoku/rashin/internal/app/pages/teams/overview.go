@@ -18,16 +18,15 @@ import (
 const overviewRows = 5
 
 type overview struct {
-	scroll  look.Scroller
-	edit    kit.IconPlaque
-	editTip look.Tip
-	read    kit.Plaque
-	tasks   linkRows
-	coming  map[string]*kit.Click
-	crew    teamsui.CrewLive
-	steps   nextSteps
-	files   teamFiles
-	memory  memorySection
+	scroll look.Scroller
+	edit   kit.IconPlaque
+	read   kit.Plaque
+	tasks  linkRows
+	coming map[string]*kit.Click
+	crew   teamsui.CrewLive
+	steps  nextSteps
+	files  teamFiles
+	memory memorySection
 
 	activity    load
 	entries     []protocol.Activity
@@ -98,11 +97,9 @@ func (o *overview) purpose(gtx layout.Context, e *env.Env, team protocol.Team) l
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Purpose"))),
+					layout.Flexed(1, look.SectionHead(th, look.Head{Title: i18n.T("Purpose")})),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return o.editTip.Layout(gtx, th, e.Overlays, o.edit.Description, func(gtx layout.Context) layout.Dimensions {
-							return o.edit.Layout(gtx, th.Theme)
-						})
+						return o.edit.Layout(gtx, th.Theme)
 					}),
 				)
 			}),

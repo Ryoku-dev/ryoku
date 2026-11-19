@@ -1,10 +1,13 @@
 package teams
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -21,6 +24,16 @@ func TestPruningDeletesOldFinishedTasksWithTheirSessions(t *testing.T) {
 	h := newHarnessWith(t, func(s *protocol.Settings) { s.Teams.KeepDays = 30 })
 	team := h.newTeam(t, "Archive", nil)
 	old, oldSession := finishedTask(t, h, team, "Long ago.")
+	home := filepath.Join(paths.ToolHome(team.ID, old.ID), "go", "pkg", "mod", "x@v1")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "a.go"), []byte("package x"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(home, 0o555); err != nil {
+		t.Fatal(err)
+	}
 	h.clock.advance(31 * 24 * time.Hour)
 	recent, recentSession := finishedTask(t, h, team, "Lately.")
 	going := h.newTask(t, team, "Still going.")
@@ -29,6 +42,9 @@ func TestPruningDeletesOldFinishedTasksWithTheirSessions(t *testing.T) {
 	do[protocol.Empty](t, h, protocol.MTeamsPrune, protocol.TeamPruneParams{Team: team.ID})
 	if _, kept := h.s.state.task(old.ID); kept {
 		t.Fatal("a task finished past the kept days is still kept")
+	}
+	if _, err := os.Stat(paths.ToolHome(team.ID, old.ID)); !os.IsNotExist(err) {
+		t.Fatalf("pruned task left scratch home: %v", err)
 	}
 	if _, kept := h.s.state.task(recent.ID); !kept {
 		t.Fatal("a task finished within the kept days was deleted")

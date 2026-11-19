@@ -30,6 +30,8 @@ func newLocalServer(t *testing.T) *localServer {
 		case "/v1/models":
 			server.listed.Add(1)
 			_, _ = io.WriteString(w, `{"object":"list","data":[{"id":"llama3.2:latest","object":"model"},{"id":"nomic-embed-text:latest","object":"model"}]}`)
+		case "/api/show":
+			_, _ = io.WriteString(w, `{"capabilities":["completion","tools"],"details":{"parameter_size":"3B"},"model_info":{"general.architecture":"llama","llama.context_length":32768},"parameters":"num_ctx 8192"}`)
 		case "/v1/chat/completions":
 			server.chats.Add(1)
 			var body struct {
@@ -67,8 +69,8 @@ func answer(t *testing.T, gateway *Gateway, request llm.Request) (string, llm.Fi
 }
 
 // A running Ollama is found through /v1/models, its chat models are routed
-// with tools and ahead of the catalogue under Auto, and a llama.cpp that is
-// not running reads as such without an error and is never routed.
+// with tools ahead of the catalogue under every automatic route, and a
+// stopped llama.cpp is not routed.
 func TestALocalServerIsFoundAndAutoPrefersIt(t *testing.T) {
 	server := newLocalServer(t)
 	gateway := newLocalTestGateway(t, map[string]string{protocol.ProviderOllamaLocal: server.URL + "/v1", protocol.ProviderLlamaCpp: "http://127.0.0.1:1/v1"})
@@ -84,10 +86,10 @@ func TestALocalServerIsFoundAndAutoPrefersIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 3 || providers[0].ID != protocol.ProviderOllamaLocal || providers[1].ID != protocol.ProviderLlamaCpp {
+	if len(providers) != 4 || providers[0].ID != protocol.ProviderRashinModels || providers[1].ID != protocol.ProviderLlamaCpp || providers[2].ID != protocol.ProviderOllamaLocal {
 		t.Fatalf("providers = %#v", providers)
 	}
-	ollama, llamacpp := providers[0], providers[1]
+	ollama, llamacpp := providers[2], providers[1]
 	if !ollama.Local || !ollama.Running || ollama.Tier != protocol.TierLocal || !ollama.Keyless || ollama.Models != 1 || ollama.Available != 1 || ollama.Address != server.URL+"/v1" {
 		t.Fatalf("ollama = %#v", ollama)
 	}
@@ -114,10 +116,12 @@ func TestALocalServerIsFoundAndAutoPrefersIt(t *testing.T) {
 	if text != "llama3.2:latest" || final.Provider != protocol.ProviderOllamaLocal || catalogue.Load() != 0 {
 		t.Fatalf("auto answered %q from %#v, catalogue asked %d times", text, final, catalogue.Load())
 	}
-	smart := question()
-	smart.Model = protocol.RouteSmart
-	if text, _ := answer(t, gateway, smart); text != "catalogue" {
-		t.Fatalf("smart answered %q, want the catalogue's best", text)
+	for _, route := range []string{protocol.RouteFast, protocol.RouteSmart} {
+		routed := question()
+		routed.Model = route
+		if text, _ := answer(t, gateway, routed); text != "llama3.2:latest" {
+			t.Fatalf("%s answered %q instead of the local model", route, text)
+		}
 	}
 	result, err := gateway.Test(context.Background(), protocol.ProviderLlamaCpp)
 	if err != nil || result.OK || result.Message == "" {
@@ -165,7 +169,7 @@ func TestALocalServerIsAskedAgainOnlyWhenItsAnswerIsOld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if providers[0].Running {
+	if providers[2].Running {
 		t.Fatal("a stopped server still reads as running")
 	}
 	select {
@@ -193,8 +197,8 @@ func TestALocalProviderOffTheNetworkIsNeverReached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if providers[0].Running || time.Since(started) > time.Second {
-		t.Fatalf("a public address was reached: %#v after %s", providers[0], time.Since(started))
+	if providers[2].Running || time.Since(started) > time.Second {
+		t.Fatalf("a public address was reached: %#v after %s", providers[2], time.Since(started))
 	}
 }
 

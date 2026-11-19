@@ -199,7 +199,7 @@ func (v *viewState) drawSelection(gtx layout.Context, th *look.Theme, size image
 	rect := v.slab.Rect(gtx, v.entries[index].id(), target, th.Motion.Select)
 	area := clip.Rect(image.Rectangle{Max: size}).Push(gtx.Ops)
 	cut := gtx.Dp(th.Cut.Small)
-	kit.FillCut(gtx.Ops, rect, cut, th.R.Sel)
+	kit.Fill(gtx, th.Theme, rect, cut, th.R.Select())
 	area.Pop()
 }
 

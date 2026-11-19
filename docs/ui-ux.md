@@ -291,13 +291,12 @@ library's `Confirm`). Info buttons open a `stone4` popover cut 8. The Hub has no
 tooltips; the tree's peek is its hover explanation. Escape closes the topmost
 thing only.
 
-**Apps shaped around a list of resources.** Rashin, an app with fleets of
-agents, tasks and worktrees, uses parts the Hub does not: the **tablet** (a
-resource row, `ryoku/rashin/internal/app/pages/projects/overview.go`), the
-**notch** and **flake** that carry a row's state beside its word
-(`teamsui/notched.go`, `chat/answer.go`), **tabs** between views
-(`pages/teams/page.go`) and a **skeleton** while loading (`look/states.go`).
-They follow the same roles, cuts, type and motion.
+**Apps shaped around a list of resources.** Rashin uses the Hub's selected
+row wash for its current destination and tablets, `ToneMark` for state on
+a plane, Flake beside a state word, tabs between views and a skeleton
+while loading (`ryoku/rashin/internal/app/look`, `internal/app/chat`).
+Its 十 seal identifies Rashin without using Ryoku's logo as app chrome.
+It follows the desktop's four styles and palette live.
 
 ## Motion
 

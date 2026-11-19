@@ -19,17 +19,17 @@ func (d *draft) layoutForm(gtx layout.Context, e *env.Env, p *Page) layout.Dimen
 		return look.SkeletonRows(gtx, th, 6, true)
 	}
 	d.handleMembers(gtx)
-	parts := []layout.Widget{
-		section(th, i18n.T("Start from"), func(gtx layout.Context) layout.Dimensions {
+	columns := ruled(th, &p.reveal, []part{
+		{title: i18n.T("Start from"), body: func(gtx layout.Context) layout.Dimensions {
 			return d.starts.layoutPick(gtx, e, p.templates.List(e), d.template, func(template protocol.TeamTemplate) { d.apply(e, template) })
-		}),
-		section(th, i18n.T("The team"), d.layoutIdentity(e)),
-		section(th, i18n.T("Lead"), d.layoutMember(e, d.members[0], false)),
-		section(th, i18n.T("Members"), d.layoutMembers(e)),
-		section(th, i18n.T("Tools"), d.layoutTools(th)),
-		section(th, i18n.T("Permissions and spending"), d.layoutLimits(e)),
-		d.layoutMore(gtx, e),
-	}
+		}},
+		{title: i18n.T("The team"), body: d.layoutIdentity(e)},
+		{title: i18n.T("Lead"), body: d.layoutMember(e, d.members[0], false)},
+		{title: i18n.T("Members"), body: d.layoutMembers(e)},
+		{title: i18n.T("Tools"), body: d.layoutTools(th)},
+		{title: i18n.T("Permissions and spending"), body: d.layoutLimits(e)},
+	})
+	parts := append(columns[0], d.layoutMore(gtx, e))
 	if d.problem != "" {
 		parts = append(parts, look.Paragraph(th, th.T.Body, th.R.Jasper, d.problem))
 	}
@@ -104,16 +104,14 @@ func (d *draft) layoutMember(e *env.Env, row *draftMember, removable bool) layou
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return row.tip.Layout(gtx, th, e.Overlays, row.remove.Description, func(gtx layout.Context) layout.Dimensions {
-						return row.remove.Layout(gtx, th.Theme)
-					})
+					return row.remove.Layout(gtx, th.Theme)
 				})
 			}),
 		)
 	}
 }
 
-// the engine reads as one line until it is opened, as most members keep the teams default
+// a member's model reads as one line until opened; a model inherited from Teams needs no extra controls
 func (d *draft) layoutEngine(e *env.Env, row *draftMember) layout.Widget {
 	th := e.Theme
 	return func(gtx layout.Context) layout.Dimensions {
@@ -129,9 +127,9 @@ func (d *draft) layoutEngine(e *env.Env, row *draftMember) layout.Widget {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return row.engineClick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(look.IconWidget(arrow, 20, th.R.Fg2)),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.chevron.Layout(gtx, th, arrow, th.R.Fg2, 20) }),
 						layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-						layout.Flexed(1, look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("Engine: %s", line))),
+						layout.Flexed(1, look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("Model: %s", line))),
 					)
 				})
 			}),

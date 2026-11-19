@@ -119,7 +119,7 @@ type MemorySettings struct {
 	Learn bool `json:"learn"`
 	// Sessions lets Ask and agents search past conversations.
 	Sessions bool `json:"sessions"`
-	// Agents gives harness sessions the card and the memory tools.
+	// Agents gives Agent sessions the card and the memory tools.
 	Agents bool `json:"agents"`
 	// TeamSuggestions is TeamSuggestAsk or TeamSuggestNever.
 	TeamSuggestions string `json:"teamSuggestions"`

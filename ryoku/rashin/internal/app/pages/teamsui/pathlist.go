@@ -10,6 +10,7 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/protocol"
 )
 
 // paths a sandbox adds or hides, one row each with its own remove, and a field that adds one; the caller saves what Changed reports
@@ -20,14 +21,9 @@ type PathList struct {
 
 	field   env.PathField
 	add     kit.Plaque
-	removes map[string]*pathRemove
+	removes map[string]*kit.IconPlaque
 	next    []string
 	changed bool
-}
-
-type pathRemove struct {
-	plaque kit.IconPlaque
-	tip    look.Tip
 }
 
 // the whole list after the add or remove made since it was last asked
@@ -40,18 +36,25 @@ func (l *PathList) Changed() ([]string, bool) {
 func (l *PathList) Layout(gtx layout.Context, e *env.Env, list []string) layout.Dimensions {
 	th := e.Theme
 	if l.removes == nil {
-		l.removes = make(map[string]*pathRemove)
+		l.removes = make(map[string]*kit.IconPlaque)
+	}
+	// a path taken off the list lets its control go
+	for path := range l.removes {
+		if !slices.Contains(list, path) {
+			delete(l.removes, path)
+		}
 	}
 	children := make([]layout.FlexChild, 0, len(list)+1)
 	for _, path := range list {
-		row := l.removes[path]
-		if row == nil {
-			row = new(pathRemove)
-			l.removes[path] = row
+		remove := l.removes[path]
+		if remove == nil {
+			remove = new(kit.IconPlaque)
+			l.removes[path] = remove
 		}
-		row.plaque.Kind, row.plaque.Small, row.plaque.Icon = kit.PlaqueQuiet, true, look.Icon.Close
-		row.plaque.Description = i18n.Tf("Take %s off the list", path)
-		if row.plaque.Clicked(gtx) {
+		// the cross at the end of a path needs no word beside it; a screen reader hears which path it takes off
+		remove.Kind, remove.Small, remove.Icon = kit.PlaqueQuiet, true, look.Icon.Close
+		remove.Description = i18n.Tf("Take %s off the list", path)
+		if remove.Clicked(gtx) {
 			l.next = slices.DeleteFunc(slices.Clone(list), func(each string) bool { return each == path })
 			l.changed = true
 		}
@@ -60,11 +63,7 @@ func (l *PathList) Layout(gtx layout.Context, e *env.Env, list []string) layout.
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, look.Paragraph(th, th.T.MonoSm, th.R.Fg, path)),
 					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return row.tip.Layout(gtx, th, e.Overlays, row.plaque.Description, func(gtx layout.Context) layout.Dimensions {
-							return row.plaque.Layout(gtx, th.Theme)
-						})
-					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return remove.Layout(gtx, th.Theme) }),
 				)
 			})
 		}))
@@ -94,4 +93,31 @@ func (l *PathList) Layout(gtx layout.Context, e *env.Env, list []string) layout.
 	}))
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// sandbox groups share names across team and global settings
+func HiddenKindName(kind string) string {
+	switch kind {
+	case protocol.HiddenGit:
+		return i18n.T("Git credentials")
+	case protocol.HiddenCloud:
+		return i18n.T("Cloud and cluster logins")
+	case protocol.HiddenPackages:
+		return i18n.T("Package registry logins")
+	case protocol.HiddenBrowsers:
+		return i18n.T("Browser profiles")
+	case protocol.HiddenMail:
+		return i18n.T("Mail")
+	case protocol.HiddenChat:
+		return i18n.T("Chat apps")
+	case protocol.HiddenHistories:
+		return i18n.T("Shell histories")
+	case protocol.HiddenRyoku:
+		return i18n.T("Rashin and Ryoku private state")
+	case protocol.HiddenAgents:
+		return i18n.T("Other AI tools' logins and state")
+	case protocol.HiddenHost:
+		return i18n.T("Host daemons")
+	}
+	return kind
 }

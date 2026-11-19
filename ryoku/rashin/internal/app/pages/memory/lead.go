@@ -7,11 +7,20 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
+)
+
+const (
+	// under this width the lead's acts drop below its sentence
+	leadStacksBelow unit.Dp = 600
+	trendHeight     unit.Dp = 96
+	// the page's ruled sections: the chart, then the list
+	sectionCount = 2
 )
 
 // memory is off until the first-run card is answered, and off again whenever Use memory is
@@ -42,7 +51,7 @@ func leadWords(status protocol.MemoryStatus, settings protocol.MemorySettings) (
 	return claim, proof
 }
 
-// the page's one monument, with Add memory as the view's gold beside it
+// the page's one monument with Add memory as the view's gold beside it, and the counts of what the page holds under it
 func (p *Page) layoutLead(gtx layout.Context, e *env.Env, status protocol.MemoryStatus, withActs bool) layout.Dimensions {
 	th := e.Theme
 	claim, proof := leadWords(status, e.Snapshot().Settings.Memory)
@@ -63,17 +72,30 @@ func (p *Page) layoutLead(gtx layout.Context, e *env.Env, status protocol.Memory
 	if !withActs {
 		return monument(gtx)
 	}
-	if gtx.Constraints.Max.X < gtx.Dp(600) {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(monument),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+	head := func(gtx layout.Context) layout.Dimensions {
+		if gtx.Constraints.Max.X < gtx.Dp(leadStacksBelow) {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(monument),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+				layout.Rigid(acts),
+			)
+		}
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+			layout.Flexed(1, monument),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S4}.Layout),
 			layout.Rigid(acts),
 		)
 	}
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
-		layout.Flexed(1, monument),
-		layout.Rigid(layout.Spacer{Width: th.Sp.S4}.Layout),
-		layout.Rigid(acts),
+	counts := status.Counts
+	specs := []look.Spec{
+		{Label: i18n.T("Memories"), Value: kit.Pad2(p.counted[0].Value(gtx, th, counts.All))},
+		{Label: i18n.T("Suggested"), Value: kit.Pad2(p.counted[1].Value(gtx, th, counts.Suggested)), Lit: counts.Suggested > 0},
+		{Label: i18n.T("Replaced"), Value: kit.Pad2(p.counted[2].Value(gtx, th, counts.Replaced))},
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(head),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SpecStrip(gtx, th, specs) }),
 	)
 }
 
@@ -81,16 +103,13 @@ func (p *Page) layoutLead(gtx layout.Context, e *env.Env, status protocol.Memory
 func (p *Page) layoutTrend(gtx layout.Context, e *env.Env, status protocol.MemoryStatus) layout.Dimensions {
 	th := e.Theme
 	days := status.Days
+	head := look.Head{Title: i18n.T("Over time"), Number: 1, Of: sectionCount}
 	if len(days) < 7 {
 		started := i18n.T("Rashin started remembering today. The chart starts after a week.")
 		if len(days) > 1 {
 			started = i18n.Tf("Rashin started remembering %s days ago. The chart starts after a week.", look.Count(len(days)-1))
 		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Over time"))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg3, started)),
-		)
+		return look.Section(gtx, th, head, look.Paragraph(th, th.T.Detail, th.R.Fg3, started))
 	}
 	names := make([]string, len(days))
 	values := make([]float64, len(days))
@@ -101,13 +120,14 @@ func (p *Page) layoutTrend(gtx layout.Context, e *env.Env, status protocol.Memor
 			busiest, learned = day.Day, day.Learned
 		}
 	}
-	return look.Trend{
-		Title:  i18n.T("Over time"),
+	// the section head names the chart, so the trend draws no title of its own
+	trend := look.Trend{
 		Proof:  trendProof(days, busiest, learned),
 		Values: values,
 		Ticks:  look.DayTicks(names),
-		Height: unit.Dp(96),
-	}.Layout(gtx, th)
+		Height: trendHeight,
+	}
+	return look.Section(gtx, th, head, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
 }
 
 func trendProof(days []protocol.MemoryDay, busiest string, learned int) string {
@@ -125,7 +145,7 @@ func trendProof(days []protocol.MemoryDay, busiest string, learned int) string {
 	return proof
 }
 
-// the list's title, its search and sort, and the chips that filter it
+// the list's ruled head, its search and sort, and the chips that filter it
 func (p *Page) layoutTools(gtx layout.Context, e *env.Env, status protocol.MemoryStatus) layout.Dimensions {
 	th := e.Theme
 	p.search.Placeholder, p.search.Hint = i18n.T("Search memory"), "Ctrl F"
@@ -144,13 +164,13 @@ func (p *Page) layoutTools(gtx layout.Context, e *env.Env, status protocol.Memor
 	}
 	controls := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(280))
+			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(tokens.SizeSearchWidth))
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return p.search.Layout(gtx, th.Theme)
 		}),
 		layout.Flexed(1, layout.Spacer{}.Layout),
 	}
-	// with the sidebar folded the index is gone, so the scopes it listed are picked here
+	// with the tree folded the index is gone, so the scopes it listed are picked here
 	if !p.listed {
 		options, at := p.scopeChoices(status)
 		p.scopes.Form, p.scopes.Label = look.SelectQuiet, i18n.T("Applies to")
@@ -168,8 +188,12 @@ func (p *Page) layoutTools(gtx layout.Context, e *env.Env, status protocol.Memor
 	controls = append(controls, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return p.sort.Layout(gtx, th, e.Overlays, sortLabels(), sortAt)
 	}))
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(look.SectionTitle(th, i18n.T("What Rashin remembers"), 0)),
+	number, total := 2, sectionCount
+	if !p.showTrend() {
+		number, total = 1, 1
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("What Rashin remembers"), Number: number, Of: total})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -177,7 +201,15 @@ func (p *Page) layoutTools(gtx layout.Context, e *env.Env, status protocol.Memor
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.filters.Layout(gtx, th.Theme) }),
-	)
+	}
+	// said once for the list, where a pin action on every row would only stand greyed out
+	if !status.Caps.Pin && status.Counts.All > 0 {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.T("This engine can't pin memories."))),
+		)
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func (p *Page) scopeChoices(status protocol.MemoryStatus) ([]look.SelectOption, int) {

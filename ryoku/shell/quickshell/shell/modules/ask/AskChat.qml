@@ -160,7 +160,7 @@ Item {
                     Text {
                         width: parent.width
                         visible: (root.sessionData.models || []).length === 0
-                        text: I18n.tr("Model choices appear when the harness reports them")
+                        text: I18n.tr("No Agent models available. Check Rashin's model providers.")
                         color: Tokens.inkMuted
                         font.family: Tokens.ui
                         font.pixelSize: Tokens.fTiny * root.s

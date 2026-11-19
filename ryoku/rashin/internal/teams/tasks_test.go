@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -21,11 +24,8 @@ func TestATaskRunsAsASessionAndEndsWithItsReport(t *testing.T) {
 	}
 	ref := h.agent(t, created.ID)
 	made, ok := h.sessions.madeFor(created.ID)
-	if !ok || made.Kind != protocol.KindAgent || made.Cwd != team.Folder || made.Team != team.ID || made.Origin != protocol.OriginTeam {
+	if !ok || made.Kind != protocol.KindAgent || made.Cwd != team.Folder || made.Team != team.ID || made.Origin != protocol.OriginTeam || made.Model == "" {
 		t.Fatalf("the task's session was made with %+v", made)
-	}
-	if !h.sessions.wasStarted(ref.Session) {
-		t.Fatal("the task's session was never started")
 	}
 	goal, ok := h.sessions.goal(ref.Session, protocol.GoalSet)
 	if !ok || !strings.Contains(goal.Objective, "Look at the last week.") || goal.MaxTurns != team.Budget.TaskTurns {
@@ -111,8 +111,18 @@ func TestStopRetryAndDeleteATask(t *testing.T) {
 	}
 	refused(t, h, protocol.MTeamsTaskRetry, protocol.TeamTaskRetryParams{ID: task.ID}, protocol.CodeConflict)
 
+	home := paths.ToolHome(team.ID, task.ID)
+	if err := os.MkdirAll(filepath.Join(home, "go"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(home, "go"), 0o555); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := h.call(protocol.MTeamsTaskDelete, protocol.TeamTaskRef{ID: task.ID}); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Fatalf("deleted task left scratch home: %v", err)
 	}
 	if _, ok := h.s.state.task(task.ID); ok {
 		t.Fatal("a deleted task is still kept")

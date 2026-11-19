@@ -21,11 +21,12 @@ func (s *Service) SetMemory(m core.Memory) { s.memory = m }
 // follow what it keeps.
 func (s *Service) Team(id string) (protocol.Team, bool) { return s.state.team(id) }
 
-// ToolEnv is what Rashin's MCP server is told for a team session: its team,
-// task, run token, whether it leads, whether it manages a dream and whether
-// it has its team's memory. Nil for any other session, and for a team
-// session whose run has ended.
-func (s *Service) ToolEnv(info protocol.SessionInfo) map[string]string {
+// ToolContext is a team session's run as its in-process team tools see it:
+// its team, task, member and run token, whether it leads, whether it manages
+// a dream, whether it has its team's memory, and the team features that add
+// tools. Nil for any other session, and for a team session whose run has
+// ended.
+func (s *Service) ToolContext(info protocol.SessionInfo) *core.TeamToolContext {
 	if info.TeamTask == "" {
 		return nil
 	}
@@ -35,20 +36,14 @@ func (s *Service) ToolEnv(info protocol.SessionInfo) map[string]string {
 		s.mu.Unlock()
 		return nil
 	}
-	env := map[string]string{"RASHIN_TEAM": r.Team, "RASHIN_TEAM_TASK": r.Task, "RASHIN_TEAM_TOKEN": r.Token}
-	if r.Lead {
-		env["RASHIN_TEAM_LEAD"] = "1"
-	}
-	member := r.Member
+	tc := &core.TeamToolContext{Team: r.Team, Task: r.Task, Member: r.Member, Token: r.Token, Lead: r.Lead}
 	s.mu.Unlock()
-	team, ok := s.state.team(info.Team)
-	if ok && isDream(team) && team.Dream.Manager == member {
-		env["RASHIN_TEAM_DREAM"] = "1"
-	}
-	if ok && s.memory != nil && team.TeamMemory().Remember && memory.On(s.settings()) {
-		env["RASHIN_MEMORY"] = "1"
-	}
-	return env
+	settings := s.settings()
+	tc.SetupCards, tc.Research = settings.Features["setupcards"], settings.Features["research"]
+	team, ok := s.state.team(tc.Team)
+	tc.Dream = ok && isDream(team) && team.Dream.Manager == tc.Member
+	tc.Memory = ok && s.memory != nil && team.TeamMemory().Remember && memory.On(settings)
+	return tc
 }
 
 // Brief is the team part of what a team session's agent hears ahead of its
@@ -193,7 +188,8 @@ func (s *Service) AfterTurn(_ context.Context, info protocol.SessionInfo, end pr
 		s.checkBudget(t.Team, int64(usage.Input+usage.Output))
 		s.dreamTurn(info)
 	}
-	if !ok || !taskIsOpen(t) || t.Session != info.ID {
+	current, open := s.state.task(info.TeamTask)
+	if !ok || !open || !taskIsOpen(current) || current.Session != info.ID {
 		session := info.ID
 		s.startWorker(func() { _ = s.sessions.Stop(s.background, session) })
 	}
@@ -291,9 +287,9 @@ func (s *Service) GoalEnded(info protocol.SessionInfo, goal protocol.Goal) {
 }
 
 // SessionChanged follows a team session's permission requests: while the
-// harness asks the user in the conversation, the task needs them, and once
+// engine asks the user in the conversation, the task needs them, and once
 // they answered it works again. It also follows a model the user switched
-// the session to once its engine was set up, so the task keeps what ran it.
+// the session to, so the task keeps what ran it.
 func (s *Service) SessionChanged(info protocol.SessionInfo) {
 	if info.TeamTask == "" {
 		return
@@ -306,7 +302,7 @@ func (s *Service) SessionChanged(info protocol.SessionInfo) {
 		return
 	}
 	switched := ""
-	if r := s.runs[t.ID]; r != nil && r.Session == info.ID && r.Ready && info.Model != "" && info.Model != r.Model {
+	if r := s.runs[t.ID]; r != nil && r.Session == info.ID && info.Model != "" && info.Model != r.Model {
 		r.Model, t.Model, switched = info.Model, info.Model, info.Model
 	}
 	held, resumed := false, false

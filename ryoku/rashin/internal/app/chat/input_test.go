@@ -32,7 +32,26 @@ type chatFrame struct {
 }
 
 func newChatFrame(size image.Point) *chatFrame {
-	return &chatFrame{now: time.Unix(100, 0), theme: look.New(palette.Dark, palette.Look{}), size: size}
+	return &chatFrame{now: time.Unix(100, 0), theme: look.NewWithRoles(palette.Signature(true)), size: size}
+}
+
+func TestComposerHasTextIgnoresAttachments(t *testing.T) {
+	var composer Composer
+	if composer.HasText() {
+		t.Fatal("a new composer has text")
+	}
+	composer.AddAttachment("/tmp/photo.png")
+	if composer.HasText() {
+		t.Fatal("an attachment is not typed text")
+	}
+	composer.SetText("Hello")
+	if !composer.HasText() {
+		t.Fatal("typed text was not reported")
+	}
+	composer.SetText("")
+	if composer.HasText() {
+		t.Fatal("clearing the text left the composer marked as typed")
+	}
 }
 
 func (frame *chatFrame) context() layout.Context {

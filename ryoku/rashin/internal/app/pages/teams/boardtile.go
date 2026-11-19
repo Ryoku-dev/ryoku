@@ -13,7 +13,6 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -43,7 +42,7 @@ type teamTile struct {
 	month teamsui.MonthSpend
 }
 
-// a tile lifts off the pane as a slab does, a quiet one is bare until hovered; a notch ink marks the corner of a team that needs the user
+// a tile sits on the card plane; its unfinished neighbour is outlined until pointed at
 func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch color.NRGBA, body layout.Widget) layout.Dimensions {
 	lit := look.Transition(gtx, &s.hover, s.click.Hovered(), th.Motion.HoverIn, th.Motion.HoverOut)
 	press := look.Transition(gtx, &s.press, s.click.Pressed(), th.Motion.Press, th.Motion.Press)
@@ -53,12 +52,20 @@ func (s *slab) layout(gtx layout.Context, th *look.Theme, quiet bool, notch colo
 		call := record.Stop()
 		bounds := image.Rectangle{Max: dimensions.Size}
 		cut := gtx.Dp(th.Cut.Mid)
-		fill := palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane*lit)
 		if quiet {
-			fill = palette.WithAlpha(th.R.Slab, lit)
+			kit.SlabOutline(gtx, th.Theme, bounds, cut)
+		} else {
+			kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
 		}
-		kit.SlabSurface(gtx, th.Theme, bounds, cut, palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press))
-		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(th.Cut.Notch), notch)
+		if lit > 0 {
+			kit.Fill(gtx, th.Theme, bounds, cut, palette.WithAlpha(th.R.Hover(), lit))
+		}
+		if press > 0 {
+			kit.Fill(gtx, th.Theme, bounds, cut, palette.WithAlpha(th.R.Press(), press))
+		}
+		if notch.A != 0 {
+			kit.ToneMarkInk(gtx, th.Theme, bounds, notch)
+		}
 		call.Add(gtx.Ops)
 		return dimensions
 	})
@@ -104,7 +111,7 @@ func (b *board) layoutTile(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
 			layout.Rigid(crewStrip(th, team.Members)),
 		)
-		if runs := enginesCaption(snapshot, team.Members); runs != "" {
+		if runs := stalledLine(teamEngines(snapshot, team.Members)); runs != "" {
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -26,17 +26,14 @@ const (
 	dreamPresentationMax = 20000
 )
 
-// dreamCard marks an approval a dream raised, so its answer is carried out
-// as the dream's: a presentation, the stall guard's question, or the
-// manager's blocker put to the user. It is the approval's stored action.
+// dreamCard marks a presentation or a requirements question the manager
+// raised, so its answer resumes the dream instead of an ordinary task.
 type dreamCard struct {
 	Dream string `json:"dream"`
 }
 
-// Kinds of dreamCard.
 const (
 	cardPresent = "present"
-	cardStall   = "stall"
 	cardBlocked = "blocked"
 )
 
@@ -57,8 +54,8 @@ func withoutDreams(result protocol.TeamsResult) protocol.TeamsResult {
 // dreamCreate starts a dream: a team of one manager, working in its own
 // folder under the Dreams home without asking for confirmation, with no
 // token cap unless one is given, and the manager's standing task, which
-// starts at once. A harness the dream is not signed in to blocks that task
-// as any team's would; resuming the dream starts it again.
+// starts at once. A model that cannot run blocks that task as any team's
+// would; resuming the dream starts it again.
 func (s *Service) dreamCreate(ctx context.Context, p protocol.DreamCreateParams) (protocol.Team, error) {
 	if p.Preset != "" && (!s.feature("research") || p.Preset != "research") {
 		return protocol.Team{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Turn on Deep research in Settings to use the research preset."))
@@ -85,7 +82,7 @@ func (s *Service) dreamCreate(ctx context.Context, p protocol.DreamCreateParams)
 		Name: name, Purpose: statement, Folder: folder,
 		Members: []protocol.Member{{
 			Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true,
-			Harness: strings.TrimSpace(p.Harness), Model: strings.TrimSpace(p.Model), Options: p.Options,
+			Model: strings.TrimSpace(p.Model), Options: p.Options,
 		}},
 		Approvals: protocol.ApprovalsAuto,
 		Budget: protocol.TeamBudget{
@@ -116,9 +113,9 @@ func (s *Service) dreamCreate(ctx context.Context, p protocol.DreamCreateParams)
 
 // standingTask gives a dream's manager the task it works the dream in, as
 // its goal, and keeps it as the dream's. A dream already worked in an open
-// standing task keeps that one, and one whose standing task ended short, a
-// sign-in it waited on or a stop, runs that task again in a new
-// conversation rather than adding one.
+// standing task keeps that one, and one whose standing task ended short,
+// blocked or stopped, runs that task again in a new conversation rather
+// than adding one.
 func (s *Service) standingTask(ctx context.Context, teamID string) (protocol.TeamTask, error) {
 	team, ok := s.state.team(teamID)
 	if !ok || !isDream(team) {
@@ -170,19 +167,6 @@ func (s *Service) reopenStanding(team protocol.Team) (protocol.TeamTask, bool) {
 	return t, true
 }
 
-// HomeSignedIn goes on with a dream whose standing task was blocked only
-// because the dream was not signed in to harness: the task runs again by
-// itself, so the user need not resume it.
-func (s *Service) HomeSignedIn(harness, teamID string) {
-	team, ok := s.state.team(teamID)
-	if !ok || !isDream(team) {
-		return
-	}
-	if t, ok := s.state.task(team.Dream.Task); ok && t.Status == protocol.TaskBlocked && t.SignIn == harness {
-		s.runDream(teamID, protocol.InitiatorRashin)
-	}
-}
-
 // standing reports a task a dream's manager works the dream in: a task of
 // the manager that is no piece of another.
 func standing(team protocol.Team, t protocol.TeamTask) bool {
@@ -199,11 +183,10 @@ func (s *Service) openStanding(team protocol.Team) (protocol.TeamTask, bool) {
 }
 
 // runDream starts a dream's manager again when no standing task is open,
-// unless the dream is done or paused; initiator says who asked: the user
-// resuming it or lifting its spending limit, or Rashin once its sign-in
-// finished. A presentation whose card a pause took away is withdrawn: the
-// dream goes back to testing and the manager presents again.
-func (s *Service) runDream(teamID, initiator string) {
+// unless the dream is done or paused: the user resumed it or lifted its
+// spending limit. A presentation whose card a pause took away is withdrawn:
+// the dream goes back to testing and the manager presents again.
+func (s *Service) runDream(teamID string) {
 	team, ok := s.state.team(teamID)
 	if !ok || !isDream(team) || !s.dreamAvailable(team) || team.Paused || team.Dream.Done != nil {
 		return
@@ -220,12 +203,8 @@ func (s *Service) runDream(teamID, initiator string) {
 		}
 	}
 	if _, err := s.standingTask(s.background, teamID); err == nil {
-		actor := "Rashin"
-		if initiator == protocol.InitiatorYou {
-			actor = protocol.InitiatorYou
-		}
 		s.record(protocol.Activity{
-			Actor: actor, Action: "dream.resume", Target: team.Name, OK: true, Team: team.ID, Initiator: initiator,
+			Actor: protocol.InitiatorYou, Action: "dream.resume", Target: team.Name, OK: true, Team: team.ID, Initiator: protocol.InitiatorYou,
 			Detail: i18n.T("The manager carries on in a new conversation."),
 		})
 	}

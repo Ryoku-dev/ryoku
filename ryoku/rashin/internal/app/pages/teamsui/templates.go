@@ -82,7 +82,7 @@ func templateLevel(template protocol.TeamTemplate) string {
 }
 
 // a group's name and, for a level, one line on what it asks of the user
-func levelHeader(th *look.Theme, level string) layout.Widget {
+func levelHeader(th *look.Theme, level string, number, total int) layout.Widget {
 	title, line := i18n.T("From scratch"), ""
 	switch level {
 	case protocol.LevelLight:
@@ -93,7 +93,7 @@ func levelHeader(th *look.Theme, level string) layout.Widget {
 		title, line = i18n.T("Advanced"), i18n.T("Members on different models, routines of their own and the credentials they need.")
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, title))}
+		children := []layout.FlexChild{layout.Rigid(look.SectionHead(th, look.Head{Title: title, Number: number, Of: total}))}
 		if line != "" {
 			children = append(children, layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, line)))
 		}
@@ -103,13 +103,14 @@ func levelHeader(th *look.Theme, level string) layout.Widget {
 
 // LayoutGroups lays the templates out under their level headers, each template drawn by row.
 func LayoutGroups(gtx layout.Context, th *look.Theme, templates []protocol.TeamTemplate, row func(gtx layout.Context, template protocol.TeamTemplate) layout.Dimensions) layout.Dimensions {
+	groups := templateGroups(templates)
 	var children []layout.FlexChild
-	for index, group := range templateGroups(templates) {
+	for index, group := range groups {
 		if index > 0 {
 			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout))
 		}
 		children = append(children,
-			layout.Rigid(levelHeader(th, group.level)),
+			layout.Rigid(levelHeader(th, group.level, index+1, len(groups))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		)
 		for position, template := range group.templates {
@@ -164,7 +165,8 @@ func (s *TeamStart) layoutTemplate(gtx layout.Context, e *env.Env, template prot
 		tablet, create = new(kit.Tablet), new(kit.Plaque)
 		s.tablets[template.ID], s.create[template.ID] = tablet, create
 	}
-	tablet.Pane = th.R.Slab
+	// inside the start slab the tablet's corner cuts back to the card, not the page
+	tablet.Pane = th.Planes().Card
 	create.Kind, create.Small, create.Label = kit.PlaqueTonal, true, i18n.T("Create")
 	if tablet.Clicked(gtx) || create.Clicked(gtx) {
 		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams, Draft: env.DraftTeam, Template: template.ID})

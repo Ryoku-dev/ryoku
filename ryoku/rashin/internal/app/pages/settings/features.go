@@ -15,8 +15,8 @@ import (
 )
 
 type featuresPanel struct {
-	toggles [20]kit.Toggle
-	links   [20]kit.Plaque
+	toggles [24]kit.Toggle
+	links   [24]kit.Plaque
 	on, off kit.Plaque
 	open    kit.Plaque
 	theia   kit.Plaque
@@ -28,8 +28,8 @@ type appFeature struct {
 	settings         string
 }
 
-func appFeatures() [20]appFeature {
-	return [20]appFeature{
+func appFeatures() [24]appFeature {
+	return [24]appFeature{
 		{"prompts", i18n.T("Prompt library"), i18n.T("Keep prompts, templates and snippets a slash away in Ask."), sectionAsk, i18n.T("Prompt library settings")},
 		{"enhance", i18n.T("Improve my prompt"), i18n.T("Rewrite a draft question so it gets a better answer."), 0, ""},
 		{"askwriting", i18n.T("Writing tools in Ask"), i18n.T("Fix, rewrite or change the tone of what you are about to send."), 0, ""},
@@ -50,6 +50,10 @@ func appFeatures() [20]appFeature {
 		{"diskcare", i18n.T("Disk care"), i18n.T("See what agents keep on disk and clear it safely."), sectionTeams, i18n.T("Disk care settings")},
 		{"profile", i18n.T("About me"), i18n.T("Tell Rashin your name, work and how you like answers."), sectionMemory, i18n.T("About me settings")},
 		{"collections", i18n.T("Collections"), i18n.T("Save answers, excerpts and files to chat with a whole collection."), 0, ""},
+		{protocol.FeatureAutolearn, i18n.T("Learn skills from its work"), i18n.T("After a tool-heavy session, Rashin can turn what worked into a managed skill you can review or remove."), 0, ""},
+		{protocol.FeatureDecisions, i18n.T("Remember project decisions"), i18n.T("Keep hard-won decisions with each project and bring them into future sessions."), 0, ""},
+		{protocol.FeatureRules, i18n.T("Stream rules and make-a-rule"), i18n.T("Apply project rules while an answer is written, or make a rule when Rashin gets something wrong."), 0, ""},
+		{protocol.FeatureGrievances, i18n.T("Tool reports"), i18n.T("Keep Rashin's reports of tools that misbehaved on this computer, where you can review and clear them."), 0, ""},
 	}
 }
 
@@ -70,8 +74,10 @@ func (p *Page) featuresBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wi
 	on := featuresOn(features)
 	blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(look.SectionHead(th, ordinal(sectionFeatures))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return look.Monument(gtx, th, i18n.T("Features"), i18n.T("Choose what belongs in your Rashin. Features that are off stay out of the way."))
+				return look.Monument(gtx, th, i18n.T("Make it your own."), i18n.T("Choose what belongs in your Rashin. Features that are off stay out of the way."))
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -79,7 +85,7 @@ func (p *Page) featuresBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wi
 			}),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
+				return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
 					button, label, value := &b.on, i18n.T("Turn all on"), true
 					if index == 1 {
 						button, label, value = &b.off, i18n.T("Turn all off"), false
@@ -106,6 +112,7 @@ func (p *Page) featuresBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wi
 		{i18n.T("Answers"), 8, 13},
 		{i18n.T("Agents and Teams"), 13, 18},
 		{i18n.T("Memory and Index"), 18, 20},
+		{i18n.T("Learning"), 20, 24},
 	}
 	for _, group := range groups {
 		rows := make([]look.Setting, 0, group.end-group.start)
@@ -113,6 +120,8 @@ func (p *Page) featuresBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wi
 			feature := all[index]
 			rows = append(rows, look.Setting{
 				Title: feature.name, Detail: feature.detail,
+				Changed: features[feature.id],
+				Reset:   func() { set(e, "features", map[string]any{feature.id: false}) },
 				Control: func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -138,7 +147,7 @@ func (p *Page) featuresBlocks(gtx layout.Context, e *env.Env, blocks []layout.Wi
 			})
 		}
 		blocks = spacedBlocks(th, blocks, func(gtx layout.Context) layout.Dimensions {
-			return look.SettingsSection(gtx, th, group.title, rows)
+			return look.SettingsSection(gtx, th, look.Head{Title: group.title}, rows)
 		})
 	}
 	return spacedBlocks(th, blocks, func(gtx layout.Context) layout.Dimensions {

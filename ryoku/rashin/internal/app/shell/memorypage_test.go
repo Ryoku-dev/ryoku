@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"gioui.org/f32"
+	"gioui.org/io/input"
 	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/protocol"
@@ -178,12 +180,12 @@ func TestImportPutsSuggestionsUnderSuggested(t *testing.T) {
 	stage.open("memory")
 	stage.click("More")
 	stage.click("Import from another assistant")
-	// the field's named area reaches to its tallest, so it is pressed near its top where its box always stands
-	field, ok := stage.named("Its answer")
+	// the label and editable line share a name; press inside the editable line
+	field, ok := stage.editorNamed("Its answer")
 	if !ok {
-		t.Fatalf("the import dialog has no field for the answer: %v", stage.names())
+		t.Fatalf("the import dialog has no editable field for the answer: %v", stage.names())
 	}
-	stage.clickAt(field.Desc.Bounds.Min.Add(image.Pt(24, 16)))
+	stage.clickAt(field.Desc.Bounds.Min.Add(image.Pt(20, 10)))
 	stage.typeText("Lives in Lisbon\nPlays the cello on weekends")
 	stage.click("Import")
 	stage.await("two suggestions", func() bool {
@@ -314,6 +316,7 @@ func TestMovingMemoryChangesTheEngineInSettings(t *testing.T) {
 	stage.open("settings/memory")
 	stage.reveal("Hindsight")
 	stage.click("Hindsight")
+	stage.reveal("Move memory to Hindsight")
 	stage.click("Move memory to Hindsight")
 	stage.click("Move")
 	stage.await("settings to name the new engine", func() bool {
@@ -351,18 +354,28 @@ func TestOpeningAMemoryShowsItsEditor(t *testing.T) {
 	stage.open("ask/new")
 	stage.shell.openMemory(env.MemoryPlace{ID: memories[0].ID})
 	stage.await("the editor to open", func() bool { _, ok := stage.named("Forget this memory"); return ok })
-	field, ok := stage.named("Memory")
+	field, ok := stage.editorNamed("Memory")
 	save, _ := stage.named("Save")
 	if !ok || save.Desc.Bounds.Max.Y > stage.size.Y || save.Desc.Bounds.Min.Y < 0 {
 		t.Fatalf("the editor is not in view: field %v, save %v", field.Desc.Bounds, save.Desc.Bounds)
 	}
 	if top := field.Desc.Bounds.Min.Y; top > stage.size.Y/3 {
-		var all []image.Rectangle
-		for _, node := range stage.nodes() {
-			if node.Desc.Label == "Memory" {
-				all = append(all, node.Desc.Bounds)
-			}
-		}
-		t.Fatalf("the editor starts at %d, below the top third of %d; save %v, memory nodes %v", top, stage.size.Y, save.Desc.Bounds, all)
+		t.Fatalf("the editor starts at %d, below the top third of %d; save %v", top, stage.size.Y, save.Desc.Bounds)
 	}
+}
+
+func (s *stage) editorNamed(label string) (input.SemanticNode, bool) {
+	var field input.SemanticNode
+	found := false
+	for _, node := range s.nodes() {
+		bounds := node.Desc.Bounds
+		if node.Desc.Class != semantic.Editor || node.Desc.Label != label ||
+			bounds.Empty() || !bounds.In(image.Rectangle{Max: s.size}) {
+			continue
+		}
+		if !found || bounds.Dx()*bounds.Dy() < field.Desc.Bounds.Dx()*field.Desc.Bounds.Dy() {
+			field, found = node, true
+		}
+	}
+	return field, found
 }

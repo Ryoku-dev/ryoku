@@ -26,7 +26,7 @@ type Page struct {
 	view     chat.View
 	lines    env.MemoryLines
 	composer chat.Composer
-	controls harnessControls
+	controls sessionControls
 	panel    changesPanel
 	goal     goalStrip
 	screen   screenPanel
@@ -50,6 +50,26 @@ type Page struct {
 }
 
 func New() *Page { return &Page{} }
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	page := look.PageFor(protocol.TabAgent)
+	if p.selected == "" {
+		return page
+	}
+	info, ok := e.Snapshot().Sessions[p.selected]
+	if !ok {
+		return page
+	}
+	page.Where = look.Where(page.Where, sessionTitle(info))
+	page.Facts = []string{projectName(e.Snapshot(), info.Project), env.ModelWords(e, info.Model)}
+	return page
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.selected != "" {
+		return -1
+	}
+	return p.board.scroll.Progress(p.board.rows)
+}
 
 func (p *Page) Select(e *env.Env, id string) {
 	if p.selected != id {
@@ -57,7 +77,6 @@ func (p *Page) Select(e *env.Env, id string) {
 	}
 	if id == "" {
 		p.keepDraft("")
-		p.controls.leave(e, p.selected)
 		p.selected, p.opening = "", ""
 		p.board.focus(e)
 		return
@@ -67,7 +86,6 @@ func (p *Page) Select(e *env.Env, id string) {
 		return
 	}
 	p.keepDraft(id)
-	p.controls.leave(e, p.selected)
 	p.selected, p.opening = id, id
 	e.Attach(id, func(err error) {
 		if err != nil {
@@ -95,6 +113,14 @@ func (p *Page) FocusHome() any {
 		return p.board.composer.FocusTag()
 	}
 	return p.composer.FocusTag()
+}
+
+// slash opens search only if it would not interrupt a draft
+func (p *Page) SearchAtRest() bool {
+	if p.selected == "" {
+		return !p.board.composer.HasText()
+	}
+	return !p.composer.HasText()
 }
 
 // the board has its own composer, so only sessions trade drafts here
@@ -155,7 +181,7 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		e.Navigate(protocol.TabAgent, "")
 		p.board.focus(e)
 	}
-	return p.rise.Layout(gtx, e.Theme, p.selected, 8, func(gtx layout.Context) layout.Dimensions {
+	return p.rise.Layout(gtx, e.Theme, p.selected, 14, func(gtx layout.Context) layout.Dimensions {
 		if !known {
 			return p.board.layout(gtx, e, p)
 		}

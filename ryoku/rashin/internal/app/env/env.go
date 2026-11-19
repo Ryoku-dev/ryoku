@@ -25,6 +25,10 @@ type TeamsNavigate func(place TeamsPlace)
 // Env is what the frame hands a page each frame: the theme, the store, the
 // daemon client, and the few frame facilities a page may use.
 type Env struct {
+	// Theme is the look the desktop asks for; Theme.Desktop is what the
+	// desktop chose (design, colours, light or dark, contrast, tint, reduced
+	// motion, gloss), read only: Rashin keeps no copy of the choice and offers
+	// none, it hands off to Ryoku Settings › Style.
 	Theme        *look.Theme
 	Store        *state.Store
 	Client       *conn.Client
@@ -51,36 +55,19 @@ type Env struct {
 	// NotifyAction shows a transient result with one action beside it, run
 	// when it is pressed before the notice goes.
 	NotifyAction func(text, action string, act func())
-	// Zoom is the app's zoom in percent and SetZoom changes it; ReduceMotion
-	// and SetReduceMotion do the same for the app's own motion setting.
-	Zoom            int
-	SetZoom         func(percent int)
-	ReduceMotion    bool
-	SetReduceMotion func(bool)
-	// Contrast and Tint are the look's stored words ("standard" or "high",
-	// "off", "low" or "medium"); SetLook changes both and restyles the window
-	// at once.
-	Contrast string
-	Tint     string
-	SetLook  func(contrast, tint string)
-	// Colours is the word of the colours the window paints ("ryoku", the
-	// ryoku.dev stock and the default, "ryoku-light" or "wallpaper");
-	// SetColours stores a pick and repaints the window at once.
-	Colours    string
-	SetColours func(colours string)
+	// Zoom is the app's own zoom in percent, the one look setting Rashin
+	// keeps; SetZoom changes it.
+	Zoom    int
+	SetZoom func(percent int)
 	// Notices says whether the desktop is told when an agent needs the reader.
 	Notices    bool
 	SetNotices func(bool)
-	Desktop    Desktop
+	// Desktop runs and asks the desktop: launches, file choosers.
+	Desktop Desktop
 	// HiddenSteps are the next steps the user hid on each team's Overview,
 	// step keys by team id; HideStep hides one more.
 	HiddenSteps map[string][]string
 	HideStep    func(team, step string)
-	// AgentModels is the model a new agent session starts on, model id by
-	// harness id, absent for the harness's own default; SetAgentModel
-	// remembers one, "" going back to the default.
-	AgentModels   map[string]string
-	SetAgentModel func(harness, model string)
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }

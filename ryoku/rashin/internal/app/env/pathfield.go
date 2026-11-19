@@ -21,7 +21,6 @@ type PathField struct {
 	Title string
 
 	browse kit.IconPlaque
-	tip    look.Tip
 }
 
 func (f *PathField) Path() string { return strings.TrimSpace(f.Text()) }
@@ -50,9 +49,7 @@ func (f *PathField) Layout(gtx layout.Context, e *Env) layout.Dimensions {
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return f.TextField.Layout(gtx, th.Theme) }),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return f.tip.Layout(gtx, th, e.Overlays, f.browse.Description, func(gtx layout.Context) layout.Dimensions {
-					return f.browse.Layout(gtx, th.Theme)
-				})
+				return f.browse.Layout(gtx, th.Theme)
 			}),
 		)
 	}))

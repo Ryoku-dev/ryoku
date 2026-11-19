@@ -340,14 +340,14 @@ func (button *mindmapButton) layout(gtx layout.Context, th *look.Theme, depth in
 		scale := 1 - .025*button.pressed
 		transform := op.Affine(f32.Affine2D{}.Scale(f32.Pt(float32(size.X)/2, float32(size.Y)/2), f32.Pt(scale, scale))).Push(gtx.Ops)
 		defer transform.Pop()
-		fill, ink := th.R.Stone3, th.R.Fg
+		fill, ink := th.Planes().Card, th.R.Fg
 		switch {
 		case depth == 0:
-			fill, ink = th.R.Sel, th.R.OnSel
+			fill, ink = th.R.Select(), th.R.OnContainer
 		case depth > 1:
-			fill, ink = palette.Mix(th.R.Field, th.R.Stone3, .35), th.R.Fg2
+			ink = th.R.Fg2
 		}
-		fill = palette.Mix(fill, th.R.Sel, .12*button.hovered)
+		fill = palette.Mix(fill, th.R.Hover(), button.hovered)
 		bounds := image.Rectangle{Max: size}
 		cut := gtx.Dp(th.Cut.Mid)
 		kit.Fill(gtx, th.Theme, bounds, cut, fill)

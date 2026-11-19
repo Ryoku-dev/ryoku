@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"image"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 
 	"ryoku-rashin/internal/app/desktop"
 	"ryoku-rashin/internal/app/env"
@@ -86,7 +86,17 @@ func openStage(t *testing.T, size image.Point, moving bool, demoOptions ...Optio
 		options = demoOptions[0]
 		options.Demo = true
 	}
-	r, err := startRuntime(options, palette.Dark)
+	// the stage's own desktop asks for the reduced motion a still stage runs in, as the theme takes it from the desktop; LITHIC_DESIGN still picks the design
+	if !moving {
+		config := filepath.Join(root, "config", "ryoku")
+		if err := os.MkdirAll(config, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(config, "shell.json"), []byte(`{"theme":{"motion":{"reduce":true}}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := startRuntime(options)
 	if err != nil {
 		t.Fatal(err)
 	}

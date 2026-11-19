@@ -42,7 +42,6 @@ func (p *Page) lost(known bool) bool {
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	snapshot := e.Snapshot()
-	p.menu.Load(e, snapshot)
 	info, known := snapshot.Sessions[p.selected]
 	if p.lost(known) {
 		p.selected = ""
@@ -74,7 +73,7 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 		if info.Memory == protocol.MemoryNone {
 			content.Facts = append(content.Facts, look.HeaderFact{Text: i18n.T("No memory")})
 		}
-		content.Actions = []look.HeaderAction{{Icon: look.Icon.Agents, Description: i18n.T("Move to Agent")}}
+		content.Actions = []look.HeaderAction{{Icon: look.Icon.Agents, Description: i18n.T("Move to agent")}}
 		content.Menu = []kit.MenuItem{
 			{Icon: look.Icon.Rename, Label: i18n.T("Rename")},
 			{Divider: true},
@@ -150,13 +149,12 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env, attached state.Attache
 		tailCall = record.Stop()
 	}
 
-	foot := size.Y - gtx.Dp(21) - composer.Size.Y
-	lead := gtx.Sp(th.T.Sentence.Line) + gtx.Dp(8) + gtx.Sp(th.T.Proof.Line) + gtx.Dp(21)
-	// what lies under the composer before the chart's line: the suggestions, the readiness and the chart's own words
-	under := composer.Size.Y + gtx.Dp(13) + tail.Size.Y + gtx.Dp(th.Sp.S5) + trendFrame(gtx, th)
-	centre := max(size.Y*42/100, lead+gtx.Dp(21))
-	// the chart gets its room by raising the composer, never by pushing what is under it off the pane
-	centre = max(min(centre, size.Y-under-gtx.Dp(trendRoom)), lead+gtx.Dp(21))
+	foot := size.Y - gtx.Dp(th.Sp.S4) - composer.Size.Y
+	lead := gtx.Sp(th.T.Sentence.Line) + gtx.Dp(th.Sp.S2) + gtx.Sp(th.T.Proof.Line) + gtx.Dp(th.Sp.S4)
+	// the chart yields room before the composer moves
+	under := composer.Size.Y + gtx.Dp(th.Sp.S3) + tail.Size.Y + gtx.Dp(th.Sp.S5) + trendFrame(gtx, th)
+	centre := max(size.Y*42/100, lead+gtx.Dp(th.Sp.S4))
+	centre = max(min(centre, size.Y-under-gtx.Dp(trendRoom)), lead+gtx.Dp(th.Sp.S4))
 	centre = min(centre, max(lead, foot))
 	plot := min(gtx.Dp(120), size.Y-centre-under)
 	y := centre + int(float32(foot-centre)*travel+.5)
@@ -193,7 +191,7 @@ func (p *Page) layoutTranscript(gtx layout.Context, e *env.Env, attached state.A
 	p.view.SetAnswers(chat.AnswerOptions{
 		SessionID: p.selected,
 		Epoch:     snapshot.Epoch,
-		Choices:   func(current string) ([]look.SelectOption, []string, int) { return p.menu.Choices(current) },
+		Choices:   func(current string) ([]look.SelectOption, []string, int) { return env.Models(e).Choices(current) },
 		Call:      e.Call,
 		Attach:    e.Attach,
 		Session:   func(id string) *chat.Model { return snapshot.Attached[id].Model },
@@ -220,8 +218,8 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 		gtx = gtx.Disabled()
 	}
 	proof, sentence := gtx.Sp(th.T.Proof.Line), gtx.Sp(th.T.Sentence.Line)
-	proofTop := composer.Min.Y - gtx.Dp(21) - proof
-	sentenceTop := proofTop - gtx.Dp(8) - sentence
+	proofTop := composer.Min.Y - gtx.Dp(th.Sp.S4) - proof
+	sentenceTop := proofTop - gtx.Dp(th.Sp.S2) - sentence
 	look.Place(gtx, image.Rect(composer.Min.X, sentenceTop, composer.Max.X, sentenceTop+sentence),
 		kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Ask about this machine")))
 	// the mode select in the composer carries the state, the sentence stays in one ink
@@ -232,7 +230,7 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	look.Place(gtx, image.Rect(composer.Min.X, proofTop, composer.Max.X, proofTop+proof),
 		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, note))
 
-	offset := op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(13))).Push(gtx.Ops)
+	offset := op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(th.Sp.S3))).Push(gtx.Ops)
 	tail.Add(gtx.Ops)
 	offset.Pop()
 
@@ -241,7 +239,7 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 		return
 	}
 	trend.Height = unit.Dp(float32(plot) / gtx.Metric.PxPerDp)
-	top := composer.Max.Y + gtx.Dp(13) + tailHeight + gtx.Dp(th.Sp.S5)
+	top := composer.Max.Y + gtx.Dp(th.Sp.S3) + tailHeight + gtx.Dp(th.Sp.S5)
 	look.Place(gtx, image.Rect(composer.Min.X, top, composer.Max.X, top+plot+trendFrame(gtx, th)), func(gtx layout.Context) layout.Dimensions {
 		return trend.Layout(gtx, th)
 	})
@@ -257,9 +255,9 @@ func (p *Page) layoutTail(gtx layout.Context, e *env.Env, width int) layout.Dime
 			if firstRunShown(e.Snapshot()) {
 				return p.first.layout(gtx, e)
 			}
-			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
+			return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
 				plaque := &p.suggestions[index]
-				plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, texts[index]
+				plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueQuiet, true, texts[index]
 				if plaque.Clicked(gtx) {
 					p.composer.SetText(texts[index])
 					p.composer.Focus()
@@ -268,7 +266,13 @@ func (p *Page) layoutTail(gtx layout.Context, e *env.Env, width int) layout.Dime
 			})
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.ready.layout(gtx, e) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			model := p.draftRoute
+			if model == "" {
+				model = e.Snapshot().Settings.Ask.Model
+			}
+			return p.ready.layout(gtx, e, model)
+		}),
 	)
 }
 
@@ -326,42 +330,29 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	if temporary {
 		options.Placeholder = env.TemporaryHint()
 	}
-	snapshot := e.Snapshot()
-	harness := answeringHarness(snapshot, attached, open)
-	var model layout.Widget
-	var ids []string
-	if harness == "" {
-		// nothing picked is what the daemon falls back to: the model Settings names
-		if current == "" {
-			current = settings.Model
-		}
-		routes, routeIDs, selected := p.menu.Choices(current)
-		ids = routeIDs
-		p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
-		model = func(gtx layout.Context) layout.Dimensions {
-			dimensions := p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
-			if p.route.Opened(e.Overlays) {
-				p.limits.Show(e, gtx.Now)
-			}
-			return dimensions
-		}
-	} else {
-		p.engine.sync(snapshot, attached, open)
-		model = p.engine.control(e, p.composer.FocusTag())
+	// nothing picked is what the daemon falls back to: the model Settings names
+	if current == "" {
+		current = settings.Model
 	}
-	options.Controls = nil
-	if model != nil {
-		options.Controls = append(options.Controls, model)
+	routes, ids, selected := env.Models(e).Choices(current)
+	p.route.Form, p.route.Label, p.route.Return, p.route.Searched = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag(), true
+	model := func(gtx layout.Context) layout.Dimensions {
+		dimensions := p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
+		if p.route.Opened(e.Overlays) {
+			p.limits.Show(e, gtx.Now)
+		}
+		return dimensions
 	}
+	options.Controls = []layout.Widget{model}
 	options.Controls = append(options.Controls, func(gtx layout.Context) layout.Dimensions {
 		return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())
 	})
-	if memoryOn(e.Snapshot()) {
+	memoryEnabled := memoryOn(e.Snapshot())
+	if memoryEnabled {
 		options.Controls = append(options.Controls, func(gtx layout.Context) layout.Dimensions {
 			return p.memory.layout(gtx, e, remembers, temporary, locked, p.composer.FocusTag())
 		})
 	}
-	options.Controls = append(options.Controls, engineLabel(e, env.AskEngineName(snapshot, protocol.SessionInfo{Harness: harness})))
 	if value, changed := p.memory.Changed(); changed {
 		p.memory.set(e, p.selected, value)
 	}
@@ -383,9 +374,20 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 			p.draftRoute = ids[index]
 		}
 	}
-	p.engine.update(e, p.selected, open)
 	gtx.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, gtx.Constraints.Max.Y)}
-	dimensions := p.composer.Layout(gtx, e.Theme, options)
+	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.composer.Layout(gtx, e.Theme, options)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !memoryEnabled || !locked {
+				return layout.Dimensions{}
+			}
+			return layout.Inset{Top: e.Theme.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return p.memory.lockReason(gtx, e)
+			})
+		}),
+	)
 	if submission, submitted := p.composer.Submitted(); submitted {
 		switch {
 		case p.selected != "":

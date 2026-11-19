@@ -1,14 +1,12 @@
 package gateway
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"sort"
@@ -27,78 +25,18 @@ var (
 	errStreamIdle = errors.New("provider stream was idle for 60 seconds")
 )
 
-type wireMessage struct {
-	Role       string         `json:"role"`
-	Content    any            `json:"content,omitempty"`
-	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-	Name       string         `json:"name,omitempty"`
-}
-
-type wireToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function wireFunction `json:"function"`
-}
-
-type wireFunction struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Parameters  json.RawMessage `json:"parameters,omitempty"`
-	Arguments   string          `json:"arguments,omitempty"`
-}
-
-type wireTool struct {
-	Type     string       `json:"type"`
-	Function wireFunction `json:"function"`
-}
-
-type wireStreamOptions struct {
-	IncludeUsage bool `json:"include_usage"`
-}
-
-type chatRequest struct {
-	Model      string        `json:"model"`
-	Messages   []wireMessage `json:"messages"`
-	Tools      []wireTool    `json:"tools,omitempty"`
-	ToolChoice string        `json:"tool_choice,omitempty"`
-	MaxTokens  int           `json:"max_tokens,omitempty"`
-	// MaxCompletionTokens replaces MaxTokens for a provider whose reasoning
-	// models take only it.
-	MaxCompletionTokens int               `json:"max_completion_tokens,omitempty"`
-	Temperature         *float64          `json:"temperature,omitempty"`
-	Stream              bool              `json:"stream"`
-	StreamOptions       wireStreamOptions `json:"stream_options"`
-	// Extra are a caller's own parameters, sent as they came.
-	Extra map[string]json.RawMessage `json:"-"`
-}
-
-// MarshalJSON adds Extra beside the fields the gateway sets itself, which win.
-func (r chatRequest) MarshalJSON() ([]byte, error) {
-	type plain chatRequest
-	body, err := json.Marshal(plain(r))
-	if err != nil || len(r.Extra) == 0 {
-		return body, err
-	}
-	fields := make(map[string]json.RawMessage, len(r.Extra)+8)
-	if err := json.Unmarshal(body, &fields); err != nil {
-		return nil, err
-	}
-	for name, value := range r.Extra {
-		if _, set := fields[name]; !set {
-			fields[name] = value
-		}
-	}
-	return json.Marshal(fields)
-}
-
 type routeCandidate struct {
 	provider *provider
 	model    *model
 	keyID    string
 	stat     successStat
 	hasStat  bool
+	// place is the provider's position in the provider order: Rashin's own
+	// models, the user's llama.cpp, Ollama, then the catalogue
+	place int
 }
+
+func (c routeCandidate) local() bool { return c.provider.Tier == protocol.TierLocal }
 
 type upstreamError struct {
 	status     int
@@ -117,88 +55,73 @@ func (e *upstreamError) Error() string {
 	return fmt.Sprintf("provider returned HTTP %d", e.status)
 }
 
-func (e *upstreamError) Unwrap() error { return e.cause }
+func (e *upstreamError) Unwrap() error   { return e.cause }
+func (e *upstreamError) StatusCode() int { return e.status }
+
+func (e *upstreamError) ContextTooLong() bool {
+	lower := strings.ToLower(e.body)
+	if lower == "" && e.cause != nil {
+		lower = strings.ToLower(e.cause.Error())
+	}
+	return e.status == http.StatusRequestEntityTooLarge || strings.Contains(lower, "context length") ||
+		strings.Contains(lower, "context window") || strings.Contains(lower, "too many tokens") ||
+		strings.Contains(lower, "exceeds the available context size")
+}
 
 // Stream starts a routed OpenAI-compatible chat completion.
 func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, error) {
-	wire, err := renderRequest(request)
-	if err != nil {
-		return nil, err
-	}
 	candidates, err := g.candidates(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	if len(candidates) == 0 && hasImages(request) {
+	if len(candidates) == 0 && userImages(request) {
 		return nil, &llm.NoRoute{Reason: g.noPictureModel(), NoVision: true}
 	}
 	if len(candidates) == 0 {
 		return nil, &llm.NoRoute{Reason: i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers, or start a model on this computer.")}
 	}
-	stream := &routedStream{gateway: g, ctx: ctx, request: wire, candidates: candidates, started: g.now()}
+	// a request that cannot be rendered fails the same for every model
+	if _, err := renderOpenAI(request, candidates[0].provider, candidates[0].model); err != nil {
+		return nil, err
+	}
+	stream := &routedStream{gateway: g, ctx: ctx, request: request, candidates: candidates, started: g.now()}
 	stream.strict = request.Strict && pinnedRoute(request.Model)
 	return stream, nil
 }
 
-func renderRequest(request llm.Request) (chatRequest, error) {
-	wire := chatRequest{
-		Model: request.Model, MaxTokens: request.MaxTokens, Temperature: request.Temperature,
-		Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}, Extra: request.Extra,
+// Window is the context window of the model request would go to first, 0
+// when nothing would take it or its window is unknown. A managed model may
+// need to load first; its advertised training window is not its allocation.
+func (g *Gateway) Window(ctx context.Context, request llm.Request) int {
+	candidates, err := g.candidates(ctx, request)
+	if err != nil {
+		return 0
 	}
-	for _, message := range request.Messages {
-		m := wireMessage{Role: string(message.Role), ToolCallID: message.ToolCallID, Name: message.Name}
-		switch message.Role {
-		case llm.RoleUser:
-			if len(message.Images) == 0 {
-				m.Content = message.Content
-			} else {
-				parts := []map[string]any{{"type": "text", "text": message.Content}}
-				for _, image := range message.Images {
-					mime := strings.TrimSpace(image.Mime)
-					if mime == "" {
-						mime = "application/octet-stream"
-					}
-					parts = append(parts, map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(image.Data)}})
-				}
-				m.Content = parts
+	for _, candidate := range candidates {
+		if candidate.provider.ID != protocol.ProviderRashinModels {
+			return candidate.model.Context
+		}
+		local := g.managed()
+		if local == nil {
+			continue
+		}
+		if leased, ok := local.(interface{ Acquire() func() }); ok {
+			defer leased.Acquire()()
+		}
+		endpoint, bearer, err := local.Ensure(ctx, candidate.model.ID)
+		if err != nil {
+			continue
+		}
+		window := g.managedWindow(ctx, endpoint, bearer, candidate.model.ID)
+		if len(request.Tools) > 0 && window < 8192 {
+			if request.Strict && pinnedRoute(request.Model) {
+				return 0
 			}
-		case llm.RoleAssistant:
-			m.Content = message.Content
-			for _, call := range message.ToolCalls {
-				m.ToolCalls = append(m.ToolCalls, wireToolCall{ID: call.ID, Type: "function", Function: wireFunction{Name: call.Name, Arguments: call.Arguments}})
-			}
-		case llm.RoleSystem, llm.RoleTool:
-			m.Content = message.Content
-		default:
-			return chatRequest{}, fmt.Errorf(i18n.T("Unsupported chat role: %s"), message.Role)
+			continue
 		}
-		wire.Messages = append(wire.Messages, m)
+		return window
 	}
-	for _, tool := range request.Tools {
-		parameters := tool.Parameters
-		if len(parameters) == 0 {
-			parameters = json.RawMessage(`{"type":"object","properties":{}}`)
-		}
-		if !json.Valid(parameters) {
-			return chatRequest{}, fmt.Errorf(i18n.T("Tool schema for %s is not valid JSON"), tool.Name)
-		}
-		wire.Tools = append(wire.Tools, wireTool{Type: "function", Function: wireFunction{Name: tool.Name, Description: tool.Description, Parameters: parameters}})
-	}
-	// a caller that says how tools are chosen is passed on as is
-	if _, chosen := request.Extra["tool_choice"]; len(wire.Tools) > 0 && !chosen {
-		wire.ToolChoice = "auto"
-	}
-	return wire, nil
-}
-
-// hasImages reports a request that only a model with vision can answer.
-func hasImages(request llm.Request) bool {
-	for _, message := range request.Messages {
-		if len(message.Images) > 0 {
-			return true
-		}
-	}
-	return false
+	return 0
 }
 
 // noPictureModel says that nothing in use reads pictures, and names the
@@ -227,10 +150,13 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 	pinned := pinnedRoute(modelRoute)
 	strictPinned := pinned && request.Strict
 	// A model without vision answers a picture it never saw, or refuses the
-	// whole request, so one is only ever sent to a model that can read it.
-	pictures := hasImages(request)
-	var candidates []routeCandidate
-	for _, p := range g.providers(ctx, false) {
+	// whole request, so the user's pictures only ever go to one that reads
+	// them. A tool's pictures prefer such a model and are left out for one
+	// that cannot, when no other is in use or it is the model asked for.
+	pictures := userImages(request)
+	toolPictures := !pictures && toolImages(request)
+	var candidates, blind []routeCandidate
+	for place, p := range g.providers(ctx, false) {
 		if request.LocalOnly && p.Tier != protocol.TierLocal {
 			continue
 		}
@@ -258,6 +184,14 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 		for j := range p.Models {
 			m := &p.Models[j]
 			picked := modelRoute == p.ID+"/"+m.ID
+			if p.ID == protocol.ProviderRashinModels && len(request.Tools) > 0 {
+				if !m.Tools || m.Context < 8192 || m.Params < 500_000_000 {
+					if strictPinned && picked {
+						return nil, &llm.NoRoute{Reason: managedModelReason(m.Name, m.Tools, m.Context, m.Params)}
+					}
+					continue
+				}
+			}
 			// a model whose tool support nobody knows answers only when picked by name
 			if len(request.Tools) > 0 && m.toolsUnknown && !picked {
 				continue
@@ -285,21 +219,81 @@ func (g *Gateway) candidates(ctx context.Context, request llm.Request) ([]routeC
 				return nil, err
 			}
 			for _, keyID := range keys {
-				candidates = append(candidates, routeCandidate{provider: p, model: m, keyID: keyID, stat: stat, hasStat: hasStat})
+				candidate := routeCandidate{provider: p, model: m, keyID: keyID, stat: stat, hasStat: hasStat, place: place}
+				if toolPictures && !m.Vision && !strictPinned {
+					blind = append(blind, candidate)
+					continue
+				}
+				candidates = append(candidates, candidate)
 			}
 		}
+	}
+	if len(candidates) == 0 {
+		candidates = blind
 	}
 	if strictPinned && len(candidates) == 0 {
 		if pictures {
 			return nil, &llm.NoRoute{Reason: g.noPictureModel(), NoVision: true}
 		}
+		if strings.HasPrefix(modelRoute, protocol.ProviderRashinModels+"/") {
+			return nil, &llm.NoRoute{Reason: g.managedUnavailable(ctx, strings.TrimPrefix(modelRoute, protocol.ProviderRashinModels+"/"), request)}
+		}
 		return nil, &llm.NoRoute{Reason: i18n.Tf("The model you chose is not available now: %s. Choose Auto, or wait for it.", modelRoute)}
 	}
-	sortCandidates(candidates, modelRoute)
+	models := g.settings().Providers.Models
+	sortCandidates(candidates, routeOrder{
+		route:       modelRoute,
+		remoteFirst: models.RemoteFirst,
+		light:       request.Light && !pinned,
+		lightModel:  strings.TrimSpace(models.Light),
+	})
 	if pinned && !request.Strict {
 		preferPinnedCandidates(candidates, modelRoute)
 	}
 	return candidates, nil
+}
+
+func managedModelReason(name string, tools bool, context int, params int64) string {
+	switch {
+	case !tools:
+		return i18n.Tf("%s has no tool calling. Choose a model with tool calling and at least 8K context for Ask or Agents.", name)
+	case context == 0:
+		return i18n.Tf("%s has no verified context window. Choose a model with at least 8K context for Ask or Agents.", name)
+	case context < 8192:
+		return i18n.Tf("%s was trained for only %d context tokens. Choose a model with at least 8K context for Ask or Agents.", name, context)
+	case params < 500_000_000:
+		return i18n.Tf("%s has fewer than 0.5B parameters and cannot serve Ask or Agents. Choose a larger model.", name)
+	}
+	return ""
+}
+
+func (g *Gateway) managedUnavailable(ctx context.Context, id string, request llm.Request) string {
+	local := g.managed()
+	if local == nil {
+		return i18n.T("Rashin's model runtime is missing. Set up llama.cpp in Settings > Providers > Local models.")
+	}
+	result := local.Models(ctx)
+	for _, model := range result.Models {
+		if model.ID != id {
+			continue
+		}
+		if model.State != protocol.LocalInstalled {
+			return i18n.Tf("%s is not downloaded. Download it in Settings > Providers > Local models, or choose Auto.", model.Name)
+		}
+		if len(request.Tools) > 0 {
+			if reason := managedModelReason(model.Name, model.Tools, model.Context, model.Params); reason != "" {
+				return reason
+			}
+		}
+		if model.Error != "" {
+			return i18n.Tf("%s failed to load: %s. Open the llama.cpp log in Settings > Providers > Local models, or choose Auto.", model.Name, model.Error)
+		}
+		if result.Runtime.State == protocol.RuntimeMissing || result.Runtime.State == protocol.RuntimeTooOld {
+			return i18n.Tf("%s cannot start: %s. Install or update llama.cpp in Settings > Providers > Local models.", model.Name, result.Runtime.Error)
+		}
+		return i18n.Tf("%s is temporarily unavailable. Check its llama.cpp log in Settings > Providers > Local models, or choose Auto.", model.Name)
+	}
+	return i18n.Tf("%s is not on this computer. Download it in Settings > Providers > Local models, or choose Auto.", id)
 }
 
 // pinnedRoute says the request names one model rather than Auto, Fast or Smart.
@@ -330,41 +324,111 @@ func (g *Gateway) routeKeys(p *provider) ([]string, error) {
 	return ids, nil
 }
 
-func sortCandidates(candidates []routeCandidate, route string) {
-	sort.SliceStable(candidates, func(i, j int) bool {
-		a, b := candidates[i], candidates[j]
-		// a model on this computer answers with no account and no quota
-		if aLocal, bLocal := a.provider.Tier == protocol.TierLocal, b.provider.Tier == protocol.TierLocal; (route == protocol.RouteAuto || route == "") && aLocal != bLocal {
-			return aLocal
+// routeOrder is how a request's candidates are ranked.
+type routeOrder struct {
+	route string
+	// remoteFirst puts free remote models ahead of the ones on this
+	// computer (providers.models.remoteFirst)
+	remoteFirst bool
+	// light is internal work with no pin: lightModel (provider/model) when
+	// it is set and can answer, then the smallest local models, then the
+	// quickest free remote ones
+	light      bool
+	lightModel string
+}
+
+func sortCandidates(candidates []routeCandidate, order routeOrder) {
+	sort.SliceStable(candidates, func(i, j int) bool { return order.before(candidates[i], candidates[j]) })
+}
+
+func (o routeOrder) before(a, b routeCandidate) bool {
+	if o.light {
+		if ar, br := o.lightRank(a), o.lightRank(b); ar != br {
+			return ar < br
 		}
-		if route == protocol.RouteFast {
-			if a.hasStat != b.hasStat {
-				return a.hasStat
+		if a.local() {
+			if ap, bp := paramsKey(a, true), paramsKey(b, true); ap != bp {
+				return ap < bp
 			}
-			if a.hasStat && a.stat.TTFBMs != b.stat.TTFBMs {
-				return a.stat.TTFBMs < b.stat.TTFBMs
-			}
-			if a.model.SpeedRank != b.model.SpeedRank {
-				return a.model.SpeedRank > b.model.SpeedRank
-			}
-			return a.model.QualityRank > b.model.QualityRank
+			return a.place < b.place
 		}
-		if a.model.QualityRank != b.model.QualityRank {
-			return a.model.QualityRank > b.model.QualityRank
+		return remoteBefore(a, b, protocol.RouteFast)
+	}
+	// a model on this computer answers with no account and no quota
+	if a.local() != b.local() {
+		return a.local() != o.remoteFirst
+	}
+	if a.local() {
+		// the user's choice of where models run comes first: Rashin's own,
+		// then llama.cpp, then Ollama; within one, the size suits the route
+		if a.place != b.place {
+			return a.place < b.place
 		}
-		if route == protocol.RouteSmart {
-			return false
+		if o.route == protocol.RouteFast && a.hasStat && b.hasStat && a.stat.TTFBMs != b.stat.TTFBMs {
+			return a.stat.TTFBMs < b.stat.TTFBMs
 		}
-		if route == protocol.RouteAuto || route == "" {
-			if a.hasStat != b.hasStat {
-				return a.hasStat
-			}
-			if a.hasStat && a.stat.LatencyMs != b.stat.LatencyMs {
-				return a.stat.LatencyMs < b.stat.LatencyMs
-			}
+		fewest := o.route == protocol.RouteFast
+		return paramsKey(a, fewest) < paramsKey(b, fewest)
+	}
+	return remoteBefore(a, b, o.route)
+}
+
+// lightRank orders light work: the configured light model, local models of
+// class light, other local models, then remote ones.
+func (o routeOrder) lightRank(c routeCandidate) int {
+	switch {
+	case o.lightModel != "" && c.provider.ID+"/"+c.model.ID == o.lightModel:
+		return 0
+	case c.local() && c.model.Light:
+		return 1
+	case c.local():
+		return 2
+	}
+	return 3
+}
+
+// paramsKey sorts on parameter count, fewest or most first; an unknown
+// count goes after every known one.
+func paramsKey(c routeCandidate, fewest bool) int64 {
+	switch {
+	case c.model.Params <= 0:
+		return math.MaxInt64
+	case fewest:
+		return c.model.Params
+	}
+	return math.MaxInt64 - 1 - c.model.Params
+}
+
+// remoteBefore ranks two hosted models for a route: Fast by measured time to
+// first token then speed, Smart by quality, Auto by quality then latency.
+func remoteBefore(a, b routeCandidate, route string) bool {
+	if route == protocol.RouteFast {
+		if a.hasStat != b.hasStat {
+			return a.hasStat
 		}
+		if a.hasStat && a.stat.TTFBMs != b.stat.TTFBMs {
+			return a.stat.TTFBMs < b.stat.TTFBMs
+		}
+		if a.model.SpeedRank != b.model.SpeedRank {
+			return a.model.SpeedRank > b.model.SpeedRank
+		}
+		return a.model.QualityRank > b.model.QualityRank
+	}
+	if a.model.QualityRank != b.model.QualityRank {
+		return a.model.QualityRank > b.model.QualityRank
+	}
+	if route == protocol.RouteSmart {
 		return false
-	})
+	}
+	if route == protocol.RouteAuto || route == "" {
+		if a.hasStat != b.hasStat {
+			return a.hasStat
+		}
+		if a.hasStat && a.stat.LatencyMs != b.stat.LatencyMs {
+			return a.stat.LatencyMs < b.stat.LatencyMs
+		}
+	}
+	return false
 }
 
 func preferPinnedCandidates(candidates []routeCandidate, modelRoute string) {
@@ -378,7 +442,7 @@ func preferPinnedCandidates(candidates []routeCandidate, modelRoute string) {
 type routedStream struct {
 	gateway    *Gateway
 	ctx        context.Context
-	request    chatRequest
+	request    llm.Request
 	candidates []routeCandidate
 	started    time.Time
 
@@ -389,16 +453,21 @@ type routedStream struct {
 
 	attempts       int
 	next           int
-	current        *sseAttempt
+	current        attempt
 	candidate      routeCandidate
 	attemptStarted time.Time
-	committed      bool
-	finished       bool
-	closed         bool
-	firstAt        time.Time
-	output         int
-	final          llm.Final
-	mu             sync.Mutex
+	// deadline is when the current attempt must have said something. A
+	// model on this computer may first have to load, so it waits longer;
+	// localSpent is that waiting, which the remote budget does not count.
+	deadline   time.Time
+	localSpent time.Duration
+	committed  bool
+	finished   bool
+	closed     bool
+	firstAt    time.Time
+	output     int
+	final      llm.Final
+	mu         sync.Mutex
 }
 
 func (s *routedStream) Next() (llm.Delta, error) {
@@ -414,23 +483,36 @@ func (s *routedStream) Next() (llm.Delta, error) {
 				if s.strict {
 					return llm.Delta{}, s.pinFailed(s.failure)
 				}
-				return llm.Delta{}, errors.New(i18n.T("Every available model failed. Check Providers for cooldowns and key errors"))
+				message := errors.New(i18n.T("Every available model failed. Check Providers for cooldowns and key errors"))
+				if s.failure != nil {
+					return llm.Delta{}, &routedFailure{message: message, cause: s.failure}
+				}
+				return llm.Delta{}, message
 			}
-			if !s.committed && s.gateway.now().Sub(s.started) >= firstByteBudget {
+			next := s.candidates[s.next]
+			if !s.committed && !next.local() && !s.gateway.now().Before(s.remoteDeadline()) {
 				s.finished = true
 				if s.strict {
 					return llm.Delta{}, &llm.NoRoute{Reason: i18n.Tf("%s did not answer within 45 seconds. Pick another model or Auto.", s.pinnedName())}
 				}
 				return llm.Delta{}, errors.New(i18n.T("No provider produced a response within 45 seconds"))
 			}
-			s.candidate = s.candidates[s.next]
+			s.candidate = next
 			s.next++
 			s.attempts++
 			s.attemptStarted = s.gateway.now()
-			req := s.request
-			req.Model = s.candidate.model.ID
-			attempt, status, body, err := s.startCandidate(req)
+			s.deadline = s.remoteDeadline()
+			if next.local() {
+				s.deadline = s.attemptStarted.Add(localFirstByteBudget)
+			}
+			wire, err := renderOpenAI(s.request, next.provider, next.model)
 			if err != nil {
+				s.finished = true
+				return llm.Delta{}, err
+			}
+			attempt, status, body, err := s.startCandidate(wire)
+			if err != nil {
+				s.endAttempt()
 				if !s.handleFailure(status, body, err) {
 					s.finished = true
 					if s.strict {
@@ -440,12 +522,12 @@ func (s *routedStream) Next() (llm.Delta, error) {
 				}
 				continue
 			}
-			s.current = attempt
+			s.current = wrapDialect(attempt, next.provider, next.model, s.request)
 		}
 
 		delta, err := s.nextAttemptDelta()
 		if err == nil {
-			if delta.Text == "" && delta.Reasoning == "" && len(delta.ToolCalls) == 0 {
+			if delta.Text == "" && delta.Reasoning == "" && delta.Signature == "" && delta.ToolStart == nil && len(delta.ToolCalls) == 0 {
 				continue
 			}
 			if !s.committed {
@@ -459,9 +541,10 @@ func (s *routedStream) Next() (llm.Delta, error) {
 			return delta, nil
 		}
 		if errors.Is(err, io.EOF) {
-			if !s.committed && s.current.emitted == 0 {
+			if !s.committed && s.current.outcome().emitted == 0 {
 				_ = s.current.Close()
 				s.current = nil
+				s.endAttempt()
 				if !s.handleFailure(0, "", errors.New("provider returned an empty completion")) {
 					s.finished = true
 					return llm.Delta{}, errors.New(i18n.T("Provider returned an empty completion"))
@@ -480,6 +563,7 @@ func (s *routedStream) Next() (llm.Delta, error) {
 			s.finished = true
 			return llm.Delta{}, err
 		}
+		s.endAttempt()
 		if !s.handleFailure(0, "", err) {
 			s.finished = true
 			if s.strict {
@@ -488,6 +572,27 @@ func (s *routedStream) Next() (llm.Delta, error) {
 			return llm.Delta{}, err
 		}
 	}
+}
+
+// remoteDeadline is when a hosted model must have answered: the first-byte
+// budget from the start, not counting time spent waiting on local models.
+func (s *routedStream) remoteDeadline() time.Time {
+	return s.started.Add(s.localSpent + firstByteBudget)
+}
+
+// endAttempt closes the books on an attempt that gave nothing.
+func (s *routedStream) endAttempt() {
+	if s.candidate.local() {
+		s.localSpent += s.gateway.now().Sub(s.attemptStarted)
+	}
+}
+
+// timedOut says how long a model that gave nothing was waited for.
+func (s *routedStream) timedOut(err error) error {
+	if !errors.Is(err, context.DeadlineExceeded) || !s.candidate.local() {
+		return err
+	}
+	return errors.New(i18n.Tf("no answer within %d minutes", int(localFirstByteBudget/time.Minute)))
 }
 
 // pinnedName is the pinned model's name, as the user picked it.
@@ -502,6 +607,16 @@ func (s *routedStream) pinnedName() string {
 	return candidate.model.ID
 }
 
+type routedFailure struct {
+	message error
+	cause   error
+}
+
+func (e *routedFailure) Error() string { return e.message.Error() }
+func (e *routedFailure) Unwrap() []error {
+	return []error{e.message, e.cause}
+}
+
 // pinFailed tells a pinned request's failure as its model's, with the
 // provider's reason, and offers the way out; Every available model failed
 // would be wrong for a request that only ever had one. A cancelled request
@@ -510,6 +625,7 @@ func (s *routedStream) pinFailed(cause error) error {
 	if errors.Is(cause, context.Canceled) {
 		return cause
 	}
+	cause = s.timedOut(cause)
 	reason := i18n.T("no answer")
 	if cause != nil {
 		if text := strings.TrimRight(strings.TrimSpace(cause.Error()), "."); text != "" {
@@ -517,41 +633,72 @@ func (s *routedStream) pinFailed(cause error) error {
 			reason = s.gateway.redactKeyMessage(s.candidate.keyID, text)
 		}
 	}
-	return &llm.NoRoute{Reason: i18n.Tf("%s did not answer: %s. Pick another model or Auto.", s.pinnedName(), reason)}
+	route := &llm.NoRoute{Reason: i18n.Tf("%s did not answer: %s. Pick another model or Auto.", s.pinnedName(), reason)}
+	if cause != nil {
+		return &routedFailure{message: route, cause: cause}
+	}
+	return route
 }
 
 func (s *routedStream) startCandidate(request chatRequest) (*sseAttempt, int, string, error) {
-	remaining := firstByteBudget - s.gateway.now().Sub(s.started)
+	remaining := s.deadline.Sub(s.gateway.now())
 	if remaining <= 0 {
 		return nil, 0, "", context.DeadlineExceeded
 	}
 	attemptCtx, cancel := context.WithCancel(s.ctx)
+	// The managed router may idle out while a long response is streaming;
+	// keep it leased until the attempt's body closes.
+	release := func() {}
+	if s.candidate.provider.ID == protocol.ProviderRashinModels {
+		if local := s.gateway.managed(); local != nil {
+			if leased, ok := local.(interface{ Acquire() func() }); ok {
+				release = leased.Acquire()
+			}
+		}
+	}
+	var released sync.Once
+	finish := func() { cancel(); released.Do(release) }
+	// attemptCtx lives as long as the attempt.
 	type result struct {
 		attempt *sseAttempt
 		status  int
 		body    string
+		window  int
 		err     error
 	}
 	ch := make(chan result, 1)
 	go func() {
-		attempt, status, body, err := s.gateway.startAttempt(attemptCtx, s.candidate, request)
-		ch <- result{attempt: attempt, status: status, body: body, err: err}
+		attempt, status, body, window, err := s.gateway.startAttempt(attemptCtx, s.candidate, request)
+		if attemptCtx.Err() != nil {
+			if attempt != nil {
+				_ = attempt.Close()
+			}
+			return
+		}
+		ch <- result{attempt: attempt, status: status, body: body, window: window, err: err}
 	}()
 	timer := time.NewTimer(remaining)
 	defer timer.Stop()
 	select {
 	case result := <-ch:
+		if s.candidate.provider.ID == protocol.ProviderRashinModels {
+			// The candidate's model came from a fresh inventory value. Keep
+			// the loaded allocation on this attempt, not on that inventory.
+			model := *s.candidate.model
+			model.Context = result.window
+			s.candidate.model = &model
+		}
 		if result.attempt != nil {
-			result.attempt.cancel = cancel
+			result.attempt.cancel = finish
 		} else {
-			cancel()
+			finish()
 		}
 		return result.attempt, result.status, result.body, result.err
 	case <-s.ctx.Done():
-		cancel()
+		finish()
 		return nil, 0, "", s.ctx.Err()
 	case <-timer.C:
-		cancel()
+		finish()
 		return nil, 0, "", context.DeadlineExceeded
 	}
 }
@@ -561,7 +708,7 @@ func (s *routedStream) nextAttemptDelta() (llm.Delta, error) {
 	wait := streamIdleGap
 	timeoutErr := error(errStreamIdle)
 	if !s.committed {
-		wait = firstByteBudget - s.gateway.now().Sub(s.started)
+		wait = s.deadline.Sub(s.gateway.now())
 		timeoutErr = context.DeadlineExceeded
 		if wait <= 0 {
 			return llm.Delta{}, timeoutErr
@@ -682,16 +829,27 @@ func (s *routedStream) skipContextsAtMost(context int) {
 	s.candidates = filtered
 }
 
-func (s *routedStream) finishSuccess() {
-	usage := s.current.usage
-	if !s.current.usageKnown {
-		usage = llm.Usage{Input: estimateRequestTokens(s.request), Output: bytesToTokens(s.output), Estimated: true}
+// usage is what the attempt counted, or an estimate when the provider said
+// nothing.
+func (s *routedStream) usage(out attemptOutcome) llm.Usage {
+	if out.usageKnown {
+		return out.usage
 	}
-	finish := s.current.finish
+	return llm.Usage{Input: estimateTokens(s.request), Output: bytesToTokens(s.output),
+		CacheRead: out.usage.CacheRead, CacheWrite: out.usage.CacheWrite, Estimated: true}
+}
+
+func (s *routedStream) finishSuccess() {
+	out := s.current.outcome()
+	usage := s.usage(out)
+	finish := out.finish
 	if finish == "" {
 		finish = llm.FinishStop
 	}
-	s.final = llm.Final{Model: s.candidate.provider.ID + "/" + s.candidate.model.ID, Provider: s.candidate.provider.ID, Finish: finish, Usage: usage, Attempts: s.attempts}
+	s.final = llm.Final{
+		Model: s.candidate.provider.ID + "/" + s.candidate.model.ID, Provider: s.candidate.provider.ID,
+		Finish: finish, Usage: usage, Attempts: s.attempts, Context: s.candidate.model.Context,
+	}
 	latency := s.gateway.now().Sub(s.attemptStarted)
 	ttfb := latency
 	if !s.firstAt.IsZero() {
@@ -707,10 +865,7 @@ func (s *routedStream) finishSuccess() {
 }
 
 func (s *routedStream) recordFailure() {
-	usage := s.current.usage
-	if !s.current.usageKnown {
-		usage = llm.Usage{Input: estimateRequestTokens(s.request), Output: bytesToTokens(s.output), Estimated: true}
-	}
+	usage := s.usage(s.current.outcome())
 	_ = s.gateway.store.recordUsage(s.gateway.now(), s.candidate.provider.ID, s.candidate.model.ID, false, protocol.UsageRow{InputTokens: int64(usage.Input), OutputTokens: int64(usage.Output), Estimated: usage.Estimated})
 }
 
@@ -741,18 +896,46 @@ func (s *routedStream) Close() error {
 	return nil
 }
 
-func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, request chatRequest) (*sseAttempt, int, string, error) {
-	secret := ""
-	if candidate.keyID != "" {
-		var err error
-		secret, _, err = g.store.reveal(candidate.keyID)
-		if err != nil {
-			return nil, 0, "", err
+// startAttempt sends one rendered request to a candidate. Rashin's own
+// models are started first when they are down; a start that fails is a
+// provider failure, so the router moves on to the next candidate.
+func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, request chatRequest) (*sseAttempt, int, string, int, error) {
+	var endpoint, bearer string
+	window := candidate.model.Context
+	if candidate.provider.ID == protocol.ProviderRashinModels {
+		local := g.managed()
+		if local == nil {
+			return nil, http.StatusServiceUnavailable, "", 0, &upstreamError{status: http.StatusServiceUnavailable, cause: errors.New(i18n.T("Rashin's own models are not set up"))}
 		}
-	}
-	endpoint, bearer, err := resolveEndpoint(candidate.provider, secret)
-	if err != nil {
-		return nil, 0, "", err
+		var err error
+		endpoint, bearer, err = local.Ensure(ctx, candidate.model.ID)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, 0, "", 0, ctx.Err()
+			}
+			return nil, http.StatusServiceUnavailable, "", 0, &upstreamError{status: http.StatusServiceUnavailable, cause: err}
+		}
+		window = g.managedWindow(ctx, endpoint, bearer, candidate.model.ID)
+		if len(request.Tools) > 0 && window < 8192 {
+			if window == 0 {
+				return nil, http.StatusBadRequest, "", 0, &upstreamError{status: http.StatusBadRequest, cause: errors.New(i18n.Tf("%s has no verified loaded context window. Check the model runtime in Local models.", candidate.model.Name))}
+			}
+			return nil, http.StatusBadRequest, "", window, &upstreamError{status: http.StatusBadRequest, cause: errors.New(i18n.Tf("%s has only %d context window tokens allocated. Set at least 8K context in Local models for Ask or Agents.", candidate.model.Name, window))}
+		}
+	} else {
+		secret := ""
+		if candidate.keyID != "" {
+			var err error
+			secret, _, err = g.store.reveal(candidate.keyID)
+			if err != nil {
+				return nil, 0, "", window, err
+			}
+		}
+		var err error
+		endpoint, bearer, err = resolveEndpoint(candidate.provider, secret)
+		if err != nil {
+			return nil, 0, "", window, err
+		}
 	}
 	if candidate.provider.CompletionTokens {
 		request.MaxCompletionTokens, request.MaxTokens = request.MaxTokens, 0
@@ -769,42 +952,12 @@ func (g *Gateway) startAttempt(ctx context.Context, candidate routeCandidate, re
 			}
 		}
 	}
-	body, err := json.Marshal(request)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(endpoint, "/")+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, 0, "", err
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Accept", "text/event-stream")
-	if bearer != "" {
-		httpRequest.Header.Set("Authorization", "Bearer "+bearer)
-	}
-	for key, value := range candidate.provider.ExtraHeaders {
-		httpRequest.Header.Set(key, value)
-	}
 	client := g.client
 	if candidate.provider.Tier == protocol.TierLocal {
 		client = g.local.client
 	}
-	response, err := client.Do(httpRequest)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	g.observeLimits(candidate.provider, response.Header)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		defer response.Body.Close()
-		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-		if readErr != nil {
-			return nil, response.StatusCode, "", readErr
-		}
-		bodyText := string(data)
-		retryAfter := parseRetryAfter(response.Header.Get("Retry-After"), g.now())
-		return nil, response.StatusCode, bodyText, &upstreamError{status: response.StatusCode, body: bodyText, retryAfter: retryAfter}
-	}
-	return newSSEAttempt(response), 0, "", nil
+	attempt, status, body, err := g.postOpenAI(ctx, client, endpoint, bearer, candidate.provider, request)
+	return attempt, status, body, window, err
 }
 
 func stripSchemaKeywords(value any) any {
@@ -846,267 +999,6 @@ func resolveEndpoint(p *provider, secret string) (string, string, error) {
 	default:
 		return "", "", fmt.Errorf("unsupported provider auth %q", p.Auth)
 	}
-}
-
-type toolAccumulator struct {
-	ID        string
-	Name      string
-	Arguments strings.Builder
-}
-
-type sseAttempt struct {
-	response   *http.Response
-	cancel     context.CancelFunc
-	scanner    *bufio.Scanner
-	queue      []llm.Delta
-	tools      map[int]*toolAccumulator
-	done       bool
-	emitted    int
-	finish     string
-	usage      llm.Usage
-	usageKnown bool
-	close      sync.Once
-}
-
-func newSSEAttempt(response *http.Response) *sseAttempt {
-	scanner := bufio.NewScanner(response.Body)
-	scanner.Buffer(make([]byte, 4096), 4<<20)
-	return &sseAttempt{response: response, scanner: scanner, tools: make(map[int]*toolAccumulator)}
-}
-
-func (s *sseAttempt) Next() (llm.Delta, error) {
-	if len(s.queue) > 0 {
-		delta := s.queue[0]
-		s.queue = s.queue[1:]
-		s.emitted++
-		return delta, nil
-	}
-	if s.done {
-		return llm.Delta{}, io.EOF
-	}
-	for {
-		data, err := s.nextEvent()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				s.flushTools()
-				s.done = true
-				if len(s.queue) > 0 {
-					return s.Next()
-				}
-			}
-			return llm.Delta{}, err
-		}
-		if data == "[DONE]" {
-			s.flushTools()
-			s.done = true
-			if len(s.queue) > 0 {
-				return s.Next()
-			}
-			return llm.Delta{}, io.EOF
-		}
-		var chunk streamChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			return llm.Delta{}, fmt.Errorf("decode provider stream: %w", err)
-		}
-		if chunk.Error != nil && len(chunk.Choices) == 0 {
-			return llm.Delta{}, errors.New(chunk.Error.message())
-		}
-		if chunk.Usage != nil {
-			s.usage = llm.Usage{Input: firstNonZero(chunk.Usage.PromptTokens, chunk.Usage.InputTokens), Output: firstNonZero(chunk.Usage.CompletionTokens, chunk.Usage.OutputTokens)}
-			s.usageKnown = true
-		}
-		var delta llm.Delta
-		for _, choice := range chunk.Choices {
-			delta.Text += textFromJSON(choice.Delta.Content)
-			delta.Reasoning += firstText(choice.Delta.ReasoningContent, choice.Delta.Reasoning, choice.Delta.Thinking)
-			for _, call := range choice.Delta.ToolCalls {
-				acc := s.tools[call.Index]
-				if acc == nil {
-					acc = &toolAccumulator{}
-					s.tools[call.Index] = acc
-				}
-				if call.ID != "" {
-					acc.ID = call.ID
-				}
-				if call.Function.Name != "" {
-					acc.Name += call.Function.Name
-				}
-				acc.Arguments.WriteString(call.Function.Arguments)
-			}
-			if choice.FinishReason != "" {
-				s.finish = normalizeFinish(choice.FinishReason)
-				s.flushTools()
-			}
-		}
-		if delta.Text != "" || delta.Reasoning != "" {
-			s.emitted++
-			return delta, nil
-		}
-		if len(s.queue) > 0 {
-			return s.Next()
-		}
-		return llm.Delta{}, nil
-	}
-}
-
-func (s *sseAttempt) nextEvent() (string, error) {
-	var lines []string
-	for s.scanner.Scan() {
-		line := s.scanner.Text()
-		if line == "" {
-			if len(lines) > 0 {
-				return strings.Join(lines, "\n"), nil
-			}
-			continue
-		}
-		if strings.HasPrefix(line, "data:") {
-			lines = append(lines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-		}
-	}
-	if err := s.scanner.Err(); err != nil {
-		return "", err
-	}
-	if len(lines) > 0 {
-		return strings.Join(lines, "\n"), nil
-	}
-	return "", io.EOF
-}
-
-func (s *sseAttempt) flushTools() {
-	if len(s.tools) == 0 {
-		return
-	}
-	indices := make([]int, 0, len(s.tools))
-	for index := range s.tools {
-		indices = append(indices, index)
-	}
-	sort.Ints(indices)
-	calls := make([]llm.ToolCall, 0, len(indices))
-	for _, index := range indices {
-		tool := s.tools[index]
-		calls = append(calls, llm.ToolCall{ID: tool.ID, Name: tool.Name, Arguments: tool.Arguments.String()})
-	}
-	if s.finish == "" {
-		s.finish = llm.FinishToolCalls
-	}
-	s.queue = append(s.queue, llm.Delta{ToolCalls: calls})
-	s.tools = make(map[int]*toolAccumulator)
-}
-
-func (s *sseAttempt) Final() llm.Final { return llm.Final{Finish: s.finish, Usage: s.usage} }
-
-func (s *sseAttempt) Close() error {
-	var err error
-	s.close.Do(func() {
-		if s.cancel != nil {
-			s.cancel()
-		}
-		err = s.response.Body.Close()
-	})
-	return err
-}
-
-type streamChunk struct {
-	Choices []struct {
-		Delta struct {
-			Content          json.RawMessage `json:"content"`
-			ReasoningContent string          `json:"reasoning_content"`
-			Reasoning        string          `json:"reasoning"`
-			Thinking         string          `json:"thinking"`
-			ToolCalls        []struct {
-				Index    int    `json:"index"`
-				ID       string `json:"id"`
-				Function struct {
-					Name      string `json:"name"`
-					Arguments string `json:"arguments"`
-				} `json:"function"`
-			} `json:"tool_calls"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		InputTokens      int `json:"input_tokens"`
-		OutputTokens     int `json:"output_tokens"`
-	} `json:"usage"`
-	Error *streamError `json:"error"`
-}
-
-type streamError struct {
-	Message string `json:"message"`
-	Type    string `json:"type"`
-	Code    any    `json:"code"`
-}
-
-func (e *streamError) message() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	return "provider stream returned an error"
-}
-
-func textFromJSON(raw json.RawMessage) string {
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return ""
-	}
-	var text string
-	if json.Unmarshal(raw, &text) == nil {
-		return text
-	}
-	var parts []struct {
-		Text string `json:"text"`
-	}
-	if json.Unmarshal(raw, &parts) == nil {
-		for _, part := range parts {
-			text += part.Text
-		}
-	}
-	return text
-}
-
-func firstText(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func firstNonZero(a, b int) int {
-	if a != 0 {
-		return a
-	}
-	return b
-}
-
-func normalizeFinish(reason string) string {
-	switch reason {
-	case "stop", "eos":
-		return llm.FinishStop
-	case "tool_calls", "function_call":
-		return llm.FinishToolCalls
-	case "length", "max_tokens":
-		return llm.FinishLength
-	case "content_filter":
-		return llm.FinishFilter
-	default:
-		return reason
-	}
-}
-
-func estimateRequestTokens(request chatRequest) int {
-	data, _ := json.Marshal(request.Messages)
-	tools, _ := json.Marshal(request.Tools)
-	return bytesToTokens(len(data) + len(tools))
-}
-
-func bytesToTokens(n int) int {
-	if n <= 0 {
-		return 0
-	}
-	return (n + 3) / 4
 }
 
 type failureKind int
@@ -1155,7 +1047,7 @@ func classifyFailure(status int, body string, err error, now time.Time) failureC
 	if status == http.StatusNotFound || status == http.StatusGone || strings.Contains(lower, "model not found") || strings.Contains(lower, "model_not_found") {
 		return failureClass{kind: failureModel, duration: 24 * time.Hour, reason: "model unavailable"}
 	}
-	if status == http.StatusRequestEntityTooLarge || strings.Contains(lower, "context length") || strings.Contains(lower, "context window") || strings.Contains(lower, "too many tokens") {
+	if status == http.StatusRequestEntityTooLarge || strings.Contains(lower, "context length") || strings.Contains(lower, "context window") || strings.Contains(lower, "too many tokens") || strings.Contains(lower, "exceeds the available context size") {
 		return failureClass{kind: failureContext, reason: "context too large"}
 	}
 	if status >= 500 || transportFailure(err) || strings.Contains(lower, "empty completion") {

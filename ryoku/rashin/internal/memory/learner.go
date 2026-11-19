@@ -384,10 +384,17 @@ func (l *learner) learn(ctx context.Context, id string) (protocol.MemoryChange, 
 	}
 	user := fmt.Sprintf(learnUser, id, info.Kind, info.Title, projectLine(e, scope), personalLine(kept),
 		longDate(info.Updated), longDate(l.now()), listShown(shown, scope), renderTurns(conv.turns, model.budget()))
-	reply, ops, err := l.ask(ctx, model, user, r)
+	reply, ops, final, err := l.ask(ctx, model, user, r)
 	if err != nil {
 		return protocol.MemoryChange{}, err
 	}
+	model.Model = final.Model
+	if final.Context > 0 {
+		model.Context = final.Context
+	}
+	l.mu.Lock()
+	l.model = model
+	l.mu.Unlock()
 	l.note(ctx, store, info, reply.Summary)
 	change, err := store.Apply(Origin{By: protocol.MemoryByLearning, Session: id, Model: model.Model, Turn: conv.turn}, ops)
 	if err != nil {
@@ -418,32 +425,34 @@ func (l *learner) learn(ctx context.Context, id string) (protocol.MemoryChange, 
 
 // ask makes the learning call, retrying once with the short prompt when the
 // reply is not the JSON asked for or fails validation as a whole.
-func (l *learner) ask(ctx context.Context, model learnModel, user string, r *reconcile) (learnReply, []Op, error) {
+func (l *learner) ask(ctx context.Context, model learnModel, user string, r *reconcile) (learnReply, []Op, llm.Final, error) {
 	var lastErr error
 	for _, system := range []string{learnSystem, learnSystemShort} {
 		zero := 0.0
-		text, _, err := complete(ctx, l.e.deps.Client, llm.Request{
+		text, final, err := complete(ctx, l.e.deps.Client, llm.Request{
 			Model:       model.Model,
-			Strict:      true,
+			LocalOnly:   model.Local,
+			Light:       true,
 			Temperature: &zero,
 			MaxTokens:   learnReplyTokens,
 			Messages:    []llm.Message{{Role: llm.RoleSystem, Content: system}, {Role: llm.RoleUser, Content: user}},
 			Extra:       jsonFormat(model.Local, "memory_learn", learnSchema),
 		})
 		if err != nil {
-			return learnReply{}, nil, err
+			return learnReply{}, nil, llm.Final{}, err
 		}
 		var reply learnReply
 		if lastErr = parseReply(text, &reply); lastErr != nil {
 			continue
 		}
+		r.source.Model = final.Model
 		ops, err := r.ops(ctx, reply)
 		if lastErr = err; err != nil {
 			continue
 		}
-		return reply, ops, nil
+		return reply, ops, final, nil
 	}
-	return learnReply{}, nil, lastErr
+	return learnReply{}, nil, llm.Final{}, lastErr
 }
 
 // note keeps the learner's summary of the conversation for searching it

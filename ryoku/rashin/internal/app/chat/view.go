@@ -19,7 +19,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/diffview"
@@ -31,28 +31,31 @@ type viewState struct {
 	scroller transcriptScroller
 	follow   bool
 	ready    bool
-	// a turn is running, and this conversation can run a command for the reader
-	busy, runsHere bool
+	// a turn may stay open while it waits for the reader; only actual work animates
+	busy, working, runsHere bool
 	// set after the first frame so only what arrives while you watch animates in
 	drawn   bool
 	actions []Action
 	visible []int
 	turnOf  []int
 	// a finished turn's work folds into its first work row
-	folds          map[int]*foldInfo
-	overlays       *look.Overlays
-	features       func(string) bool
-	session        string
+	folds    map[int]*foldInfo
+	overlays *look.Overlays
+	features func(string) bool
+	session  string
+	// calls the view makes to the daemon itself, the place it opens what they return in, and where it says how they went
 	artifactCall   func(string, any, any, func(error))
 	artifactOpen   func(string)
 	artifactNotify func(string)
+	call           func(string, any, any, func(error))
+	notify         func(string)
 
 	jump     kit.IconPlaque
 	jumpShow anim.Tween
-	thumb    anim.Tween
+	rail     kit.ScrollRail
 
 	plaques     map[string]*kit.Plaque
-	icons       map[string]*iconControl
+	icons       map[string]*kit.IconPlaque
 	selectables map[string]*widget.Selectable
 	links       map[string]*widget.Clickable
 	markdown    map[string]*markdownState
@@ -82,11 +85,12 @@ type viewState struct {
 	// the tag presses in the transcript are watched under, and the frames left in which a press that just ended still counts
 	presses  struct{}
 	settling int
-}
-
-type iconControl struct {
-	action look.IconAction
-	tip    look.Tip
+	// how many cards the row being laid out stands inside
+	nest int
+	// the newest turn is the one whose offers are still open questions
+	newest bool
+	// the oldest request still open, the one a view's gold belongs to
+	waiting string
 }
 
 func (view *View) ensureState() *viewState {
@@ -103,7 +107,7 @@ func (state *viewState) ensure() {
 	}
 	state.ready, state.follow = true, true
 	state.plaques = make(map[string]*kit.Plaque)
-	state.icons = make(map[string]*iconControl)
+	state.icons = make(map[string]*kit.IconPlaque)
 	state.selectables = make(map[string]*widget.Selectable)
 	state.links = make(map[string]*widget.Clickable)
 	state.markdown = make(map[string]*markdownState)
@@ -142,25 +146,36 @@ func (state *viewState) layout(
 	state.buildVisible(model)
 	state.updateTurnHover(gtx)
 	busy := model.activeTurn != nil
-	state.busy, state.runsHere = busy, info.Kind == protocol.KindAsk
+	state.busy, state.working, state.runsHere = busy, busy && info.State == protocol.StateWorking, info.Kind == protocol.KindAsk
 	state.session = info.ID
 	class := look.ClassFor(float32(gtx.Constraints.Max.X) / max(gtx.Metric.PxPerDp, .001))
 	lastTurn := state.lastTurn(model)
+	state.waiting = oldestOpen(model)
 
 	state.scroller.SetFollow(state.follow)
 	dimensions := state.scroller.Layout(gtx, len(state.visible)+1, func(gtx layout.Context, position int) layout.Dimensions {
 		gtx.Constraints.Min.Y = 0
 		if position == len(state.visible) {
-			return state.layoutTail(gtx, th, model, class, busy)
+			return state.layoutTail(gtx, th, model, class, state.working)
 		}
 		index := state.visible[position]
 		row := &model.rows[index]
 		block := blockContext{info: info, model: model, row: row, index: index, turn: state.turnOf[index], last: state.turnOf[index] == lastTurn}
-		return layout.Inset{Top: state.gapBefore(model, position)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			if state.feature("compare") && state.hasComparison() {
-				return state.trackTurn(gtx, block.turn, func(gtx layout.Context) layout.Dimensions {
-					return state.layoutRow(gtx, th, block)
-				})
+		state.newest = block.last
+		return layout.Inset{Top: state.gapBefore(th, model, position)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if row.kind == rowTurnEnd && state.feature("compare") && state.comparisonFor(block) {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return look.ReadingColumn(gtx, class, func(gtx layout.Context) layout.Dimensions {
+							return state.trackTurn(gtx, block.turn, func(gtx layout.Context) layout.Dimensions {
+								return state.layoutRow(gtx, th, block)
+							})
+						})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return state.layoutComparison(gtx, th, block)
+					}),
+				)
 			}
 			return look.ReadingColumn(gtx, class, func(gtx layout.Context) layout.Dimensions {
 				return state.trackTurn(gtx, block.turn, func(gtx layout.Context) layout.Dimensions {
@@ -179,7 +194,7 @@ func (state *viewState) layout(
 	area.Pop()
 	pass.Pop()
 	state.dropUnseenSets()
-	state.layoutThumb(gtx, th, dimensions.Size)
+	state.layoutRail(gtx, th, dimensions.Size)
 	state.layoutJump(gtx, th, dimensions.Size)
 	state.drawn = true
 	return dimensions
@@ -230,24 +245,26 @@ func (state *viewState) lastTurn(model *modelState) int {
 	return state.turnOf[len(model.rows)-1]
 }
 
-func (state *viewState) gapBefore(model *modelState, position int) unit.Dp {
+func (state *viewState) gapBefore(th *look.Theme, model *modelState, position int) unit.Dp {
 	if position == 0 {
-		return 21
+		return th.Sp.S4
 	}
 	current := model.rows[state.visible[position]].kind
 	previous := model.rows[state.visible[position-1]].kind
-	isWork := func(kind rowKind) bool { return kind == rowTool || kind == rowThought || kind == rowTerminal }
+	isWork := func(kind rowKind) bool {
+		return kind == rowTool || kind == rowThought || kind == rowTerminal || kind == rowCompaction
+	}
 	switch {
 	case current == rowUser:
-		return 34
+		return th.Sp.S5
 	case previous == rowUser:
-		return 21
+		return th.Sp.S4
 	case isWork(current) && isWork(previous), current == rowMemory && previous == rowMemory:
 		return 2
 	case current == rowTurnEnd:
-		return 8
+		return th.Sp.S2
 	default:
-		return 13
+		return th.Sp.S3
 	}
 }
 
@@ -287,7 +304,11 @@ func (state *viewState) layoutRow(gtx layout.Context, th *look.Theme, block bloc
 	case rowPermission:
 		return state.layoutPermission(gtx, th, row.permission)
 	case rowPlan:
-		return state.layoutPlan(gtx, th, row.plan)
+		return state.layoutPlan(gtx, th, row.plan, "plan:"+key, block.model.activeTurn != nil && row.turn == block.model.activeTurn)
+	case rowNotice:
+		return state.layoutNotice(gtx, th, row.notice, "notice:"+key)
+	case rowCompaction:
+		return state.layoutCompaction(gtx, th, row.tool, "compaction:"+row.key)
 	case rowTerminal:
 		if fold := state.folds[block.index]; fold != nil {
 			return state.layoutFold(gtx, th, block.index, fold, func(gtx layout.Context) layout.Dimensions {
@@ -345,6 +366,10 @@ func tailMark(model *modelState) (shown bool, label string) {
 	if len(model.rows) == 0 {
 		return true, i18n.T("Thinking")
 	}
+	// a turn that waits on the reader is not thinking, and its card says who it waits on
+	if oldestOpen(model) != "" {
+		return false, ""
+	}
 	// what a running command prints belongs to its call, so the row before the output is the one that counts
 	at := len(model.rows) - 1
 	for at > 0 && model.rows[at].kind == rowTerminal && model.terminalOwners[model.rows[at].key] != "" {
@@ -361,6 +386,10 @@ func tailMark(model *modelState) (shown bool, label string) {
 				return false, ""
 			}
 		}
+	case rowCompaction:
+		if toolRunning(last.tool) {
+			return false, ""
+		}
 	}
 	return true, i18n.T("Thinking")
 }
@@ -376,25 +405,30 @@ func (state *viewState) layoutJump(gtx layout.Context, th *look.Theme, size imag
 	if shown <= 0 {
 		return
 	}
-	plaque := gtx.Dp(32)
-	bounds := image.Rect((size.X-plaque)/2, size.Y-plaque-gtx.Dp(8), (size.X+plaque)/2, size.Y-gtx.Dp(8))
+	plaque, gap := gtx.Dp(tokens.SizeIconPlaqueSmall), gtx.Dp(th.Sp.S2)
+	bounds := image.Rect((size.X-plaque)/2, size.Y-plaque-gap, (size.X+plaque)/2, size.Y-gap)
 	defer paint.PushOpacity(gtx.Ops, shown).Pop()
 	look.Place(gtx, bounds, func(gtx layout.Context) layout.Dimensions {
 		if state.follow {
 			gtx = gtx.Disabled()
 		}
-		// floats over the transcript so it gets its own plane
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(th.Cut.Small), th.R.Stone4)
+		// floats over the transcript so it gets the plane of what floats
+		plane, cut := image.Rectangle{Max: gtx.Constraints.Max}, gtx.Dp(th.Cut.Small)
+		kit.Fill(gtx, th.Theme, plane, cut, th.R.Stone4)
+		kit.Stroke(gtx, th.Theme, plane, cut, max(1, gtx.Dp(tokens.SizeHairline)), th.R.Vein)
 		return state.jump.Layout(gtx, th.Theme)
 	})
 }
 
-func (state *viewState) layoutThumb(gtx layout.Context, th *look.Theme, size image.Point) {
-	alpha := look.Transition(gtx, &state.thumb, state.scroller.Active(gtx), th.Motion.HoverIn, th.Motion.HoverOut)
-	if alpha <= 0 {
-		return
+// the thumb can be dragged, and a reader who dragged away from the end has stopped following it
+func (state *viewState) layoutRail(gtx layout.Context, th *look.Theme, size image.Point) {
+	before := state.scroller.Position
+	gtx.Constraints = layout.Exact(size)
+	state.rail.Layout(gtx, th.Theme, &state.scroller.List, len(state.visible)+1)
+	if after := state.scroller.Position; after.First != before.First || after.Offset != before.Offset || after.BeforeEnd != before.BeforeEnd {
+		state.follow = state.scroller.AtEnd()
+		state.scroller.SetFollow(state.follow)
 	}
-	look.DrawThumb(gtx, th, size, state.scroller.Position, len(state.visible)+1, alpha)
 }
 
 func (state *viewState) plaque(key string) *kit.Plaque {
@@ -404,20 +438,6 @@ func (state *viewState) plaque(key string) *kit.Plaque {
 		state.plaques[key] = plaque
 	}
 	return plaque
-}
-
-func (state *viewState) icon(gtx layout.Context, th *look.Theme, key string, icon *widget.Icon, description string) (layout.Dimensions, bool) {
-	control := state.icons[key]
-	if control == nil {
-		control = new(iconControl)
-		state.icons[key] = control
-	}
-	control.action.Icon, control.action.Description = icon, description
-	clicked := control.action.Clicked(gtx)
-	dimensions := control.tip.Layout(gtx, th, state.overlays, description, func(gtx layout.Context) layout.Dimensions {
-		return control.action.Layout(gtx, th, th.R.Fg3)
-	})
-	return dimensions, clicked
 }
 
 func (state *viewState) rise(key string) *look.Rise {
@@ -456,8 +476,7 @@ func (state *viewState) selectable(
 		state.settling = 0
 		state.act(Action{Kind: ActRelease})
 	}
-	selection := colorMaterial(gtx.Ops, palette.WithAlpha(th.R.Sel, .6))
-	dimensions := selectable.Layout(gtx, th.Shaper, style.Face, style.Size, colorMaterial(gtx.Ops, ink), selection)
+	dimensions := selectable.Layout(gtx, th.Shaper, style.Face, style.Size, colorMaterial(gtx.Ops, ink), colorMaterial(gtx.Ops, look.SelectedText(th)))
 	// selectable text does not say what it reads, a label does
 	area := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
 	semantic.LabelOp(value).Add(gtx.Ops)
@@ -469,16 +488,6 @@ func colorMaterial(ops *op.Ops, ink color.NRGBA) op.CallOp {
 	record := op.Record(ops)
 	paint.ColorOp{Color: ink}.Add(ops)
 	return record.Stop()
-}
-
-func slab(gtx layout.Context, th *look.Theme, inset unit.Dp, body layout.Widget) layout.Dimensions {
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(inset).Layout(gtx, body)
-	call := record.Stop()
-	bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-	kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
-	call.Add(gtx.Ops)
-	return dimensions
 }
 
 func firstLines(value string, count int) (string, bool) {

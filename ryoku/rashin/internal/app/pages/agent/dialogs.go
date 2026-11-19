@@ -40,7 +40,9 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	th := e.Theme
 	snapshot := e.Snapshot()
 	d.place.clamp(snapshot)
-	ready := len(env.InstalledHarnesses(snapshot)) > 0
+	d.place.model.Parts, d.place.model.Agents = env.ModelOptions|env.ModelPlan|env.ModelAsking|env.ModelCheck, true
+	d.place.model.FollowAgent(e)
+	ready := d.place.model.Ready(e)
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.start.Kind, d.start.Label = kit.PlaqueGold, i18n.T("Start session")
 	if d.cancel.Clicked(gtx) {
@@ -48,7 +50,7 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 	if d.start.Clicked(gtx) && ready {
 		more := details{folder: d.folder.Path(), name: d.name.Text(), base: d.base.Text(), branch: d.branch.Text()}
-		if params, ok := d.place.params(snapshot, e.AgentModels, more); ok {
+		if params, ok := d.place.params(e, more); ok {
 			var info protocol.SessionInfo
 			e.Call(protocol.MSessionNew, params, &info, func(err error) {
 				if err != nil {
@@ -107,20 +109,16 @@ func (d *createDialog) body(gtx layout.Context, e *env.Env) layout.Dimensions {
 			)
 		}
 	}
-	harnesses := env.InstalledHarnesses(snapshot)
-	children = append(children, field(&place.harness, i18n.T("Harness"), harnessOptions(harnesses), place.pick.Index(snapshot, harnesses)))
-	if len(harnesses) > 0 {
-		children = append(children, gap, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return place.model.layout(gtx, e, place.picked(snapshot, harnesses), look.SelectField, nil)
-		}))
-		children = append(children, place.model.noteRows(th)...)
-	}
 	children = append(children,
+		gap,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return place.model.Layout(gtx, e)
+		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, approvalsNote(snapshot, len(harnesses) == 0))),
+		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, env.ApprovalsNote(env.AgentApprovals, place.model.Approvals()))),
 	)
-	place.update(e, harnesses)
+	place.update()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 

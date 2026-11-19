@@ -6,9 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"ryoku-rashin/internal/protocol"
 )
@@ -20,7 +18,7 @@ func (h *harness) newDream(t *testing.T) (protocol.Team, protocol.AgentRef) {
 	t.Helper()
 	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{
 		Statement: "Make an ESP32 page that appears when I join its Wi-Fi.", Name: "ESP32 setup",
-		Folder: filepath.Join(h.dir, "dreams", "esp32"), Harness: "fake",
+		Folder: filepath.Join(h.dir, "dreams", "esp32"), Model: "test/big", Options: map[string]string{"effort": "high"},
 	})
 	if dream.Dream == nil || dream.Dream.Task == "" || dream.Dream.Manager == "" || dream.Approvals != protocol.ApprovalsAuto || dream.Budget.MonthTokens != 0 {
 		t.Fatalf("the dream started as %+v", dream)
@@ -79,7 +77,7 @@ func TestADreamsManagerHiresSetsPhasesReleasesAndPresents(t *testing.T) {
 	hired := do[protocol.Member](t, h, protocol.MTeamsAgentHire, protocol.AgentHireParams{
 		AgentRef: ref, Name: "Ada", Title: "Firmware engineer", Instructions: "You own the ESP32 firmware.", Why: "The page needs firmware.",
 	})
-	if hired.Harness != "fake" || hired.Lead {
+	if hired.Model != "test/big" || hired.Options["effort"] != "high" || hired.Lead {
 		t.Fatalf("hired %+v", hired)
 	}
 	h.answer(t, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: ref, Phase: protocol.DreamBuilding, Summary: "Ada builds the firmware.", Brief: "A captive page."})
@@ -130,11 +128,11 @@ func TestOnlyADreamsManagerUsesTheDreamTools(t *testing.T) {
 	team := h.newTeam(t, "Ordinary", nil)
 	lead := h.agent(t, h.newTask(t, team, "Do it.").ID)
 	refused(t, h, protocol.MTeamsAgentDream, protocol.AgentDreamParams{AgentRef: lead, Phase: protocol.DreamBuilding, Summary: "Mine."}, protocol.CodeForbidden)
-	if env := h.s.ToolEnv(h.sessions.info(ref.Session)); env["RASHIN_TEAM_DREAM"] != "1" {
-		t.Fatalf("the manager's tools are not the dream's: %v", env)
+	if tc := h.s.ToolContext(h.sessions.info(ref.Session)); tc == nil || !tc.Dream || !tc.Lead || tc.Token != ref.Token {
+		t.Fatalf("the manager's tools are not the dream's: %+v", tc)
 	}
-	if env := h.s.ToolEnv(h.sessions.info(member.Session)); env["RASHIN_TEAM_DREAM"] != "" {
-		t.Fatalf("a member was given the dream's tools: %v", env)
+	if tc := h.s.ToolContext(h.sessions.info(member.Session)); tc != nil && tc.Dream {
+		t.Fatalf("a member was given the dream's tools: %+v", tc)
 	}
 }
 
@@ -204,7 +202,7 @@ func TestAReportDoesNotEndADream(t *testing.T) {
 		{Status: protocol.GoalDone, Reason: "Done."},
 		// a spent turn budget goes on too: the dream is exempt from turns per task
 		{Status: protocol.GoalStopped, Turns: 200, MaxTurns: 200},
-		// two idle turns pause a goal; a dream's goes on until the stall guard asks
+		// two idle turns pause a goal; a dream's continues until the stall limit
 		{Status: protocol.GoalPaused, Reason: noProgress()},
 	} {
 		h.endGoal(ref.Session, ended)
@@ -248,10 +246,9 @@ func (h *harness) goalsOf(id, op string) []protocol.GoalParams {
 	return out
 }
 
-// Six turns in a row without a tool call stop the dream to ask the user,
-// with the manager's last words; a turn with a tool call starts the count
-// again, and keep going continues the manager.
-func TestTheStallGuardAsksAfterSixIdleTurns(t *testing.T) {
+// Six idle turns block a dream without asking the CEO for permission to
+// continue. Its standing task is reused if the CEO resumes it.
+func TestTheStallGuardBlocksWithoutAskingForConfirmation(t *testing.T) {
 	h := newHarness(t, 0)
 	dream, ref := h.newDream(t)
 	turn := func(steps int) {
@@ -266,38 +263,21 @@ func TestTheStallGuardAsksAfterSixIdleTurns(t *testing.T) {
 	for range 5 {
 		turn(0)
 	}
-	if pending := h.s.listApprovals(protocol.ApprovalsParams{Pending: true}).Approvals; len(pending) != 0 {
-		t.Fatalf("the guard asked before six idle turns in a row: %+v", pending)
+	if task := h.task(t, dream.Dream.Task); task.Status != protocol.TaskWorking {
+		t.Fatalf("the manager stopped before six idle turns: %+v", task)
 	}
 	turn(0)
-	card := h.pending(t)
-	if !strings.Contains(card.Detail, "I am thinking about it.") || !slices.Equal(card.Options, []string{"Keep going", "Pause the dream"}) {
-		t.Fatalf("the stall card is %+v", card)
+	task := h.task(t, dream.Dream.Task)
+	if task.Status != protocol.TaskBlocked || !strings.Contains(task.Reason, "I am thinking about it.") || h.ledgerCount(t, "dream.stall", task.ID) != 1 {
+		t.Fatalf("the stalled manager was not blocked with its last words: %+v", task)
 	}
-	if !h.s.Hold(h.sessions.info(ref.Session)) || h.ledgerCount(t, "dream.stall", "") != 1 {
-		t.Fatal("the stalled dream goes on without the user")
-	}
-	do[protocol.Approval](t, h, protocol.MTeamsApprovalDecide, protocol.ApprovalDecideParams{ID: card.ID, Decision: protocol.DecideChoose, Choice: card.Options[0]})
-	waitFor(t, "the manager to go on", func() bool {
-		return slices.ContainsFunc(h.sessions.notes(ref.Session), func(note string) bool { return strings.Contains(note, "keep going") })
-	})
-	turn(0)
 	if pending := h.s.listApprovals(protocol.ApprovalsParams{Pending: true}).Approvals; len(pending) != 0 {
-		t.Fatal("the count did not start again after keep going")
+		t.Fatalf("the guard asked for confirmation: %+v", pending)
 	}
-	// pausing from the card pauses the dream; resuming starts the manager again
-	for range 5 {
-		turn(0)
-	}
-	card = h.pending(t)
-	do[protocol.Approval](t, h, protocol.MTeamsApprovalDecide, protocol.ApprovalDecideParams{ID: card.ID, Decision: protocol.DecideChoose, Choice: card.Options[1]})
-	if team, _ := h.s.state.team(dream.ID); !team.Paused || taskIsOpen(h.task(t, dream.Dream.Task)) {
-		t.Fatal("pause the dream left it working")
-	}
+	waitFor(t, "the stalled session to stop", func() bool { return h.sessions.wasStopped(ref.Session) })
 	resumed := do[protocol.Team](t, h, protocol.MTeamsPause, protocol.TeamPauseParams{ID: dream.ID, Paused: false})
-	// the stopped standing task runs again, rather than a second one being added
 	if resumed.Dream.Task != dream.Dream.Task || len(h.s.state.tasks(func(task protocol.TeamTask) bool { return task.Team == dream.ID })) != 1 {
-		t.Fatal("resuming the dream did not run its standing task again")
+		t.Fatal("resuming the dream did not reuse its standing task")
 	}
 	h.agent(t, resumed.Dream.Task)
 }
@@ -328,43 +308,36 @@ func TestPresentingNeedsAnInterviewAndTheTeamsWork(t *testing.T) {
 	h.answer(t, protocol.MTeamsAgentPresent, protocol.AgentPresentParams{AgentRef: ref, Title: "Bigger page", Body: "Done."})
 }
 
-// A dream started before its harness was signed in goes on by itself once
-// the sign-in finishes: the same standing task runs again, and the blocked
-// attempt is neither a finished task nor left as a card.
-func TestADreamBlockedOnSignInGoesOnOnceSignedIn(t *testing.T) {
+// A dream whose manager's model cannot run blocks its standing task before
+// any session; once the model is fixed, resuming the dream runs that same
+// task again rather than counting the blocked attempt as another.
+func TestADreamBlockedOnItsModelGoesOnWhenResumed(t *testing.T) {
 	h := newHarness(t, 0)
-	var signed atomic.Bool
-	h.s.signedIn = func(string, string) (time.Time, bool) { return time.Time{}, signed.Load() }
-	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "A page.", Folder: filepath.Join(h.dir, "dreams", "page"), Harness: "fake"})
-	waitFor(t, "the dream to block on its sign-in", func() bool { return h.task(t, dream.Dream.Task).Status == protocol.TaskBlocked })
-	if task := h.task(t, dream.Dream.Task); task.SignIn != "fake" {
+	dream := do[protocol.Team](t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "A page.", Folder: filepath.Join(h.dir, "dreams", "page"), Model: "off/model"})
+	waitFor(t, "the dream to block on its model", func() bool { return h.task(t, dream.Dream.Task).Status == protocol.TaskBlocked })
+	if task := h.task(t, dream.Dream.Task); !strings.Contains(task.Reason, "off/model is turned off") {
 		t.Fatalf("the blocked task is %+v", task)
 	}
-	h.s.HomeSignedIn("other", dream.ID)
-	if h.task(t, dream.Dream.Task).Status != protocol.TaskBlocked {
-		t.Fatal("a sign-in to another harness started the dream")
-	}
-	signed.Store(true)
-	h.s.HomeSignedIn("fake", dream.ID)
+	members := append([]protocol.Member(nil), dream.Members...)
+	members[0].Model = "test/small"
+	do[protocol.Team](t, h, protocol.MTeamsUpdate, protocol.TeamUpdateParams{ID: dream.ID, Patch: mustJSON(t, map[string]any{"members": members})})
+	do[protocol.Team](t, h, protocol.MTeamsPause, protocol.TeamPauseParams{ID: dream.ID})
 	h.agent(t, dream.Dream.Task)
 	team, _ := h.s.teamWithStats(dream.ID)
 	if team.Dream.Task != dream.Dream.Task || team.Stats.Tasks != 1 || team.Stats.Done != 0 || team.Stats.Working != 1 || h.task(t, dream.Dream.Task).Reason != "" {
-		t.Fatalf("after the sign-in the dream reads %+v, %+v", team.Dream, team.Stats)
+		t.Fatalf("after resuming the dream reads %+v, %+v", team.Dream, team.Stats)
 	}
 }
 
-// A hire on a harness the dream is not signed in to is refused, naming the
-// harnesses it is signed in to.
-func TestAHireOnAnEngineNotSignedInIsRefused(t *testing.T) {
-	h := newHarnessWith(t, func(s *protocol.Settings) {
-		s.Agent.Instances = append(s.Agent.Instances, protocol.HarnessInstance{ID: "other", Name: "Other", Command: []string{"other-acp"}})
-	})
-	h.s.signedIn = func(harness, _ string) (time.Time, bool) { return time.Time{}, harness == "fake" }
+// A hire on a model that cannot run is refused, saying what is wrong, and
+// joins nobody; a dream takes no more options than a member does.
+func TestAHireOnAModelThatCannotRunIsRefused(t *testing.T) {
+	h := newHarness(t, 0)
 	dream, ref := h.newDream(t)
-	_, err := h.call(protocol.MTeamsAgentHire, protocol.AgentHireParams{AgentRef: ref, Name: "Bo", Title: "Tester", Instructions: "You test.", Harness: "other"})
+	_, err := h.call(protocol.MTeamsAgentHire, protocol.AgentHireParams{AgentRef: ref, Name: "Bo", Title: "Tester", Instructions: "You test.", Model: "nowhere/model"})
 	var failure *protocol.Error
-	if !errors.As(err, &failure) || failure.Code != protocol.CodeConflict || !strings.Contains(failure.Message, "Other") || !strings.Contains(failure.Message, "signed in to: Fake") {
-		t.Fatalf("a hire on a harness not signed in: %v", err)
+	if !errors.As(err, &failure) || failure.Code != protocol.CodeBadRequest || !strings.Contains(failure.Message, "no provider nowhere") {
+		t.Fatalf("a hire on a model that cannot run: %v", err)
 	}
 	if team, _ := h.s.state.team(dream.ID); len(team.Members) != 1 {
 		t.Fatalf("the refused hire joined: %+v", team.Members)
@@ -373,7 +346,7 @@ func TestAHireOnAnEngineNotSignedInIsRefused(t *testing.T) {
 	for i := range protocol.EngineOptionsMax + 1 {
 		options[strings.Repeat("o", i+1)] = "on"
 	}
-	refused(t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Too many options.", Folder: filepath.Join(h.dir, "dreams", "x"), Harness: "fake", Options: options}, protocol.CodeBadRequest)
+	refused(t, h, protocol.MTeamsDreamCreate, protocol.DreamCreateParams{Statement: "Too many options.", Folder: filepath.Join(h.dir, "dreams", "x"), Options: options}, protocol.CodeBadRequest)
 }
 
 // teams.list leaves dreams out, as do the teams agents read; the snapshot
@@ -390,5 +363,27 @@ func TestTheTeamsListLeavesDreamsOut(t *testing.T) {
 	h.s.Snapshot(context.Background(), &snapshot)
 	if !slices.ContainsFunc(snapshot.Teams, func(t protocol.Team) bool { return t.ID == dream.ID && t.Dream != nil }) {
 		t.Fatal("the snapshot lost the dream")
+	}
+}
+
+func TestDreamManagerCannotHireAnUnpinnedPaidModel(t *testing.T) {
+	h := newHarness(t, 0)
+	h.s.SetModels(func(ctx context.Context, p protocol.ModelsParams) (protocol.ModelsResult, error) {
+		out, err := listModels(ctx, p)
+		out.Models = append(out.Models, protocol.ModelInfo{ID: "test/paid", Provider: "test", Tier: protocol.TierPaid, Tools: true, Available: true})
+		return out, err
+	})
+	dream, ref := h.newDream(t)
+	p := protocol.AgentHireParams{AgentRef: ref, Name: "Ada", Title: "Developer", Instructions: "Build the software.", Model: "test/paid"}
+	refused(t, h, protocol.MTeamsAgentHire, p, protocol.CodeForbidden)
+	if current, _ := h.s.state.team(dream.ID); len(current.Members) != 1 || current.Dream.Hired != 0 {
+		t.Fatalf("rejected paid hire changed the team: %+v", current)
+	}
+	h.settingsMu.Lock()
+	h.settings.Agent.Model = "test/paid"
+	h.settingsMu.Unlock()
+	hired := do[protocol.Member](t, h, protocol.MTeamsAgentHire, p)
+	if hired.Model != "test/paid" {
+		t.Fatalf("user-pinned paid model was refused: %+v", hired)
 	}
 }

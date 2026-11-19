@@ -19,27 +19,40 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 - Error codes: `bad_request`, `not_found`, `unavailable`, `conflict`,
   `disabled`, `unsupported`, `forbidden`, `internal`, `no_vision`, `local_only`.
   Messages are sentences for people.
-- `forbidden` refuses a Teams or vault method that only the user may call
-  (`teams.UserOnly`), and `harnesses.probe`, to any connection not opened by
-  the Rashin app binary (`rashin-app` beside the daemon, or
-  `/usr/bin/rashin-app`, read from the peer's `/proc/<pid>/exe`). It also
-  refuses, on the main socket, a
-  `teams.agent_*` call, a `session.new` naming a team, task or member, and
-  from anything but the app the control methods on a team task's session
-  (`session.permission`, `set_model`, `set_mode`, `set_option`, `prompt`,
-  `queue`, `unqueue`, `steer`, `goal`, `cancel`, `stop`, `start`, `rename`,
-  `delete`, `handoff`, `fork`, `revert_turn`).
-- A team task's session runs its agent in a bubblewrap sandbox and is served
-  on a socket of its own, `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`,
-  which the sandbox sees at the main socket's path. A connection there may call
-  only the `teams.agent_*` methods as that session, its own `session.goal`, its
-  own `screen.act` as the agent and `screen.control` ask and stop, and the
-  index methods that read; everything else is `forbidden`.
+- `forbidden` refuses an app-only method to any connection not opened by the
+  Rashin app binary (`rashin-app` beside the daemon, or `/usr/bin/rashin-app`,
+  read from the peer's `/proc/<pid>/exe`). App-only are: a Teams or vault
+  method that only the user may call (`teams.UserOnly`), `models.probe`,
+  `local.devices`, `local.download`, `local.cancel`, `local.remove`, `local.add`,
+  `local.runtime_install`, `local.start`, `local.stop`, and every
+  `learning.*` method that changes something or runs a model
+  (`learning.skill_delete`, `learning.decision_delete`, `learning.rule_save`,
+  `learning.rule_delete`, `learning.rule_forge`,
+  `learning.grievances_clear`), plus the methods marked app only below. It
+  also refuses, on the main socket, a `teams.agent_*` call, a `session.new`
+  naming a team, task or member, and from anything but the app the control
+  methods on a team task's session (`session.permission`, `set_model`,
+  `set_mode`, `set_option`, `prompt`, `queue`, `unqueue`, `steer`, `goal`,
+  `cancel`, `stop`, `rename`, `delete`, `handoff`, `fork`, `revert_turn`).
+- Every session runs on Rashin's own engine: a model (a route or
+  `provider/model`) and its options, no external harness. A team task's
+  session runs every file and shell tool in one tool host child inside a
+  bubblewrap sandbox; its model calls, keys, team tools and memory stay in
+  the daemon, and its team tools (`teams.agent_*`) are called in-process.
+  The sandbox reaches the daemon on a socket of its own,
+  `$XDG_RUNTIME_DIR/rashin/agents/<session>/rashin.sock`, seen at the main
+  socket's path, so `rashin search` and the like work in its shell. A
+  connection there may call only the index methods that read; everything
+  else is `forbidden`.
 - Optional app features live in `Settings.features`, keyed by `FeatureIDs`.
   They start off, unknown ids are dropped, and any ordinary client can patch
   them with `settings.set`. `ask.resumeMinutes` is 0 for off or 1 to 120,
   clamped on read and write. `memory.profile` holds `name`, `work`, `about`
   and `traits`, and stays behind the existing app-only memory settings gate.
+- The self-improvement features `autolearn`, `decisions`, `rules` and
+  `grievances` are features like the others, off until turned on. What they
+  kept stays listed and removable through `learning.*` after they are turned
+  off; `learning.rule_forge` alone answers `disabled` while `rules` is off.
 - `SessionInfo.starred` and `archived` are independent conversation flags,
   changed with `session.set_flags`.
   `lastMessageAt` records conversation activity separately from metadata
@@ -61,9 +74,8 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `session.cancel` | `SessionRef` | |
 | `session.permission` | `PermissionParams` | |
 | `session.set_model` | `SetModelParams` | |
-| `session.set_mode` | `SetModeParams` (a harness mode, or for Ask an approvals value) | |
-| `session.set_option` | `SetOptionParams` | |
-| `session.start` | `SessionRef` (bring the agent up with no prompt) | |
+| `session.set_mode` | `SetModeParams` (an approvals value: `read-only`, `ask`, `auto`) | |
+| `session.set_option` | `SetOptionParams` (one of the model's options, or `plan` `on`/`off` for Plan first) | |
 | `session.rename` | `RenameParams` | `SessionInfo` |
 | `session.delete` | `SessionRef` | |
 | `session.stop` | `SessionRef` | |
@@ -73,7 +85,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `screen.act` | `ScreenActParams` (by the agent or the user) | `ScreenActResult` (`waiting` when an agent's action was not done yet) |
 | `screen.control` | `ScreenControlParams` (take, release, ask, watch, unwatch, stop) | `ScreenState` |
 | `ask` | `AskParams` | `AskResult`, caller attached |
-| `glance` | `GlanceParams` (capture modes, engine, model and local-only routing) | `AskResult`, caller attached |
+| `glance` | `GlanceParams` (capture modes, model and local-only routing) | `AskResult`, caller attached |
 | `writing.check` | `WritingCheckParams` | `WritingCheckResult` |
 | `writing.transform` | `WritingTransformParams` | `WritingTransformResult` |
 | `writing.cancel` | `WritingCancelParams` | `Empty` |
@@ -117,11 +129,30 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `providers.enable` | `EnableProviderParams` | `ProviderInfo` |
 | `providers.limits` | `ProviderParams` | `Empty` (then `providers.changed`) |
 | `models.list` | `ModelsParams` | `ModelsResult` |
+| `models.probe` | `ModelProbeParams` (app only; one small streamed request with a no-op tool) | `ModelProbeResult` (`ok` false with a `message` when the model did not answer or refused an option) |
 | `gateway.usage` | `UsageParams` | `GatewayUsage` |
 | `gateway.api` | | `APIInfo` |
 | `gateway.api_key` | `APIKeyParams` (rotate) | `APIKey` |
-| `harnesses.list` | `HarnessesListParams` | `HarnessesResult` |
-| `harnesses.probe` | `HarnessProbeParams` (start once in a team sandbox, no prompt; pick `model` and `options` when given) | `HarnessProbeResult` (`ok` false with the harness's `message` when it did not start or refused one) |
+| `local.models` | | `LocalResult` (catalogue, installed models, runtime; starts nothing) |
+| `local.devices` | (app only) | `LocalDevicesResult` (probed on demand, cached by runtime binary version) |
+| `local.download` | `LocalModelParams` (app only) | `Empty` (progress as `local.progress`) |
+| `local.cancel` | `LocalModelParams` (app only; keeps the part files) | `Empty` |
+| `local.remove` | `LocalModelParams` (app only) | `LocalResult` |
+| `local.search` | `LocalSearchParams` (a Hugging Face repo) | `LocalSearchResult` (per-GGUF parameter count, trained context, tool support and warning; `gated` repos are refused) |
+| `local.add` | `LocalAddParams` (app only; the daemon pins the revision) | `LocalModel` (metadata and warning preserved; its download starts) |
+| `local.runtime_install` | `LocalRuntimeParams` (app only; `vulkan`, `cpu` or `cuda`) | `Empty` (progress as `local.progress` with id `runtime`) |
+| `local.start` | `LocalModelParams` (app only; id optional) | `LocalRuntime` |
+| `local.stop` | `LocalModelParams` (app only; id ignored) | `LocalRuntime` (first broadcasts `stopping`, then `stopped` after the process group exits) |
+| `learning.skills` | | `LearningSkillsResult` (managed skills; `shadowed` when a built-in or authored skill wins the name) |
+| `learning.skill_delete` | `LearningSkillParams` (app only) | `LearningSkillsResult` |
+| `learning.decisions` | `LearningDecisionsParams` (`project` folder, empty for every bank) | `LearningDecisionsResult` |
+| `learning.decision_delete` | `DecisionDeleteParams` (app only; `area` is `architecture`, `product` or `style`, `line` the decision's text) | `DecisionBank` |
+| `learning.rules` | `LearningRulesParams` (global rules, and a `project`'s with it) | `LearningRulesResult` |
+| `learning.rule_save` | `RuleSaveParams` (app only; `overwrite` replaces a rule of the same name) | `Rule` |
+| `learning.rule_delete` | `RuleRef` (app only) | |
+| `learning.rule_forge` | `RuleForgeParams` (app only; needs the `rules` feature; saves nothing) | `RuleForgeResult` |
+| `learning.grievances` | `LearningGrievancesParams` | `LearningGrievancesResult` |
+| `learning.grievances_clear` | `GrievancesClearParams` (app only; `ids`, else a `tool`, else all) | |
 | `index.list` | | `IndexesResult` |
 | `index.add` | `IndexAddParams` | `IndexInfo` |
 | `index.remove` | `IndexRef` | |
@@ -149,7 +180,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.export` | `TeamRef` | `TeamExportResult` (written into the team's folder, no history or values) |
 | `teams.import` | `TeamImportParams` | `Team` (paused, routines off) |
 | `teams.tasks` | `TeamTasksParams` | `TeamTasksResult` |
-| `teams.task_create` | `TeamTaskCreateParams` (`model` and `options`: an engine for this task only, on the member's harness) | `TeamTask` |
+| `teams.task_create` | `TeamTaskCreateParams` (`model` and `options`: an engine for this task only) | `TeamTask` |
 | `teams.task_stop` | `TeamTaskRef` (and what it delegated) | `TeamTask` |
 | `teams.task_retry` | `TeamTaskRetryParams` | `TeamTask` |
 | `teams.task_read` | `TeamTaskRef` | `TeamTask` |
@@ -163,8 +194,10 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.approvals` | `ApprovalsParams` | `ApprovalsResult` |
 | `teams.approval_decide` | `ApprovalDecideParams` (once, always, deny, provide with a value, or choose with a `choice` among the approval's `options`) | `Approval` |
 | `teams.activity` | `TeamActivityParams` | `ActivityResult` |
-| `teams.spend` | `TeamSpendParams` | `TeamSpend` (`engines`: ids are harness and model joined by `\x1f`; `days` count the tasks that ended done or blocked and the routine runs among them) |
+| `teams.spend` | `TeamSpendParams` | `TeamSpend` (`engines`: ids are the models that answered; `days` count the tasks that ended done or blocked and the routine runs among them) |
 | `teams.prune` | `TeamPruneParams` (finished tasks past `teams.keepDays`, or every finished one with `all`; their sessions go too, their files stay) | |
+| `teams.dream_create` | `DreamCreateParams` (`model` and `options`: the manager's engine) | `Team` |
+| `teams.dream_answer` | `DreamAnswerParams` | `Team` |
 | `teams.agent_report` | `AgentReportParams` (`quiet`: nothing changed since the last run) | `AgentAnswer` |
 | `teams.agent_delegate` | `AgentDelegateParams` (the lead only) | `AgentAnswer` |
 | `teams.agent_status` | `AgentRef` | `AgentStatusResult` (the pieces the task handed out) |
@@ -173,6 +206,10 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `teams.agent_mail` | `AgentMailParams` | `AgentAnswer` |
 | `teams.agent_request` | `AgentCredentialRequestParams` | `AgentAnswer` |
 | `teams.agent_credentials` | `AgentRef` | `AgentCredentialsResult` |
+| `teams.agent_hire` | `AgentHireParams` (a dream's manager; `model` empty takes the manager's) | `Member` |
+| `teams.agent_release` | `AgentReleaseParams` (a dream's manager) | `AgentAnswer` |
+| `teams.agent_dream` | `AgentDreamParams` (a dream's manager) | `AgentAnswer` |
+| `teams.agent_present` | `AgentPresentParams` (a dream's manager) | `AgentAnswer` |
 | `vault.info` | | `VaultInfo` (never a value) |
 | `vault.add` | `VaultAddParams` | `Credential` |
 | `vault.update` | `VaultUpdateParams` | `Credential` |
@@ -192,32 +229,40 @@ Who may call the Teams and vault methods (`internal/teams/authority.go`,
 - Every other `teams.*` and `vault.*` method is the user's and is served only
   to the Rashin app. A method added later is the user's until it is listed as
   readable.
-- The `teams.agent_*` methods are served only on a team task's own socket,
-  and each carries an `AgentRef` (session and run token) that the daemon
-  checks against that session's live run.
+- The `teams.agent_*` methods are the team tools of a team task's agent,
+  called in-process by the engine, and each carries an `AgentRef` (session
+  and run token) that the daemon checks against that session's live run. No
+  socket serves them.
 
 Fields of the Teams shapes that clients and agents rely on:
 
-- `TeamTask.harness`, `model` and `options` are the engine the task ran on,
-  set when it starts and kept after it ends. Before it starts only `model`
-  and `options` may be set: the engine asked for this task alone.
-  `protocol.ResolveEngine` is the one chain from a member to its engine:
-  the member's harness, else `teams.defaults.harness`, else
-  `agent.harness`, else the registry's default harness.
+- `TeamTask.model` and `options` are the engine the task ran on, set when it
+  starts and kept after it ends. Before it starts they hold only the engine
+  asked for this task alone. `protocol.ResolveEngine` is the one chain from
+  a member to its engine: the member's model, else `teams.defaults.model`,
+  else `agent.model`, else `auto`; options follow the same chain on their
+  own. A stored model that is neither a route nor `provider/model` (an id an
+  external harness took) is cleared, never routed.
 - `Approval.options` makes a choice question; `choice` keeps the picked
   option. The agent is told "The user chose: <option>" and any note.
 - `TeamReport.quiet` marks a run that changed nothing: done, unread not set,
   no notification. `Routine.quietStreak` counts such runs in a row.
 - `SessionInfo.turnStarted` is when the running turn began, absent while no
   turn runs; `steps` counts its tool calls, or the last turn's once it ended.
-- `HarnessCapabilities.modelList`, `defaultModel`, `options` and `learned`
-  are what a harness reported at its last start; `defaultModel` comes only
-  from a new session.
 - `Settings.teams` carries `perTeam`, `paused`, `routinesWake`, `defaults`
-  (harness, model, options, approvals, budget, notify for new teams),
+  (model, options, approvals, budget, notify for new teams),
   `approvalHours`, `quietHours` (`from` and `to` as `HH:MM`), `hidden`
   (null for the built-in list, `[]` for none) and `keepDays`
   (0, 30, 90 or 365).
+- `Settings.agent` carries `model` (a route or `provider/model`, default
+  `auto`), `options`, `plan` (Plan first for new Agent sessions),
+  `approvals` and `idleStopMinutes`. `Settings.providers.models` configures
+  Rashin's own llama.cpp: `binary` (an absolute path; empty uses the
+  managed runtime, then `llama-server` on PATH), `idleMinutes` (1 to 120,
+  default 5), `device`, `light` (the model for light work) and
+  `remoteFirst` (false keeps models on this computer first in Auto, Fast and
+  Smart). `providers.local` holds addresses for `llamacpp` and
+  `ollama-local` only; `rashin-models` has none.
 
 ## Events
 
@@ -229,7 +274,9 @@ Fields of the Teams shapes that clients and agents rely on:
 | `settings.changed` | `Settings` | subscribers |
 | `providers.changed` | `ProvidersResult` | subscribers |
 | `api.changed` | `APIInfo` | subscribers |
-| `harnesses.changed` | `HarnessesResult` | subscribers |
+| `local.progress` | `LocalProgress` | subscribers |
+| `local.changed` | `LocalResult` | subscribers |
+| `learning.changed` | `LearningChanged` (read that part again) | subscribers |
 | `index.progress` | `IndexProgress` | subscribers |
 | `index.changed` | `IndexInfo` | subscribers |
 | `ui.focus` | `UIOpenParams` | app subscribers |
@@ -265,9 +312,8 @@ newest spelling kept, and are accepted in every English dialect. Up to 5,000
 words are saved privately in `words.txt` in Rashin's data directory.
 These writing methods are open to bar, CLI and Hub.
 
-
 `glance` takes `session`, `mode`, `question`, `text`, `images`, `language`,
-`source`, `target`, `engine`, `model`, `local` and string-valued `options`.
+`source`, `target`, `model`, `local` and string-valued `options`.
 Modes are `explain`, `ask`, `read`, `translate`, `summarize`, `deepread`,
 `solve`, `learn`, `define`, `rewrite`, `tone`, `fluent`, `humanize`,
 `reactions`, `reply` and `aicheck`. Options select each mode's style, lens,
@@ -276,21 +322,23 @@ Without `session` it creates a temporary Ask with origin `sight`, and with one
 it continues that conversation. Origins are `app`, `bar`, `cli`, `terminal`,
 `fix`, `import`, `team` and `sight`.
 
-Engine `ask` follows `settings.ask.harness`, or uses providers when empty.
-Engine `providers` uses a short mode prompt without tools, vault context or
-memory recall, routing to `model` or `auto:fast`. Other engines name a known
-harness, with an empty model keeping its default. `local:true` filters the
-providers to local servers and refuses harness engines with `local_only`.
-No picture-capable route produces `no_vision` with the provider guidance.
+A capture uses a short mode prompt without tools, vault context or memory
+recall, routing to `model`, else light work on the smallest local model that
+fits. `local:true` keeps it to models on this computer. No picture-capable
+route produces `no_vision` with the provider guidance.
 
 Model events also carry `local` and `engine`, so a capture can show where its
 answer came from. Keeping a temporary session with `session.fork` copies its
 runtime-directory images into Rashin's data directory before keeping the log.
 Oversized images are downscaled below 8 MiB without changing their shape.
 
-`status.installedHarnesses` lists `{id,name,models?}` without running a harness,
-with model choices coming from its cached ACP capabilities, and `rashin status
---json` includes the same list even when the daemon is off.
+An Agent session reports its `model`, `mode` and `options` when it is created,
+without a prompt: its mode is its approvals value, and its options are the
+model's knobs (`effort` on a model with reasoning) plus `plan`, Plan first,
+which keeps it on read-only tools and a todo list until the user approves the
+plan. A session made before the native engine keeps its log; its next prompt
+starts a fresh engine transcript and says so in a `notice`. The subscribe
+`Snapshot` carries `local`, Rashin's own models and runtime.
 
 | Kind | Data type |
 |---|---|
@@ -311,6 +359,7 @@ with model choices coming from its cached ACP capabilities, and `rashin status
 | `title` | `TitleData` |
 | `goal` | `GoalData` (the goal as it now stands) |
 | `compare` | `CompareStartResult` (`id`, `source`, `seq`, `lanes`; an empty id and lanes clear the comparison at `seq`) |
+| `notice` | `NoticeData` (one quiet transcript line; `kind` is `fresh`, `limit`, `loop` or `plan`) |
 
 Comparison lanes are independent temporary sessions. The source conversation
 records the comparison event so reattaching restores its lanes.

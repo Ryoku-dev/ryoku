@@ -20,6 +20,8 @@ import (
 type board struct {
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
+	rows   int
 	// the credentials teams asked for, answered here on the Inbox's cards
 	requests teamsui.NeedCards
 	waiting  []teamsui.Need
@@ -36,6 +38,7 @@ const (
 	itemCredentials
 	itemMail
 	itemRecent
+	itemColophon
 )
 
 func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimensions {
@@ -51,6 +54,8 @@ func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 	if open {
 		items = append(items, itemCredentials, itemMail, itemRecent)
 	}
+	items = append(items, itemColophon)
+	b.rows = len(items)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			content := look.PaneHeaderContent{
@@ -65,14 +70,25 @@ func (b *board) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 			return dimensions
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-				return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-					return b.layoutItem(gtx, e, p, snapshot, items[index], index == len(items)-1)
+			return b.sheet.Layout(gtx, e.Theme, look.PageFor(protocol.TabVault), func(gtx layout.Context) layout.Dimensions {
+				return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+						return b.layoutItem(gtx, e, p, snapshot, items[index], index == len(items)-1)
+					})
 				})
 			})
 		}),
 	)
 }
+
+func (b *board) sectionNumber(number int) int {
+	if len(b.waiting) > 0 {
+		return number + 1
+	}
+	return number
+}
+
+func (b *board) sectionTotal() int { return b.sectionNumber(3) }
 
 // the credential requests among what needs the user
 func requested(snapshot state.Snapshot) []teamsui.Need {
@@ -93,6 +109,8 @@ func (b *board) layoutItem(gtx layout.Context, e *env.Env, p *Page, snapshot sta
 	}
 	return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		switch item {
+		case itemColophon:
+			return b.sheet.Colophon(gtx, th, look.PageFor(protocol.TabVault))
 		case itemLead:
 			return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return look.Monument(gtx, th, teamsui.VaultState(snapshot.Vault), leadProof(gtx.Now, snapshot.Vault))
@@ -102,7 +120,7 @@ func (b *board) layoutItem(gtx layout.Context, e *env.Env, p *Page, snapshot sta
 		case itemCredentials:
 			return b.layoutCredentials(gtx, e, p, snapshot)
 		case itemMail:
-			return b.mail.layout(gtx, e, p, snapshot.Vault)
+			return b.mail.layout(gtx, e, p, snapshot.Vault, b.sectionNumber(2), b.sectionTotal())
 		default:
 			return b.layoutRecent(gtx, e, snapshot)
 		}
@@ -113,7 +131,7 @@ func (b *board) layoutItem(gtx layout.Context, e *env.Env, p *Page, snapshot sta
 func (b *board) layoutRequests(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	children := []layout.FlexChild{
-		layout.Rigid(look.SectionTitle(th, i18n.T("Waiting for you"), b.requests.Open(b.waiting))),
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Waiting for you"), Number: 1, Of: b.sectionTotal(), Count: b.requests.Open(b.waiting)})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 	}
 	for index, need := range b.waiting {
@@ -134,7 +152,7 @@ func (b *board) layoutCredentials(gtx layout.Context, e *env.Env, p *Page, snaps
 		b.tablets = make(map[string]*tablet)
 	}
 	children := []layout.FlexChild{
-		layout.Rigid(look.SectionTitle(th, i18n.T("Credentials"), len(credentials))),
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Credentials"), Number: b.sectionNumber(1), Of: b.sectionTotal(), Count: len(credentials)})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 	}
 	if len(credentials) == 0 {
@@ -160,7 +178,7 @@ func (b *board) layoutCredentials(gtx layout.Context, e *env.Env, p *Page, snaps
 func (b *board) layoutRecent(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
 	th := e.Theme
 	children := []layout.FlexChild{
-		layout.Rigid(look.SectionTitle(th, i18n.T("Recent use"), 0)),
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Recent use"), Number: b.sectionNumber(3), Of: b.sectionTotal()})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 	}
 	if len(b.recent.events) == 0 {

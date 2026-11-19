@@ -173,7 +173,7 @@ func (s *Service) prepareTeam(team *protocol.Team, settings protocol.Settings) (
 			team.Budget.TaskTurns = template.Budget.TaskTurns
 		}
 	}
-	return normaliseTeam(team, true, settings, nil)
+	return normaliseTeam(team, true, settings)
 }
 
 // checkNewTeam checks what teams.create would check of p, its routines
@@ -277,12 +277,7 @@ func (s *Service) updateTeam(ctx context.Context, p protocol.TeamUpdateParams) (
 	if next.Memory != current.TeamMemory() {
 		team.Memory = &next.Memory
 	}
-	// a harness the team already runs on stays accepted after its definition went
-	kept := make(map[string]bool, len(current.Members))
-	for _, m := range current.Members {
-		kept[m.Harness] = true
-	}
-	if _, err := normaliseTeam(&team, false, s.settings(), kept); err != nil {
+	if _, err := normaliseTeam(&team, false, s.settings()); err != nil {
 		return protocol.Team{}, err
 	}
 	if err := makeFolder(team.Folder); err != nil {
@@ -326,6 +321,14 @@ func (s *Service) deleteTeam(ctx context.Context, id string) error {
 	s.dropRoutines(id)
 	s.dropGrants(id)
 	tasks := s.state.tasks(func(t protocol.TeamTask) bool { return t.Team == id })
+	for _, task := range tasks {
+		if err := s.stopTaskSessions(ctx, task); err != nil {
+			return err
+		}
+	}
+	if err := paths.RemoveWritableTree(filepath.Join(paths.ToolHomes(), id)); err != nil {
+		return err
+	}
 	if err := s.state.removeTeam(id); err != nil {
 		return err
 	}
@@ -353,7 +356,7 @@ func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (prot
 	}
 	if team.Paused == p.Paused {
 		if !p.Paused {
-			s.runDream(team.ID, protocol.InitiatorYou)
+			s.runDream(team.ID)
 		}
 		current, _ := s.teamWithStats(team.ID)
 		return current, nil
@@ -399,7 +402,7 @@ func (s *Service) pauseTeam(_ context.Context, p protocol.TeamPauseParams) (prot
 	})
 	s.emitTeam(team.ID)
 	s.pump()
-	s.runDream(team.ID, protocol.InitiatorYou)
+	s.runDream(team.ID)
 	resumed, _ := s.teamWithStats(team.ID)
 	return resumed, nil
 }
@@ -426,8 +429,8 @@ func (s *Service) settleBudgetAsks(team string) {
 // normaliseTeam trims and checks what the user gave a team and fills what
 // it left empty from the teams defaults. With fresh every member gets a new
 // id; renamed maps the ids they came with to the new ones, so routines that
-// named a member keep it. Kept are harnesses accepted though unknown here.
-func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kept map[string]bool) (map[string]string, error) {
+// named a member keep it.
+func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings) (map[string]string, error) {
 	t.Name = strings.TrimSpace(t.Name)
 	if t.Name == "" {
 		return nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A team needs a name."))
@@ -439,7 +442,7 @@ func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kep
 	if _, ok := templateByID(t.Template); !ok {
 		t.Template = ""
 	}
-	members, renamed, err := normaliseMembers(t.Members, fresh, settings, kept)
+	members, renamed, err := normaliseMembers(t.Members, fresh)
 	if err != nil {
 		return nil, err
 	}
@@ -483,8 +486,8 @@ func normaliseTeam(t *protocol.Team, fresh bool, settings protocol.Settings, kep
 
 // normaliseMembers checks a team's members: 1 to maxMembers, each named,
 // names unique, exactly one lead (the first marked one, else the first),
-// and an engine this computer can run (checkEngine).
-func normaliseMembers(in []protocol.Member, fresh bool, settings protocol.Settings, kept map[string]bool) ([]protocol.Member, map[string]string, error) {
+// and an engine Rashin can run (checkEngine).
+func normaliseMembers(in []protocol.Member, fresh bool) ([]protocol.Member, map[string]string, error) {
 	if len(in) == 0 {
 		return nil, nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("A team needs at least one member."))
 	}
@@ -499,7 +502,6 @@ func normaliseMembers(in []protocol.Member, fresh bool, settings protocol.Settin
 	for i, m := range in {
 		m.Name = strings.TrimSpace(m.Name)
 		m.Title = strings.TrimSpace(m.Title)
-		m.Harness = strings.TrimSpace(m.Harness)
 		m.Model = strings.TrimSpace(m.Model)
 		m.Instructions = strings.TrimSpace(m.Instructions)
 		if len(m.Options) == 0 {
@@ -508,7 +510,7 @@ func normaliseMembers(in []protocol.Member, fresh bool, settings protocol.Settin
 		if m.Name == "" {
 			return nil, nil, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Every member needs a name."))
 		}
-		if err := checkEngine(m, settings, kept); err != nil {
+		if err := checkEngine(m); err != nil {
 			return nil, nil, err
 		}
 		if utf8.RuneCountInString(m.Name) > maxNameRunes {

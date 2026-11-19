@@ -1,6 +1,15 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+### Added
+
+- **Hub Credits now names oh-my-pi as the source of Rashin's native agent
+  engine and self-improvement workflows (MIT).** The About page links to
+  the project and names Can Bölük and Mario Zechner
+  (`quickshell/schema/about.js`, `../rashin/NOTICE`).
+
+### Changed
+
 - **Long dropdowns scroll and stay inside the window.** A menu holds about ten
   rows with the next one showing, opens below its control or above it when that
   has more room, never covers the control, scrolls with the wheel, touchpad and
@@ -20,8 +29,8 @@
   hidden sidebar outlines no longer build copies of the open page's section links.
 - **Theia's model picker offers models that can run.** It reads availability
   from Rashin, checks a saved model in the background and uses display names to
-  explain missing keys or unavailable models, pointing to Providers or Use Auto.
-  Provider and harness menus load on request with at most 100 searchable matches.
+  explain missing keys or unavailable models, pointing to Providers or Use light model.
+  The provider model menu loads on request with at most 100 searchable matches.
 - **In place starts with Fix or translate.** Text already in the target language
   gets spelling, grammar and punctuation fixes without changing its meaning.
 - **Fix writing has a built-in English checker and Your words**
@@ -36,8 +45,7 @@
   The Harper Go port, write-good, weasel-words, too-wordy, proselint,
   retext-equality, blocklint, textstat, eSpeak NG, Piper and yt-dlp
 - **Rashin has a Theia section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
-  language it translates into, what answers (the same engine as Ask, Rashin's providers or a harness)
-  and the model (the engine's default unless you name one), keep captures on local models only, and add
+  language it translates into, and a model (or leave it empty for Rashin's light model). Keep captures on local models only and add
   text recognition languages, installed on demand for Arch, Fedora and Void (`pages/Rashin.qml`,
   `components/rashin/Sight*.qml`, `schema/rashin.js`).
 - **Keyboard shortcuts has a key menu for Theia in place.** Pick the key you

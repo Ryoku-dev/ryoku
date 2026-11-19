@@ -22,9 +22,9 @@ import (
 // the address and key other programs use to reach the providers through Rashin
 type apiPanel struct {
 	serve   kit.Toggle
-	copyURL look.IconAction
-	reveal  look.IconAction
-	copyKey look.IconAction
+	copyURL kit.IconPlaque
+	reveal  kit.IconPlaque
+	copyKey kit.IconPlaque
 	renew   kit.Plaque
 	confirm kit.Confirm
 	asking  bool
@@ -46,8 +46,10 @@ func (p *Page) layoutAPI(gtx layout.Context, e *env.Env) layout.Dimensions {
 	settings, info := snapshot.Settings.API, snapshot.Status.API
 	a.update(gtx, e, settings)
 	rows := []look.Setting{{
-		Title:  i18n.T("Serve the local API"),
-		Detail: i18n.T("Rashin keeps running in the background while this is on, so the address always answers."),
+		Title:   i18n.T("Serve the local API"),
+		Detail:  i18n.T("Rashin keeps running in the background while this is on, so the address always answers."),
+		Changed: p.changed.apiEnabled,
+		Reset:   func() { set(e, "api", map[string]any{"enabled": p.defaults.API.Enabled}) },
 		Control: func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -66,16 +68,16 @@ func (p *Page) layoutAPI(gtx layout.Context, e *env.Env) layout.Dimensions {
 		},
 	}}
 	if settings.Enabled {
-		rows = append(rows, a.rows(e, settings, info)...)
+		rows = append(rows, a.rows(e, settings, info, p.defaults.API.Port, p.changed.port)...)
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Local API"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
-			i18n.T("Other programs on this machine can use your providers through Rashin: one address and one key, in the shape of OpenAI's API."))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
-	)
+	return look.Section(gtx, th, ordinal(sectionAPI), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
+				i18n.T("Other programs on this machine can use your providers through Rashin: one address and one key, in the shape of OpenAI's API."))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
+		)
+	})
 }
 
 func apiState(info protocol.APIInfo) (string, palette.Tone) {
@@ -88,7 +90,7 @@ func apiState(info protocol.APIInfo) (string, palette.Tone) {
 	return i18n.T("Starting"), palette.Paused
 }
 
-func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol.APIInfo) []look.Setting {
+func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol.APIInfo, stockPort int, changedPort bool) []look.Setting {
 	th := e.Theme
 	address := apiAddress(settings.Port)
 	// where it is not answering, the reason stands where the address is read
@@ -104,7 +106,7 @@ func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol
 	if a.key != "" {
 		reveal, revealWord = look.Icon.Hide, i18n.T("Hide the key")
 	}
-	a.reveal.Icon, a.reveal.Description = reveal, revealWord
+	a.reveal.Icon, a.reveal.Description, a.reveal.Kind, a.reveal.Small = reveal, revealWord, kit.PlaqueQuiet, true
 	return []look.Setting{
 		{
 			Title: i18n.T("Address"), Detail: detail,
@@ -112,7 +114,7 @@ func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(look.TokenChip(th, address)),
 					layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.copyURL.Layout(gtx, th, th.R.Fg3) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.copyURL.Layout(gtx, th.Theme) }),
 				)
 			},
 		},
@@ -124,8 +126,8 @@ func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(look.TokenChip(th, shown)),
 					layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.reveal.Layout(gtx, th, th.R.Fg3) }),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.copyKey.Layout(gtx, th, th.R.Fg3) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.reveal.Layout(gtx, th.Theme) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.copyKey.Layout(gtx, th.Theme) }),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.E.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return a.renew.Layout(gtx, th.Theme) })
 					}),
@@ -146,8 +148,10 @@ func (a *apiPanel) rows(e *env.Env, settings protocol.APISettings, info protocol
 			},
 		},
 		{
-			Title:  i18n.T("Port"),
-			Detail: i18n.T("Change it when another program already uses this one. Enter applies it."),
+			Title:   i18n.T("Port"),
+			Detail:  i18n.T("Change it when another program already uses this one. Enter applies it."),
+			Changed: changedPort,
+			Reset:   func() { set(e, "api", map[string]any{"port": stockPort}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Max.X = gtx.Dp(104)
 				return look.Named(gtx, i18n.T("Port"), func(gtx layout.Context) layout.Dimensions {
@@ -177,8 +181,8 @@ func (a *apiPanel) update(gtx layout.Context, e *env.Env, settings protocol.APIS
 		return
 	}
 	address := apiAddress(settings.Port)
-	a.copyURL.Icon, a.copyURL.Description = look.Icon.Copy, i18n.T("Copy the address")
-	a.copyKey.Icon, a.copyKey.Description = look.Icon.Copy, i18n.T("Copy the key")
+	a.copyURL.Icon, a.copyURL.Description, a.copyURL.Kind, a.copyURL.Small = look.Icon.Copy, i18n.T("Copy the address"), kit.PlaqueQuiet, true
+	a.copyKey.Icon, a.copyKey.Description, a.copyKey.Kind, a.copyKey.Small = look.Icon.Copy, i18n.T("Copy the key"), kit.PlaqueQuiet, true
 	a.renew.Kind, a.renew.Small, a.renew.Label = kit.PlaqueTonal, true, i18n.T("New key")
 	a.exports.Kind, a.exports.Small, a.exports.Label, a.exports.Icon = kit.PlaqueTonal, true, i18n.T("Copy exports"), look.Icon.Copy
 	if a.copyURL.Clicked(gtx) {

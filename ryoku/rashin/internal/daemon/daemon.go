@@ -23,20 +23,35 @@ import (
 const shutdownTimeout = 5 * time.Second
 
 type Deps struct {
-	Gateway   core.Gateway
-	Asker     core.Asker
-	Harnesses core.Harnesses
-	Indexer   core.Indexer
-	Work      core.Work
-	Teams     core.Teams
+	Gateway core.Gateway
+	// Asker and Agents are the native engine: Ask sessions and Agent
+	// sessions, team tasks included.
+	Asker   core.Asker
+	Agents  core.Agents
+	Indexer core.Indexer
+	Work    core.Work
+	Teams   core.Teams
 	// Memory is what Rashin remembers between conversations; nil runs the
 	// daemon without it.
 	Memory core.Memory
 	// Skills are the built-in skill sets; nil runs the daemon without them.
-	Skills  *skills.Library
-	Version string
-	Events  *Broadcaster
-	Lock    *os.File
+	Skills *skills.Library
+	// Local is Rashin's own llama.cpp; nil runs the daemon without it.
+	Local core.Local
+	// ManagedSkills, Decisions, Rules and Grievances are the optional
+	// self-improvement features; each may be nil, and each does nothing
+	// while its feature is off.
+	ManagedSkills core.ManagedSkills
+	Decisions     core.Decisions
+	Rules         core.Rules
+	Grievances    core.Grievances
+	Version       string
+	// LearningBusy keeps the daemon awake while a light model saves a skill.
+	LearningBusy func() bool
+	// CloseEngine ends model-turn observers after sessions have shut down.
+	CloseEngine func()
+	Events      *Broadcaster
+	Lock        *os.File
 	// Program is the file this daemon was started from, watched so a newer
 	// build takes over once nothing is running. Empty watches nothing.
 	Program string
@@ -68,10 +83,6 @@ type Daemon struct {
 	appPeer func(pid int32) bool
 	// agents are the team sessions' own sockets
 	agents agentSockets
-	// learned is the pending harnesses.changed after capabilities were
-	// recorded
-	learnedMu sync.Mutex
-	learned   *time.Timer
 	// migrations are the session scrub passes running in the background
 	migrations  migrations
 	infraMu     sync.Mutex
@@ -89,15 +100,24 @@ func New(deps Deps) *Daemon {
 		events = NewBroadcaster()
 	}
 	d := &Daemon{deps: deps, started: time.Now(), clients: make(map[*connection]struct{}), events: events, stop: make(chan struct{}), appPeer: appPeer(deps.Program)}
-	d.manager = newSessionManager(deps.Asker, deps.Harnesses, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
+	d.manager = newSessionManager(deps.Asker, deps.Agents, deps.Work, d.Settings, d.Broadcast, d.stateChanged, d.warn)
+	if deps.Gateway != nil {
+		gateway := deps.Gateway
+		d.manager.light = gateway
+		d.manager.models = func(ctx context.Context) []protocol.ModelInfo {
+			result, err := gateway.Models(ctx, protocol.ModelsParams{})
+			if err != nil {
+				return nil
+			}
+			return result.Models
+		}
+	}
 	d.manager.brief = d.agentBrief
-	d.manager.askBrief = d.askBrief
 	d.manager.prepareAsk = d.prepareAskMedia
 	d.manager.tools = d.agentTools
 	d.manager.prepare = d.indexSession
 	d.screens = newScreenManager(d.Broadcast, d.manager.ask, screenable)
 	d.manager.sandbox = d.agentSandbox
-	d.manager.askSandbox = d.askSandbox
 	d.screens.sandbox = d.screenSandbox
 	d.manager.ended = func(id string) {
 		d.screens.stop(id)
@@ -120,9 +140,6 @@ func New(deps Deps) *Daemon {
 		d.manager.memory = deps.Memory
 		deps.Memory.Bind(d.manager)
 	}
-	if deps.Harnesses != nil {
-		deps.Harnesses.OnLearned(d.harnessesLearned)
-	}
 	d.removeFeed = events.add(d.deliverGlobal)
 	return d
 }
@@ -134,6 +151,15 @@ func (d *Daemon) Settings() protocol.Settings {
 }
 
 func (d *Daemon) Broadcast(event string, data any) { d.events.Broadcast(event, data) }
+
+// MCPStore opens the user's MCP servers on first use, for the engine's MCP
+// tool provider: opening needs the vault, so nothing is read before a
+// session with the feature on asks for its tools.
+func (d *Daemon) MCPStore() (*mcpservers.Store, error) { return d.mcpStore() }
+
+// SessionInfo is a session's info, held or read from disk, for services the
+// daemon hands sessions to by id (forging a rule from a session).
+func (d *Daemon) SessionInfo(id string) (protocol.SessionInfo, bool) { return d.manager.Info(id) }
 
 // watched reports whether a Rashin window is connected, so Teams records
 // what happens without one as unwatched and notifies the desktop instead.
@@ -373,7 +399,11 @@ func (d *Daemon) closeAll() error {
 		d.cancelMCPSignIns()
 		d.migrations.stop()
 		d.manager.shutdown(shutdownTimeout - time.Second)
+		if d.deps.CloseEngine != nil {
+			d.deps.CloseEngine()
+		}
 		d.screens.stopAll()
+		d.closeServices()
 		if d.deps.Work != nil {
 			_ = d.deps.Work.Close()
 		}
@@ -497,5 +527,5 @@ func (d *Daemon) restingBesideMemory() bool {
 	d.mu.RLock()
 	connections := len(d.clients)
 	d.mu.RUnlock()
-	return connections == 0 && !d.manager.busy() && !d.screens.busy() && !artifactPreviews.Busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy()) && (d.deps.Teams == nil || !d.deps.Teams.Busy())
+	return connections == 0 && !d.manager.busy() && !d.screens.busy() && !artifactPreviews.Busy() && !d.servicesBusy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy()) && (d.deps.Teams == nil || !d.deps.Teams.Busy())
 }

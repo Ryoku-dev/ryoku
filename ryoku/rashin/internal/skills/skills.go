@@ -1,7 +1,9 @@
 // Package skills serves the skill sets Rashin ships built in: Superpowers,
 // OpenSpec, Spec Kit and Elephant and Goldfish, vendored unchanged under
 // sets/. The first time they are used they are written out under Rashin's
-// data dir, so Ask, agents and team sandboxes read them as files.
+// data dir, so Ask, agents and team sandboxes read them as files. It also
+// keeps the managed skills Rashin writes itself (managed.go), in their own
+// folder, never among the built-in ones.
 package skills
 
 import (
@@ -19,7 +21,8 @@ import (
 var tree embed.FS
 
 // Library is the built-in sets: their index, read once from the program,
-// and the folder they are written out to.
+// and the folder they are written out to; with WithManaged, also the
+// managed skills Rashin wrote itself.
 type Library struct {
 	files   fs.FS
 	catalog []set
@@ -28,8 +31,9 @@ type Library struct {
 	indexOnce sync.Once
 	index     []entry
 
-	mu   sync.Mutex
-	root string
+	mu      sync.Mutex
+	root    string
+	managed *Managed
 }
 
 // entry is one skill as the index holds it, without where it lies on disk.

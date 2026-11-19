@@ -21,11 +21,11 @@ func (b *board) layoutAhead(gtx layout.Context, e *env.Env, snapshot state.Snaps
 	th := e.Theme
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, i18n.T("Coming up"), 0))
+			return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("Coming up"), Number: 4, Of: 5}))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.layoutComing(gtx, e, snapshot) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, i18n.T("This month"), 0))
+			return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("This month"), Number: 5, Of: 5}))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.layoutMonth(gtx, e, snapshot) }),
 	)

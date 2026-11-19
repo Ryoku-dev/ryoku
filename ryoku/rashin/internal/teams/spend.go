@@ -46,13 +46,47 @@ const (
 	dayLayout   = "2006-01-02"
 )
 
-// engineKey names the engine a task ran on in the spend: its harness and
-// model joined by protocol.EngineSpendSeparator; empty before it started.
+// engineKey names the engine a task ran on in the spend: its model, empty
+// before it started.
 func engineKey(t protocol.TeamTask) string {
-	if t.Harness == "" {
+	if t.Started == nil {
 		return ""
 	}
-	return t.Harness + protocol.EngineSpendSeparator + t.Model
+	return t.Model
+}
+
+// formerEngineSeparator joined a former external harness's id and its model
+// in an engine key ("harness\x1fmodel"); such a key now counts for its model.
+const formerEngineSeparator = "\x1f"
+
+// modelEngines folds engine keys a former harness wrote into their models:
+// a key whose model Rashin cannot route, or that named none, is dropped with
+// its tokens, which the days and members still count. It reports whether it
+// changed anything.
+func modelEngines(file spendFile) bool {
+	changed := false
+	for _, teams := range file {
+		for _, ms := range teams {
+			if ms == nil {
+				continue
+			}
+			for key, tokens := range ms.Engines {
+				_, model, former := strings.Cut(key, formerEngineSeparator)
+				if !former {
+					continue
+				}
+				delete(ms.Engines, key)
+				changed = true
+				if model != "" && protocol.ValidEngineModel(model) {
+					ms.Engines[model] += tokens
+				}
+			}
+			if len(ms.Engines) == 0 {
+				ms.Engines = nil
+			}
+		}
+	}
+	return changed
 }
 
 // addSpend counts a turn's tokens against its team, member, routine and
@@ -389,5 +423,8 @@ func (st *state) spendLocked() (spendFile, error) {
 		return nil, err
 	}
 	st.spendData = file
+	if modelEngines(file) {
+		st.saveSpendLocked(file)
+	}
 	return file, nil
 }

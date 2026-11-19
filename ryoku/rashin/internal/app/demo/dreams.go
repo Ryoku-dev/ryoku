@@ -35,15 +35,15 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 			Created: started, Updated: now, Dream: &state,
 		}
 	}
-	manager := func(id, harness, model string) protocol.Member {
-		return protocol.Member{ID: id, Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Harness: harness, Model: model}
+	manager := func(id, model string) protocol.Member {
+		return protocol.Member{ID: id, Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Model: model}
 	}
 
 	esp32 := dream(demoDreamESP32, i18n.T("ESP32 Wi-Fi setup page"), ago(4*24*time.Hour), []protocol.Member{
-		manager("member-esp32-manager", "claude", "opus"),
-		{ID: "member-esp32-firmware", Name: i18n.T("Firmware engineer"), Title: i18n.T("Writes the ESP-IDF firmware"), Harness: "claude", Model: "sonnet"},
-		{ID: "member-esp32-page", Name: i18n.T("Page designer"), Title: i18n.T("Builds the setup page"), Harness: "codex", Model: "gpt-5.6"},
-		{ID: "member-esp32-tester", Name: i18n.T("Tester"), Title: i18n.T("Tests it in QEMU"), Harness: "claude", Model: "haiku"},
+		manager("member-esp32-manager", demoPaidID),
+		{ID: "member-esp32-firmware", Name: i18n.T("Firmware engineer"), Title: i18n.T("Writes the ESP-IDF firmware"), Model: demoFreeID},
+		{ID: "member-esp32-page", Name: i18n.T("Page designer"), Title: i18n.T("Builds the setup page"), Model: demoLocalID},
+		{ID: "member-esp32-tester", Name: i18n.T("Tester"), Title: i18n.T("Tests it in QEMU"), Model: demoFreeID},
 	}, protocol.Dream{
 		Statement: i18n.T("Make ESP32 firmware whose Wi-Fi setup page opens when I connect to the board's own network: it lists the networks it can see, I pick one and type the password, and it joins and remembers it. Build it with ESP-IDF and keep the page small enough to live in flash."),
 		Brief:     i18n.T("ESP32-S3, ESP-IDF 5.3. A captive portal on the board's access point; the page under 20 KB; the network saved in NVS; back to the portal after three failed joins."),
@@ -51,8 +51,8 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 		Summary: i18n.T("The portal opens on a phone and lists the networks around it. Saving a network and the page itself are being built."),
 	})
 	receipts := dream(demoDreamReceipts, i18n.T("Receipt renamer"), ago(6*24*time.Hour), []protocol.Member{
-		manager("member-receipts-manager", "claude", "sonnet"),
-		{ID: "member-receipts-developer", Name: i18n.T("Developer"), Title: i18n.T("Writes the tool and its tests"), Harness: "codex", Model: "gpt-5.6"},
+		manager("member-receipts-manager", demoPaidID),
+		{ID: "member-receipts-developer", Name: i18n.T("Developer"), Title: i18n.T("Writes the tool and its tests"), Model: demoLocalID},
 	}, protocol.Dream{
 		Statement: i18n.T("A small tool that renames the receipts I scan into ~/Documents/receipts by the date and the shop on them, so I can find one by its name."),
 		Phase:     protocol.DreamPresenting, Hired: 2, Rounds: 1,
@@ -87,9 +87,9 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 		Created: esp32.Created, Started: at(esp32.Created), Updated: ago(6 * time.Minute),
 	}, i18n.T("Asked you which look the setup page takes."),
 		said(i18n.T("The interview settled the board, the size of the page and what happens when a join fails. Hiring three: firmware, the page, and tests.")),
-		did("hire-firmware", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer"), i18n.T("Hired Firmware engineer on Claude Code, sonnet.")),
-		did("hire-page", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer"), i18n.T("Hired Page designer on Codex, gpt-5.6.")),
-		did("hire-tester", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Tester"), i18n.T("Hired Tester on Claude Code, haiku.")),
+		did("hire-firmware", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer"), i18n.T("Hired Firmware engineer on Qwen3 Coder.")),
+		did("hire-page", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer"), i18n.T("Hired Page designer on LFM3 Omni 2B.")),
+		did("hire-tester", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Tester"), i18n.T("Hired Tester on Qwen3 Coder.")),
 		did("delegate-portal", "delegate", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer: Serve the captive portal and scan for networks"), ""),
 		did("delegate-page", "delegate", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer: Build the setup page under 20 KB"), ""),
 		did("dream-building", "dream_status", protocol.ToolOther, protocol.ToolDone, i18n.T("building, 45%"), ""),
@@ -163,7 +163,6 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 	}, fx.activity...)
 	fx.spend[esp32.ID] = dreamSpend(now, esp32, 690_000, 1)
 	fx.spend[receipts.ID] = dreamSpend(now, receipts, 409_000, 2)
-	signInDreams(result.snapshot.Harnesses, now, esp32, receipts)
 	sort.SliceStable(fx.tasks, func(i, j int) bool { return fx.tasks[i].Created.After(fx.tasks[j].Created) })
 	addResearchDemo(result, now, settings)
 }
@@ -183,22 +182,6 @@ func dreamSpend(now time.Time, dream protocol.Team, tokens int64, finished int) 
 	}
 	spend.Days[len(spend.Days)-1].Tasks = finished
 	return spend
-}
-
-// the demo's dreams signed in for every harness their members run on
-func signInDreams(harnesses []protocol.HarnessInfo, now time.Time, dreams ...protocol.Team) {
-	at := now.Add(-4 * 24 * time.Hour)
-	for index := range harnesses {
-		teams := harnesses[index].Teams
-		if teams == nil {
-			continue
-		}
-		for _, dream := range dreams {
-			if slices.ContainsFunc(dream.Members, func(member protocol.Member) bool { return member.Harness == harnesses[index].ID }) {
-				teams.Homes = append(teams.Homes, protocol.TeamHome{Team: dream.ID, Home: demoTeamsHome(harnesses[index].ID, dream.ID), SignedIn: &at})
-			}
-		}
-	}
 }
 
 func receiptsPresentation() string {
@@ -334,7 +317,7 @@ func (s *server) presentationApproval(approval protocol.Approval) bool {
 		slices.Equal(approval.Options, presentOptions())
 }
 
-// a dream as the daemon starts one: a team of its manager alone, run without confirmations, its standing task started or waiting for a sign-in
+// a dream starts its manager task on the selected model
 func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error) {
 	t := &s.data.teams
 	if p.Preset != "" && (p.Preset != "research" || !s.data.snapshot.Settings.Features["research"]) {
@@ -354,7 +337,13 @@ func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error
 	now := time.Now()
 	manager := protocol.Member{
 		ID: t.newID("member"), Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true,
-		Harness: p.Harness, Model: p.Model, Options: p.Options,
+		Model: p.Model, Options: p.Options,
+	}
+	if manager.Model == "" {
+		manager.Model = s.data.snapshot.Settings.Teams.Defaults.Model
+		if manager.Model == "" {
+			manager.Model = demoLocalID
+		}
 	}
 	team := protocol.Team{
 		ID: t.newID("dream"), Name: name, Purpose: statement, Folder: p.Folder, Members: []protocol.Member{manager},
@@ -373,7 +362,7 @@ func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error
 	return s.teamWithStats(team), nil
 }
 
-// the manager's standing task: at work at once, or blocked until its harness is signed in for the dream
+// the manager's standing task starts on the native engine
 func (s *server) startDream(team protocol.Team) protocol.TeamTask {
 	t := &s.data.teams
 	manager := team.Members[0]
@@ -382,40 +371,10 @@ func (s *server) startDream(team protocol.Team) protocol.TeamTask {
 		ID: t.newID("task"), Team: team.ID, Title: team.Name, Brief: team.Dream.Statement, Member: manager.ID,
 		Origin: protocol.TaskFromYou, Created: now, Updated: now,
 	}
-	harnessID, _, _ := protocol.ResolveEngine(manager, s.data.snapshot.Settings, s.registryHarness())
-	at := slices.IndexFunc(s.data.snapshot.Harnesses, func(harness protocol.HarnessInfo) bool { return harness.ID == harnessID })
-	if at >= 0 && s.data.snapshot.Harnesses[at].Teams != nil {
-		harness := s.data.snapshot.Harnesses[at]
-		if home, ok := harness.Teams.HomeOf(team.ID); !ok || home.SignedIn == nil {
-			task.Status, task.SignIn, task.Ended = protocol.TaskBlocked, harness.ID, &now
-			task.Reason = i18n.Tf("%s is not signed in for %s. Sign it in, then resume the dream.", harness.Name, team.Name)
-			t.tasks = append([]protocol.TeamTask{task}, t.tasks...)
-			s.emitTask(task)
-			return task
-		}
-	}
 	task = s.beginTeamTask(team, task)
 	t.tasks = append([]protocol.TeamTask{task}, t.tasks...)
 	s.emitTask(task)
 	return task
-}
-
-// a dream blocked only on this sign-in goes on by itself, its blocked attempt taken back as the daemon does
-func (s *server) continueSignedInDream(id, harness string) {
-	t := &s.data.teams
-	index := s.dreamIndex(id)
-	if index < 0 {
-		return
-	}
-	dream := t.teams[index]
-	at := t.taskIndex(dream.Dream.Task)
-	if at < 0 || dream.Paused || t.tasks[at].Status != protocol.TaskBlocked || t.tasks[at].SignIn != harness {
-		return
-	}
-	task := t.tasks[at]
-	task.SignIn, task.Reason, task.Ended = "", "", nil
-	t.tasks[at] = s.beginTeamTask(dream, task)
-	s.emitTask(t.tasks[at])
 }
 
 // a dream resumed starts its manager again when the standing task is not running
@@ -500,8 +459,8 @@ func addResearchDemo(result *fixtures, now time.Time, settings protocol.Settings
 	fx := &result.teams
 	if settings.Features["research"] {
 		started, presented := now.Add(-3*time.Hour), now.Add(-15*time.Minute)
-		manager := protocol.Member{ID: "member-research-manager", Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Harness: "claude", Model: "sonnet"}
-		reviewer := protocol.Member{ID: "member-research-reviewer", Name: i18n.T("Reviewer"), Title: i18n.T("Checks the sources"), Harness: "claude", Model: "haiku"}
+		manager := protocol.Member{ID: "member-research-manager", Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Model: demoPaidID}
+		reviewer := protocol.Member{ID: "member-research-reviewer", Name: i18n.T("Reviewer"), Title: i18n.T("Checks the sources"), Model: demoFreeID}
 		dream := protocol.Team{
 			ID: "dream-research", Name: i18n.T("How Linux reports battery health"), Purpose: i18n.T("Compare the Linux battery capacity fields and explain when a health percentage is trustworthy."),
 			Folder: paths.DreamsHome() + "/battery-health-research", Members: []protocol.Member{manager, reviewer}, Approvals: protocol.ApprovalsAuto, Notify: protocol.NotifyAll, Created: started, Updated: presented,

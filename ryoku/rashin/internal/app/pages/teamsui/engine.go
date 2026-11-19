@@ -12,133 +12,213 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// the harness and model a member or a task runs on, in words, kept in parts so a tight row shows only what fits
+// the model a member or a task runs on, in words, kept in parts so a tight row shows only what fits
 type Engine struct {
-	// "Claude Code", "Claude Code (default)" when it comes from the defaults, ", not installed" added when missing
-	Harness string
-	// empty when unknown
-	Version string
-	// "Haiku 4.5", "Sonnet 4.5 (its default)" or "Its default model"
+	// the route or provider/model the daemon takes
+	ID string
+	// "LFM3 2B", "Auto"; the id's own name while no list names it
 	Model string
-	// the options a member or task sets, as "effort high", empty without any
+	// the words after the name that say where it runs, "on this computer"; empty for a route
+	Where string
+	// the options in words, "effort high, plans first"; empty without any
 	Extra   string
+	Options map[string]string
+	// it follows the default, not a pick of its own
+	Default bool
+	// nothing can run it now: its provider is gone, off or without a key, its server is down, or it calls no tools
 	Missing bool
+
+	place string
 }
 
-// "Haiku 4.5 on Claude Code, effort high"
+// "LFM3 2B on this computer, effort high"
 func (e Engine) Line() string {
-	line := i18n.Tf("%s on %s", e.Model, e.Harness)
-	if e.Extra != "" {
-		line = i18n.Tf("%s, %s", line, e.Extra)
+	if e.Extra == "" {
+		return e.place
 	}
-	return line
+	return i18n.Tf("%s, %s", e.place, e.Extra)
 }
 
-// the model alone, for rows with no room for the harness
+// "LFM3 2B on this computer", for a line with no room for the options
+func (e Engine) Place() string { return e.place }
+
+// the model alone, for rows with no room for where it runs
 func (e Engine) Short() string { return e.Model }
 
 // what a member's next task starts on, through the chain the daemon starts it with
 func MemberEngine(snapshot state.Snapshot, member protocol.Member) Engine {
-	harness, model, options := protocol.ResolveEngine(member, snapshot.Settings, registryDefault(snapshot.Harnesses))
-	return describeEngine(snapshot.Harnesses, harness, model, options, member.Harness == "", "")
+	model, options := protocol.ResolveEngine(member, snapshot.Settings)
+	engine := ModelEngine(snapshot, model, options)
+	engine.Default = member.Model == ""
+	return engine
 }
 
 // a started task keeps what it ran on even after its session and member are gone; before
 // it starts it reads as its member's engine with what was asked for this task alone
 func TaskEngine(snapshot state.Snapshot, task protocol.TeamTask) Engine {
-	harness, model, options := TaskEngineIDs(snapshot, task)
-	fromDefaults := task.Harness == "" && taskMember(snapshot, task).Harness == ""
-	return describeEngine(snapshot.Harnesses, harness, model, options, fromDefaults, task.Team)
+	model, options := TaskEngineIDs(snapshot, task)
+	engine := ModelEngine(snapshot, model, options)
+	engine.Default = task.Model == "" && taskMember(snapshot, task).Model == ""
+	return engine
 }
 
-// the same chain by the ids the harness takes, for details that show a model's own id
-func TaskEngineIDs(snapshot state.Snapshot, task protocol.TeamTask) (harness, model string, options map[string]string) {
-	if task.Harness != "" {
-		return task.Harness, task.Model, task.Options
-	}
-	harness, model, options = protocol.ResolveEngine(taskMember(snapshot, task), snapshot.Settings, registryDefault(snapshot.Harnesses))
+// the same chain by the ids the daemon takes, for details that show a model's own id
+func TaskEngineIDs(snapshot state.Snapshot, task protocol.TeamTask) (model string, options map[string]string) {
+	model, options = protocol.ResolveEngine(taskMember(snapshot, task), snapshot.Settings)
 	if task.Model != "" {
 		model = task.Model
 	}
 	if len(task.Options) > 0 {
 		options = task.Options
 	}
-	return harness, model, options
+	return model, options
 }
 
-// team is the team whose home the engine runs in, whose own list names its models; "" names them from the user's
-func describeEngine(harnesses []protocol.HarnessInfo, id, model string, options map[string]string, fromDefaults bool, team string) Engine {
-	info, found := env.HarnessByID(harnesses, id)
-	if team != "" {
-		info.Capabilities, info.Setup = info.TeamCapabilities(team), nil
-	}
-	engine := Engine{Missing: !found || !info.Installed}
-	switch {
-	case id == "":
-		// the chain ends empty only when no harness is installed at all
-		engine.Harness = i18n.T("No harness installed")
-	case found:
-		engine.Harness, engine.Version = info.Name, info.Version
-	default:
-		engine.Harness = id
-	}
-	if id != "" && fromDefaults {
-		engine.Harness = i18n.Tf("%s (default)", engine.Harness)
-	}
-	if id != "" && engine.Missing {
-		engine.Harness = i18n.Tf("%s, not installed", engine.Harness)
-	}
-	engine.Model = modelWords(info, model)
-	engine.Extra = optionWords(info.Capabilities, options)
+// what a member that names no model runs: the teams default, else what Agents use
+func DefaultEngine(snapshot state.Snapshot) Engine {
+	return MemberEngine(snapshot, protocol.Member{})
+}
+
+// what Agents use, which the teams default falls back to
+func AgentsEngine(snapshot state.Snapshot) Engine {
+	model := snapshot.Settings.Agent.Model
+	engine := ModelEngine(snapshot, model, snapshot.Settings.Agent.Options)
+	engine.Default = model == ""
 	return engine
 }
 
-// an empty model is the harness's own default, named when the harness reported it or its settings say it
-func modelWords(info protocol.HarnessInfo, model string) string {
-	if model != "" {
-		return env.ModelName(info.Capabilities, model)
+// any model in words by the id the daemon takes; an empty one is the route every chain ends on
+func ModelEngine(snapshot state.Snapshot, model string, options map[string]string) Engine {
+	if model == "" {
+		model = protocol.RouteAuto
 	}
-	if model := env.HarnessDefaultModel(info); model != "" {
-		return i18n.Tf("%s (its default)", env.ModelName(info.Capabilities, model))
+	engine := Engine{ID: model, Options: options, Extra: optionWords(options), place: env.ModelWordsOf(model)}
+	info, listed := env.ModelInfoOf(model)
+	// before the daemon said what it has, nothing is known to be missing
+	ready := snapshot.Connection == state.Ready
+	switch {
+	case protocol.IsRoute(model):
+		engine.Model = engine.place
+		engine.Missing = ready && !env.AgentModelsReadyOf()
+	case listed && info.Name != "":
+		engine.Model = info.Name
+		engine.Missing = !info.Available || info.ToolsKnown && !info.Tools
+	default:
+		// a model nothing lists reads by its own id, without the provider that leads it
+		_, engine.Model, _ = strings.Cut(model, "/")
+		engine.Missing = ready && (env.ModelsLoaded() || !providerUp(snapshot, model))
 	}
-	return i18n.T("Its default model")
+	if where, cut := strings.CutPrefix(engine.place, engine.Model); cut {
+		engine.Where = strings.TrimSpace(where)
+	}
+	return engine
 }
 
-// options read in the order the harness offers them, any it no longer offers after them by id
-func optionWords(capabilities *protocol.HarnessCapabilities, options map[string]string) string {
+// the provider a model id names is on, has what it needs to answer, and a server of its own is up or starts on demand
+func providerUp(snapshot state.Snapshot, model string) bool {
+	id, _, _ := strings.Cut(model, "/")
+	for _, provider := range snapshot.Providers {
+		if provider.ID != id {
+			continue
+		}
+		if provider.Local {
+			return provider.Enabled && (provider.Running || provider.OnDemand)
+		}
+		return provider.Enabled && (provider.Keyless || provider.Configured)
+	}
+	return false
+}
+
+// how hard it thinks first, then whether it plans, then any other option by id
+func optionWords(options map[string]string) string {
 	if len(options) == 0 {
 		return ""
 	}
-	words := make([]string, 0, len(options))
-	named := make(map[string]bool, len(options))
-	if capabilities != nil {
-		for _, option := range capabilities.Options {
-			if value, ok := options[option.ID]; ok {
-				words = append(words, optionWord(option.Name, option.Choices, value))
-				named[option.ID] = true
-			}
-		}
-	}
-	for _, id := range slices.Sorted(maps.Keys(options)) {
-		if !named[id] {
-			words = append(words, optionWord(id, nil, options[id]))
+	ids := slices.Sorted(maps.Keys(options))
+	slices.SortStableFunc(ids, func(a, b string) int { return optionRank(a) - optionRank(b) })
+	words := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if word := optionWord(id, options[id]); word != "" {
+			words = append(words, word)
 		}
 	}
 	return strings.Join(words, ", ")
 }
 
-func optionWord(name string, choices []protocol.Choice, value string) string {
-	return i18n.Tf("%s %s", strings.ToLower(name), ChoiceName(choices, value))
+func optionRank(id string) int {
+	switch id {
+	case protocol.OptionEffort:
+		return 0
+	case protocol.OptionPlan:
+		return 1
+	}
+	return 2
 }
 
-// the harness the registry starts when nothing names one, marked Default in the list
-func registryDefault(harnesses []protocol.HarnessInfo) string {
-	for _, harness := range harnesses {
-		if harness.Default {
-			return harness.ID
+// an option inside a sentence; a plan that is off says nothing
+func optionWord(id, value string) string {
+	switch id {
+	case protocol.OptionEffort:
+		switch value {
+		case effortOff:
+			return i18n.T("thinking off")
+		case effortLow:
+			return i18n.T("effort low")
+		case effortMedium:
+			return i18n.T("effort medium")
+		case effortHigh:
+			return i18n.T("effort high")
+		}
+	case protocol.OptionPlan:
+		if value == protocol.OptionOn {
+			return i18n.T("plans first")
+		}
+		return ""
+	}
+	return i18n.Tf("%s %s", id, value)
+}
+
+// the values of protocol.OptionEffort, as the engine sends them to a model that reasons
+const (
+	effortOff    = "off"
+	effortLow    = "low"
+	effortMedium = "medium"
+	effortHigh   = "high"
+)
+
+// one option as a fact with its label, for a details list: "Thinking" and "High", "Plan first" and "On"
+func OptionFact(id, value string) (name, word string) {
+	switch id {
+	case protocol.OptionEffort:
+		name = i18n.T("Thinking")
+		switch value {
+		case effortOff:
+			return name, i18n.T("Off")
+		case effortLow:
+			return name, i18n.T("Low")
+		case effortMedium:
+			return name, i18n.T("Medium")
+		case effortHigh:
+			return name, i18n.T("High")
+		}
+		return name, value
+	case protocol.OptionPlan:
+		if value == protocol.OptionOn {
+			return i18n.T("Plan first"), i18n.T("On")
+		}
+		return i18n.T("Plan first"), i18n.T("Off")
+	}
+	return id, value
+}
+
+// a choice's name as its list gives it, else its id
+func ChoiceName(choices []protocol.Choice, id string) string {
+	for _, choice := range choices {
+		if choice.ID == id && choice.Name != "" {
+			return choice.Name
 		}
 	}
-	return ""
+	return id
 }
 
 // a task without a member goes to the lead; a removed member leaves the zero member, which follows the defaults

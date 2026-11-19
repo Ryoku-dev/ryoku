@@ -69,6 +69,14 @@ func SessionsDir() string { return filepath.Join(StateDir(), "sessions") }
 // SessionDir is one session's directory.
 func SessionDir(id string) string { return filepath.Join(SessionsDir(), id) }
 
+// EngineTranscriptName is the native engine's transcript file in a session's
+// directory: the model-facing history, apart from the session log the app
+// renders.
+const EngineTranscriptName = "engine.jsonl"
+
+// EngineTranscript is one session's engine transcript.
+func EngineTranscript(id string) string { return filepath.Join(SessionDir(id), EngineTranscriptName) }
+
 // GatewayDB is the key, usage and cooldown store.
 func GatewayDB() string { return filepath.Join(StateDir(), "gateway.db") }
 
@@ -78,9 +86,35 @@ func MasterKey() string { return filepath.Join(StateDir(), "master.key") }
 // IndexRegistry lists the registered indexes.
 func IndexRegistry() string { return filepath.Join(StateDir(), "indexes.json") }
 
-// HarnessCapabilities caches what each harness binary answered at initialize,
-// keyed by the binary's path and mtime.
-func HarnessCapabilities() string { return filepath.Join(StateDir(), "harness-capabilities.json") }
+// GrievancesDB keeps the models' reports about tools that misbehaved
+// (bbolt); nothing in it leaves this computer.
+func GrievancesDB() string { return filepath.Join(StateDir(), "grievances.db") }
+
+// ToolHomes holds the scratch homes of team tasks' tool hosts: under the
+// state dir, so every sandbox hides them from every other.
+func ToolHomes() string { return filepath.Join(StateDir(), "tool-homes") }
+
+// ToolHome is one team task's scratch HOME, 0700 and removed with the task.
+func ToolHome(team, task string) string { return filepath.Join(ToolHomes(), team, task) }
+
+// ToolCache is one team's XDG_CACHE_HOME, kept across its tasks for go, npm
+// and pip caches. "cache" is never a task id: those are generated.
+func ToolCache(team string) string { return filepath.Join(ToolHomes(), team, "cache") }
+
+// LlamaStateDir holds what Rashin's llama-server needs between starts: the
+// generated presets, its log and the key of the running server.
+func LlamaStateDir() string { return filepath.Join(StateDir(), "llama") }
+
+// LlamaPresets is the router presets file, generated from the installed
+// models (0600).
+func LlamaPresets() string { return filepath.Join(LlamaStateDir(), "presets.ini") }
+
+// LlamaLog is llama-server's log, truncated at each start.
+func LlamaLog() string { return filepath.Join(LlamaStateDir(), "llama-server.log") }
+
+// LlamaKey holds the API key of the running llama-server, written fresh at
+// each start (0600).
+func LlamaKey() string { return filepath.Join(LlamaStateDir(), "key") }
 
 // DaemonLog keeps the daemon's warnings and errors.
 func DaemonLog() string { return filepath.Join(StateDir(), "rashind.log") }
@@ -95,6 +129,10 @@ func CacheDir() string { return filepath.Join(CacheHome(), "ryoku", "rashin") }
 
 // IndexDir is one index's directory.
 func IndexDir(id string) string { return filepath.Join(CacheDir(), "index", id) }
+
+// LlamaCache is the private LLAMA_CACHE of Rashin's llama-server, so it never
+// writes to the user's own llama.cpp cache.
+func LlamaCache() string { return filepath.Join(CacheDir(), "llama") }
 
 // RuntimeDir holds the socket and locks: $XDG_RUNTIME_DIR/rashin.
 func RuntimeDir() string {
@@ -146,28 +184,69 @@ func PastedDir() string { return filepath.Join(RuntimeDir(), "pasted") }
 func ScreensDir() string { return filepath.Join(RuntimeDir(), "screens") }
 
 // DataDir holds what Rashin keeps that is neither state nor cache: the
-// screen home, the team homes and the built-in skills written out.
+// screen home, the skills, the models and the self-improvement stores.
 func DataDir() string { return filepath.Join(DataHome(), "ryoku", "rashin") }
 
 // AttachmentsDir holds images in conversations kept past the login session.
 func AttachmentsDir() string { return filepath.Join(DataDir(), "attachments") }
 
 // SkillsDir holds the built-in skills written out of the program, in one
-// folder named for their content hash.
-func SkillsDir() string { return filepath.Join(DataDir(), "skills") }
+// folder named for their content hash; the library prunes every other folder
+// in it, so nothing else lives there.
+func SkillsDir() string { return filepath.Join(DataDir(), "skills", "builtin") }
+
+// ManagedSkillsDir holds the skills Rashin writes itself, one folder per
+// name with its SKILL.md. They lose to any built-in or authored skill of the
+// same name.
+func ManagedSkillsDir() string { return filepath.Join(DataDir(), "skills", "managed") }
+
+// ManagedSkill is one managed skill's folder.
+func ManagedSkill(name string) string { return filepath.Join(ManagedSkillsDir(), name) }
+
+// ModelsDir holds the models Rashin runs itself, as
+// <owner>/<repo>/<file> with each model's manifest beside its files. Data, not
+// cache: they are big and the user chose them, so no cache sweep takes them.
+func ModelsDir() string { return filepath.Join(DataDir(), "models") }
+
+// LlamaRuntimeDir holds Rashin's own llama.cpp builds (llama-b<build>/) and
+// runtime.json, which names the active one.
+func LlamaRuntimeDir() string { return filepath.Join(DataDir(), "llama.cpp") }
+
+// DecisionsDir holds the decision banks, one folder per project named by
+// its basename and a FNV-1a hash of its path: architecture.md, product.md,
+// style.md, the queue and state.json.
+func DecisionsDir() string { return filepath.Join(DataDir(), "decisions") }
+
+// DecisionBank is one bank's folder.
+func DecisionBank(bank string) string { return filepath.Join(DecisionsDir(), bank) }
+
+// RulesDir holds the user's global rule files, <name>.md each.
+func RulesDir() string { return filepath.Join(DataDir(), "rules") }
+
+// ProjectRulesDir holds a project's own rule files.
+func ProjectRulesDir(project string) string { return filepath.Join(project, ".rashin", "rules") }
 
 // ScreenHome is the HOME of the apps agents open on their screens, kept apart
 // from the user's and kept between screens so a login made there lasts.
 func ScreenHome() string { return filepath.Join(DataDir(), "screen-home") }
 
-// HarnessHomes holds the team homes: one HOME per harness instance that team
-// sessions run it with, so a harness signs in for teams apart from the user.
-func HarnessHomes() string { return filepath.Join(DataDir(), "harness-homes") }
+// LegacyHarnessState are where external harnesses kept Rashin's state for
+// them: the team homes with their logins, the sign-in guard with its
+// quarantine, the capability cache and the Check work dirs. Only the
+// native-engine migration reads them, to delete them.
+func LegacyHarnessState() []string {
+	return []string{
+		filepath.Join(DataDir(), "harness-homes"),
+		filepath.Join(StateDir(), "harness-homes"),
+		filepath.Join(StateDir(), "harness-capabilities.json"),
+		filepath.Join(CacheDir(), "probe"),
+	}
+}
 
-// HarnessHomeGuard holds, per harness instance, the copy of its team home's
-// guarded paths made when the user signed in, and the quarantine of what a
-// team changed there since.
-func HarnessHomeGuard() string { return filepath.Join(StateDir(), "harness-homes") }
+// LegacySkillsDir held the built-in skills before managed skills moved in
+// beside them: its content-hash folders (every entry but "builtin" and
+// "managed") are left over and removed by the native-engine migration.
+func LegacySkillsDir() string { return filepath.Join(DataDir(), "skills") }
 
 // Keyrings holds the login keyrings, which keep the credential vault's key.
 func Keyrings() string { return filepath.Join(DataHome(), "keyrings") }

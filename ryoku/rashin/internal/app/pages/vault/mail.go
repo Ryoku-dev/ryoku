@@ -21,7 +21,7 @@ type mailSlab struct {
 	result              *protocol.MailTestResult
 }
 
-func (m *mailSlab) layout(gtx layout.Context, e *env.Env, p *Page, vault protocol.VaultInfo) layout.Dimensions {
+func (m *mailSlab) layout(gtx layout.Context, e *env.Env, p *Page, vault protocol.VaultInfo, number, total int) layout.Dimensions {
 	th := e.Theme
 	account := vault.Mail
 	m.setup.Kind, m.setup.Small, m.setup.Label = kit.PlaqueTonal, true, i18n.T("Set up the mail account")
@@ -85,7 +85,7 @@ func (m *mailSlab) layout(gtx layout.Context, e *env.Env, p *Page, vault protoco
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(look.SectionTitle(th, i18n.T("Mail account"), 0)),
+		layout.Rigid(look.SectionHead(th, look.Head{Title: i18n.T("Mail account"), Number: number, Of: total})),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabContent(gtx, th.Theme, body) }),
 	)

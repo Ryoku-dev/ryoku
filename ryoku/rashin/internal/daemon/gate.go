@@ -40,7 +40,6 @@ var teamControl = map[string]bool{
 	protocol.MSessionGoal:       true,
 	protocol.MSessionCancel:     true,
 	protocol.MSessionStop:       true,
-	protocol.MSessionStart:      true,
 	protocol.MSessionRename:     true,
 	protocol.MSessionDelete:     true,
 	protocol.MSessionHandoff:    true,
@@ -49,17 +48,46 @@ var teamControl = map[string]bool{
 	protocol.MSessionSetMemory:  true,
 }
 
-// isAgentMethod reports a method that only a team task's agent calls.
+// isAgentMethod reports a method that only a team task's own tools call.
 func isAgentMethod(method string) bool { return strings.HasPrefix(method, "teams.agent_") }
 
 // agentGate is what a connection on a team session's own socket may call:
-// the team tools, that session's goal and screen, acting as its agent,
-// reading the indexes inside its team's folders, searching, remembering
-// and forgetting in its team's memory, and reading its team's built-in
-// skills. Everything else is refused.
-func agentGate(session, method string, raw json.RawMessage) error {
-	if isAgentMethod(method) || agentIndex[method] || teamMemory[method] || isSkillsMethod(method) {
+// reading the indexes inside its team's folders, which the rashin command
+// typed into the session's shell does. The team tools run in the daemon and
+// never come this way, so everything else is refused.
+func agentGate(method string) error {
+	if agentIndex[method] {
 		return nil
+	}
+	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+}
+
+// connectionBound are the methods that answer through a connection of their
+// own: subscribing, attaching, watching and the calls that attach a session.
+// A session's tools call in-process and have none.
+var connectionBound = map[string]bool{
+	protocol.MHello:         true,
+	protocol.MSubscribe:     true,
+	protocol.MShutdown:      true,
+	protocol.MSessionAttach: true,
+	protocol.MSessionDetach: true,
+	protocol.MProjectsWatch: true,
+	protocol.MAsk:           true,
+	protocol.MGlance:        true,
+}
+
+// hostGate is what a session's own tools may call through the tool host
+// (toolhost.go). A team task's tools call only what its agent socket once
+// served: its team tools, its own goal and screen, the indexes inside its
+// team's folders, searching, remembering and forgetting in its team's
+// memory, its team's skills, and reading or proposing teams. Any other
+// session's tools call what any program on the main socket may, never as
+// the app, never a team tool and never the settings, and a goal or screen
+// only their own.
+func (d *Daemon) hostGate(info protocol.SessionInfo, method string, raw json.RawMessage) error {
+	refused := protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+	if connectionBound[method] || method == protocol.MSettingsSet {
+		return refused
 	}
 	switch method {
 	case protocol.MSessionGoal:
@@ -67,47 +95,47 @@ func agentGate(session, method string, raw json.RawMessage) error {
 		if err != nil {
 			return err
 		}
-		if p.ID == session {
-			return nil
+		if p.ID != info.ID {
+			return refused
 		}
+		return nil
 	case protocol.MScreenAct:
 		p, err := unmarshal[protocol.ScreenActParams](raw)
 		if err != nil {
 			return err
 		}
-		if p.ID == session && p.By == protocol.HolderAgent {
-			return nil
+		if p.ID != info.ID || p.By != protocol.HolderAgent {
+			return refused
 		}
+		return nil
 	case protocol.MScreenControl:
 		p, err := unmarshal[protocol.ScreenControlParams](raw)
 		if err != nil {
 			return err
 		}
-		if p.ID == session && (p.Op == protocol.ScreenAsk || p.Op == protocol.ScreenStop) {
-			return nil
+		if p.ID != info.ID || p.Op != protocol.ScreenAsk && p.Op != protocol.ScreenStop {
+			return refused
 		}
+		return nil
 	}
-	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
-}
-
-// askGate is what a connection on a read-only Ask's own socket may call, the
-// harness that answers it running sandboxed: what Ask's tools call, reading
-// the indexes, searching, remembering and forgetting for this conversation,
-// reading the built-in skills, reading the teams and proposing one.
-// Everything else, a session that could act among it, is refused.
-func askGate(method string) error {
+	if info.Team == "" {
+		if isAgentMethod(method) {
+			return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("This call does not come from the task's own conversation."))
+		}
+		return d.mainGate(&connection{daemon: d}, method, raw)
+	}
 	switch {
-	case agentIndex[method], sessionMemory[method], isSkillsMethod(method):
+	case isAgentMethod(method), agentIndex[method], teamMemory[method], isSkillsMethod(method):
 		return nil
 	case method == protocol.MTeamsList, method == protocol.MTeamsTemplates, method == protocol.MTeamsPropose:
 		return nil
 	}
-	return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+	return refused
 }
 
 // mainGate keeps the main socket from doing what is not its to do: a team
-// task's agent calls in only on its session's own socket, team sessions are
-// made by the daemon alone, and only the Rashin app controls one.
+// task's tools call in only from inside the daemon, team sessions are made
+// by the daemon alone, and only the Rashin app controls one.
 func (d *Daemon) mainGate(c *connection, method string, raw json.RawMessage) error {
 	if isAgentMethod(method) {
 		return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("This call does not come from the task's own conversation."))
@@ -145,13 +173,12 @@ func requireApp(c *connection) error {
 
 // settingsForApp reports whether a settings patch reaches what only the
 // Rashin app may change: the teams' settings, which set what their agents
-// may reach, the harness instances, whose command and environment team
-// agents run with, the harness that answers Ask, which decides what runs
-// the user's questions, the providers' settings, which name the addresses
-// the gateway sends requests to, memory's, so no agent can turn memory on,
-// widen what it reads or point it at another server, or the skills', so no
-// agent chooses what every model is told. A patch that replaces a whole
-// object, or is no object at all, reaches everything under it.
+// may reach, the providers' settings, which name the addresses the gateway
+// sends requests to and the llama-server Rashin runs, memory's, so no agent
+// can turn memory on, widen what it reads or point it at another server, or
+// the skills', so no agent chooses what every model is told. A patch that
+// replaces a whole object, or is no object at all, reaches everything under
+// it.
 func settingsForApp(patch json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if json.Unmarshal(patch, &top) != nil || top == nil {
@@ -159,19 +186,6 @@ func settingsForApp(patch json.RawMessage) bool {
 	}
 	for _, key := range []string{"teams", "providers", "memory", "skills"} {
 		if _, ok := top[key]; ok {
-			return true
-		}
-	}
-	for object, field := range map[string]string{"agent": "instances", "ask": "harness"} {
-		raw, ok := top[object]
-		if !ok {
-			continue
-		}
-		var fields map[string]json.RawMessage
-		if json.Unmarshal(raw, &fields) != nil || fields == nil {
-			return true
-		}
-		if _, ok := fields[field]; ok {
 			return true
 		}
 	}

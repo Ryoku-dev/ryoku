@@ -28,15 +28,15 @@ func (f *memberForm) set(member protocol.Member) {
 	f.name.SetText(member.Name)
 	f.title.SetText(member.Title)
 	f.lead.Value = member.Lead
-	f.engine.Set(member.Harness, member.Model, member.Options)
+	f.engine.Set(member.Model, member.Options)
 	f.instructions.SetText(member.Instructions)
 }
 
 func (f *memberForm) member() protocol.Member {
-	harness, model, options := f.engine.Value()
+	model, options := f.engine.Value()
 	return protocol.Member{
 		ID: f.id, Name: strings.TrimSpace(f.name.Text()), Title: strings.TrimSpace(f.title.Text()), Lead: f.lead.Value,
-		Harness: harness, Model: model, Options: options, Instructions: strings.TrimSpace(f.instructions.Text()),
+		Model: model, Options: options, Instructions: strings.TrimSpace(f.instructions.Text()),
 	}
 }
 
@@ -57,11 +57,6 @@ func (f *memberForm) instructionsField(th *look.Theme) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions { return f.instructions.Layout(gtx, th) }
 }
 
-// the harness select's first option names the harness the teams default resolves to now
-func teamsDefaultLabel(e *env.Env) string {
-	return i18n.Tf("Teams default (%s)", teamsui.DefaultHarnessName(e.Snapshot()))
-}
-
 func (f *memberForm) engineField(e *env.Env) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions { return f.engine.Layout(gtx, e, teamsDefaultLabel(e)) }
+	return func(gtx layout.Context) layout.Dimensions { return f.engine.Layout(gtx, e) }
 }

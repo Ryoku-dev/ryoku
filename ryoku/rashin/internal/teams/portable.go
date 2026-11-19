@@ -11,7 +11,6 @@ import (
 	i18n "ryoku-i18n"
 
 	"ryoku-rashin/internal/config"
-	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -97,7 +96,7 @@ func (s *Service) importTeam(ctx context.Context, p protocol.TeamImportParams) (
 		Running: doc.Running, Access: doc.Access,
 		Paused: true, PauseReason: protocol.PausedByYou, Created: now, Updated: now,
 	}
-	importable(&team, s.settings())
+	s.importable(ctx, &team)
 	drafts := make([]protocol.RoutineDraft, 0, len(doc.Routines))
 	for _, draft := range doc.Routines {
 		draft.Enabled = false
@@ -115,13 +114,13 @@ func (s *Service) importTeam(ctx context.Context, p protocol.TeamImportParams) (
 }
 
 // importable drops what a team from another computer names that this one
-// lacks: a harness it does not know, with that harness's model and options,
-// and folders to change or hide that do not pass here. The member then
-// follows the teams defaults.
-func importable(team *protocol.Team, settings protocol.Settings) {
+// cannot take: a model Rashin cannot run here, with its options, and
+// folders to change or hide that do not pass here. The member then follows
+// the teams defaults.
+func (s *Service) importable(ctx context.Context, team *protocol.Team) {
 	for i, m := range team.Members {
-		if id := strings.TrimSpace(m.Harness); id != "" && !registry.Known(id, settings) {
-			team.Members[i].Harness, team.Members[i].Model, team.Members[i].Options = "", "", nil
+		if model := strings.TrimSpace(m.Model); model != "" && s.modelProblem(ctx, model) != "" {
+			team.Members[i].Model, team.Members[i].Options = "", nil
 		}
 	}
 	var writable, hidden []string

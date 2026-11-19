@@ -55,6 +55,39 @@ func TestReducerMergesToolsAndAppendsTerminalOutput(t *testing.T) {
 	}
 }
 
+func TestReducerKeepsCompactionSeparateFromToolSteps(t *testing.T) {
+	model := NewModel(protocol.SessionInfo{})
+	model.Apply(testEvent(t, 1, protocol.EvTool, protocol.ToolData{Call: "compact-1", Title: "Making room", Status: protocol.ToolRunning}))
+	model.Apply(testEvent(t, 2, protocol.EvTool, protocol.ToolData{Call: "read-1", Title: "Read", Status: protocol.ToolRunning}))
+	model.Apply(testEvent(t, 3, protocol.EvNotice, protocol.NoticeData{Text: "The context was shortened"}))
+	model.Apply(testEvent(t, 4, protocol.EvTool, protocol.ToolData{Call: "compact-1", Status: protocol.ToolDone, Output: "Kept the plan"}))
+	rows := model.state.rows
+	if len(rows) != 3 || rows[0].kind != rowCompaction || rows[1].kind != rowTool || rows[2].kind != rowNotice {
+		t.Fatalf("compaction, tool, notice rows = %#v", rows)
+	}
+	if rows[0].tool.Status != protocol.ToolDone || rows[0].tool.Output != "Kept the plan" {
+		t.Fatalf("updated compaction = %#v", rows[0].tool)
+	}
+}
+
+func TestPermissionOutcomesUseQuestionAndPlanLanguage(t *testing.T) {
+	for _, sample := range []struct {
+		kind, option, want string
+	}{
+		{protocol.PermissionQuestion, "first", "Answered"},
+		{protocol.PermissionPlan, "build", "Building"},
+		{protocol.PermissionPlan, "keep", "Still planning"},
+	} {
+		permission := &permissionState{
+			data:     protocol.PermissionData{Kind: sample.kind},
+			resolved: &protocol.PermissionResolvedData{Outcome: "selected", Option: sample.option},
+		}
+		if got := permissionOutcome(permission); got != sample.want {
+			t.Errorf("permissionOutcome(%q, %q) = %q, want %q", sample.kind, sample.option, got, sample.want)
+		}
+	}
+}
+
 func TestReducerKeepsPermissionsOpenUntilResolved(t *testing.T) {
 	model := NewModel(protocol.SessionInfo{})
 	first := protocol.PermissionData{Request: "r1", Title: "First"}

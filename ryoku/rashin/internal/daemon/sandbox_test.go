@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"ryoku-rashin/internal/paths"
@@ -19,9 +20,8 @@ type accessTeams struct {
 
 func (t *accessTeams) Access(protocol.SessionInfo) protocol.TeamAccess { return t.access }
 
-// Every team sandbox hides the places credentials live and every harness's
-// own state, whatever the settings say: the user's list only adds to them,
-// and an empty one hides exactly what Rashin always hides.
+// Every team sandbox hides the places credentials live and every other coding
+// agent's own state, whatever the settings say.
 func TestTeamSandboxesAlwaysHideSecretsAndTheSettingsListAddsToThem(t *testing.T) {
 	isolateDaemon(t)
 	d := &Daemon{}
@@ -143,10 +143,9 @@ func TestAgentAndScreenSandboxesTakeTheTeamsAccess(t *testing.T) {
 	}
 }
 
-// Every Rashin sandbox (a team agent's, a Check's, a team screen's and a
-// read-only Ask's) covers the host's /run, keeps the host daemons outside it
-// hidden, drops the system bus address and runs its program through the
-// rashin command's scope.
+// Every team task's tool host and its screen cover the host's /run and keep
+// host daemons outside, while the tool host drops the system bus address and
+// runs through the rashin command's scope.
 func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
 	isolateDaemon(t)
 	shortRuntime(t)
@@ -162,20 +161,11 @@ func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ask, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: paths.Home()})
-	if err != nil {
-		t.Fatal(err)
-	}
 	agent, err := d.agentSandbox(team)
 	if err != nil {
 		t.Fatal(err)
 	}
-	asking, err := d.askSandbox(ask)
-	if err != nil {
-		t.Fatal(err)
-	}
-	probe := d.probeSandbox()
-	for name, spec := range map[string]*sandbox.Spec{"agent": agent, "check": &probe, "screen": d.screenSandbox(team.ID), "ask": asking} {
+	for name, spec := range map[string]*sandbox.Spec{"agent": agent, "screen": d.screenSandbox(team.ID)} {
 		for _, path := range []string{"/run/dbus/system_bus_socket", "/run/docker.sock", "/run/libvirt/libvirt-sock"} {
 			if !spec.Hides(path) {
 				t.Errorf("the %s sandbox shows %s", name, path)
@@ -185,7 +175,7 @@ func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
 			t.Errorf("the %s sandbox runs through %q, not the rashin command", name, spec.Scope)
 		}
 	}
-	for _, spec := range []*sandbox.Spec{agent, &probe} {
+	for _, spec := range []*sandbox.Spec{agent} {
 		if !slices.Contains(spec.Unset, "DBUS_SYSTEM_BUS_ADDRESS") {
 			t.Errorf("the system bus address crosses: %v", spec.Unset)
 		}
@@ -194,5 +184,63 @@ func TestEverySandboxCoversRunAndRunsThroughTheScope(t *testing.T) {
 				t.Errorf("%s shows", path)
 			}
 		}
+	}
+}
+
+// A tool host starts with only deliberate environment variables and a private
+// home; exported provider keys and the user's actual HOME cannot cross.
+func TestTeamToolHostHasPrivateHomeAndCleanEnvironment(t *testing.T) {
+	isolateDaemon(t)
+	shortRuntime(t)
+	t.Setenv("RASHIN_TEST_TOKEN", "secret")
+	t.Setenv("LC_MESSAGES", "en_US.UTF-8")
+	d := New(Deps{})
+	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.TeamsHome(), "one"), Team: "team-one", TeamTask: "task-one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, err := d.agentSandbox(team)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.closeAgentSockets)
+	home := paths.Resolved(paths.ToolHome("team-one", "task-one"))
+	cache := paths.Resolved(paths.ToolCache("team-one"))
+	if !spec.ClearEnv || spec.Env["HOME"] != home || spec.Env["XDG_CACHE_HOME"] != cache ||
+		spec.Env["XDG_CONFIG_HOME"] != filepath.Join(home, ".config") ||
+		spec.Env["XDG_DATA_HOME"] != filepath.Join(home, ".local", "share") ||
+		spec.Env["XDG_STATE_HOME"] != filepath.Join(home, ".local", "state") ||
+		spec.Env["LC_MESSAGES"] != "en_US.UTF-8" || spec.Env["RASHIN_TEST_TOKEN"] != "" {
+		t.Fatalf("unsafe tool host environment: %+v", spec.Env)
+	}
+	for _, dir := range []string{home, cache} {
+		info, err := os.Stat(dir)
+		if err != nil || info.Mode().Perm() != 0o700 {
+			t.Fatalf("tool home/cache %s permissions: %v, %v", dir, info, err)
+		}
+		if !slices.Contains(spec.Writable, dir) {
+			t.Fatalf("tool host cannot write its private dir %s: %v", dir, spec.Writable)
+		}
+	}
+	gitconfig, err := os.ReadFile(filepath.Join(home, ".gitconfig"))
+	if err != nil || !strings.Contains(string(gitconfig), filepath.Join(paths.Home(), ".gitconfig")) {
+		t.Fatalf("tool home has no user git identity include: %v, %q", err, gitconfig)
+	}
+}
+
+func TestTeamToolHomeRefusesSymlinkAtTeamBoundary(t *testing.T) {
+	isolateDaemon(t)
+	outside := t.TempDir()
+	if err := os.MkdirAll(paths.ToolHomes(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(paths.ToolHomes(), "team-one")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := prepareToolHome("team-one", "task-one"); err == nil {
+		t.Fatal("a symlinked team home exposed an unrelated directory")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "task-one")); !os.IsNotExist(err) {
+		t.Fatalf("a symlinked team home wrote outside: %v", err)
 	}
 }

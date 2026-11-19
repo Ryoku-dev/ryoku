@@ -15,11 +15,8 @@ QtObject {
     property bool running: false
     property string version: ""
     property string askRoute: "auto"
-    property string harness: ""
+    property string agentModel: "auto"
     property int providers: 0
-    property int harnesses: 0
-    property var installedHarnesses: []
-    property string askHarness: ""
     property int indexes: 0
 
     // "on" or "off" while a switch runs
@@ -118,15 +115,12 @@ QtObject {
             store.installed = true;
             store.enabled = s.enabled === true;
             store.running = s.running === true;
-            store.installedHarnesses = Array.isArray(s.installedHarnesses) ? s.installedHarnesses : [];
             store.version = String(s.version || "");
             store.providers = s.gateway && typeof s.gateway.providers === "number" ? s.gateway.providers : 0;
-            store.harnesses = typeof s.harnesses === "number" ? s.harnesses : 0;
             store.indexes = typeof s.indexes === "number" ? s.indexes : 0;
             var settings = s.settings || {};
             store.askRoute = settings.ask && settings.ask.model ? String(settings.ask.model) : "auto";
-            store.askHarness = settings.ask && settings.ask.harness ? String(settings.ask.harness) : "";
-            store.harness = settings.agent && settings.agent.harness ? String(settings.agent.harness) : "";
+            store.agentModel = settings.agent && settings.agent.model ? String(settings.agent.model) : "auto";
         }
         store.loaded = true;
         Changes.touch();

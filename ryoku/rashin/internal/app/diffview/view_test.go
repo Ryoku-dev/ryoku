@@ -76,7 +76,7 @@ type diffFrame struct {
 }
 
 func newDiffFrame(files ...protocol.FileDiff) *diffFrame {
-	return &diffFrame{now: time.Unix(100, 0), theme: look.New(palette.Dark, palette.Look{}), result: protocol.DiffResult{Files: files}}
+	return &diffFrame{now: time.Unix(100, 0), theme: look.NewWithRoles(palette.Signature(true)), result: protocol.DiffResult{Files: files}}
 }
 
 func (f *diffFrame) layout(options Options) {
@@ -101,8 +101,8 @@ func TestGutterPressOpensACommentThatEnterSends(t *testing.T) {
 	frame := newDiffFrame(FromTexts("file.go", "a\n", "a\nb\n"))
 	options := Options{Commentable: true}
 	frame.layout(options)
-	// walk down the gutter until a line takes the press so this doesn't depend on the rows above
-	for y := float32(4); y < 200 && frame.view.commentLine == 0; y += 6 {
+	// skip the file header so probing the gutter cannot collapse the file itself
+	for y := float32(fileRow + 4); y < 240 && frame.view.commentLine == 0; y += 6 {
 		frame.click(f32.Pt(8, y), options)
 	}
 	if frame.view.commentLine == 0 {

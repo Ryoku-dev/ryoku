@@ -30,19 +30,6 @@ func TestGlanceValidation(t *testing.T) {
 	if err := validateGlance(protocol.GlanceParams{Mode: "translate", Text: "hello"}); err != nil {
 		t.Fatal(err)
 	}
-	settings := protocol.Settings{Ask: protocol.AskSettings{Harness: "omp"}}
-	for _, engine := range []string{"ask", "omp"} {
-		_, err := glanceEngine(protocol.GlanceParams{Engine: engine, Local: true}, settings)
-		if protocol.AsError(err) == nil || protocol.AsError(err).Code != protocol.CodeLocalOnly {
-			t.Fatalf("local harness accepted %q: %v", engine, err)
-		}
-	}
-	if _, err := glanceEngine(protocol.GlanceParams{Engine: "unknown-engine"}, settings); err == nil {
-		t.Fatal("unknown harness accepted")
-	}
-	if engine, err := glanceEngine(protocol.GlanceParams{Engine: "providers", Local: true}, settings); err != nil || engine != "" {
-		t.Fatalf("providers did not override Ask's harness: %q, %v", engine, err)
-	}
 }
 
 func TestGlanceCreatesTemporarySightSessionAndStreams(t *testing.T) {
@@ -58,11 +45,11 @@ func TestGlanceCreatesTemporarySightSessionAndStreams(t *testing.T) {
 	m := newSessionManager(fakeAsker{runner: runner}, nil, nil, settings, func(string, any) {}, func() {}, nil)
 	d := &Daemon{manager: m}
 	c := &connection{outbound: make(chan []byte, 64)}
-	result, err := d.glance(context.Background(), c, protocol.GlanceParams{Engine: "providers", Mode: "explain", Images: []protocol.Attachment{{Path: "/capture.png"}}})
+	result, err := d.glance(context.Background(), c, protocol.GlanceParams{Mode: "explain", Images: []protocol.Attachment{{Path: "/capture.png"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Session.Temporary || result.Session.Origin != protocol.OriginSight || result.Session.Model != protocol.RouteFast || result.Turn != 1 {
+	if !result.Session.Temporary || result.Session.Origin != protocol.OriginSight || result.Session.Model != "" || result.Turn != 1 {
 		t.Fatalf("capture result = %#v", result)
 	}
 	events := glanceTurnEvents(t, c)
@@ -101,31 +88,30 @@ func glanceTurnEvents(t *testing.T, c *connection) []protocol.SessionEventData {
 	}
 }
 
-func TestGlanceAskUsesConfiguredHarnessAndItsModelDefault(t *testing.T) {
+func TestGlanceKeepsExplicitModelOrUsesLightRoute(t *testing.T) {
 	isolateDaemon(t)
-	for _, model := range []string{"X", ""} {
+	for _, model := range []string{"provider/model", ""} {
 		seen := make(chan core.PromptInput, 1)
 		runner := &fakeRunner{prompt: func(_ context.Context, in core.PromptInput, _ core.Sink) (core.TurnResult, error) {
 			seen <- in
 			return core.TurnResult{Stop: protocol.StopEnd}, nil
 		}}
-		harnesses := &fakeHarnesses{runner: runner}
 		settings := func() protocol.Settings {
-			return protocol.Settings{Ask: protocol.AskSettings{Harness: "omp", Model: "unrelated-provider/model"}}
+			return protocol.Settings{Ask: protocol.AskSettings{Model: "unrelated-provider/model"}}
 		}
-		m := newSessionManager(nil, harnesses, nil, settings, func(string, any) {}, func() {}, nil)
+		m := newSessionManager(fakeAsker{runner: runner}, nil, nil, settings, func(string, any) {}, func() {}, nil)
 		d := &Daemon{manager: m}
 		c := &connection{outbound: make(chan []byte, 64)}
-		result, err := d.glance(context.Background(), c, protocol.GlanceParams{Mode: "read", Text: "capture text", Engine: "ask", Model: model})
+		result, err := d.glance(context.Background(), c, protocol.GlanceParams{Mode: "read", Text: "capture text", Model: model})
 		if err != nil {
 			t.Fatal(err)
 		}
 		glanceTurnEvents(t, c)
-		if result.Session.Harness != "omp" || harnesses.opts.Harness != "omp" || harnesses.opts.Session.Model != model || !harnesses.opts.Ask {
-			t.Fatalf("harness options = %#v, session = %#v", harnesses.opts, result.Session)
+		if result.Session.Model != model || result.Session.Origin != protocol.OriginSight {
+			t.Fatalf("capture model = %q, origin = %q", result.Session.Model, result.Session.Origin)
 		}
-		if input := <-seen; input.Text != protocol.GlanceRead+"\n\ncapture text" {
-			t.Fatalf("harness prompt = %q", input.Text)
+		if input := <-seen; input.Text != "capture text" || input.Glance == nil || input.Glance.Mode != "read" {
+			t.Fatalf("capture input = %#v", input)
 		}
 	}
 }

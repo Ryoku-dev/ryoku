@@ -27,15 +27,19 @@ func Defaults() protocol.Settings {
 		Enabled: false,
 		Ask:     protocol.AskSettings{Model: protocol.RouteAuto, Habits: true, Approvals: protocol.ApprovalsReadOnly},
 		Agent: protocol.AgentSettings{
+			Model:           protocol.RouteAuto,
 			Approvals:       protocol.ApprovalsReadOnly,
 			IdleStopMinutes: 10,
 		},
-		Daemon:    protocol.DaemonSettings{IdleExitMinutes: 5},
-		Index:     protocol.IndexSettings{System: true, Semantic: true},
-		API:       protocol.APISettings{Port: protocol.DefaultAPIPort},
-		Teams:     defaultTeams(),
-		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
-		Memory:    defaultMemory(),
+		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
+		Index:  protocol.IndexSettings{System: true, Semantic: true},
+		API:    protocol.APISettings{Port: protocol.DefaultAPIPort},
+		Teams:  defaultTeams(),
+		Providers: protocol.ProvidersSettings{
+			Local:  protocol.DefaultLocalAddresses(),
+			Models: protocol.LocalModelsSettings{IdleMinutes: protocol.DefaultLocalIdleMinutes},
+		},
+		Memory: defaultMemory(),
 	}
 }
 
@@ -66,7 +70,7 @@ func Validate(s *protocol.Settings) {
 		}
 	}
 	s.Ask.Model = strings.TrimSpace(s.Ask.Model)
-	if !validModel(s.Ask.Model) {
+	if !protocol.ValidModel(s.Ask.Model) {
 		s.Ask.Model = d.Ask.Model
 	}
 	if !protocol.KnownApprovals(s.Ask.Approvals) {
@@ -75,22 +79,13 @@ func Validate(s *protocol.Settings) {
 	if !protocol.KnownApprovals(s.Agent.Approvals) {
 		s.Agent.Approvals = d.Agent.Approvals
 	}
-	s.Ask.Harness = strings.TrimSpace(s.Ask.Harness)
-	s.Agent.Harness = strings.TrimSpace(s.Agent.Harness)
-	seen := make(map[string]struct{}, len(s.Agent.Instances))
-	instances := s.Agent.Instances[:0]
-	for _, instance := range s.Agent.Instances {
-		instance.ID = strings.TrimSpace(instance.ID)
-		if instance.ID == "" || len(instance.Command) == 0 {
-			continue
-		}
-		if _, exists := seen[instance.ID]; exists {
-			continue
-		}
-		seen[instance.ID] = struct{}{}
-		instances = append(instances, instance)
+	s.Agent.Model = strings.TrimSpace(s.Agent.Model)
+	if !protocol.ValidModel(s.Agent.Model) {
+		s.Agent.Model = d.Agent.Model
 	}
-	s.Agent.Instances = instances
+	if !protocol.ValidEngineOptions(s.Agent.Options) {
+		s.Agent.Options = nil
+	}
 	s.Agent.IdleStopMinutes = clamp(s.Agent.IdleStopMinutes, 1, 24*60, d.Agent.IdleStopMinutes)
 	s.Daemon.IdleExitMinutes = clamp(s.Daemon.IdleExitMinutes, 1, 24*60, d.Daemon.IdleExitMinutes)
 	if !validPort(s.API.Port) {
@@ -105,12 +100,19 @@ func Validate(s *protocol.Settings) {
 // below 1024 a user's daemon cannot listen
 func validPort(port int) bool { return port >= 1024 && port <= 65535 }
 
-func validModel(model string) bool {
-	if model == protocol.RouteAuto || model == protocol.RouteFast || model == protocol.RouteSmart {
-		return true
+// a patch that names the Ask or Agents model must name one the gateway can
+// route; a stored one that does not falls back on load
+func checkModels(s protocol.Settings) error {
+	if !protocol.ValidModel(strings.TrimSpace(s.Ask.Model)) {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The Ask model is invalid."))
 	}
-	provider, name, ok := strings.Cut(model, "/")
-	return ok && provider != "" && name != ""
+	if !protocol.ValidModel(strings.TrimSpace(s.Agent.Model)) {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The Agents model is invalid."))
+	}
+	if !protocol.ValidEngineOptions(s.Agent.Options) {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("The Agents model takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
+	}
+	return nil
 }
 
 func clamp(v, lo, hi, def int) int {
@@ -183,14 +185,14 @@ func decodeInto(b json.RawMessage, v any) {
 }
 
 // MigrateV1 translates a Rashin 1 file. Rashin stays on only when it was on and
-// the user had not opted out; chatAgent and approvals carry over.
+// the user had not opted out; approvals carry over. Rashin 1's chatAgent named
+// an external harness, which Rashin no longer runs, so it is dropped.
 func MigrateV1(raw map[string]json.RawMessage) protocol.Settings {
 	s := Defaults()
 	var enabled, optedOut bool
 	_ = json.Unmarshal(raw["enabled"], &enabled)
 	_ = json.Unmarshal(raw["optedOut"], &optedOut)
 	s.Enabled = enabled && !optedOut
-	_ = json.Unmarshal(raw["chatAgent"], &s.Agent.Harness)
 	var approvals string
 	_ = json.Unmarshal(raw["approvals"], &approvals)
 	s.Agent.Approvals = approvals
@@ -397,33 +399,21 @@ func Merge(cur protocol.Settings, patch json.RawMessage) (protocol.Settings, err
 		return cur, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("The settings patch has the wrong shape: %v.", err))
 	}
 	next.Enabled = cur.Enabled
-	if err := validatePatch(next); err != nil {
+	if err := validatePatch(next, cur); err != nil {
 		return cur, err
 	}
 	Validate(&next)
 	return next, nil
 }
 
-func validatePatch(s protocol.Settings) error {
-	model := strings.TrimSpace(s.Ask.Model)
-	if !validModel(model) {
-		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The Ask model is invalid."))
-	}
-	seen := make(map[string]struct{}, len(s.Agent.Instances))
-	for _, instance := range s.Agent.Instances {
-		id := strings.TrimSpace(instance.ID)
-		if id == "" || len(instance.Command) == 0 {
-			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Every agent instance needs an id and command."))
-		}
-		if _, exists := seen[id]; exists {
-			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Agent instance id %s is duplicated.", id))
-		}
-		seen[id] = struct{}{}
+func validatePatch(s, cur protocol.Settings) error {
+	if err := checkModels(s); err != nil {
+		return err
 	}
 	if !validPort(s.API.Port) {
 		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The API port must be between 1024 and 65535."))
 	}
-	if err := checkLocal(s.Providers); err != nil {
+	if err := checkLocal(s.Providers, cur.Providers); err != nil {
 		return err
 	}
 	if err := checkMemory(s.Memory); err != nil {

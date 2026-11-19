@@ -79,7 +79,7 @@ func (state *viewState) layoutQuestionSlab(gtx layout.Context, th *look.Theme, k
 		return state.selectable(gtx, th, key, style, th.R.Fg, text)
 	})
 	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone3)
+	kit.SlabSurface(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.Planes().Card)
 	call.Add(gtx.Ops)
 	return dimensions
 }
@@ -144,7 +144,7 @@ func (state *viewState) layoutHandoff(gtx layout.Context, th *look.Theme, handof
 	if source := strings.TrimSpace(handoff.Title); source != "" {
 		title = i18n.Tf("Moved from “%s”", source)
 	}
-	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{
 			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, title)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),

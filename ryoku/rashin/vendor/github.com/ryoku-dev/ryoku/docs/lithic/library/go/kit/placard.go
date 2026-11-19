@@ -195,7 +195,7 @@ func (p *Placard) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions 
 					// a round plane keeps the blade inside its corners
 					cut := gtx.Dp(tokens.CutPlacard)
 					plane := clip.Outline{Path: Shape(gtx, th, bounds, cut, cut, cut, cut)}.Op().Push(gtx.Ops)
-					Blade(gtx.Ops, blade, th.R.OnSel)
+					FillBlade(gtx, th, blade, th.R.OnSel)
 					plane.Pop()
 				} else {
 					Blade(gtx.Ops, blade, th.R.OnSel)

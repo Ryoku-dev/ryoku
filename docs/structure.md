@@ -180,9 +180,10 @@ truth for the live desktop.
   GitHub-released apps on Arch and CachyOS. Per-command reference, user- vs
   developer-facing, is in `docs/cli.md`.
 - `vault/` the Ryoku-core machine map, read-only wiki, and `ryoku` agent skill.
-  The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, wires its
-  pointer into installed harnesses, and keeps user-owned memory and journal
-  files outside generated fences. See `docs/vault.md`.
+  The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, makes
+  that map available to installed agent tools, and keeps user-owned memory
+  and journal files outside generated fences. Rashin reads this vault as
+  context but keeps its own team credentials separately. See `docs/vault.md`.
 - `hub/` Ryoku Settings, the settings app (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go program the pages call for anything outside the shell
   daemon: it saves the window manager's neutral store
@@ -197,13 +198,16 @@ truth for the live desktop.
   is "Ryoku Settings"; the binary and config keep the internal `hub` name.
   Deployed to `~/.config/quickshell/hub`; built by the shell's `deploy.sh`. How
   it is built and how to extend it is in `docs/hub.md`.
-- `rashin/` the optional Rashin system in one Go module: `cmd/rashind/` is the
-  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio Lithic
-  app. `internal/` holds the socket protocol, session event log, free-model
-  router, the Ask agent, ACP harness adapters and potion-backed code
-  index. `systemd/` ships socket activation and `usage/` the coding-agent usage
-  collectors. Ryoku Settings owns the opt-in switch and the shell's Alt+Space bar is a
-  thin socket client. See `docs/rashin.md` and `docs/rashin-terminal.md`.
+- `rashin/` the optional AI system in one Go module: `cmd/rashind/` is the
+  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio app.
+  `internal/engine/` runs Ask, Agents, Teams, Dreams and Work with native
+  tools; `internal/gateway/` routes to managed local llama.cpp, user local
+  servers and free or pinned paid providers; `internal/localmodels/` handles
+  the catalogue, downloads and on-demand runtime. `internal/index/` handles
+  system and project code search. `systemd/` ships socket activation and
+  `usage/` the separate coding-agent usage collectors. Ryoku Settings owns
+  the opt-in switch; the Alt+Space bar is a thin socket client. See
+  `docs/rashin.md` and `docs/rashin-terminal.md`.
 - `assets/` `brand/` the 力 logo and icons and Rashin's seal (`rashin-mark*.svg`,
   `rashin-lockup.svg`; the app icon and the console favicon link to them),
   `wallpapers/` the shipped wallpaper set (installs to `Wallpapers/` under the

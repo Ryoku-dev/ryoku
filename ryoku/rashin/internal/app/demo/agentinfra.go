@@ -29,9 +29,9 @@ func (s *server) callAgentInfra(method string, raw json.RawMessage) (any, bool, 
 		const gib = 1024 * 1024 * 1024
 		d.usage = protocol.DiskUsage{Free: 4 * gib, Total: 512 * gib, Measured: time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC), Items: []protocol.DiskItem{
 			{ID: "teams", Name: "Team folders", Bytes: 3 * gib}, {ID: "dreams", Name: "Dream folders", Bytes: 2 * gib},
-			{ID: "harness", Name: "Harness homes", Bytes: gib}, {ID: "checkpoints", Name: "Checkpoints", Bytes: gib / 2},
+			{ID: "models", Name: "Local models", Bytes: gib},
 			{ID: "logs", Name: "Ended session logs", Bytes: gib / 4, Cleanable: true, Plan: "demo-logs", Files: []protocol.DiskFile{{Path: "/home/demo/.local/state/ryoku/rashin/sessions/agent-finished/events.jsonl", Bytes: gib / 4}}},
-			{ID: "cache", Name: "Harness caches", Bytes: gib / 8, Cleanable: true, Plan: "demo-cache", Files: []protocol.DiskFile{{Path: "/home/demo/.local/share/ryoku/rashin/harness-homes/omp/research/.cache/models.bin", Bytes: gib / 8}}},
+			{ID: "cache", Name: "Model cache", Bytes: gib / 8, Cleanable: true, Plan: "demo-cache", Files: []protocol.DiskFile{{Path: "/home/demo/.local/share/ryoku/rashin/models/partial.gguf", Bytes: gib / 8}}},
 		}}
 	}
 	switch method {

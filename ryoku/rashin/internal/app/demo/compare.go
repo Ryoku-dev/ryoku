@@ -141,9 +141,6 @@ func (s *server) callCompare(method string, raw json.RawMessage) (any, bool, err
 		lane := s.newSession(protocol.KindAsk, "", "", "", "", "", "", info.ID)
 		lane.Title, lane.Model, lane.Temporary, lane.Memory, lane.Mode = info.Title, model, true, protocol.MemoryNone, protocol.ApprovalsReadOnly
 		lane.Origin = "compare"
-		if index == 0 {
-			lane.Harness = info.Harness
-		}
 		copied := slices.Clone(events[:endAt+1])
 		if index > 0 {
 			copied = slices.Clone(events[:userAt])

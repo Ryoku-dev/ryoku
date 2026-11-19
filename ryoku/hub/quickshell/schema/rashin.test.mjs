@@ -97,14 +97,15 @@ test("all Theia options use their exact keys, defaults and feature conditions", 
         assert.equal(typeof value.label, "string");
 });
 
-test("existing Sight row ids survive their move into Theia", () => {
+test("existing Sight row ids survive their move into Theia without an engine picker", () => {
     const moved = {
         "sight-enabled": "theia", "sight-highlight": "theia", "sight-mode": "theia", "sight-shortcut": "theia", "sight-status": "theia",
         "sight-target": "theia-translate", "sight-languages": "theia-translate",
-        "sight-local-only": "theia-engine", "sight-engine": "theia-engine", "sight-model": "theia-engine"
+        "sight-local-only": "theia-engine", "sight-model": "theia-engine"
     };
     for (const [id, section] of Object.entries(moved))
         assert.equal(row(id).section, section, id);
+    assert.equal(schema.rows.find(value => value.id === "sight-engine"), undefined);
     for (const value of schema.rows) {
         assert.ok(!/\bSight\b|\bAI\b|\u2014/.test(value.label + " " + value.detail), value.id);
         for (const option of value.options || [])

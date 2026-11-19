@@ -14,7 +14,7 @@ func TestATeamsAccessIsCheckedAndGivenToItsSandbox(t *testing.T) {
 	shared := t.TempDir()
 	for _, bad := range []string{"/", paths.Home(), "relative/folder", filepath.Join(shared, "missing"), filepath.Join(paths.TeamsHome(), "someone-else")} {
 		refused(t, h, protocol.MTeamsCreate, protocol.TeamCreateParams{
-			Name: "Bad", Folder: t.TempDir(), Members: []protocol.Member{{Name: "Ana", Lead: true, Harness: "fake"}},
+			Name: "Bad", Folder: t.TempDir(), Members: []protocol.Member{{Name: "Ana", Lead: true}},
 			Access: protocol.TeamAccess{Writable: []string{bad}},
 		}, protocol.CodeBadRequest)
 	}

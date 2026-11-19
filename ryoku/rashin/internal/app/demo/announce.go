@@ -23,14 +23,15 @@ func (s *server) announce(out *outbox, method string) {
 	case protocol.MProjectsAdd, protocol.MProjectsRemove, protocol.MProjectsSettings:
 		projects := append([]protocol.ProjectInfo(nil), s.data.snapshot.Projects...)
 		events[protocol.EvtProjectsChanged] = protocol.ProjectsResult{Projects: projects}
-	case protocol.MHarnessesProbe, protocol.MHarnessesTeamsOpen, protocol.MHarnessesTeamsDone:
-		harnesses := append([]protocol.HarnessInfo(nil), s.data.snapshot.Harnesses...)
-		events[protocol.EvtHarnessesChanged] = protocol.HarnessesResult{Harnesses: harnesses}
-		// a dream waiting on this sign-in starts its manager, and the pages hear it
-		teams = s.takeTeamsEvents()
 	case protocol.MProvidersEnable, protocol.MProvidersAddKey, protocol.MProvidersRemoveKey, protocol.MProvidersLimits:
 		providers := append([]protocol.ProviderInfo(nil), s.data.snapshot.Providers...)
 		events[protocol.EvtProvidersChanged] = protocol.ProvidersResult{Providers: providers}
+	case protocol.MLocalDownload, protocol.MLocalCancel, protocol.MLocalRemove, protocol.MLocalAdd,
+		protocol.MLocalRuntimeInstall, protocol.MLocalStart, protocol.MLocalStop:
+		// Local methods enqueue their own state and progress in wire order.
+	case protocol.MLearningSkillDelete, protocol.MLearningDecisionDelete, protocol.MLearningRuleSave,
+		protocol.MLearningRuleDelete, protocol.MLearningGrievancesClear:
+		// Learning methods name the part they changed.
 	case protocol.MTeamsCreate, protocol.MTeamsUpdate, protocol.MTeamsDelete, protocol.MTeamsPause, protocol.MTeamsImport,
 		protocol.MTeamsTaskCreate, protocol.MTeamsTaskStop, protocol.MTeamsTaskRetry, protocol.MTeamsTaskRead, protocol.MTeamsTaskDelete,
 		protocol.MTeamsRoutineCreate, protocol.MTeamsRoutineUpdate, protocol.MTeamsRoutineDelete, protocol.MTeamsRoutineRun,
@@ -41,6 +42,7 @@ func (s *server) announce(out *outbox, method string) {
 	}
 	// memory writes and settings that moved memory are heard after the response
 	teams = append(teams, s.takeMemoryEvents()...)
+	queued := s.takeEvents()
 	s.mu.Unlock()
 	for name, value := range events {
 		if wire, err := json.Marshal(value); err == nil {
@@ -52,4 +54,21 @@ func (s *server) announce(out *outbox, method string) {
 			return
 		}
 	}
+	for _, event := range queued {
+		if out.send(event) != nil {
+			return
+		}
+	}
+}
+
+func (s *server) queueEvent(name string, value any) {
+	if raw, err := json.Marshal(value); err == nil {
+		s.events = append(s.events, protocol.Event{Event: name, Data: raw})
+	}
+}
+
+func (s *server) takeEvents() []protocol.Event {
+	events := s.events
+	s.events = nil
+	return events
 }

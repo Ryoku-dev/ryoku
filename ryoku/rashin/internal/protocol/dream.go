@@ -76,9 +76,9 @@ type DreamCreateParams struct {
 	Preset    string `json:"preset,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Folder    string `json:"folder,omitempty"`
-	Harness   string `json:"harness,omitempty"`
-	Model     string `json:"model,omitempty"`
-	// Options are the manager's harness options, as a member's are.
+	// Model is the manager's route or provider/model and Options its knobs,
+	// as a member's are.
+	Model       string            `json:"model,omitempty"`
 	Options     map[string]string `json:"options,omitempty"`
 	MonthTokens int64             `json:"monthTokens,omitempty"`
 }
@@ -99,9 +99,9 @@ type AgentHireParams struct {
 	Name         string `json:"name"`
 	Title        string `json:"title"`
 	Instructions string `json:"instructions"`
-	Harness      string `json:"harness,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Why          string `json:"why,omitempty"`
+	// Model is a route or provider/model; empty takes the manager's.
+	Model string `json:"model,omitempty"`
+	Why   string `json:"why,omitempty"`
 }
 
 // AgentReleaseParams lets a dream's manager let a member go once its work is

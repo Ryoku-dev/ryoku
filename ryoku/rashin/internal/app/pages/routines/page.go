@@ -75,6 +75,23 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	})
 }
 
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	if p.editor.creating {
+		return look.PartPage(protocol.TabRoutines, 1, i18n.T("New routine"), "")
+	}
+	if routine, ok := routineByID(e.Snapshot(), p.selected); ok {
+		return look.PartPage(protocol.TabRoutines, 1, routine.Title, "")
+	}
+	return look.PageFor(protocol.TabRoutines)
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.editor.active() {
+		return p.editor.scroll.Progress(2)
+	}
+	return p.board.scroll.Progress(p.board.rows)
+}
+
 func (p *Page) New(e *env.Env) {
 	e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabRoutines, Draft: env.DraftRoutine})
 }

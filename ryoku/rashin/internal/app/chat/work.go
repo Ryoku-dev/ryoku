@@ -8,8 +8,10 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
@@ -19,13 +21,17 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// where a line's text starts, what unfolds hangs from the words and not from the icon
-const workIndent = 24
+const (
+	// where a line's text starts, what unfolds hangs from the words and not from the icon
+	workIndent unit.Dp = 24
+	workRow    unit.Dp = 32
+)
 
 type workVisual struct {
 	click  kit.Click
 	hover  look.Hover
-	unfold look.Unfold
+	press  anim.Tween
+	unfold kit.Disclosure
 	morph  look.Morph
 	open   bool
 	seen   bool
@@ -81,7 +87,7 @@ func toolRunning(tool *protocol.ToolData) bool {
 }
 
 func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *workVisual, line workLine) layout.Dimensions {
-	height := gtx.Dp(32)
+	height := gtx.Dp(workRow)
 	limit := gtx.Constraints.Max.X
 	pressable := line.expandable || line.pops
 	if visual.click.Clicked(gtx) {
@@ -119,7 +125,7 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		ink = th.R.Fg
 	}
 	put(0, look.IconWidget(line.icon, 16, th.R.Fg3))
-	put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Label, ink, line.label))
+	put(gtx.Dp(th.Sp.S2), kit.RawText(th.Theme, th.T.Label, ink, line.label))
 	// the parts of a line are set apart by space, never by a separator glyph
 	if line.literal != "" {
 		put(gtx.Dp(th.Sp.S3), kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, line.literal))
@@ -129,22 +135,22 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 	}
 	reserve = 0
 	if line.running {
-		put(gtx.Dp(8), func(gtx layout.Context) layout.Dimensions {
-			return kit.Working{Active: true, Size: 16}.Layout(gtx, th.Theme)
+		put(gtx.Dp(th.Sp.S2), func(gtx layout.Context) layout.Dimensions {
+			return kit.Working{Active: state.working, Size: 16}.Layout(gtx, th.Theme)
 		})
 	}
 	if line.waited != "" {
-		put(gtx.Dp(8), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.waited))
+		put(gtx.Dp(th.Sp.S2), kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, line.waited))
 	}
 	if line.failed {
-		put(gtx.Dp(13), kit.Claim(th.Theme, palette.Failed, i18n.T("Failed")))
+		put(gtx.Dp(th.Sp.S3), kit.Claim(th.Theme, palette.Failed, i18n.T("Failed")))
 	}
 	if line.expandable {
 		glyph := look.Icon.ExpandMore
 		if visual.open {
 			glyph = look.Icon.ExpandLess
 		}
-		put(gtx.Dp(4), func(gtx layout.Context) layout.Dimensions {
+		put(gtx.Dp(th.Sp.S1), func(gtx layout.Context) layout.Dimensions {
 			return visual.morph.Layout(gtx, th, glyph, th.R.Fg3, 16)
 		})
 	}
@@ -157,10 +163,10 @@ func (state *viewState) layoutLine(gtx layout.Context, th *look.Theme, visual *w
 		}
 		return visual.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: size} })
 	})
-	if pressable && hover > 0 {
-		pad := gtx.Dp(8)
-		plane := image.Rect(-pad, 0, size.X+pad, size.Y)
-		kit.FillCut(gtx.Ops, plane, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
+	if pressable {
+		pad := gtx.Dp(th.Sp.S2)
+		press := look.Transition(gtx, &visual.press, visual.click.Pressed(), th.Motion.Press, th.Motion.Press)
+		look.RowWash(gtx, th, image.Rect(-pad, 0, size.X+pad, size.Y), hover, press, false)
 	}
 	content.Add(gtx.Ops)
 	return dimensions
@@ -182,7 +188,8 @@ func (state *viewState) layoutUnfolding(
 	body := gtx
 	body.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent)
 	body.Constraints.Min = image.Point{}
-	unfolded := visual.unfold.Layout(body, th, visual.open, func(gtx layout.Context) layout.Dimensions {
+	visual.unfold.Open = visual.open
+	unfolded := visual.unfold.Layout(body, th.Theme, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: th.Sp.S1, Bottom: th.Sp.S2}.Layout(gtx, detail)
 	})
 	offset.Pop()
@@ -330,7 +337,7 @@ func (state *viewState) layoutTool(gtx layout.Context, th *look.Theme, model *mo
 		running: running, failed: tool.Status == protocol.ToolFailed, expandable: hasDetail(model, tool),
 	}
 	// a command that says nothing for a minute looks hung, so the line counts while the turn is live
-	if running && state.busy && tool.Kind == protocol.ToolExecute {
+	if running && state.working && tool.Kind == protocol.ToolExecute {
 		if visual.since.IsZero() {
 			visual.since = gtx.Now
 		}
@@ -398,7 +405,7 @@ func (state *viewState) layoutToolDetail(
 	if len(sections) == 0 && len(tool.Locations) > 0 {
 		sections = append(sections, locationList(tool.Locations))
 	}
-	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		children := make([]layout.FlexChild, 0, len(sections)*2+1)
 		cut := false
@@ -448,10 +455,9 @@ func (state *viewState) layoutToolDiff(gtx layout.Context, th *look.Theme, tool 
 		gtx.Constraints.Max.Y = gtx.Dp(320)
 		result := protocol.DiffResult{Files: []protocol.FileDiff{diffview.FromTexts(tool.Diff.Path, tool.Diff.Old, tool.Diff.New)}}
 		record := op.Record(gtx.Ops)
-		dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
+		dimensions := view.Layout(gtx, th, result, diffview.Options{FoldOver: 80, Headless: true})
 		call := record.Stop()
-		bounds, cut := image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid)
-		kit.SlabSurface(gtx, th.Theme, bounds, cut, th.R.Slab)
+		state.plane(gtx, th, image.Rectangle{Max: dimensions.Size})
 		call.Add(gtx.Ops)
 		return dimensions
 	}
@@ -481,7 +487,7 @@ func (state *viewState) layoutTerminal(gtx layout.Context, th *look.Theme, termi
 		expandable: strings.TrimSpace(terminal.text) != "",
 	}
 	return state.layoutUnfolding(gtx, th, visual, line, func(gtx layout.Context) layout.Dimensions {
-		return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
+		return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			output, _ := firstLines(terminal.text, 24)
 			return state.selectable(gtx, th, key, th.T.Mono, th.R.Fg2, output)
@@ -651,5 +657,5 @@ func (work searchWork) text() string {
 	} else if work.files > 1 {
 		parts = append(parts, i18n.Tf("Read %d files", work.files))
 	}
-	return strings.Join(parts, " · ")
+	return look.Clauses(parts...)
 }

@@ -66,15 +66,15 @@ test("unavailable notices use model and provider display names with id fallbacks
         { model: "p/no-name", provider: "p" });
 });
 
-test("harness model menus stay empty until requested and are bounded and searchable", () => {
-    const store = { modelListRequested: false, effectiveEngine: "omp",
-        suggestions: Array.from({ length: 997 }, (_, i) => ({ id: "model" + i, name: "Model " + i })) };
+test("provider model menus stay empty until requested and are bounded and searchable", () => {
+    const store = { modelListRequested: false, providerModels: { models:
+        Array.from({ length: 997 }, (_, i) => ({ id: "provider/model" + i, name: "Model " + i, available: true })) } };
     const context = vm.createContext({ store, Sight: sight });
     methodsFrom("SightStore.qml", ["modelOptions"], context);
     assert.deepEqual(plain(context.modelOptions("")), []);
     store.modelListRequested = true;
     assert.equal(context.modelOptions("").length, 100);
-    assert.deepEqual(plain(context.modelOptions("model996")), [{ id: "model996", name: "Model 996 · model996" }]);
+    assert.deepEqual(plain(context.modelOptions("model996")), [{ id: "provider/model996", name: "Model 996 · provider/model996" }]);
 });
 
 const langs = JSON.parse(fs.readFileSync(new URL("../../../../i18n/langs.json", import.meta.url), "utf8")).languages;
@@ -123,6 +123,8 @@ test("Theia defaults keep core gestures on and every optional feature off", () =
     assert.equal(defaults["inplace.action"], "auto");
     assert.equal(defaults["inplace.paste"], true);
     assert.deepEqual(defaults.bubble, ["translate", "explain", "ask"]);
+    assert.equal(defaults.model, "");
+    assert.equal(Object.hasOwn(defaults, "engine"), false);
     assert.deepEqual(defaults.pinned, []);
     assert.equal(sight.featureIDs.length, 21);
     assert.equal(new Set(sight.featureIDs).size, 21);
@@ -226,8 +228,8 @@ function methodsFrom(file, names, context) {
     }
 }
 
-test("saved model checks do no work for Auto, hidden pages or harnesses and filter by provider", () => {
-    const store = { active: true, effectiveEngine: "providers", savedModel: "", modelIssue: "old", checkedModel: "" };
+test("saved model checks do no work for Auto or hidden pages and filter by provider", () => {
+    const store = { active: true, savedModel: "", modelIssue: "old", checkedModel: "" };
     const savedModelProc = { running: false };
     const providerProc = { running: false };
     const context = vm.createContext({ store, savedModelProc, providerProc });
@@ -243,10 +245,6 @@ test("saved model checks do no work for Auto, hidden pages or harnesses and filt
     context.checkModel();
     assert.equal(savedModelProc.running, false);
     store.active = true;
-    store.effectiveEngine = "harness";
-    context.checkModel();
-    assert.equal(savedModelProc.running, false);
-    store.effectiveEngine = "providers";
     context.checkModel();
     assert.equal(savedModelProc.running, true);
     assert.deepEqual(plain(savedModelProc.command), ["rashin", "call", "models.list", '{"provider":"anthropic"}']);

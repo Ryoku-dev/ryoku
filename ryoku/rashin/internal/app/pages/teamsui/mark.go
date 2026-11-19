@@ -14,6 +14,16 @@ import (
 	"ryoku-rashin/internal/app/look"
 )
 
+// a mark from markLarge takes the title face and the wider cut, as a team's does on its tile;
+// one under markSmall, a face in a crew strip, takes the token cut so its letters keep their room
+const (
+	markLarge unit.Dp = 40
+	markSmall unit.Dp = 28
+)
+
+// the lead's ring, wide enough to read on a mark of two letters
+const markRing unit.Dp = 1.5
+
 // up to two letters that stand for a name: the first of its first two words
 func Initials(name string) string {
 	var letters []rune
@@ -31,22 +41,22 @@ func Initials(name string) string {
 	return string(letters)
 }
 
-// a team's or a member's mark: its initials on a stone4 slab cut like a tile,
-// the lead's ring in fg2 so a crew reads from the top
+// a team's or a member's mark: its initials on the field plane in the design's corner, cut in
+// Lithic and round elsewhere; the lead wears a ring in fg2 so a crew reads from the top
 func Mark(th *look.Theme, name string, size unit.Dp, lead bool) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		side := gtx.Dp(size)
 		bounds := image.Rect(0, 0, side, side)
-		cut := max(2, side/8)
-		if lead {
-			kit.FillCut(gtx.Ops, bounds, cut, th.R.Fg2)
-			kit.FillCut(gtx.Ops, bounds.Inset(max(1, gtx.Dp(1.5))), cut, th.R.Stone4)
-		} else {
-			kit.FillCut(gtx.Ops, bounds, cut, th.R.Stone4)
+		style, cut := th.T.Label, gtx.Dp(th.Cut.Small)
+		switch {
+		case size >= markLarge:
+			style, cut = th.T.Title, gtx.Dp(th.Cut.Mid)
+		case size < markSmall:
+			cut = gtx.Dp(th.Cut.Token)
 		}
-		style := th.T.Label
-		if size >= 40 {
-			style = th.T.Title
+		kit.Fill(gtx, th.Theme, bounds, cut, th.R.Field)
+		if lead {
+			kit.Stroke(gtx, th.Theme, bounds, cut, max(1, gtx.Dp(markRing)), th.R.Fg2)
 		}
 		gtx.Constraints = layout.Exact(bounds.Size())
 		layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

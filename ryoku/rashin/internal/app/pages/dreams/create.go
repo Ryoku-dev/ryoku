@@ -11,7 +11,6 @@ import (
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
-	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
@@ -19,7 +18,7 @@ import (
 // the monthly cap a capped dream starts from
 const dreamCap int64 = 2_000_000
 
-// the New dream dialog: what the CEO wants, the manager's engine, the budget and the folder, and how the manager signs in
+// the new dream dialog keeps the manager's model with the dream, without an account setup
 type createDialog struct {
 	dialog kit.Dialog
 	scroll look.Scroller
@@ -30,20 +29,11 @@ type createDialog struct {
 	budget    kit.Segmented
 	limit     teamsui.TokenStepper
 	folder    env.PathField
-	signIn    look.Select
 	preset    look.Select
 	presetID  string
-	// the sign-in picked among the dialog's setup sources
-	source int
 
 	start, cancel kit.Plaque
-	// the dialog stands until its close has played out
-	shown bool
-}
-
-// a sign-in the dialog offers: from scratch, or from the setup of a team signed in to the harness
-type setupSource struct {
-	label, team string
+	shown         bool
 }
 
 func (d *createDialog) open() {
@@ -55,9 +45,8 @@ func (d *createDialog) open() {
 	d.statement.SetText("")
 	d.name.SetText("")
 	d.folder.SetText("")
-	d.engine.Set("", "", nil)
+	d.engine.Set("", nil)
 	d.budget.Selected, d.limit.Value = 0, dreamCap
-	d.signIn, d.source = look.Select{}, 0
 	d.preset, d.presetID = look.Select{}, ""
 	d.start.Busy = false
 	d.statement.Focus()
@@ -68,7 +57,6 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 		return
 	}
 	th := e.Theme
-	snapshot := e.Snapshot()
 	statement := strings.TrimSpace(d.statement.Text())
 	ready := statement != "" && !d.start.Busy
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
@@ -76,16 +64,10 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
-	sources, harness, signs := d.sources(snapshot)
-	// the models listed are those of the setup the dream starts from, not the user's own
-	d.engine.Team = ""
-	if signs {
-		d.engine.Team = sources[min(d.source, len(sources)-1)].team
-	}
 	if d.start.Clicked(gtx) && ready {
-		d.submit(e, statement, harness, signs, sources)
+		d.submit(e, statement)
 	}
-	rows := d.rows(e, harness, signs, sources)
+	rows := d.rows(e)
 	d.dialog.Layout(gtx, th.Theme, i18n.T("New dream"),
 		func(gtx layout.Context) layout.Dimensions {
 			// the body scrolls so the dialog fits a short window
@@ -108,30 +90,7 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 }
 
-// the harness the manager would start on, whether it signs in for each dream, and the setups it may start from
-func (d *createDialog) sources(snapshot state.Snapshot) ([]setupSource, protocol.HarnessInfo, bool) {
-	id, _, _ := d.engine.Effective(snapshot)
-	harness, ok := env.HarnessByID(snapshot.Harnesses, id)
-	if !ok || !harness.Installed || harness.Teams == nil {
-		return nil, harness, false
-	}
-	first := i18n.T("Sign in when it starts")
-	if len(harness.Teams.Login) == 0 {
-		first = i18n.T("Set it up when it starts")
-	}
-	sources := []setupSource{{label: first}}
-	for _, home := range harness.Teams.Homes {
-		if home.SignedIn == nil {
-			continue
-		}
-		if team, known := teamsui.TeamByID(snapshot.Teams, home.Team); known {
-			sources = append(sources, setupSource{label: i18n.Tf("Use the setup of %s", team.Name), team: team.ID})
-		}
-	}
-	return sources, harness, true
-}
-
-func (d *createDialog) rows(e *env.Env, harness protocol.HarnessInfo, signs bool, sources []setupSource) []layout.Widget {
+func (d *createDialog) rows(e *env.Env) []layout.Widget {
 	th := e.Theme
 	d.statement.Label, d.statement.Lines = i18n.T("Your dream"), 5
 	d.statement.Placeholder = i18n.T("What you want made, in your own words.")
@@ -150,10 +109,8 @@ func (d *createDialog) rows(e *env.Env, harness protocol.HarnessInfo, signs bool
 	rows := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return d.statement.Layout(gtx, th) },
 		func(gtx layout.Context) layout.Dimensions { return d.name.Layout(gtx, th.Theme) },
-		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("The manager's engine")),
-		func(gtx layout.Context) layout.Dimensions {
-			return d.engine.Layout(gtx, e, i18n.Tf("Teams default (%s)", teamsui.DefaultHarnessName(e.Snapshot())))
-		},
+		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Manager model")),
+		func(gtx layout.Context) layout.Dimensions { return d.engine.Layout(gtx, e) },
 		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Budget")),
 		func(gtx layout.Context) layout.Dimensions {
 			children := []layout.FlexChild{
@@ -190,27 +147,6 @@ func (d *createDialog) rows(e *env.Env, harness protocol.HarnessInfo, signs bool
 			return dimensions
 		}}, rows...)
 	}
-	if signs {
-		rows = append(rows,
-			kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Sign-in")),
-			func(gtx layout.Context) layout.Dimensions {
-				labels := make([]string, len(sources))
-				for index, source := range sources {
-					labels[index] = source.label
-				}
-				if index, changed := d.signIn.Changed(); changed {
-					d.source = index
-				}
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.Tf("%s signs in for each dream on its own. Sign it in when the dream starts, or start from the setup of a team that is signed in.", harness.Name))),
-					layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return d.signIn.Layout(gtx, th, e.Overlays, labels, min(d.source, len(labels)-1))
-					}),
-				)
-			},
-		)
-	}
 	return rows
 }
 
@@ -221,22 +157,18 @@ func budgetHelp(capped bool) string {
 	return i18n.T("The team works until the dream is done, however many tokens it takes.")
 }
 
-// the dream starts, its page opens, and the manager's harness signs in the way the dialog chose
-func (d *createDialog) submit(e *env.Env, statement string, harness protocol.HarnessInfo, signs bool, sources []setupSource) {
-	harnessID, model, options := d.engine.Value()
+// start the native manager and open its dream page
+func (d *createDialog) submit(e *env.Env, statement string) {
+	model, options := d.engine.Value()
 	params := protocol.DreamCreateParams{
 		Statement: statement, Name: strings.TrimSpace(d.name.Text()), Folder: d.folder.Path(),
-		Harness: harnessID, Model: model, Options: options,
+		Model: model, Options: options,
 	}
 	if e.Feature("research") {
 		params.Preset = d.presetID
 	}
 	if d.budget.Selected == 1 {
 		params.MonthTokens = d.limit.Value
-	}
-	source := setupSource{}
-	if signs {
-		source = sources[min(d.source, len(sources)-1)]
 	}
 	d.start.Busy = true
 	var dream protocol.Team
@@ -248,15 +180,6 @@ func (d *createDialog) submit(e *env.Env, statement string, harness protocol.Har
 		}
 		d.dialog.Open = false
 		openDream(e, dream.ID)
-		if !signs {
-			e.Notify(i18n.Tf("%s has started. Its manager will ask you about the design first.", dream.Name))
-			return
-		}
-		e.OpenTeamsHome(harness.ID, dream.ID, source.team != "" || len(harness.Teams.Login) == 0, source.team, nil)
-		if source.team != "" {
-			e.Notify(i18n.Tf("Setting up %s for this dream from %s's setup. The manager starts as soon as it is ready.", harness.Name, teamsui.TeamName(e.Snapshot().Teams, source.team)))
-		} else {
-			e.Notify(i18n.Tf("Signing %s in for this dream. The manager starts as soon as it is ready.", harness.Name))
-		}
+		e.Notify(i18n.Tf("%s has started. Its manager will ask you about the design first.", dream.Name))
 	})
 }

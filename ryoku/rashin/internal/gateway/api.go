@@ -175,9 +175,13 @@ type apiChoice struct {
 }
 
 type apiUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	TotalTokens         int `json:"total_tokens"`
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details,omitempty"`
+	CacheWriteTokens int `json:"cache_creation_input_tokens,omitempty"`
 }
 
 type apiCompletion struct {
@@ -214,7 +218,14 @@ func (a *apiAnswer) finish(final llm.Final) string {
 }
 
 func usageOf(final llm.Final) *apiUsage {
-	return &apiUsage{PromptTokens: final.Usage.Input, CompletionTokens: final.Usage.Output, TotalTokens: final.Usage.Input + final.Usage.Output}
+	usage := &apiUsage{PromptTokens: final.Usage.Input, CompletionTokens: final.Usage.Output, TotalTokens: final.Usage.Input + final.Usage.Output}
+	if final.Usage.CacheRead > 0 {
+		usage.PromptTokensDetails = &struct {
+			CachedTokens int `json:"cached_tokens"`
+		}{CachedTokens: final.Usage.CacheRead}
+	}
+	usage.CacheWriteTokens = final.Usage.CacheWrite
+	return usage
 }
 
 // relay streams the completion as server-sent events. The status line waits
@@ -257,6 +268,9 @@ func (a *apiAnswer) relay(w http.ResponseWriter, stream llm.Stream, usage bool) 
 				flusher.Flush()
 			}
 			return
+		}
+		if delta.ToolStart != nil && delta.Text == "" && delta.Reasoning == "" && len(delta.ToolCalls) == 0 {
+			continue
 		}
 		if !started {
 			started = true

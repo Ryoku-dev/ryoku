@@ -26,6 +26,7 @@ type SettingRow struct {
 	Title       string
 	Detail      string
 	Changed     bool
+	NoReset     bool
 	Unavailable string
 	Highlight   float32
 	Activatable bool
@@ -59,7 +60,7 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	resetGap := gtx.Dp(th.Sp.S2)
 	resetSize := gtx.Dp(tokens.SizeIconPlaqueSmall)
 	reserve := 0
-	if r.Changed {
+	if r.Changed && !r.NoReset {
 		reserve = resetSize + resetGap
 	}
 
@@ -142,7 +143,7 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	textCall.Add(gtx.Ops)
 	offset.Pop()
 
-	if r.Changed {
+	if r.Changed && !r.NoReset {
 		focusWithin := rowFocused || gtx.Focused(&r.Reset.Clickable) || r.Preview == StateFocus
 		show := previewTransition(gtx, &r.resetShow, r.Preview, StateHover, hovered || focusWithin, th.Motion.HoverIn, th.Motion.HoverOut)
 		if focusWithin {
@@ -165,7 +166,7 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	area.Pop()
 
 	if r.Activatable || r.Stacked {
-		focused := rowFocused || gtx.Focused(&r.Reset.Clickable) || r.Preview == StateFocus
+		focused := rowFocused || (!r.NoReset && gtx.Focused(&r.Reset.Clickable)) || r.Preview == StateFocus
 		focus := focusValue(gtx, th, &r.focus, focused)
 		FocusRingAlpha(gtx, th, bleed, cut, focus)
 	}
@@ -183,7 +184,7 @@ func (r *SettingRow) positions(width, textHeight int, control image.Point, minim
 	p.reset.X = p.control.X - resetGap - resetSize
 	if r.Stacked {
 		copyHeight := textHeight
-		if r.Changed {
+		if r.Changed && !r.NoReset {
 			copyHeight = max(copyHeight, resetSize)
 		}
 		p.height = max(minimum, copyHeight+stackGap+control.Y)
@@ -207,11 +208,17 @@ func (r *SettingRow) detailText() string {
 func (r *SettingRow) layoutText(gtx layout.Context, th *theme.Theme, width int) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(width, gtx.Constraints.Max.Y)}
 	titleGTX := gtx
-	if r.Stacked && r.Changed {
+	if r.Stacked && r.Changed && !r.NoReset {
 		titleGTX.Constraints.Max.X = max(0, width-gtx.Dp(tokens.SizeIconPlaqueSmall)-gtx.Dp(th.Sp.S2))
 	}
+	if titleGTX.Constraints.Max.Y > 1<<16 {
+		record := op.Record(gtx.Ops)
+		measured := r.layoutTitle(titleGTX, th, titleGTX.Constraints.Max.X)
+		_ = record.Stop()
+		titleGTX.Constraints.Max.Y = min(titleGTX.Constraints.Max.Y, measured.Size.Y)
+	}
 	titleDims := r.layoutTitle(titleGTX, th, titleGTX.Constraints.Max.X)
-	if r.Stacked && r.Changed {
+	if r.Stacked && r.Changed && !r.NoReset {
 		titleDims.Size.Y = max(titleDims.Size.Y, gtx.Dp(tokens.SizeIconPlaqueSmall))
 	}
 	detail, ink := r.Detail, th.R.Fg2

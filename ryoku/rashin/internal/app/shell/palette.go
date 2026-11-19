@@ -27,10 +27,9 @@ type paletteAction struct {
 	label string
 	kind  string
 	run   func()
-	// title of the run this result belongs to, results that answer a query have none
 	group string
+	crumb string
 }
-
 type commandPalette struct {
 	search kit.Search
 	list   paletteList
@@ -93,7 +92,7 @@ func (s *uiShell) openPalette(gtx layout.Context, e *env.Env) {
 		}
 		actions := s.palette.shown
 		s.palette.cursor = min(s.palette.cursor, max(0, len(actions)-1))
-		dimensions, pressed, entered := s.palette.list.Layout(gtx, e.Theme, actions, s.palette.cursor)
+		dimensions, pressed, entered := s.palette.list.Layout(gtx, e.Theme, actions, s.palette.cursor, s.palette.query)
 		if entered >= 0 {
 			s.palette.cursor = entered
 		}
@@ -164,10 +163,43 @@ func (s *uiShell) filteredPaletteActions(e *env.Env) []paletteAction {
 		if len(filtered) == paletteLimit {
 			break
 		}
-		if strings.Contains(strings.ToLower(action.label), query) {
+		if strings.Contains(strings.ToLower(action.label+" "+action.crumb+" "+action.kind), query) {
+			if action.group == "" {
+				action.group = action.kind
+				if action.crumb != "" {
+					action.group, _, _ = strings.Cut(action.crumb, " › ")
+				}
+			}
 			filtered = append(filtered, action)
 		}
 	}
+	if len(filtered) == 0 {
+		nearby := s.recentPlaces(e)
+		if len(nearby) == 0 {
+			items, count := destinations(s.router.TeamsMode())
+			for _, item := range items[:count] {
+				if item.tab == s.router.Tab {
+					continue
+				}
+				tab := item.tab
+				nearby = append(nearby, paletteAction{icon: item.icon, label: item.label, kind: i18n.T("Page"),
+					crumb: look.Crumb(i18n.T("Rashin"), item.label), run: func() { s.openDestination(tab) }})
+				if len(nearby) == 4 {
+					break
+				}
+			}
+		}
+		return titled(nearby, i18n.T("Nearby pages"))
+	}
+	order := make(map[string]int, len(filtered))
+	for _, action := range filtered {
+		if _, exists := order[action.group]; !exists {
+			order[action.group] = len(order)
+		}
+	}
+	slices.SortStableFunc(filtered, func(a, b paletteAction) int {
+		return order[a.group] - order[b.group]
+	})
 	return filtered
 }
 
@@ -181,7 +213,7 @@ func titled(actions []paletteAction, title string) []paletteAction {
 func (s *uiShell) commands(e *env.Env) []paletteAction {
 	command := i18n.T("Command")
 	action := func(icon *widget.Icon, label, kind string, run func()) paletteAction {
-		return paletteAction{icon: icon, label: label, kind: kind, run: run}
+		return paletteAction{icon: icon, label: label, kind: kind, group: i18n.T("Commands"), crumb: look.Crumb(i18n.T("Commands"), label), run: run}
 	}
 	// in Teams mode Ctrl N starts what the Teams page makes, never an ask
 	newAsk := "Ctrl N"
@@ -202,7 +234,8 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 			s.openMemory(env.MemoryPlace{})
 			s.memory.AddMemory()
 		}),
-		action(look.Icon.Skills, i18n.T("Built-in skills"), command, func() { s.openSettings("skills") }),
+		action(look.Icon.Skills, i18n.T("Built-in skills"), command, func() { s.openLearning("skills") }),
+		action(look.Icon.Skills, i18n.T("Learning"), command, func() { s.openLearning("") }),
 		action(look.Icon.Steps, i18n.T("Keyboard shortcuts"), command, func() { s.openSettings("keys") }),
 		action(look.Icon.SidebarToggle, i18n.T("Fold or open the sidebar"), "Ctrl B", s.toggleSidebar),
 		action(look.Icon.Search, i18n.T("Search the index"), command, func() { s.openDestination(protocol.TabIndex) }),
@@ -250,10 +283,23 @@ func (s *uiShell) placeAction(e *env.Env, place Place) (paletteAction, bool) {
 		for _, project := range snapshot.Projects {
 			if project.ID == place.Project {
 				run := func() { s.router.Push(place) }
-				return paletteAction{icon: look.Icon.Projects, label: project.Name, kind: i18n.T("Project"), run: run}, true
+				return paletteAction{icon: look.Icon.Projects, label: project.Name, kind: i18n.T("Project"),
+					group: i18n.T("Projects"), crumb: look.Crumb(i18n.T("Rashin"), i18n.T("Projects"), project.Name), run: run}, true
 			}
 		}
 		return paletteAction{}, false
+	}
+	if standaloneTab(place.Tab) {
+		section, _ := look.PlaceFor(place.Tab)
+		icon := look.Icon.Settings
+		switch place.Tab {
+		case protocol.TabMemory:
+			icon = look.Icon.Memory
+		case protocol.TabLearning:
+			icon = look.Icon.Skills
+		}
+		return paletteAction{icon: icon, label: section.Title(), kind: i18n.T("Page"),
+			group: section.Title(), crumb: look.Crumb(i18n.T("Rashin"), section.Title()), run: func() { s.router.Push(place) }}, true
 	}
 	if teamsTab(place.Tab) {
 		return s.teamsPlaceAction(snapshot, place)
@@ -261,7 +307,8 @@ func (s *uiShell) placeAction(e *env.Env, place Place) (paletteAction, bool) {
 	items, count := destinations(false)
 	for _, item := range items[:count] {
 		if item.tab == place.Tab {
-			return paletteAction{icon: item.icon, label: item.label, run: func() { s.openDestination(place.Tab) }}, true
+			return paletteAction{icon: item.icon, label: item.label, group: item.label,
+				crumb: look.Crumb(i18n.T("Rashin"), item.label), run: func() { s.openDestination(place.Tab) }}, true
 		}
 	}
 	return paletteAction{}, false
@@ -276,12 +323,30 @@ func (s *uiShell) sessionAction(info protocol.SessionInfo) paletteAction {
 	if title == "" {
 		title = i18n.T("Untitled")
 	}
-	return paletteAction{icon: icon, label: title, kind: kind, run: func() { s.navigate(tab, info.ID) }}
+	return paletteAction{icon: icon, label: title, kind: kind, group: kind,
+		crumb: look.Crumb(i18n.T("Rashin"), kind, title), run: func() { s.navigate(tab, info.ID) }}
 }
 
 func (s *uiShell) places(e *env.Env) []paletteAction {
 	snapshot := e.Snapshot()
-	actions := make([]paletteAction, 0, len(snapshot.Order)+len(snapshot.Projects)*4)
+	actions := make([]paletteAction, 0, len(snapshot.Order)+len(snapshot.Projects)*4+14)
+	for _, mode := range []bool{false, true} {
+		category := i18n.T("Rashin")
+		if mode {
+			category = i18n.T("Teams")
+		}
+		items, count := destinations(mode)
+		for _, item := range items[:count] {
+			tab := item.tab
+			actions = append(actions, paletteAction{icon: item.icon, label: item.label, kind: i18n.T("Page"),
+				group: item.label, crumb: look.Crumb(category, item.label), run: func() { s.openDestination(tab) }})
+		}
+	}
+	for _, tab := range standaloneTabs {
+		if action, ok := s.placeAction(e, Place{Tab: tab}); ok {
+			actions = append(actions, action)
+		}
+	}
 	for _, id := range snapshot.Order {
 		// a team's sessions are reached through its tasks
 		if info, ok := snapshot.Sessions[id]; ok && info.Team == "" {
@@ -291,14 +356,16 @@ func (s *uiShell) places(e *env.Env) []paletteAction {
 	for _, project := range snapshot.Projects {
 		id := project.ID
 		actions = append(actions, paletteAction{
-			icon: look.Icon.Projects, label: project.Name, kind: i18n.T("Project"),
-			run: func() { s.navigateWork(id, projectspage.TabOverview, "") },
+			icon: look.Icon.Projects, label: project.Name, kind: i18n.T("Project"), group: i18n.T("Projects"),
+			crumb: look.Crumb(i18n.T("Rashin"), i18n.T("Projects"), project.Name),
+			run:   func() { s.navigateWork(id, projectspage.TabOverview, "") },
 		})
 		for _, worktree := range snapshot.Worktrees[id] {
 			path := worktree.Path
 			actions = append(actions, paletteAction{
-				icon: look.Icon.Branch, label: project.Name + " / " + worktree.Name, kind: i18n.T("Worktree"),
-				run: func() { s.navigateWork(id, projectspage.TabOverview, path) },
+				icon: look.Icon.Branch, label: worktree.Name, kind: i18n.T("Worktree"), group: i18n.T("Projects"),
+				crumb: look.Crumb(i18n.T("Rashin"), i18n.T("Projects"), project.Name, worktree.Name),
+				run:   func() { s.navigateWork(id, projectspage.TabOverview, path) },
 			})
 		}
 	}

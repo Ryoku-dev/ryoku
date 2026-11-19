@@ -36,20 +36,20 @@ func offeredModels() (protocol.ModelsResult, []protocol.ProviderInfo) {
 	return models, providers
 }
 
-func TestAskModelsAreGroupedFreeLocalPaid(t *testing.T) {
+func TestAskModelsAreGroupedLocalFreePaid(t *testing.T) {
 	models, providers := offeredModels()
-	options, ids := modelRows(models, providers, "")
+	options, ids := modelRows(models, providers, "", false)
 	want := []string{
 		protocol.RouteAuto, protocol.RouteFast, protocol.RouteSmart,
-		"kilo/a", "kilo/b", "openrouter/x",
 		"ollama-local/llama",
+		"kilo/a", "kilo/b", "openrouter/x",
 		"openai/gpt", "anthropic/claude",
 	}
 	if !reflect.DeepEqual(ids, want) {
 		t.Fatalf("listed %v, want %v", ids, want)
 	}
-	free, local, paid := i18n.T("Free"), i18n.T("Local"), i18n.T("Paid")
-	groups := []string{"", "", "", free, free, free, local, paid, paid}
+	local, free, paid := i18n.T("On this computer"), i18n.T("Free"), i18n.T("Paid")
+	groups := []string{"", "", "", local, free, free, free, paid, paid}
 	for index, option := range options {
 		if option.Group != groups[index] {
 			t.Errorf("%s is in group %q, want %q", ids[index], option.Group, groups[index])
@@ -72,7 +72,7 @@ func TestAskModelsCarryTheListedModels(t *testing.T) {
 		protocol.ModelInfo{ID: "kilo/mystery:free", Provider: "kilo", Name: "Mystery", Tier: protocol.TierFree, Available: true, Listed: true},
 		protocol.ModelInfo{ID: "anthropic/listed", Provider: "anthropic", Name: "Listed Claude", Tier: protocol.TierPaid, Listed: true, ToolsKnown: true},
 	)
-	options, ids := modelRows(models, providers, "")
+	options, ids := modelRows(models, providers, "", false)
 	if slices.Contains(ids, "anthropic/listed") {
 		t.Fatal("a listed model of a provider without a key was offered")
 	}
@@ -100,10 +100,10 @@ func TestAskModelsKeepAPinTheyNoLongerOffer(t *testing.T) {
 		at         int
 	}{
 		// a free model whose provider stopped answering stays in its own group
-		{pin: "groq/y", group: i18n.T("Free"), at: 6},
+		{pin: "groq/y", group: i18n.T("Free"), at: 7},
 		{pin: "gone/model", group: i18n.T("Unavailable"), at: 9},
 	} {
-		options, ids := modelRows(models, providers, test.pin)
+		options, ids := modelRows(models, providers, test.pin, false)
 		at := slices.Index(ids, test.pin)
 		if at != test.at {
 			t.Fatalf("pin %s listed at %d in %v, want %d", test.pin, at, ids, test.at)
@@ -112,7 +112,7 @@ func TestAskModelsKeepAPinTheyNoLongerOffer(t *testing.T) {
 			t.Fatalf("pin %s shown as %+v, want it unpickable in %q", test.pin, options[at], test.group)
 		}
 	}
-	if _, ids := modelRows(models, providers, "kilo/a"); len(ids) != 9 {
+	if _, ids := modelRows(models, providers, "kilo/a", false); len(ids) != 9 {
 		t.Fatalf("a pin the list offers was added again: %v", ids)
 	}
 }

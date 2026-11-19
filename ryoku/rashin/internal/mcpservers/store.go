@@ -19,7 +19,6 @@ import (
 
 	"ryoku-i18n"
 
-	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/vault"
 )
@@ -29,24 +28,24 @@ type record struct {
 	Headers map[string]string      `json:"headers,omitempty"`
 	Token   string                 `json:"token,omitempty"`
 }
+type catalogue struct {
+	at    time.Time
+	tools []remoteTool
+}
 
 type Store struct {
-	mu                   sync.Mutex
-	path                 string
-	vault                *vault.Vault
-	records              []record
-	pending              map[string]bool
-	cancelSignIn         map[string]context.CancelFunc
-	proxy                *http.Server
-	proxyClient          *http.Client
-	proxyURL, proxyToken string
-	proxyCancel          context.CancelFunc
-	proxyEndpoints       map[string]proxyEndpoint
-	stopped              bool
+	mu           sync.Mutex
+	path         string
+	vault        *vault.Vault
+	records      []record
+	catalogues   map[string]catalogue
+	pending      map[string]bool
+	cancelSignIn map[string]context.CancelFunc
+	stopped      bool
 }
 
 func Open(path string, v *vault.Vault) (*Store, error) {
-	s := &Store{path: path, vault: v, pending: make(map[string]bool), cancelSignIn: make(map[string]context.CancelFunc)}
+	s := &Store{path: path, vault: v, pending: make(map[string]bool), cancelSignIn: make(map[string]context.CancelFunc), catalogues: make(map[string]catalogue)}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -208,6 +207,7 @@ func (s *Store) Save(p protocol.MCPServer) (protocol.MCPServerInfo, error) {
 		return protocol.MCPServerInfo{}, err
 	}
 	committed = true
+	delete(s.catalogues, p.ID)
 	if stop := s.cancelSignIn[p.ID]; stop != nil && (!p.Enabled || !sameOAuth(old.Info.OAuth, p.OAuth) || old.Info.URL != p.URL) {
 		s.pending[p.ID] = false
 		stop()
@@ -259,6 +259,7 @@ func (s *Store) Delete(id string) error {
 			s.records = before
 			return err
 		}
+		delete(s.catalogues, id)
 		if stop := s.cancelSignIn[id]; stop != nil {
 			s.pending[id] = false
 			stop()
@@ -312,6 +313,7 @@ func (s *Store) Check(ctx context.Context, id string) (protocol.MCPServerInfo, e
 			continue
 		}
 		r.Info.Checked, r.Info.Tools, r.Info.Detail = time.Now(), 0, ""
+		delete(s.catalogues, id)
 		if !r.Info.Enabled {
 			r.Info.State = "off"
 			return r.Info, nil
@@ -320,11 +322,18 @@ func (s *Store) Check(ctx context.Context, id string) (protocol.MCPServerInfo, e
 		if err != nil {
 			r.Info.State, r.Info.Detail = "needs-signin", i18n.T("Sign in or unlock the credential vault.")
 		} else {
-			r.Info.Tools, err = probe(ctx, r.Info, headers)
+			var definitions []remoteTool
+			definitions, err = probe(ctx, r.Info, headers)
 			if err != nil {
 				r.Info.State, r.Info.Detail = "failing", i18n.T("The server did not complete its tool check.")
 			} else {
+				for _, definition := range definitions {
+					if toolPart(definition.Name) != "" && validInputSchema(definition.Input) {
+						r.Info.Tools++
+					}
+				}
 				r.Info.State = "ready"
+				s.catalogues[id] = catalogue{at: time.Now(), tools: definitions}
 			}
 			if errors.Is(err, errSignIn) {
 				r.Info.State, r.Info.Detail = "needs-signin", i18n.T("Sign in or update the saved headers.")
@@ -338,30 +347,6 @@ func (s *Store) Check(ctx context.Context, id string) (protocol.MCPServerInfo, e
 	return protocol.MCPServerInfo{}, errors.New(i18n.T("That server no longer exists."))
 }
 
-func (s *Store) Ready(ctx context.Context) []core.MCPServer {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.stopped {
-		return nil
-	}
-	var out []core.MCPServer
-	for i := range s.records {
-		r := &s.records[i]
-		if !r.Info.Enabled || r.Info.State != "ready" {
-			continue
-		}
-		server := core.MCPServer{Name: r.Info.Name, Type: r.Info.Type, Command: r.Info.Command, Args: r.Info.Args, URL: r.Info.URL}
-		if (r.Info.Type == "http" || r.Info.Type == "sse") && (len(r.Headers) > 0 || r.Info.OAuth != nil) {
-			if err := s.startProxyLocked(); err != nil {
-				continue
-			}
-			server.URL = s.proxyAddressLocked(r.Info.ID)
-		}
-		out = append(out, server)
-	}
-	return out
-}
-
 func (s *Store) CancelSignIns() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -370,7 +355,6 @@ func (s *Store) CancelSignIns() {
 		cancel()
 	}
 	s.stopped = true
-	s.stopProxyLocked()
 }
 
 func (s *Store) Resume() {

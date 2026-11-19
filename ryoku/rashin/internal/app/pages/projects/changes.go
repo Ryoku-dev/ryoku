@@ -64,14 +64,12 @@ type changeRow struct {
 	click          kit.Click
 	hover          look.Hover
 	press          anim.Tween
-	stage, discard look.IconAction
-	tips           [2]look.Tip
+	stage, discard kit.IconPlaque
 }
 
 type changeGroup struct {
 	hover          look.Hover
-	stage, discard look.IconAction
-	tips           [2]look.Tip
+	stage, discard kit.IconPlaque
 }
 
 type changeItem struct {
@@ -99,29 +97,7 @@ func (c *changesState) layout(gtx layout.Context, e *env.Env, page *pageState) l
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.layoutBar(gtx, e, page, worktree) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			if gtx.Constraints.Max.X < gtx.Dp(overviewSplit) {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(300))
-						return files(gtx)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Rule(gtx, th) }),
-					layout.Flexed(1, diff),
-				)
-			}
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					width := gtx.Dp(340)
-					gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
-					return files(gtx)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					size := image.Pt(max(1, gtx.Dp(1)), gtx.Constraints.Max.Y)
-					look.FillRect(gtx, image.Rectangle{Max: size}, th.R.Vein)
-					return layout.Dimensions{Size: size}
-				}),
-				layout.Flexed(1, diff),
-			)
+			return (splitPane{}).Layout(gtx, th, files, diff)
 		}),
 	)
 }
@@ -366,8 +342,8 @@ func (c *changesState) layoutGroup(gtx layout.Context, e *env.Env, page *pageSta
 	if group == changeStaged {
 		stageTip, stageIcon, method = i18n.T("Unstage all"), look.Icon.Remove, protocol.MGitUnstage
 	}
-	state.stage.Icon, state.stage.Description = stageIcon, stageTip
-	state.discard.Icon, state.discard.Description = look.Icon.Undo, i18n.T("Discard all")
+	state.stage.Kind, state.stage.Icon, state.stage.Description = kit.PlaqueQuiet, stageIcon, stageTip
+	state.discard.Kind, state.discard.Icon, state.discard.Description = kit.PlaqueQuiet, look.Icon.Undo, i18n.T("Discard all")
 	if state.stage.Clicked(gtx) {
 		c.gitPaths(e, page, method, paths)
 	}
@@ -387,17 +363,15 @@ func (c *changesState) layoutGroup(gtx layout.Context, e *env.Env, page *pageSta
 		return layout.Dimensions{Size: size}
 	})
 	if hover > 0 {
-		box := gtx.Dp(28)
-		actions := []*look.IconAction{&state.stage}
+		box := gtx.Dp(32)
+		actions := []*kit.IconPlaque{&state.stage}
 		if group != changeStaged {
 			actions = append(actions, &state.discard)
 		}
 		for index, action := range actions {
 			at := image.Pt(size.X-gtx.Dp(2)-(len(actions)-index)*box, (size.Y-box)/2)
 			look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(image.Pt(box, box))}, func(gtx layout.Context) layout.Dimensions {
-				return state.tips[index].Layout(gtx, th, e.Overlays, action.Description, func(gtx layout.Context) layout.Dimensions {
-					return action.Layout(gtx, th, th.R.Fg2)
-				})
+				return action.Layout(gtx, th.Theme)
 			})
 		}
 	}
@@ -420,8 +394,8 @@ func (c *changesState) layoutFile(gtx layout.Context, e *env.Env, page *pageStat
 	if file.Staged {
 		stageTip, stageIcon, method = i18n.T("Unstage"), look.Icon.Remove, protocol.MGitUnstage
 	}
-	row.stage.Icon, row.stage.Description = stageIcon, stageTip
-	row.discard.Icon, row.discard.Description = look.Icon.Undo, i18n.T("Discard changes")
+	row.stage.Kind, row.stage.Icon, row.stage.Description = kit.PlaqueQuiet, stageIcon, stageTip
+	row.discard.Kind, row.discard.Icon, row.discard.Description = kit.PlaqueQuiet, look.Icon.Undo, i18n.T("Discard changes")
 	if row.stage.Clicked(gtx) {
 		c.gitPaths(e, page, method, []string{file.Path})
 	}
@@ -440,16 +414,8 @@ func (c *changesState) layoutFile(gtx layout.Context, e *env.Env, page *pageStat
 	})
 	call := record.Stop()
 	bounds := image.Rectangle{Max: size}
-	cut := gtx.Dp(th.Cut.Small)
-	switch {
-	case selected:
-		kit.FillCut(gtx.Ops, bounds, cut, th.R.Sel)
-	case hover > 0:
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
-	}
-	if press := look.Transition(gtx, &row.press, row.click.Pressed(), th.Motion.Press, th.Motion.Press); press > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
-	}
+	press := look.Transition(gtx, &row.press, row.click.Pressed(), th.Motion.Press, th.Motion.Press)
+	look.RowWash(gtx, th, bounds, hover, press, selected)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: size}
 }
@@ -459,29 +425,27 @@ func (c *changesState) drawFile(gtx layout.Context, e *env.Env, row *changeRow, 
 	file := item.file
 	size := gtx.Constraints.Max
 	letter, letterInk := diffview.StatusMark(th, file.Status)
-	ink := th.R.Fg
+	ink, _ := look.RowInk(th, selected)
 	if selected {
-		ink, letterInk = th.R.OnSel, th.R.OnSel
+		letterInk = ink
 	}
 	look.MiddleLeft(gtx, gtx.Dp(8), size.Y, kit.RawText(th.Theme, th.T.Mono, letterInk, letter))
 	right := size.X - gtx.Dp(8)
 	if row.hover.Hovered() && item.group >= 0 {
-		box := gtx.Dp(28)
-		actions := [...]*look.IconAction{&row.stage, &row.discard}
+		box := gtx.Dp(32)
+		actions := [...]*kit.IconPlaque{&row.stage, &row.discard}
 		right -= len(actions)*box - gtx.Dp(6)
 		for index, action := range actions {
 			at := image.Pt(right+index*box, (size.Y-box)/2)
 			look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(image.Pt(box, box))}, func(gtx layout.Context) layout.Dimensions {
-				return row.tips[index].Layout(gtx, th, e.Overlays, action.Description, func(gtx layout.Context) layout.Dimensions {
-					return action.Layout(gtx, th, ink)
-				})
+				return action.Layout(gtx, th.Theme)
 			})
 		}
 	} else if file.Added+file.Removed > 0 {
 		record := op.Record(gtx.Ops)
 		counts := gtx
 		counts.Constraints = layout.Constraints{Max: image.Pt(size.X/2, size.Y)}
-		dimensions := look.DiffCount(th, file.Added, file.Removed, selected)(counts)
+		dimensions := look.DiffCount(th, file.Added, file.Removed, false)(counts)
 		call := record.Stop()
 		right -= dimensions.Size.X
 		offset := op.Offset(image.Pt(right, (size.Y-dimensions.Size.Y)/2)).Push(gtx.Ops)
@@ -515,7 +479,7 @@ func (c *changesState) layoutDiff(gtx layout.Context, e *env.Env, page *pageStat
 		}.Layout(gtx, th.Theme)
 	}
 	options := diffview.Options{
-		Overlays: e.Overlays, Comments: e.Snapshot().Reviews[page.worktree], Commentable: true,
+		Comments: e.Snapshot().Reviews[page.worktree], Commentable: true,
 		FoldOver: 400, Headless: true,
 	}
 	layout.Inset{Top: th.Sp.S2, Left: th.Sp.S2, Right: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

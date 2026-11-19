@@ -72,6 +72,21 @@ func TestParseRouteTargetSupportsWorkAndSettings(t *testing.T) {
 	if settings.tab != protocol.TabSettings || settings.settingsSection != "agent" {
 		t.Fatalf("settings route = %#v", settings)
 	}
+	learning := parseRouteTarget("learning/decisions")
+	if learning.tab != protocol.TabLearning || learning.settingsSection != "decisions" {
+		t.Fatalf("learning route = %#v", learning)
+	}
+	if params := openParams(learning); params.Tab != protocol.TabLearning || params.View != "decisions" {
+		t.Fatalf("learning open params = %#v", params)
+	}
+	learning = applyLaunchTarget(parseRouteTarget("learning"), "", "", "", "skills", "")
+	if learning.tab != protocol.TabLearning || learning.settingsSection != "skills" {
+		t.Fatalf("learning --view target = %#v", learning)
+	}
+	learning = applyLaunchTarget(parseRouteTarget("settings/providers"), protocol.TabLearning, "", "", "", "")
+	if learning.settingsSection != "" {
+		t.Fatalf("Learning inherited Settings section: %#v", learning)
+	}
 	agent := parseRouteTarget("agent/agent-working")
 	if agent.tab != protocol.TabAgent || agent.session != "agent-working" {
 		t.Fatalf("agent route = %#v", agent)

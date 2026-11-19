@@ -39,7 +39,6 @@ type fileRow struct {
 	link    linkRow
 	report  kit.Click
 	reveal  kit.IconPlaque
-	tip     look.Tip
 	preview chat.View
 }
 
@@ -135,9 +134,7 @@ func (f *teamFiles) layout(gtx layout.Context, e *env.Env, snapshot appstate.Sna
 						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return row.tip.Layout(gtx, th, e.Overlays, row.reveal.Description, func(gtx layout.Context) layout.Dimensions {
-							return row.reveal.Layout(gtx, th.Theme)
-						})
+						return row.reveal.Layout(gtx, th.Theme)
 					}),
 				)
 			})

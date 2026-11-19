@@ -2,6 +2,7 @@ package shell
 
 import (
 	"image"
+	"slices"
 	"testing"
 
 	"gioui.org/f32"
@@ -58,10 +59,18 @@ func TestSettingsSwitchesChangeWhatTheyName(t *testing.T) {
 		t.Fatal("the notices switch did not turn them off")
 	}
 
+}
+
+func TestAppearanceHandsTheDesktopLookToRyokuSettings(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 900))
 	stage.open("settings/appearance")
-	stage.click("Reduce motion")
-	if !stage.shell.preferences.ReduceMotion {
-		t.Fatal("the Reduce motion switch did not turn it on")
+	stage.click("Open Ryoku Settings")
+	if len(stage.argv) != 1 {
+		t.Fatalf("appearance launched %v, want Ryoku Settings", stage.argv)
+	}
+	want := []string{"ryoku-shell", "hub", "open", "style"}
+	if !slices.Equal(stage.argv[0], want) {
+		t.Fatalf("appearance argv = %q, want %q", stage.argv[0], want)
 	}
 }
 

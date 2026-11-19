@@ -13,42 +13,27 @@ import (
 	"ryoku-rashin/internal/screen"
 )
 
-func (d *Daemon) agentTools(info protocol.SessionInfo) []core.MCPServer {
-	command := d.commandPath()
-	var servers []core.MCPServer
-	if d.feature("mcp") {
-		if store, err := d.mcpStore(); err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			servers = store.Ready(ctx)
-			cancel()
+// agentTools is which of Rashin's in-process tools an agent session has: a
+// screen when it may use one, memory when the settings let agents use it,
+// and for a team task its run as its team tools see it, whose memory is the
+// team's. The user's MCP servers are not named here: the engine's MCP
+// provider reads them while the feature is on.
+func (d *Daemon) agentTools(info protocol.SessionInfo) core.ToolContext {
+	tools := core.ToolContext{Session: info.ID, Cwd: info.Cwd, Screen: d.screenFor(info)}
+	if info.Team != "" {
+		if d.deps.Teams != nil {
+			tools.Team = d.deps.Teams.ToolContext(info)
 		}
-	}
-	if command == "" {
-		return servers
-	}
-	env := map[string]string{"RASHIN_SESSION": info.ID, "RASHIN_CWD": info.Cwd}
-	if info.Team != "" && d.feature("setupcards") {
-		env["RASHIN_SETUPCARDS"] = "1"
-	}
-	if info.Team != "" && d.feature("research") {
-		env["RASHIN_RESEARCH"] = "1"
-	}
-	if d.screenFor(info) {
-		env["RASHIN_SCREEN"] = "1"
-	}
-	// a team task's memory is its team's, which Teams says
-	if settings := d.Settings(); d.deps.Memory != nil && info.Team == "" && settings.Memory.Agents && memory.Uses(settings, info) {
-		env["RASHIN_MEMORY"] = "1"
-		if settings.Memory.Sessions {
-			env["RASHIN_MEMORY_SESSIONS"] = "1"
+		if tools.Team != nil {
+			tools.Memory = d.deps.Memory != nil && tools.Team.Memory
 		}
+		return tools
 	}
-	if d.deps.Teams != nil {
-		for key, value := range d.deps.Teams.ToolEnv(info) {
-			env[key] = value
-		}
+	if settings := d.Settings(); d.deps.Memory != nil && settings.Memory.Agents && memory.Uses(settings, info) {
+		tools.Memory = true
+		tools.MemorySessions = settings.Memory.Sessions
 	}
-	return append(servers, core.MCPServer{Name: "rashin", Command: command, Args: []string{"mcp"}, Env: env})
+	return tools
 }
 
 // screenFor says a session may be offered a screen of its own: it is not an

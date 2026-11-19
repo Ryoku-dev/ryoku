@@ -13,8 +13,8 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 )
 
-// SlabContent lays out a standard slab: the slab tone, which is its plane's
-// own, set off by a vein hairline, inside the mid cut and the canonical inset.
+// SlabContent lays out a standard slab: the design's card plane (SlabSurface)
+// inside the mid cut and the canonical inset.
 func SlabContent(gtx layout.Context, th *theme.Theme, body layout.Widget) layout.Dimensions {
 	return TonedSlabContent(gtx, th, palette.Idle, body)
 }
@@ -22,29 +22,58 @@ func SlabContent(gtx layout.Context, th *theme.Theme, body layout.Widget) layout
 // TonedSlabContent lays out a slab dyed by tone: the one hero plane of a view,
 // such as the thing that needs you. Idle is the plain slab.
 func TonedSlabContent(gtx layout.Context, th *theme.Theme, tone palette.Tone, body layout.Widget) layout.Dimensions {
-	record := op.Record(gtx.Ops)
-	dimensions := layout.UniformInset(tokens.SizeSlabInset).Layout(gtx, body)
-	call := record.Stop()
-	bounds := image.Rectangle{Max: dimensions.Size}
-	cut := gtx.Dp(th.Cut.Mid)
 	fill := th.R.Slab
 	if tone != palette.Idle {
 		fill = th.R.MineralField(tone)
 	}
-	SlabSurface(gtx, th, bounds, cut, fill)
+	return slabContent(gtx, th, body, func(gtx layout.Context, bounds image.Rectangle, cut int) {
+		SlabSurface(gtx, th, bounds, cut, fill)
+	})
+}
+
+// OutlinedSlabContent lays out a slab that stands on another card, in a dialog
+// or in a popover: SlabOutline inside the mid cut and the canonical inset.
+func OutlinedSlabContent(gtx layout.Context, th *theme.Theme, body layout.Widget) layout.Dimensions {
+	return slabContent(gtx, th, body, func(gtx layout.Context, bounds image.Rectangle, cut int) {
+		SlabOutline(gtx, th, bounds, cut)
+	})
+}
+
+func slabContent(gtx layout.Context, th *theme.Theme, body layout.Widget, surface func(layout.Context, image.Rectangle, int)) layout.Dimensions {
+	record := op.Record(gtx.Ops)
+	dimensions := layout.UniformInset(tokens.SizeSlabInset).Layout(gtx, body)
+	call := record.Stop()
+	surface(gtx, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid))
 	call.Add(gtx.Ops)
 	return dimensions
 }
 
-// SlabSurface paints a slab's plane in bounds. A plain slab takes the tone of
-// whatever it stands on, a pane or a dialog, and is drawn by its vein hairline
-// alone; a toned slab is filled with its mineral field and carries no line.
+// SlabSurface paints a slab's plane in bounds. A plain slab (fill is the slab
+// role) is the design's card, th.Planes().Card with its CardStroke: in Lithic
+// the paper it stands on, drawn by its vein hairline alone; in Material and
+// Adwaita a tonal card with no line; in Fluent a tonal card with a thin
+// outline. Any other fill, a mineral field or a caller's tone, is filled as it
+// is and carries no line. The corners follow the design from cut.
+//
+// A plain slab is a card on the page pane. One that stands on another card, in
+// a dialog or in a popover would lie tone on tone there: use SlabOutline.
 func SlabSurface(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int, fill color.NRGBA) {
-	if fill == th.R.Slab {
-		Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
+	if fill != th.R.Slab {
+		Fill(gtx, th, bounds, cut, fill)
 		return
 	}
-	Fill(gtx, th, bounds, cut, fill)
+	planes := th.Planes()
+	if planes.Card != th.R.Slab {
+		Fill(gtx, th, bounds, cut, planes.Card)
+	}
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), planes.CardStroke)
+}
+
+// SlabOutline paints a slab by its vein hairline alone, in every design, as
+// the Hub draws a slab it gives no card plane: for a slab nested in a card, a
+// dialog or a popover. The corners follow the design from cut.
+func SlabOutline(gtx layout.Context, th *theme.Theme, bounds image.Rectangle, cut int) {
+	Stroke(gtx, th, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), th.R.Vein)
 }
 
 // SlabRows lays out rows inside a standard slab at full width. Space, not a

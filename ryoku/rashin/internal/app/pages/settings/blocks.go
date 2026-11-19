@@ -7,9 +7,15 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"ryoku-i18n"
+
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 )
+
+// how many blocks rise as Settings opens, the Hub's first five
+const revealed = 5
 
 // a long section stands in the list as its blocks, laying out all of Teams for the screenful shown is what made scrolling lag
 type blockList struct {
@@ -20,6 +26,8 @@ type blockList struct {
 	extra     [sectionCount]int
 	moved     bool
 	featureAt map[string]int
+	// how many blocks this frame has drawn, which orders the ones that rise
+	drawn int
 }
 
 func (b *blockList) total() int {
@@ -61,6 +69,8 @@ func (p *Page) sectionBlocks(gtx layout.Context, e *env.Env, section int) []layo
 	switch section {
 	case sectionFeatures:
 		blocks = p.featuresBlocks(gtx, e, blocks)
+	case sectionProviders:
+		blocks = p.providerBlocks(gtx, e, blocks)
 	case sectionAsk:
 		blocks = append(blocks, func(gtx layout.Context) layout.Dimensions { return p.layoutAsk(gtx, e) })
 		if e.Feature("history") {
@@ -111,18 +121,71 @@ func spacedBlocks(th *look.Theme, blocks []layout.Widget, groups ...layout.Widge
 	return blocks
 }
 
+// one of the twelve sections by its name and its place among them, as the sidebar lists them
+func ordinal(section int) look.Head {
+	return look.Head{Title: sections()[section].label, Number: section + 1, Of: sectionCount}
+}
+
+// the ruled head a section opens under, for a section whose blocks are its own
+func sectionHead(gtx layout.Context, th *look.Theme, section int) layout.Dimensions {
+	return look.SectionHead(th, ordinal(section))(gtx)
+}
+
+// the small head of a group inside a section, and what the group is about when that needs saying
+func groupHead(th *look.Theme, title, caption string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{layout.Rigid(look.SectionHead(th, look.Head{Title: title}))}
+		if caption != "" {
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, caption)),
+			)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	}
+}
+
+// a group's head, its slab of rows, and the save for what it holds when it holds anything to save
+func group(th *look.Theme, title, caption string, rows []look.Setting, save layout.Widget) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		children := []layout.FlexChild{
+			layout.Rigid(groupHead(th, title, caption)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
+		}
+		if save != nil {
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout), layout.Rigid(save))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	}
+}
+
+// the save under a group, dimmed while nothing in it changed
+func groupSave(th *look.Theme, plaque *kit.Plaque, changed bool) layout.Widget {
+	plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, i18n.T("Save")
+	return func(gtx layout.Context) layout.Dimensions {
+		if !changed {
+			gtx = gtx.Disabled()
+		}
+		return plaque.Layout(gtx, th.Theme)
+	}
+}
+
+// read right after it is drawn: by the next frame the setting has overwritten the flip
+func namedSwitch(gtx layout.Context, th *look.Theme, name string, toggle *kit.Toggle, flipped func(on bool)) layout.Dimensions {
+	dimensions := look.Named(gtx, name, func(gtx layout.Context) layout.Dimensions { return toggle.Layout(gtx, th.Theme) })
+	if toggle.Changed() && flipped != nil {
+		flipped(toggle.Value)
+	}
+	return dimensions
+}
+
 func (p *Page) layoutWhole(gtx layout.Context, e *env.Env, section int) layout.Dimensions {
 	switch section {
 	case sectionRashin:
 		return p.layoutRashin(gtx, e)
-	case sectionProviders:
-		return p.layoutProviders(gtx, e)
 	case sectionAPI:
 		return p.layoutAPI(gtx, e)
-	case sectionAsk:
-		return p.layoutAsk(gtx, e)
-	case sectionAgents:
-		return p.layoutAgents(gtx, e)
 	case sectionIndex:
 		return p.layoutIndex(gtx, e)
 	case sectionAppearance:
@@ -158,6 +221,7 @@ func (p *Page) prepare(gtx layout.Context, e *env.Env) {
 func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) layout.Dimensions {
 	th := e.Theme
 	p.blocks.frame++
+	p.blocks.drawn = 0
 	// the wheel moves the list over the blocks it knew, before any count moves
 	p.scroll.UpdateInput(gtx)
 	anchorSection, anchorBlock := p.blocks.locate(max(p.scroll.Position.First, 0))
@@ -166,7 +230,16 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 		anchorSection, anchorBlock, anchorOffset = p.current, p.jumpBlock, 0
 	}
 	p.prepare(gtx, e)
-	dimensions := p.scroll.Layout(gtx, th, p.blocks.total(), func(gtx layout.Context, index int) layout.Dimensions {
+	total := p.blocks.total()
+	// the colophon closes the sheet as the row after the last section
+	dimensions := p.scroll.Layout(gtx, th, total+1, func(gtx layout.Context, index int) layout.Dimensions {
+		full := gtx.Constraints.Max.X
+		gtx.Constraints.Min.X, gtx.Constraints.Max.X = min(gtx.Constraints.Min.X, width), width
+		defer op.Offset(image.Pt(inset, 0)).Push(gtx.Ops).Pop()
+		if index >= total {
+			foot := p.sheet.Colophon(gtx, th, p.page())
+			return layout.Dimensions{Size: image.Pt(full, foot.Size.Y)}
+		}
 		section, block := p.blocks.locate(index)
 		blocks := p.sectionBlocks(gtx, e, section)
 		if block >= len(blocks) {
@@ -184,10 +257,17 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env, inset, width int) 
 				bottom = th.Sp.S6
 			}
 		}
-		full := gtx.Constraints.Max.X
-		gtx.Constraints.Min.X, gtx.Constraints.Max.X = min(gtx.Constraints.Min.X, width), width
-		defer op.Offset(image.Pt(inset, 0)).Push(gtx.Ops).Pop()
-		dimensions := layout.Inset{Top: top, Bottom: bottom}.Layout(gtx, blocks[block])
+		order := p.blocks.drawn
+		p.blocks.drawn++
+		widget := blocks[block]
+		if order < revealed {
+			// only the blocks Settings opens on rise, one after the other; a later scroll moves nothing
+			widget = func(gtx layout.Context) layout.Dimensions { return p.reveal.Group(gtx, th, order, blocks[block]) }
+		}
+		// a section longer than the viewport keeps its true height, so its later controls remain scrollable
+		child := gtx
+		child.Constraints.Max.Y = 1 << 20
+		dimensions := layout.Inset{Top: top, Bottom: bottom}.Layout(child, widget)
 		return layout.Dimensions{Size: image.Pt(full, dimensions.Size.Y)}
 	})
 	if p.blocks.moved {

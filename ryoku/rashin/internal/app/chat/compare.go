@@ -141,74 +141,67 @@ func (state *viewState) openCompare(block blockContext) {
 		visual.compare = &compareVisual{source: block.info.ID, lanes: make(map[string]*compareLaneVisual)}
 	}
 	visual.compare.picking = true
+	state.follow = false
+	state.scroller.SetFollow(false)
 }
 
 func (state *viewState) layoutComparison(gtx layout.Context, th *look.Theme, block blockContext) layout.Dimensions {
 	visual := state.turnVisual(block.turn).compare
-	if !state.feature("compare") || visual == nil || visual.source != block.info.ID {
+	if !state.feature("compare") || visual == nil || visual.source != block.info.ID || len(visual.result.Lanes) == 0 {
 		return layout.Dimensions{}
 	}
 	options := state.answerSettings()
 	key := "compare:" + block.info.ID + ":" + strconv.Itoa(block.turn)
-	return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, 0, 5)
-		if visual.picking {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return state.layoutComparePicker(gtx, th, block, visual, key)
-			}))
-		}
-		if visual.err != "" {
-			children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, visual.err)))
-		}
-		if len(visual.result.Lanes) > 0 {
-			wide := gtx.Constraints.Max.X >= gtx.Dp(900)
-			if !wide {
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(visual.result.Lanes), func(gtx layout.Context, index int) layout.Dimensions {
+	return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2, Left: th.Sp.S3, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		wide := gtx.Constraints.Max.X >= gtx.Dp(900)
+		if !wide {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, len(visual.result.Lanes), func(gtx layout.Context, index int) layout.Dimensions {
 						lane := visual.result.Lanes[index]
 						label := lane.Model
 						if label == "" {
 							label = i18n.T("Original answer")
 						}
 						plaque := state.plaque(key + ":tab:" + lane.Session)
-						plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, label
+						plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueQuiet, true, label
 						if index == visual.selected {
-							plaque.Kind = kit.PlaqueLine
+							plaque.Kind = kit.PlaqueTonal
 						}
 						if plaque.Clicked(gtx) {
 							visual.selected = index
 						}
 						return plaque.Layout(gtx, th.Theme)
 					})
-				}))
-			}
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !wide {
+				}),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return state.layoutCompareLane(gtx, th, visual, visual.result.Lanes[visual.selected], key, options)
-				}
-				columns := make([]layout.FlexChild, 0, 5)
-				for index, lane := range visual.result.Lanes {
-					if index > 0 {
-						columns = append(columns, layout.Rigid(layout.Spacer{Width: 16}.Layout))
-					}
-					columns = append(columns, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = gtx.Constraints.Max.X
-						return state.layoutCompareLane(gtx, th, visual, lane, key, options)
-					}))
-				}
-				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, columns...)
+				}),
+			)
+		}
+		columns := make([]layout.FlexChild, 0, 2*len(visual.result.Lanes)-1)
+		for index, lane := range visual.result.Lanes {
+			if index > 0 {
+				columns = append(columns, layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout))
+			}
+			columns = append(columns, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				return state.layoutCompareLane(gtx, th, visual, lane, key, options)
 			}))
 		}
-		return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEnd}.Layout(gtx, children...)
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, columns...)
 	})
 }
 
 func (state *viewState) layoutComparePicker(gtx layout.Context, th *look.Theme, block blockContext, visual *compareVisual, key string) layout.Dimensions {
 	options := state.answerSettings()
+	gtx.Constraints.Min.X = 0
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Choose up to two other models"))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
+			return look.Flow{Gap: th.Sp.S3, LineGap: th.Sp.S2}.Layout(gtx, 2, func(gtx layout.Context, index int) layout.Dimensions {
 				if options.Choices == nil {
 					return layout.Dimensions{}
 				}
@@ -234,9 +227,11 @@ func (state *viewState) layoutComparePicker(gtx layout.Context, th *look.Theme, 
 				return dimensions
 			})
 		}),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = 0
 					if visual.busy || visual.models == [2]string{} || options.Call == nil {
 						gtx = gtx.Disabled()
 					}
@@ -259,8 +254,9 @@ func (state *viewState) layoutComparePicker(gtx layout.Context, th *look.Theme, 
 						})
 					})
 				}),
-				layout.Rigid(layout.Spacer{Width: 8}.Layout),
+				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = 0
 					return state.answerPlaque(gtx, th, key+":cancel", i18n.T("Cancel"), func() { visual.picking = false })
 				}),
 			)
@@ -304,24 +300,24 @@ func (state *viewState) layoutCompareLane(gtx layout.Context, th *look.Theme, vi
 	if label == "" {
 		label = i18n.T("Original answer")
 	}
-	return slab(gtx, th, 13, func(gtx layout.Context) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S3, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, label)),
-			layout.Rigid(layout.Spacer{Height: 13}.Layout),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if text == "" {
 					return kit.Text(th.Theme, th.T.Body, th.R.Fg3, i18n.T("Waiting for an answer"))(gtx)
 				}
 				return laneVisual.state.layoutMarkdown(gtx, th, key+":"+lane.Session, text, nil)
 			}),
-			layout.Rigid(layout.Spacer{Height: 13}.Layout),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if busy {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return kit.Working{Active: true, Size: 16}.Layout(gtx, th.Theme)
 						}),
-						layout.Rigid(layout.Spacer{Width: 8}.Layout),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 						layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, i18n.T("Answering"))),
 					)
 				}

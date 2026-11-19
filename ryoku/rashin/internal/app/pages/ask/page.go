@@ -42,11 +42,8 @@ type Page struct {
 	ready       readiness
 	usage       env.Usage
 
-	menu env.ModelMenu
 	// the open model menu asks for the providers' allowances
 	limits env.LimitsWatch
-	// what answers when Settings picked a harness over Rashin's providers
-	engine engine
 
 	temporary env.Temporary
 	memory    memoryChoice
@@ -62,6 +59,23 @@ type Page struct {
 }
 
 func New() *Page { return &Page{} }
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	head := look.PageFor(protocol.TabAsk)
+	if info, ok := e.Snapshot().Sessions[p.selected]; ok {
+		head.Where = look.Where(head.Where, sessionTitle(info))
+		if info.Model != "" {
+			head.Facts = []string{env.ModelWords(e, info.Model)}
+		}
+	}
+	return head
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.selected == "" {
+		return -1
+	}
+	return p.view.Progress()
+}
 
 func (p *Page) Select(e *env.Env, id string) {
 	p.composer.RefreshAskTools()
@@ -92,7 +106,8 @@ func (p *Page) Select(e *env.Env, id string) {
 	})
 }
 
-func (p *Page) FocusHome() any { return p.composer.FocusTag() }
+func (p *Page) FocusHome() any     { return p.composer.FocusTag() }
+func (p *Page) SearchAtRest() bool { return p.composer.Draft().Text == "" }
 
 func (p *Page) Hidden(e *env.Env) { p.composer.CancelAskTools() }
 
@@ -124,10 +139,6 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 		Mode:      p.approvals.Value("", settings.Approvals),
 		Temporary: p.temporary.On, Memory: memoryValue(p.memory.draft, p.temporary.On),
 	}
-	// a harness starts on the model picked for it, which the daemon puts it on as it comes up
-	if settings.Harness != "" {
-		params.Harness, params.Model = settings.Harness, p.engine.draft
-	}
 	// the next new conversation is an ordinary one again
 	p.temporary.On = false
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
@@ -140,7 +151,7 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 		p.selected = info.ID
 		e.Attach(info.ID, func(error) {})
 		e.Navigate(protocol.TabAsk, info.ID)
-		if params.Harness != "" || !pinned(params.Model) {
+		if !pinned(params.Model) {
 			e.Submit(info.ID, false, submission)
 			return
 		}

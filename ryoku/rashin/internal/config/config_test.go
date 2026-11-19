@@ -3,7 +3,9 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"ryoku-rashin/internal/protocol"
@@ -28,9 +30,11 @@ func rawSettings(t *testing.T, text string) map[string]json.RawMessage {
 	return raw
 }
 
-func TestMigrateV1CarriesEnabledHarnessAndApprovals(t *testing.T) {
+// Rashin 1's chatAgent named an external harness; only the switch and the
+// approvals carry over, and agents start on the router.
+func TestMigrateV1CarriesEnabledAndApprovals(t *testing.T) {
 	s := MigrateV1(rawSettings(t, `{"enabled":true,"optedOut":false,"chatAgent":"codex","approvals":"auto"}`))
-	if !s.Enabled || s.Agent.Harness != "codex" || s.Agent.Approvals != protocol.ApprovalsAuto {
+	if !s.Enabled || s.Agent.Approvals != protocol.ApprovalsAuto || s.Agent.Model != protocol.RouteAuto {
 		t.Fatalf("migration = %#v", s)
 	}
 }
@@ -85,37 +89,77 @@ func TestSaveMergedPreservesOnDiskEnabled(t *testing.T) {
 	}
 }
 
-func TestValidateNormalizesModelAndDropsInvalidInstances(t *testing.T) {
+func TestValidateFallsBackFromModelsTheGatewayCannotRoute(t *testing.T) {
 	settings := Defaults()
 	settings.Ask.Model = "nonsense"
-	settings.Agent.Instances = []protocol.HarnessInstance{
-		{ID: "", Command: []string{"agent"}},
-		{ID: "empty"},
-		{ID: "one", Command: []string{"agent"}},
-		{ID: "one", Command: []string{"other"}},
-	}
+	settings.Agent.Model = "haiku"
+	settings.Agent.Options = map[string]string{"": "high"}
 	Validate(&settings)
-	if settings.Ask.Model != protocol.RouteAuto {
-		t.Fatalf("model = %q", settings.Ask.Model)
+	if settings.Ask.Model != protocol.RouteAuto || settings.Agent.Model != protocol.RouteAuto {
+		t.Fatalf("models = %q, %q", settings.Ask.Model, settings.Agent.Model)
 	}
-	if len(settings.Agent.Instances) != 1 || settings.Agent.Instances[0].ID != "one" {
-		t.Fatalf("instances = %#v", settings.Agent.Instances)
+	if settings.Agent.Options != nil {
+		t.Fatalf("options = %#v", settings.Agent.Options)
 	}
 }
 
-func TestMergeRejectsInvalidModelsAndInstances(t *testing.T) {
+func TestMergeRejectsModelsTheGatewayCannotRoute(t *testing.T) {
 	current := Defaults()
 	patches := []string{
 		`{"ask":{"model":"nonsense"}}`,
-		`{"agent":{"instances":[{"id":"","command":["agent"]}]}}`,
-		`{"agent":{"instances":[{"id":"one","command":[]}]}}`,
-		`{"agent":{"instances":[{"id":"one","command":["a"]},{"id":"one","command":["b"]}]}}`,
+		`{"agent":{"model":"haiku"}}`,
+		`{"agent":{"options":{"effort":""}}}`,
 	}
 	for _, patch := range patches {
 		_, err := Merge(current, json.RawMessage(patch))
 		var protocolErr *protocol.Error
 		if !errors.As(err, &protocolErr) || protocolErr.Code != protocol.CodeBadRequest {
 			t.Fatalf("patch %s error = %#v", patch, err)
+		}
+	}
+	next, err := Merge(current, json.RawMessage(`{"agent":{"model":"rashin-models/lfm3-omni-2b","options":{"effort":"low"},"plan":true}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Agent.Model != "rashin-models/lfm3-omni-2b" || next.Agent.Options["effort"] != "low" || !next.Agent.Plan {
+		t.Fatalf("agent = %#v", next.Agent)
+	}
+}
+
+// rashin.json stays on version 2 when harnesses go: the keys they used vanish
+// on the next save, and a model only a harness understood is not kept.
+func TestHarnessSettingsDropOnTheNextSave(t *testing.T) {
+	isolateConfig(t)
+	old := `{"version":2,"enabled":true,
+		"ask":{"model":"auto:fast","approvals":"read-only","harness":"claude"},
+		"agent":{"harness":"omp","approvals":"ask","idleStopMinutes":10,"instances":[{"id":"two","command":["omp","acp"]}]},
+		"teams":{"defaults":{"harness":"codex","model":"gpt-5.6","approvals":"ask","notify":"all"}}}`
+	if err := writeAtomic(filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "ryoku", "rashin.json"), []byte(old)); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.Enabled || loaded.Ask.Model != protocol.RouteFast || loaded.Agent.Approvals != protocol.ApprovalsAsk {
+		t.Fatalf("loaded = %#v", loaded)
+	}
+	if loaded.Agent.Model != protocol.RouteAuto || loaded.Teams.Defaults.Model != "" {
+		t.Fatalf("models = %q, %q", loaded.Agent.Model, loaded.Teams.Defaults.Model)
+	}
+	if err := Save(loaded); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := readRaw()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw["version"]) != "2" {
+		t.Fatalf("version = %s", raw["version"])
+	}
+	for _, key := range []string{"ask", "agent", "teams"} {
+		if text := string(raw[key]); strings.Contains(text, "harness") || strings.Contains(text, "instances") {
+			t.Fatalf("%s still holds a harness key: %s", key, text)
 		}
 	}
 }

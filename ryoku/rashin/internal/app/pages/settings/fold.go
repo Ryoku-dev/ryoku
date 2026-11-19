@@ -8,7 +8,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 
 	"ryoku-rashin/internal/app/look"
 )
@@ -17,7 +16,7 @@ type foldRow struct {
 	click   kit.Click
 	hover   look.Hover
 	chevron look.Morph
-	unfold  look.Unfold
+	unfold  kit.Disclosure
 }
 
 type foldHead struct {
@@ -34,8 +33,9 @@ func (row *foldRow) layout(gtx layout.Context, th *look.Theme, open bool, head f
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.layoutHead(gtx, th, open, head) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return row.unfold.Layout(gtx, th, open, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Top: th.Sp.S3, Right: 13, Bottom: th.Sp.S4, Left: 13}.Layout(gtx, body)
+			row.unfold.Open = open
+			return row.unfold.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S3, Right: th.Sp.S3, Bottom: th.Sp.S4, Left: th.Sp.S3}.Layout(gtx, body)
 			})
 		}),
 	)
@@ -52,9 +52,9 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 		fill = 1
 	}
 	if fill > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane), fill))
+		kit.Fill(gtx, th.Theme, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Hover(), fill))
 	}
-	inset := gtx.Dp(13)
+	inset := gtx.Dp(th.Sp.S3)
 	content := gtx
 	content.Constraints = layout.Constraints{Max: image.Pt(size.X-2*inset, size.Y)}
 	look.MiddleLeft(content, inset, size.Y, func(gtx layout.Context) layout.Dimensions {
@@ -101,13 +101,14 @@ func (row *foldRow) layoutHead(gtx layout.Context, th *look.Theme, open bool, he
 // rows reach close to the slab's edges so the stone under the pointer reads as the row
 func foldSlab(gtx layout.Context, th *look.Theme, count int, row func(layout.Context, int) layout.Dimensions) layout.Dimensions {
 	width := gtx.Constraints.Max.X
-	pad := gtx.Dp(8)
+	pad := gtx.Dp(th.Sp.S2)
 	record := op.Record(gtx.Ops)
 	y := pad
 	for index := range count {
 		offset := op.Offset(image.Pt(pad, y)).Push(gtx.Ops)
 		child := gtx
-		child.Constraints = layout.Constraints{Min: image.Pt(width-2*pad, 0), Max: image.Pt(width-2*pad, gtx.Constraints.Max.Y)}
+		// the expanded manager may be taller than one viewport; the outer scroller clips it
+		child.Constraints = layout.Constraints{Min: image.Pt(width-2*pad, 0), Max: image.Pt(width-2*pad, 1<<20)}
 		y += row(child, index).Size.Y
 		offset.Pop()
 	}

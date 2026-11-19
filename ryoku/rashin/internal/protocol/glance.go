@@ -4,7 +4,8 @@ import "strings"
 
 const GlanceRead = "Transcribe every piece of text exactly. Output nothing else."
 
-// GlanceInstruction is shared by the provider and harness lanes.
+// GlanceInstruction is the instruction of every Theia turn, whatever model
+// answers it.
 func GlanceInstruction(p GlanceParams) string {
 	language := strings.TrimSpace(p.Language)
 	if language == "" {

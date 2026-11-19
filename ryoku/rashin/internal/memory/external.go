@@ -109,7 +109,7 @@ func (e *engines) learnModel(ctx context.Context, answered string) string {
 	e.mu.Lock()
 	choice := e.settings.Model
 	e.mu.Unlock()
-	model, _ := pickModel(ctx, choice, answered, e.deps.Models, e.deps.ProviderModels)
+	model, _ := hindsightModel(ctx, choice, answered, e.deps.Models, e.deps.ProviderModels)
 	return model.Model
 }
 

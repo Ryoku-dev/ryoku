@@ -26,11 +26,11 @@ Item {
     function routeText() {
         var r = root.store.askRoute;
         if (r === "auto")
-            return I18n.tr("Picks a free model for each question");
+            return I18n.tr("Picks a local model first for each question");
         if (r === "auto:fast")
-            return I18n.tr("Picks the fastest free model");
+            return I18n.tr("Picks the fastest available model, local first");
         if (r === "auto:smart")
-            return I18n.tr("Picks the strongest free model");
+            return I18n.tr("Picks the strongest available model, local first");
         return I18n.tr("Uses %1").arg(r);
     }
 
@@ -79,9 +79,6 @@ Item {
         case "sight-target":
             out.options = Sight.targetOptions(I18n.langs, text => I18n.tr(text));
             break;
-        case "sight-engine":
-            out.options = root.sightStore.engines;
-            break;
         case "sight-shortcut":
             out.detail = I18n.tr("Theia Look: %1 three times").arg(root.sightStore.tapLabel) + " · "
                 + I18n.tr("Highlight: hold %1").arg(root.sightStore.highlightLabel) + " · "
@@ -99,11 +96,10 @@ Item {
                 : I18n.tr("Rashin's feature settings are not loaded");
             break;
         case "status-ask":
-            out.detail = s.running ? I18n.tr("%1. %2 free providers ready").arg(root.routeText()).arg(s.providers) : root.routeText();
+            out.detail = s.running ? I18n.tr("%1. %2 providers ready").arg(root.routeText()).arg(s.providers) : root.routeText();
             break;
         case "status-agent":
-            var who = s.harness !== "" ? s.harness.charAt(0).toUpperCase() + s.harness.slice(1) : I18n.tr("The first coding agent it finds");
-            out.detail = s.running ? I18n.tr("%1. %2 coding agents installed").arg(who).arg(s.harnesses) : who;
+            out.detail = I18n.tr("New Agent sessions use %1").arg(s.agentModel);
             break;
         case "status-index":
             out.detail = s.running ? I18n.tr("%1 indexes of your system and projects").arg(s.indexes)
@@ -287,18 +283,6 @@ Item {
         target: root.sightStore
         property: "active"
         value: root.visible && root.loaded && root.store.enabled && !root.switching
-        when: root.sightStore !== null
-    }
-    Binding {
-        target: root.sightStore
-        property: "roster"
-        value: root.store ? root.store.installedHarnesses : []
-        when: root.sightStore !== null
-    }
-    Binding {
-        target: root.sightStore
-        property: "askHarness"
-        value: root.store ? root.store.askHarness : ""
         when: root.sightStore !== null
     }
 

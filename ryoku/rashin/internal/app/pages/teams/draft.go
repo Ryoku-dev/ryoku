@@ -1,7 +1,6 @@
 package teams
 
 import (
-	"image"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -41,9 +40,9 @@ type draft struct {
 	busy     bool
 	problem  string
 
-	scroll         look.Scroller
-	cancel, create kit.Plaque
-	starts         templateRows
+	scroll look.Scroller
+	header look.PaneHeader
+	starts templateRows
 
 	name    kit.TextField
 	purpose look.MultiLine
@@ -72,10 +71,10 @@ type draft struct {
 type draftMember struct {
 	form   memberForm
 	remove kit.IconPlaque
-	tip    look.Tip
-	// the engine folds under one line, since most members keep the teams default
+	// the model folds under one line, since most members keep the teams default
 	engine      kit.Disclosure
 	engineClick kit.Click
+	chevron     look.Morph
 }
 
 // a draft already filled from the asked template keeps what was typed into it
@@ -243,17 +242,8 @@ func (d *draft) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 	for _, member := range members {
 		ready = ready && protocol.ValidEngineModel(member.Model)
 	}
-	d.cancel.Kind, d.cancel.Small, d.cancel.Label = kit.PlaqueQuiet, true, i18n.T("Cancel")
-	d.create.Kind, d.create.Small, d.create.Label = kit.PlaqueGold, true, i18n.T("Create team")
-	d.create.Busy = d.busy
-	if d.cancel.Clicked(gtx) {
-		e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams})
-	}
-	if d.create.Clicked(gtx) && ready {
-		d.submit(e)
-	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.layoutHeader(gtx, th, ready) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.layoutHeader(gtx, e, ready) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			inset := look.ContentInset(e.Class)
 			return d.scroll.Layout(gtx, th, 1, func(gtx layout.Context, _ int) layout.Dimensions {
@@ -268,28 +258,25 @@ func (d *draft) layout(gtx layout.Context, e *env.Env, p *Page) layout.Dimension
 	)
 }
 
-// the draft's header carries its one consequential action, so it holds a gold plaque the pane header has no room for
-func (d *draft) layoutHeader(gtx layout.Context, th *look.Theme, ready bool) layout.Dimensions {
-	size := image.Pt(gtx.Constraints.Max.X, min(gtx.Dp(look.PaneHeaderHeight), gtx.Constraints.Max.Y))
-	row := gtx
-	row.Constraints = layout.Constraints{Max: image.Pt(max(0, size.X-gtx.Dp(21)-gtx.Dp(13)), size.Y)}
-	look.MiddleLeft(row, gtx.Dp(21), size.Y, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(1, kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("New team"))),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) }),
-			layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !ready {
-					gtx = gtx.Disabled()
-				}
-				return d.create.Layout(gtx, th.Theme)
-			}),
-		)
-	})
-	if d.scroll.Position.First > 0 || d.scroll.Position.Offset > 0 {
-		line := max(1, gtx.Dp(1))
-		look.FillRect(gtx, image.Rect(0, size.Y-line, size.X, size.Y), th.R.Vein)
+func (d *draft) layoutHeader(gtx layout.Context, e *env.Env, ready bool) layout.Dimensions {
+	content := look.PaneHeaderContent{
+		Title:    i18n.T("New team"),
+		Scrolled: d.scroll.Position.First > 0 || d.scroll.Position.Offset > 0,
+		Actions: []look.HeaderAction{
+			{Label: i18n.T("Cancel")},
+			{Label: i18n.T("Create team"), Gold: true, Disabled: !ready, Busy: d.busy},
+		},
 	}
-	return layout.Dimensions{Size: size}
+	dimensions := d.header.Layout(gtx, e.Theme, e.Overlays, content)
+	if index, ok := d.header.ActionClicked(); ok {
+		switch index {
+		case 0:
+			e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabTeams})
+		case 1:
+			if ready {
+				d.submit(e)
+			}
+		}
+	}
+	return dimensions
 }

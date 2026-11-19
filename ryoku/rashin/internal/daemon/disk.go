@@ -55,7 +55,7 @@ func diskWalk(ctx context.Context, root, kind string, accept func(string, fs.Fil
 				return err
 			}
 			parts := strings.Split(rel, string(filepath.Separator))
-			if len(parts) < 4 || parts[2] != ".cache" {
+			if len(parts) < 3 || parts[1] != "cache" {
 				return nil
 			}
 		}
@@ -123,7 +123,9 @@ func (d *Daemon) measureDisk(ctx context.Context, refresh bool) (protocol.DiskUs
 		}
 	}
 	usage.Items = append(usage.Items, diskFolders(ctx, "teams", i18n.T("Team folders"), teamFolders), diskFolders(ctx, "dreams", i18n.T("Dream folders"), dreamFolders))
-	add("harness", i18n.T("Harness homes"), paths.HarnessHomes(), nil)
+	add("models", i18n.T("Models on this computer"), paths.ModelsDir(), nil)
+	add("runtime", i18n.T("llama.cpp runtime"), paths.LlamaRuntimeDir(), nil)
+	add("toolhomes", i18n.T("Team task homes"), paths.ToolHomes(), nil)
 	ended := make(map[string]bool)
 	for _, info := range d.manager.List("") {
 		live, ok := d.manager.Info(info.ID)
@@ -146,20 +148,20 @@ func (d *Daemon) measureDisk(ctx context.Context, refresh bool) (protocol.DiskUs
 		return len(parts) == 2 && ended[parts[0]] && (parts[1] == "events.jsonl" || parts[1] == "stderr.log")
 	})
 	usage.Items = append(usage.Items, d.checkpointUsage(ctx))
-	add("cache", i18n.T("Harness caches"), paths.HarnessHomes(), func(path string, info fs.FileInfo) bool {
-		rel, err := filepath.Rel(paths.HarnessHomes(), path)
+	add("cache", i18n.T("Team tool caches"), paths.ToolHomes(), func(path string, info fs.FileInfo) bool {
+		rel, err := filepath.Rel(paths.ToolHomes(), path)
 		if err != nil {
 			return false
 		}
 		parts := strings.Split(rel, string(filepath.Separator))
-		if len(parts) < 4 || parts[2] != ".cache" {
+		if len(parts) < 3 || parts[1] != "cache" {
 			return false
 		}
 		for _, session := range d.manager.List(protocol.KindAgent) {
 			if live, ok := d.manager.Info(session.ID); ok {
 				session = live
 			}
-			if session.Alive || session.State == protocol.StateWorking || session.State == protocol.StateWaiting {
+			if session.Team == parts[0] && (session.Alive || session.State == protocol.StateWorking || session.State == protocol.StateWaiting) {
 				return false
 			}
 		}
@@ -183,7 +185,10 @@ func (d *Daemon) measureDisk(ctx context.Context, refresh bool) (protocol.DiskUs
 			d.diskPlans[item.Plan] = item.Files
 		}
 	}
-	usage.Items[2].Bytes = max(0, usage.Items[2].Bytes-usage.Items[5].Bytes)
+	// the task homes hold the caches; each byte is counted once, under caches
+	if homes, caches := diskItem(usage.Items, "toolhomes"), diskItem(usage.Items, "cache"); homes != nil && caches != nil {
+		homes.Bytes = max(0, homes.Bytes-caches.Bytes)
+	}
 	d.diskCached, d.diskAt = usage, time.Now()
 	return usage, nil
 }
@@ -375,7 +380,7 @@ func diskCommand(cmd *exec.Cmd) ([]byte, error) {
 }
 
 func diskParent(path string) (*os.Root, error) {
-	for _, base := range []string{paths.SessionsDir(), paths.HarnessHomes(), filepath.Join(paths.TeamsDir(), "tasks")} {
+	for _, base := range []string{paths.SessionsDir(), paths.ToolHomes(), filepath.Join(paths.TeamsDir(), "tasks")} {
 		rel, err := filepath.Rel(base, path)
 		if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue
@@ -416,4 +421,14 @@ func diskFolders(ctx context.Context, id, name string, folders []string) protoco
 		previous = root
 	}
 	return item
+}
+
+// diskItem is the item of items with id, nil when there is none.
+func diskItem(items []protocol.DiskItem, id string) *protocol.DiskItem {
+	for index := range items {
+		if items[index].ID == id {
+			return &items[index]
+		}
+	}
+	return nil
 }

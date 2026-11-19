@@ -34,7 +34,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 			if info, ok := snapshot.Sessions[approval.Session]; ok {
 				row.Facts = i18n.Tf("%s from %s", row.Facts, info.Title)
 			}
-		// a notice about a harness belongs to no team
+		// notices outside a team still belong in the inbox
 		case approval != nil && approval.Team == "":
 			row.Title, row.Facts = approval.Title, teamsui.ApprovalWord(approval.Kind)
 		case approval != nil:

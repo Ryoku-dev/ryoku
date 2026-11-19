@@ -8,8 +8,6 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/widget"
 
@@ -26,7 +24,7 @@ const (
 	numberColumn = 36
 	signColumn   = 20
 	textInset    = 2*numberColumn + signColumn
-	fileRow      = 36
+	fileRow      = 44
 )
 
 type lineKey struct {
@@ -39,8 +37,7 @@ type fileHeader struct {
 	row                           kit.Click
 	hover                         look.Hover
 	press                         anim.Tween
-	open, stage, unstage, discard look.IconAction
-	tips                          [3]look.Tip
+	open, stage, unstage, discard kit.IconPlaque
 }
 
 type lineControl struct {
@@ -196,13 +193,9 @@ func (v *View) layoutFile(gtx layout.Context, th *look.Theme, file protocol.File
 	})
 	call := record.Stop()
 	bounds := image.Rectangle{Max: size}
-	cut := gtx.Dp(th.Cut.Small)
-	if hover > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
-	}
-	if press := look.Transition(gtx, &header.press, header.row.Pressed(), th.Motion.Press, th.Motion.Press); press > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
-	}
+	cut := gtx.Dp(th.Cut.Mid)
+	kit.SlabSurface(gtx, th.Theme, bounds, cut, th.Planes().Card)
+	look.RowWash(gtx, th, bounds, hover, look.Transition(gtx, &header.press, header.row.Pressed(), th.Motion.Press, th.Motion.Press), false)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: size}
 }
@@ -254,7 +247,7 @@ func (v *View) drawFileActions(
 	size := gtx.Constraints.Max
 	box := gtx.Dp(28)
 	type fileAction struct {
-		control *look.IconAction
+		control *kit.IconPlaque
 		icon    *widget.Icon
 		tip     string
 		kind    ActionKind
@@ -270,15 +263,14 @@ func (v *View) drawFileActions(
 	}
 	x := right - len(actions)*box
 	for index, action := range actions {
+		action.control.Kind, action.control.Small = kit.PlaqueQuiet, true
 		action.control.Icon, action.control.Description = action.icon, action.tip
 		if action.control.Clicked(gtx) {
 			v.pending = append(v.pending, Action{Kind: action.kind, Path: file.Path})
 		}
 		at := image.Pt(x+index*box, (size.Y-box)/2)
 		look.Place(gtx, image.Rectangle{Min: at, Max: at.Add(image.Pt(box, box))}, func(gtx layout.Context) layout.Dimensions {
-			return header.tips[index].Layout(gtx, th, options.Overlays, action.tip, func(gtx layout.Context) layout.Dimensions {
-				return action.control.Layout(gtx, th, th.R.Fg2)
-			})
+			return action.control.Layout(gtx, th.Theme)
 		})
 	}
 	return x
@@ -328,7 +320,7 @@ func (v *View) layoutLine(
 	bounds := image.Rect(0, 0, width, height)
 	sign, tint := lineMark(th, line.Kind)
 	if tint.A > 0 {
-		paint.FillShape(gtx.Ops, tint, clip.Rect(bounds).Op())
+		kit.Fill(gtx, th.Theme, bounds, 0, tint)
 	}
 	call.Add(gtx.Ops)
 	v.drawGutter(gtx, th, control, line, sign, options.Commentable, height)
@@ -372,7 +364,7 @@ func (v *View) drawGutter(
 	ink := th.R.Fg3
 	switch {
 	case hovered:
-		sign, ink = "+", th.R.GoldInk
+		sign, ink = "+", th.R.Fg
 	case line.Kind == protocol.LineAdd:
 		ink = th.R.Jade
 	case line.Kind == protocol.LineDel:
@@ -455,10 +447,10 @@ func (v *View) layoutComment(gtx layout.Context, th *look.Theme, comment protoco
 		v.pending = append(v.pending, target)
 	}
 	control.resolve.Kind, control.resolve.Small, control.resolve.Label = kit.PlaqueTonal, true, i18n.T("Resolve")
-	plane, ink := th.R.MineralField(palette.Attention), th.R.Fg
+	plane, ink := th.Planes().Card, th.R.Fg
 	if comment.Resolved {
 		control.resolve.Label = i18n.T("Reopen")
-		plane, ink = th.R.Stone2, th.R.Fg3
+		ink = th.R.Fg3
 	}
 	control.remove.Kind, control.remove.Small, control.remove.Label = kit.PlaqueQuiet, true, i18n.T("Delete")
 	return layout.Inset{Top: 4, Right: 8, Bottom: 8, Left: textInset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -473,7 +465,12 @@ func (v *View) layoutComment(gtx layout.Context, th *look.Theme, comment protoco
 			)
 		})
 		call := record.Stop()
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), plane)
+		bounds := image.Rectangle{Max: dimensions.Size}
+		kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), plane)
+		kit.SlabOutline(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small))
+		if !comment.Resolved {
+			kit.ToneMark(gtx, th.Theme, bounds, palette.Attention)
+		}
 		call.Add(gtx.Ops)
 		return dimensions
 	})
