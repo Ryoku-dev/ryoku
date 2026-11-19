@@ -93,6 +93,17 @@ test("alignment is hidden in a horizontal layout", () => {
         JSON.stringify(["left", "right"]));
 });
 
+test("the names row follows the avatar layout", () => {
+    const row = vertical => S.adapt(S.rows, store({ voiceVertical: vertical }))
+        .find(r => r.id === "voice-names");
+    assert.equal(row(false).label, "Names under pictures");
+    assert.match(row(false).detail, /under their picture/);
+    assert.equal(row(true).label, "Names beside pictures");
+    assert.match(row(true).detail, /beside their picture/);
+    // adapt must not rewrite the schema row itself
+    assert.equal(S.row("voice-names").label, "Names under pictures");
+});
+
 test("adaptive rows carry no baked value", () => {
     // Ghost Button: a value frozen into the row goes stale when page.layout
     // is kept because only the value changed.

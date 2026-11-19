@@ -175,12 +175,12 @@ colours look is the desktop's appearance, not a game bar setting.
 | `mass` | `1` | Settle weight. |
 | `voiceAvatars` | `8` | Participant avatars shown before the list stops. A vertical stack shows fewer when the screen cannot fit them all. |
 | `voiceVertical` | `false` | Participant layout: rows by default, or one column when on. |
-| `voiceAlign` | `"center"` | Where the avatars sit in the widget: `center`, `left` or `right`. |
+| `voiceAlign` | `"center"` | Where a vertical stack sits: `left` or `right`. A stored `center` behaves as `left`; a horizontal row is always centered. |
 | `voiceNameGap` | `1` | Pixels between an avatar and its name. |
 | `voiceNameChars` | `12` | Characters of a name shown before an ellipsis. |
 | `voiceDim` | `true` | Fade participants who are not speaking. |
 | `voiceDimOpacity` | `0.5` | How far a quiet participant fades. |
-| `voiceNames` | `true` | Names under avatars in the pinned panel. |
+| `voiceNames` | `true` | Names beside the avatars in a vertical stack, under them in a horizontal row, in the pinned panel. |
 | `voiceAvatarSize` | `52` | Avatar size in the pinned panel, in pixels. |
 | `voiceBgOpacity` | `0.72` | Background opacity of the pinned panel. |
 | `voiceControls` | `true` | Show mute and deafen state in the pinned panel. |

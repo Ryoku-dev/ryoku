@@ -74,7 +74,7 @@ GameBarCard {
     readonly property real miniRightX: card.width - card.miniPad
         - card.miniAvatarLogical * card.s - card.miniPlateOffset
     readonly property int miniColumns: VoiceLayout.columns(card.width / card.s,
-        Math.min(card.avatarLimit, card.visibleAvatars, card.voice.participantCount),
+        Math.min(card.avatarLimit, card.miniVisibleAvatars, card.voice.participantCount),
         card.miniAvatarLogical, card.miniNames, card.vertical, card.namePosition, card.nameGap, card.nameChars)
     readonly property string miniSubtitle: {
         if (card.voice.inVoice) {

@@ -194,7 +194,18 @@ function adapt(rows, value) {
             options = leftRight;
             mirrorSide = true;
         }
-        return Object.assign({}, flat, { options: options, mirrorSide: mirrorSide });
+        // The name sits below a horizontal row and beside a vertical stack, so
+        // the row's wording follows the layout the user can see on screen.
+        var label = flat.label;
+        var detail = flat.detail;
+        if (flat.id === "voice-names") {
+            var vertical = value(g("voiceVertical", false)) === true;
+            label = vertical ? "Names beside pictures" : "Names under pictures";
+            detail = vertical
+                ? "Show each person's name beside their picture in the pinned overlay"
+                : "Show each person's name under their picture in the pinned overlay";
+        }
+        return Object.assign({}, flat, { options: options, mirrorSide: mirrorSide, label: label, detail: detail });
     });
 }
 
