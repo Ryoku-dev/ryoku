@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Opening the Ryogami wallpaper picker opts out of MangoHud (#903).**
+  MangoHud's Vulkan layer hooks into Qt Multimedia's FFmpeg device initialization
+  during card video previews and crashes; the picker now starts with `DISABLE_MANGOHUD=1`
+  (`shell/ryogami/daemon/process.go`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"
