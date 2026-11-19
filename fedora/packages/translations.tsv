@@ -33,13 +33,13 @@ dbus	dbus-libs	optional
 ddcutil	ddcutil	desktop	
 desktop-file-utils	desktop-file-utils	desktop	
 dkms	dkms	desktop	
-docker	moby-engine	desktop	
 dolphin	dolphin	optional	
 dosfstools	dosfstools	system	
 dualsensectl	dualsensectl	optional	Ryoku-owned RPM.
 easyeffects	easyeffects	desktop	Python equalizer backend.
 edk2-ovmf	edk2-ovmf	desktop	
 efibootmgr	efibootmgr	system	
+espeak-ng	espeak-ng	optional	
 eza	eza	desktop	
 fastfetch	fastfetch	desktop	
 fd	fd-find	desktop	
@@ -56,6 +56,8 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc libstdc++	desktop	
+ggml-cuda	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks CUDA; Rashin downloads its own llama-server.
+ggml-vulkan	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks Vulkan; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	gh	desktop	
 glibc	glibc	desktop	
@@ -131,6 +133,7 @@ limine-snapper-sync	-	system	Fedora snapshots are not supported in this release.
 linux	kernel	system	
 linux-firmware	linux-firmware	system	
 linux-headers	kernel-devel kernel-headers	desktop	
+llama-cpp	-	optional	Fedora's build predates LFM3 (b11960) and has no Vulkan; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	Ryoku-owned RPM.
 looking-glass	-	optional	No Fedora package provides this Arch package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	Python equalizer and compressor plugins.
@@ -211,7 +214,6 @@ ryoku-desktop	ryoku-desktop	desktop	Ryoku-owned RPM.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a Fedora compositor RPM.
 ryoku-desktop-hyprland	ryoku-desktop-hyprland	hyprland	Ryoku-owned RPM.
 ryoku-desktop-niri	ryoku-desktop-niri	desktop	Ryoku-owned RPM.
-ryoku-desktop-wayfire	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 ryoku-dictation	ryoku-dictation	desktop	Ryoku-owned RPM.
 ryoku-hub	ryoku-hub	desktop	Ryoku-owned RPM.
 ryoku-hypr-plugins	ryoku-hypr-plugins	hyprland	Ryoku-owned RPM.
@@ -243,7 +245,25 @@ sudo	sudo	system
 swtpm	swtpm	optional	
 syntax-highlighting	kf6-syntax-highlighting	desktop	
 tesseract	tesseract	desktop	
+tesseract-data-ara	tesseract-langpack-ara	optional	
+tesseract-data-chi_sim	tesseract-langpack-chi_sim	optional	
+tesseract-data-chi_tra	tesseract-langpack-chi_tra	optional	
+tesseract-data-deu	tesseract-langpack-deu	optional	
 tesseract-data-eng	tesseract-langpack-eng	desktop	
+tesseract-data-fra	tesseract-langpack-fra	optional	
+tesseract-data-hin	tesseract-langpack-hin	optional	
+tesseract-data-ita	tesseract-langpack-ita	optional	
+tesseract-data-jpn	tesseract-langpack-jpn	optional	
+tesseract-data-kor	tesseract-langpack-kor	optional	
+tesseract-data-nld	tesseract-langpack-nld	optional	
+tesseract-data-pol	tesseract-langpack-pol	optional	
+tesseract-data-por	tesseract-langpack-por	optional	
+tesseract-data-rus	tesseract-langpack-rus	optional	
+tesseract-data-spa	tesseract-langpack-spa	optional	
+tesseract-data-tha	tesseract-langpack-tha	optional	
+tesseract-data-tur	tesseract-langpack-tur	optional	
+tesseract-data-ukr	tesseract-langpack-ukr	optional	
+tesseract-data-vie	tesseract-langpack-vie	optional	
 thunar	thunar	optional	
 tigervnc	tigervnc	optional	
 translate-shell	translate-shell	desktop	
@@ -268,7 +288,6 @@ vulkan-intel	mesa-vulkan-drivers	hardware:intel
 vulkan-radeon	mesa-vulkan-drivers	hardware:amd	
 vulkan-swrast	mesa-vulkan-drivers	hardware:vm	
 waifu2x-ncnn-vulkan	waifu2x-ncnn-vulkan	desktop	Ryoku-owned RPM.
-wayfire	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku requires 0.11.
 wayland	libwayland-client libwayland-cursor libwayland-egl libwayland-server	desktop	
 webkit2gtk-4.1	webkit2gtk4.1	desktop	
 weston	weston	desktop	
@@ -276,8 +295,6 @@ wireless-regdb	wireless-regdb	desktop
 wireplumber	wireplumber	desktop	
 wl-clip-persist	wl-clip-persist	desktop	Ryoku-owned RPM.
 wl-clipboard	wl-clipboard	desktop	
-wlopm	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
-wlr-randr	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 wlsunset	wlsunset	desktop	
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
@@ -286,7 +303,6 @@ xdg-desktop-portal	xdg-desktop-portal	hyprland
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	xdg-desktop-portal-hyprland	hyprland	Provided by a restricted COPR.
-xdg-desktop-portal-wlr	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 xdg-user-dirs	xdg-user-dirs	desktop	
 xdg-utils	xdg-utils	desktop	
 xorg-xcursorgen	xcursorgen	desktop	

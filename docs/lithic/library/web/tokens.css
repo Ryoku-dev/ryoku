@@ -112,6 +112,7 @@
   --lithic-size-menu-item: 40px;
   --lithic-size-menu-padding-vertical: 6px;
   --lithic-size-menu-shortcut-gap: 13px;
+  --lithic-size-menu-visible-items-count: 10.5;
   --lithic-size-menu-width-max: 360px;
   --lithic-size-menu-width-min: 220px;
   --lithic-size-new-plaque-height: 52px;
@@ -190,13 +191,16 @@
   --lithic-size-section-index-width: 200px;
   --lithic-size-segment-height: 36px;
   --lithic-size-segment-inset: 4px;
+  --lithic-size-settings-choice-min: 240px;
   --lithic-size-settings-control-max: 320px;
   --lithic-size-settings-detail-gap: 2px;
   --lithic-size-settings-expanded-max: 994px;
+  --lithic-size-settings-field-max: 420px;
   --lithic-size-settings-inset-side: 36px;
   --lithic-size-settings-inset-vertical: 34px;
   --lithic-size-settings-medium-max: 760px;
   --lithic-size-settings-row-gap: 13px;
+  --lithic-size-settings-text-measure-max: 720px;
   --lithic-size-skeleton-bar-gap: 8px;
   --lithic-size-skeleton-bar-height: 8px;
   --lithic-size-skeleton-bar-long-fraction: 0.6;

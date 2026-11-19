@@ -42,6 +42,10 @@ public:
     float m_invertedRadius = 0;
     float m_shadowStrength = 0;
     float m_shadowSize = 0;
+    // 1 = read per-corner radii as 45-degree chamfer cuts (Lithic), 0 = round.
+    // float to match the shader's float declaration (an int here would read as
+    // a denormal ~0 in the std140 float slot).
+    float m_cutCorners = 0;
     float m_invertedOuter[4] = {};
     float m_invertedInner[4] = {};
     BlobRectData m_rects[16] = {};

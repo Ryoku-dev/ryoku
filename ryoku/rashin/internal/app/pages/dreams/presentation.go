@@ -9,6 +9,7 @@ import (
 	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/teamsui"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
@@ -16,18 +17,22 @@ import (
 
 // the manager's hand-over, set as the transcript sets an answer, and the CEO's answer to it
 type presentationView struct {
-	body, tests   chat.Prose
+	prose, tests  chat.Prose
 	accept, notes kit.Plaque
 	files         []kit.Click
+	sources       []kit.Click
+	artifacts     chat.View
 }
 
-func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, dream protocol.Team) layout.Widget {
+// the presentation's part of the page, nil while the manager has presented nothing
+func (v *presentationView) body(gtx layout.Context, e *env.Env, p *Page, dream protocol.Team) layout.Widget {
 	th := e.Theme
 	presentation := dream.Dream.Presentation
 	if presentation == nil {
 		return nil
 	}
 	_, open := awaiting(dream)
+	// while it waits, Accept is the page's one gold
 	v.accept.Kind, v.accept.Label = kit.PlaqueGold, i18n.T("Accept")
 	v.notes.Kind, v.notes.Label = kit.PlaqueTonal, i18n.T("Send notes")
 	if v.accept.Clicked(gtx) && open && !v.accept.Busy {
@@ -45,6 +50,16 @@ func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, drea
 			e.OpenPath(file)
 		}
 	}
+	if e.Feature("research") {
+		for len(v.sources) < len(presentation.Sources) {
+			v.sources = append(v.sources, kit.Click{})
+		}
+		for index, source := range presentation.Sources {
+			if v.sources[index].Clicked(gtx) {
+				e.Open(source)
+			}
+		}
+	}
 	presented := i18n.Tf("Presented %s", look.Ago(gtx.Now, presentation.At))
 	if dream.Dream.Rounds > 1 {
 		presented = i18n.Tf("Presented %s, round %d", look.Ago(gtx.Now, presentation.At), dream.Dream.Rounds)
@@ -55,8 +70,8 @@ func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, drea
 		look.Paragraph(th, th.T.Caption, th.R.Fg3, presented),
 		gap(th.Sp.S3),
 		func(gtx layout.Context) layout.Dimensions {
-			dimensions := v.body.Layout(gtx, th, e.Overlays, presentation.Body)
-			env.HandleChatActions(gtx, e, "", v.body.Actions())
+			dimensions := v.prose.Layout(gtx, th, e.Overlays, presentation.Body)
+			env.HandleChatActions(gtx, e, "", v.prose.Actions())
 			return dimensions
 		},
 	}
@@ -73,19 +88,40 @@ func (v *presentationView) section(gtx layout.Context, e *env.Env, p *Page, drea
 		)
 	}
 	if len(presentation.Files) > 0 {
+		session := ""
+		for _, task := range e.Snapshot().TeamTasks {
+			if task.ID == dream.Dream.Task {
+				session = task.Session
+				break
+			}
+		}
+		v.artifacts.SetFeatures(e.Feature)
+		v.artifacts.SetArtifactActions(e.Call, e.Open, e.Notify)
 		widgets = append(widgets, gap(th.Sp.S4), kit.Text(th.Theme, th.T.Label, th.R.Fg, i18n.T("Files")), gap(th.Sp.S2))
 		for index, file := range presentation.Files {
 			click := &v.files[index]
 			widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
-				return look.Link(gtx, th, click, paths.Short(file))
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.Link(gtx, th, click, paths.Short(file)) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return v.artifacts.LayoutArtifactFile(gtx, th, session, file)
+					}),
+				)
+			})
+		}
+	}
+	if e.Feature("research") && len(presentation.Sources) > 0 {
+		widgets = append(widgets, gap(th.Sp.S4), kit.Text(th.Theme, th.T.Label, th.R.Fg, i18n.T("Sources")), gap(th.Sp.S2))
+		for index, source := range presentation.Sources {
+			click := &v.sources[index]
+			widgets = append(widgets, func(gtx layout.Context) layout.Dimensions {
+				return look.Link(gtx, th, click, source)
 			})
 		}
 	}
 	widgets = append(widgets, gap(th.Sp.S4), builtBy(th, e.Snapshot(), dream))
-	widgets = append(widgets, gap(th.Sp.S4), v.verdict(th, dream, open), gap(th.Sp.S5))
-	return section(th, i18n.T("Presentation"), func(gtx layout.Context) layout.Dimensions {
-		return stack(gtx, widgets...)
-	})
+	widgets = append(widgets, gap(th.Sp.S4), v.verdict(th, dream, open))
+	return func(gtx layout.Context) layout.Dimensions { return stack(gtx, widgets...) }
 }
 
 // who did the work this round and what each really ran on, from the daemon's own records whatever the presentation says
@@ -102,7 +138,7 @@ func builtBy(th *look.Theme, snapshot state.Snapshot, dream protocol.Team) layou
 	return func(gtx layout.Context) layout.Dimensions { return stack(gtx, widgets...) }
 }
 
-// the name and the role, then one line per engine: the harness by name and the model by the id it was given
+// the name and the role, then one line per model: its name and where it ran, and its own id when it has one
 func builderRow(th *look.Theme, snapshot state.Snapshot, each builder) layout.Widget {
 	role := each.member.Title
 	if role == "" && each.member.Lead {
@@ -121,20 +157,18 @@ func builderRow(th *look.Theme, snapshot state.Snapshot, each builder) layout.Wi
 			)
 		}),
 	}
-	for _, engine := range each.engines {
-		harness := engine.harness
-		if info, ok := env.HarnessByID(snapshot.Harnesses, engine.harness); ok {
-			harness = info.Name
-		}
-		model := engine.model
-		if model == "" {
-			model = i18n.T("its default model")
+	for _, model := range each.models {
+		words := kit.Text(th.Theme, th.T.Detail, th.R.Fg2, teamsui.ModelEngine(snapshot, model, nil).Place())
+		// a route such as Auto names no model of its own, so it has no id worth showing
+		if protocol.IsRoute(model) {
+			children = append(children, layout.Rigid(words))
+			continue
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
-				layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, harness)),
+				layout.Rigid(words),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-				layout.Flexed(1, look.Paragraph(th, th.T.Mono, th.R.Fg2, model)),
+				layout.Flexed(1, look.Paragraph(th, th.T.MonoSm, th.R.Fg3, model)),
 			)
 		}))
 	}

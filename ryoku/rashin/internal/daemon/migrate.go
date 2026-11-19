@@ -22,7 +22,20 @@ func (d *Daemon) runMigrations(ctx context.Context) error {
 	if err := d.migrateProwl(ctx); err != nil {
 		return err
 	}
-	return d.migrateAskHistory()
+	if err := d.migrateAskHistory(); err != nil {
+		return err
+	}
+	if !migrationPending(nativeEngine) {
+		return nil
+	}
+	teams, err := MigrateNativeEngine()
+	if err != nil {
+		return err
+	}
+	if len(teams) > 0 {
+		d.warn("native engine: deleted the external agents' sign-ins of %d teams", len(teams))
+	}
+	return markMigrated(nativeEngine)
 }
 
 // The session scrub runs in two steps. scrubPatterns marks the pass that

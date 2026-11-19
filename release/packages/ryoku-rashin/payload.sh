@@ -55,6 +55,8 @@ install)
 	# the vendored Hindsight client checks values with validator.v2, under Apache-2.0
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/gopkg.in/validator.v2/LICENSE" \
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.validator"
+	install -Dm644 "$RYOKU_SRC/ryoku/rashin/vendor/github.com/dlclark/regexp2/LICENSE" \
+		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.regexp2"
 	# the memory learner, card and tools adapt Codex, mem0, Letta and Letta Code, under Apache-2.0
 	install -Dm644 "$RYOKU_SRC/ryoku/rashin/LICENSE.apache-2.0" \
 		"$destdir/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0"

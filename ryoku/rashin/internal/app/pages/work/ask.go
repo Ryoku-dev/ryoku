@@ -25,7 +25,7 @@ type askDialog struct {
 	// the picked team and member by id, "" for the lead
 	teamID, memberID string
 	start, cancel    kit.Plaque
-	// an engine for this task alone waits under More, set again for each member it is for
+	// a model for this task alone waits under More, set again for each member it is for
 	more      kit.Disclosure
 	moreClick kit.Click
 	engine    teamsui.EngineForm
@@ -53,7 +53,7 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 		d.teamID, d.memberID = team.ID, ""
 	}
 	d.keep(team)
-	_, model, options := d.engine.Value()
+	model, options := d.engine.Value()
 	brief := strings.TrimSpace(d.brief.Text())
 	ready := picked && brief != "" && protocol.ValidEngineModel(model)
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
@@ -64,7 +64,7 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 	if (d.start.Clicked(gtx) || d.brief.Submitted(gtx)) && ready {
 		params := protocol.TeamTaskCreateParams{Team: team.ID, Member: d.memberID, Title: protocol.BriefTitle(brief), Brief: brief}
 		if model != "" || len(options) > 0 {
-			_, params.Model, params.Options = d.engine.Effective(snapshot)
+			params.Model, params.Options = d.engine.Effective(snapshot)
 		}
 		d.create(e, params)
 		d.dialog.Dismiss(gtx)
@@ -84,7 +84,7 @@ func (d *askDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 }
 
-// the engine form changes the engine of the member the task goes to: the lead unless one is picked
+// the model form follows the member the task goes to: the lead unless one is picked
 func (d *askDialog) keep(team protocol.Team) {
 	var chosen *protocol.Member
 	for index := range team.Members {
@@ -93,11 +93,11 @@ func (d *askDialog) keep(team protocol.Team) {
 			chosen = member
 		}
 	}
-	d.engine.Keep, d.engine.Team = chosen, team.ID
+	d.engine.Keep = chosen
 	key := team.ID + "\x00" + d.memberID
 	if key != d.engineFor {
 		d.engineFor = key
-		d.engine.Set("", "", nil)
+		d.engine.Set("", nil)
 	}
 }
 
@@ -173,7 +173,7 @@ func (d *askDialog) body(gtx layout.Context, e *env.Env, teams []protocol.Team, 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// most tasks run on their member's engine, so another one for this task waits under More
+// most tasks run on their member's model, so another one for this task waits under More
 func (d *askDialog) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
 	th := e.Theme
 	if d.moreClick.Clicked(gtx) {
@@ -186,10 +186,10 @@ func (d *askDialog) layoutMore(gtx layout.Context, e *env.Env) layout.Widget {
 	content := func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, i18n.T("Engine for this task"))),
-			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.Tf("Only this task runs on it; %s keeps its own.", d.engine.Keep.Name))),
+			layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, i18n.T("Model for this task"))),
+			layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, i18n.Tf("Only this task uses it; %s keeps its own model.", d.engine.Keep.Name))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.engine.Layout(gtx, e, "") }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.engine.Layout(gtx, e) }),
 		)
 	}
 	return func(gtx layout.Context) layout.Dimensions {

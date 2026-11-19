@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 // stubProvider installs a fake ryoku-wm-<name> on PATH that prints out on every
@@ -113,12 +116,16 @@ func TestKeybindsJSONShape(t *testing.T) {
 			Name  string                       `json:"name"`
 			Binds []map[string]json.RawMessage `json:"binds"`
 		} `json:"categories"`
+		GestureKeys []wm.GestureKey `json:"gestureKeys"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
 	if len(got.Categories) != 1 || len(got.Categories[0].Binds) != 1 {
 		t.Fatalf("unexpected shape: %s", raw)
+	}
+	if !reflect.DeepEqual(got.GestureKeys, wm.GestureKeys) {
+		t.Errorf("gesture key catalogue missing from JSON: %s", raw)
 	}
 	b := got.Categories[0].Binds[0]
 	for _, field := range []string{"keys", "combo", "desc", "rebindable", "id", "kind", "locked", "default", "chord", "label", "category"} {
@@ -141,5 +148,57 @@ func TestKeybindsEmptyOnProviderError(t *testing.T) {
 	}
 	if len(l.Categories) != 0 {
 		t.Errorf("got %d categories on provider error, want 0", len(l.Categories))
+	}
+}
+
+func TestSightEffectiveGestureKeys(t *testing.T) {
+	stubProvider(t, "stub", `[{"id":"shell.sight","category":"Shell","label":"Theia","keys":["Right Alt"],"default":"Alt_R","chord":"Alt_R","kind":"daemon","taps":3,"rebindable":true},{"id":"shell.sightHighlight","category":"Shell","label":"Theia on highlighted text","keys":["Left Alt"],"default":"Alt_L","chord":"Alt_L","kind":"daemon","whileHighlighting":true,"rebindable":true},{"id":"shell.sightInPlace","category":"Shell","label":"Theia in place","keys":["Right Ctrl"],"default":"Control_R","chord":"Control_R","kind":"daemon","taps":3,"rebindable":true}]`)
+	config := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	if err := os.MkdirAll(filepath.Join(config, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, settings, tap, highlight, inPlace string
+	}{
+		{"default", `{}`, "Alt_R", "Alt_L", "Control_R"},
+		{"chosen", `{"sight":{"tapKey":"Control_R","highlightKey":"Shift_L","inplace":{"key":"Shift_R"}}}`, "Control_R", "Shift_L", "Shift_R"},
+		{"in place only", `{"sight":{"inplace":{"key":"Control_L"}}}`, "Alt_R", "Alt_L", "Control_L"},
+		{"unknown", `{"sight":{"tapKey":"Super_L","highlightKey":"Q","inplace":{"key":"Super_L"}}}`, "Alt_R", "Alt_L", "Control_R"},
+		{"invalid", `{`, "Alt_R", "Alt_L", "Control_R"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(config, "ryoku", "shell.json"), []byte(tc.settings), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			l := keybinds()
+			if len(l.Categories) != 1 || len(l.Categories[0].Binds) != 3 {
+				t.Fatalf("missing Sight rows: %+v", l)
+			}
+			if len(l.GestureKeys) != len(wm.GestureKeys) {
+				t.Fatalf("gesture keys missing: %+v", l.GestureKeys)
+			}
+			for i, want := range []string{tc.tap, tc.highlight, tc.inPlace} {
+				row := l.Categories[0].Binds[i]
+				def := []string{"Alt_R", "Alt_L", "Control_R"}[i]
+				if row.Chord != want || row.Combo != def || row.Unhonored != "" || row.WhileHighlighting != (i == 1) || (i != 1 && row.Taps != 3) {
+					t.Errorf("Sight row = %+v, want key %q and stable default %q", row, want, def)
+				}
+				if !reflect.DeepEqual(row.Keys, wm.DisplayKeys(want)) {
+					t.Errorf("display keys = %v, want %v", row.Keys, wm.DisplayKeys(want))
+				}
+				raw, err := json.Marshal(row)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var wire map[string]any
+				if err := json.Unmarshal(raw, &wire); err != nil {
+					t.Fatal(err)
+				}
+				if i != 1 && wire["taps"] != float64(3) || i == 1 && wire["whileHighlighting"] != true {
+					t.Errorf("gesture lost on QML boundary: %s", raw)
+				}
+			}
+		})
 	}
 }

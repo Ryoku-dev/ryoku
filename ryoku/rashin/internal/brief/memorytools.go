@@ -9,8 +9,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// The memory tools' names, the same in an agent's rashin MCP server and in
-// Ask.
+// The memory tools' names, the same in every mode that offers them.
 const (
 	ToolMemorySearch  = "memory_search"
 	ToolRemember      = "remember"
@@ -37,8 +36,8 @@ const (
 )
 
 // MemoryTool is one of the tools that let a model search, keep and forget
-// what Rashin remembers. Agents get them from the rashin MCP server and Ask
-// from its own tool list, from this one definition.
+// what Rashin remembers. The engine's Rashin tools serve them from this one
+// definition.
 type MemoryTool struct {
 	Name        string
 	Description string
@@ -122,8 +121,8 @@ const sessionsDescription = "Search the user's past conversations with Rashin by
 // Ryoku: Rashin's tools and wording.
 const memoryInstructions = "memory_search, remember and forget reach what Rashin remembers across sessions; search when an answer depends on something not in this conversation, and say you checked when you are still unsure. Memory work is bookkeeping, never the answer: do it before your final reply, and still answer when it fails. When a remembered fact disagrees with what the user says now and you cannot tell which holds, ask them."
 
-// MemoryInstructions are what the rashin MCP server says of the memory
-// tools; sessions adds the past-conversation search.
+// MemoryInstructions are what the system prompt says of the memory tools
+// when they are offered; sessions adds the past-conversation search.
 func MemoryInstructions(sessions bool) string {
 	if !sessions {
 		return memoryInstructions

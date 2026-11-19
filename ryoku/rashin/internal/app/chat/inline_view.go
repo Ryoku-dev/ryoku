@@ -17,7 +17,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 
 	"ryoku-rashin/internal/app/look"
 )
@@ -184,7 +184,7 @@ func (state *viewState) paintInline(gtx layout.Context, th *look.Theme, inline *
 		if first, last := max(from, line.start), min(to, line.end); last > first {
 			left, right := line.edges[first-line.start].Floor(), min(line.edges[last-line.start].Ceil(), max(inline.width, set.size.X))
 			bounds := image.Rect(left, index*set.pitch, right, (index+1)*set.pitch)
-			paint.FillShape(gtx.Ops, palette.WithAlpha(th.R.Sel, .6), clip.Rect(bounds).Op())
+			kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), th.R.Select())
 		}
 		for _, run := range line.runs {
 			if len(run.glyphs) == 0 {
@@ -194,7 +194,7 @@ func (state *viewState) paintInline(gtx layout.Context, th *look.Theme, inline *
 			tone := ink
 			switch {
 			case span.url != "":
-				tone = th.R.GoldInk
+				tone = th.R.Lapis
 			case span.style&inlineCode != 0:
 				tone = th.R.Fg2
 			}

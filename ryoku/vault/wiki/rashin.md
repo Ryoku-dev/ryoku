@@ -6,30 +6,20 @@ available at `~/.local/share/ryoku/vault/` whether Rashin is installed or on.
 
 ## Ask, Agent, and Index
 
-**Ask** answers system questions and general prompts through Rashin's built-in
-free-model router. It starts read only: it can inspect the vault, system,
-projects, wiki, and doctor results, and work that needs a change becomes a
-proposed command or an explicit handoff to Agent. In the app a conversation can
-be set to Ask first, where each command or file change waits for you, or to
-YOLO, where changes run without asking and only a destructive command still
-waits. An ask from the bar or a terminal never changes the machine.
+**Ask** answers system questions and general prompts with Rashin's native
+engine. It starts read-only: it can inspect the vault, system, projects, wiki
+and doctor results, then propose changes or move the conversation to Agent.
+In the app Ask first requires permission before a change; YOLO still asks
+for destructive work. An ask from the bar or terminal stays read-only.
 
-**Agent** runs an external coding harness through ACP. Rashin owns the persistent
-session, event log, files, terminal, approvals, and process lifecycle, so closing
-the app does not lose the conversation. Each harness keeps its own model choice,
-and its session shows the model, mode, and options it offers. Every agent
-session is told where it runs before its first prompt: Ryoku, this vault,
-Rashin, and the code search over its folder, which it also gets as tools from
-Rashin's own MCP server.
-
-An agent session also shows the subagents its harness runs, each in a box that
-unfolds to what it did, and folds a finished turn's work behind one "Worked
-for" line. `/goal <what>` sets a goal Rashin keeps the agent on, turn after
-turn, until it reports the goal done or blocked or its turn budget runs out;
-pause, stop, or clear it from the strip over the composer. On niri an agent
-that needs a graphical app can be given a hidden screen of its own, once you
-agree: you can watch it, take it over, and hand it back, and the agent hands it
-to you for things like signing in. Nothing on it reaches your desktop.
+**Agent** uses the same engine with file, shell, code and project tools.
+The model and options belong to the session; approvals or Plan first decide
+when it may act. Rashin owns the event log and transcript, so closing the
+app does not lose the conversation. Every Agent prompt knows Ryoku, this
+vault, Rashin and code search in its project. `task` runs child engines and
+shows their work in expandable cards; `/goal` continues across turns until
+done, blocked or the budget is spent. A screen can be requested with
+permission for work in a hidden graphical session.
 
 **Index** covers the system and registered projects with the potion embedding
 model, which is built into the daemon. A project added to Rashin and the
@@ -42,10 +32,10 @@ source tree.
 
 ## Teams
 
-Teams is the app's second mode, opened with the Teams button beside the search
-field or Ctrl T. A team is a lead and up to five more agents, each on a harness
-and model you pick, with one purpose and a folder of its own (`~/Teams/<name>`
-by default). You give it a task, or a routine gives it one on a schedule, and
+Teams is the app's second mode, opened with the Teams button or Ctrl T.
+A team is a lead and up to five members, each on a model and options you
+choose, with one purpose and a folder of its own (`~/Teams/<name>` by default).
+You give it a task, or a routine gives it one on a schedule, and
 it hands back a report in the Inbox. Templates come in three levels: light
 (System care, Mail desk), medium (Repo watch, Research desk) and advanced
 (News desk, three members on two models with two routines), or start blank.
@@ -72,11 +62,11 @@ the team exists. Teams do not talk to each other.
   whose key stays in your login keyring. Agents never see a value: Rashin adds
   it to the request or the mail itself, only for the hosts you allowed. This
   is not the Ryoku vault described below.
-- **Sandbox**: every team agent runs in bubblewrap, with the filesystem
-  read-only except its team folder and its harness's own files, and with
-  Rashin's state, your keyrings, the other teams' folders and the Ryoku vault
-  hidden. It reaches Rashin only through its own socket. Without the
-  `bubblewrap` package team tasks do not start.
+- **Sandbox**: a team's file and shell tools run in a bubblewrap tool host
+  child with a private scratch HOME. Only its team folder and allowed paths
+  are writable; Rashin state, your keyrings, other teams and the Ryoku vault
+  are hidden. Model calls and credentials stay in the daemon. Without
+  `bubblewrap`, team tasks do not start.
 
 A program you run yourself outside a team still runs as you, the network is
 shared, and a team agent can read your files like any program, so a team is
@@ -84,9 +74,9 @@ not a boundary against code you already run.
 
 ## Surfaces
 
-- Alt+Space opens the thin Ask bar.
-- Super+Alt+Space opens `rashin-app`, with separate Ask and Agent tabs and a
-  Teams mode.
+- Alt+Space opens the Rashin bar: Quick Ask, web search and downloads. Web
+  and Downloads work with Rashin off.
+- Super+Alt+Space opens `rashin-app` with Ask, Agents, Teams and Learning.
 - `rashin <question>` asks from a terminal.
 - Ryoku Settings > Apps > Rashin turns the system on or off.
 
@@ -95,12 +85,15 @@ port Rashin can open is its local API, which serves the router to other
 programs and stays closed until you turn it on in Rashin > Settings > Local API
 or with `rashin api on`.
 
-## Models and harnesses
+## Models and learning
 
-Ask uses Rashin's built-in free-provider router. Provider credentials stay in
-Rashin's local key store. Agent adapters discover supported ACP harnesses without
-making one a required dependency. Turning Rashin off stops its daemon and any
-agent process while keeping event-log sessions on disk for later resume.
+Ask and Agents use Rashin's model router. Managed `rashin-models` runs
+downloaded GGUF files through on-demand llama.cpp, then Rashin tries user
+llama.cpp, Ollama and free remote providers; paid models run only when
+picked. Model files and the runtime download only when you ask. The
+Learning page shows optional managed skills, project decisions, rules
+and local tool reports, all off by default. Turning Rashin off stops its
+daemon and children while keeping sessions on disk.
 
 ## The Ryoku vault
 
@@ -115,9 +108,9 @@ ryoku vault refresh
 ryoku vault wire
 ```
 
-Harness pointers tell installed coding tools to read the vault first, and the
-linked `ryoku` skill carries the desktop safety and GUI-first rules. `ryoku vault
-unwire` removes those pointers and records the user's opt-out.
+`ryoku vault wire` also points other installed coding tools at the vault;
+Rashin reads the vault directly. `ryoku vault unwire` removes those external
+pointers and records the user's opt-out.
 
 ## Terminal use
 

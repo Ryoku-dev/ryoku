@@ -15,9 +15,6 @@ import (
 // MaxImage is the size of the largest picture sent to a model.
 const MaxImage = 8 << 20
 
-// ErrTooLarge reports a picture over MaxImage.
-var ErrTooLarge = errors.New("picture too large to send")
-
 // Image is a picture as a model takes it.
 type Image struct {
 	Mime string
@@ -26,8 +23,8 @@ type Image struct {
 
 // ReadImage reads the file at path when it is a picture models are shown:
 // PNG, JPEG, GIF or WebP, told by its first bytes and not by its name. ok is
-// false for anything else, a folder included, and that is not an error. A
-// picture over MaxImage is ok with ErrTooLarge and no data.
+// false for anything else, a folder included, and that is not an error.
+// Pictures over MaxImage are downscaled before they are sent.
 func ReadImage(path string) (image Image, ok bool, err error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -53,7 +50,11 @@ func ReadImage(path string) (image Image, ok bool, err error) {
 		return Image{}, false, nil
 	}
 	if info.Size() > MaxImage {
-		return Image{}, true, ErrTooLarge
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			return Image{}, true, err
+		}
+		shrunk, err := shrinkImage(file)
+		return shrunk, true, err
 	}
 	rest, err := io.ReadAll(io.LimitReader(file, MaxImage))
 	if err != nil {

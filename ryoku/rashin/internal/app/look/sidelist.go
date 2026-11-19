@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -89,7 +90,7 @@ type ListDimensions struct {
 type sideRowState struct {
 	click     kit.Click
 	toggle    kit.Click
-	action    IconAction
+	action    kit.IconPlaque
 	hover     Hover
 	press     anim.Tween
 	swap      anim.Tween
@@ -115,15 +116,20 @@ type SideList struct {
 	// said in the list's place while it has no rows, so an empty sidebar tells what will stand there
 	Empty string
 
-	states map[string]*sideRowState
-	seen   map[string]bool
-	items  []sideItem
-	rows   []int
-	cursor int
-	keys   struct{}
-	rename string
-	events []SideEvent
-	drawn  bool
+	states    map[string]*sideRowState
+	seen      map[string]bool
+	items     []sideItem
+	rows      []int
+	cursor    int
+	keys      struct{}
+	rename    string
+	events    []SideEvent
+	drawn     bool
+	peekTag   struct{}
+	peekID    string
+	peekNext  string
+	peekSince time.Time
+	peekLeave time.Time
 }
 
 func (list *SideList) Focus(gtx layout.Context) { gtx.Execute(key.FocusCmd{Tag: &list.keys}) }
@@ -158,19 +164,94 @@ func (list *SideList) Layout(
 	event.Op(gtx.Ops, &list.keys)
 	area.Pop()
 
+	first, offset := list.Scroller.Position.First, list.Scroller.Position.Offset
+	var peekRow SideRow
+	var hovering bool
 	dimensions := list.Scroller.Layout(gtx, th, len(list.items), func(gtx layout.Context, index int) layout.Dimensions {
 		item := list.items[index]
 		if item.header {
 			return list.layoutHeader(gtx, th, item)
 		}
 		cursor := focused && list.cursor < len(list.rows) && list.rows[list.cursor] == index
-		return list.layoutRow(gtx, th, overlays, item.row, item.row.ID == selected, cursor)
+		dimensions := list.layoutRow(gtx, th, overlays, item.row, item.row.ID == selected, cursor)
+		if state := list.states[item.row.ID]; state != nil && state.hover.Hovered() && !item.row.Branch && item.row.Facts != "" {
+			peekRow, hovering = item.row, true
+		}
+		return dimensions
 	})
+	scrolled := first != list.Scroller.Position.First || offset != list.Scroller.Position.Offset || list.Scroller.List.Dragging() || list.Scroller.rail.Dragging()
+	list.layoutPeek(gtx, th, overlays, peekRow, hovering, scrolled)
 	list.drawn = true
 	result := ListDimensions{Dimensions: dimensions}
 	result.Selected, result.HasSelected = list.selectedRect(gtx, selected, dimensions.Size.X)
 	result.Key = selected
 	return result
+}
+
+func (list *SideList) layoutPeek(gtx layout.Context, th *Theme, overlays *Overlays, row SideRow, hovered, scrolled bool) {
+	if overlays == nil {
+		return
+	}
+	tag := &list.peekTag
+	_, modal := overlays.Top()
+	if !gtx.Source.Enabled() || scrolled || modal {
+		overlays.Close(tag)
+		list.peekID, list.peekNext = "", ""
+		list.peekSince, list.peekLeave = time.Time{}, time.Time{}
+		return
+	}
+	if !hovered {
+		list.peekNext = ""
+		if list.peekID == "" {
+			return
+		}
+		if list.peekLeave.IsZero() {
+			list.peekLeave = gtx.Now.Add(90 * time.Millisecond)
+			gtx.Execute(op.InvalidateCmd{At: list.peekLeave})
+		}
+		if !gtx.Now.Before(list.peekLeave) {
+			overlays.Close(tag)
+			list.peekID, list.peekLeave = "", time.Time{}
+		}
+		return
+	}
+	if list.peekNext != row.ID {
+		list.peekNext, list.peekSince = row.ID, gtx.Now
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(480 * time.Millisecond)})
+		if list.peekID != "" && list.peekID != row.ID {
+			list.peekLeave = gtx.Now.Add(90 * time.Millisecond)
+			gtx.Execute(op.InvalidateCmd{At: list.peekLeave})
+		}
+	}
+	if !list.peekLeave.IsZero() && !gtx.Now.Before(list.peekLeave) && list.peekID != row.ID {
+		overlays.Close(tag)
+		list.peekID, list.peekLeave = "", time.Time{}
+	}
+	if gtx.Now.Before(list.peekSince.Add(480 * time.Millisecond)) {
+		return
+	}
+	list.peekID, list.peekLeave = row.ID, time.Time{}
+	x := gtx.Dp(SidebarExpanded) + gtx.Dp(4)
+	y := overlays.Pointer().Y - gtx.Dp(24)
+	anchor := image.Rect(x, y, x, y)
+	overlays.Open(tag, anchor, Placement{Passive: true, Frame: true, Width: 300}, func(gtx layout.Context) layout.Dimensions {
+		heading := func(gtx layout.Context) layout.Dimensions {
+			parts := make([]layout.FlexChild, 0, 3)
+			if row.Icon != nil {
+				parts = append(parts,
+					layout.Rigid(IconWidget(row.Icon, 16, th.R.Sel)),
+					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+				)
+			}
+			parts = append(parts, layout.Flexed(1, kit.Text(th.Theme, th.T.Label, th.R.Fg, row.Title)))
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, parts...)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(heading),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(Paragraph(th, th.T.Detail, th.R.Fg2, row.Facts)),
+		)
+	})
 }
 
 func (list *SideList) flatten(gtx layout.Context, th *Theme, groups []SideGroup) {
@@ -396,7 +477,7 @@ func (list *SideList) layoutRow(
 	return layout.Dimensions{Size: visible}
 }
 
-// hover, press and the keyboard cursor only, the selection slab belongs to the sidebar
+// the frame owns the one travelling selection wash
 func (list *SideList) drawPlane(
 	gtx layout.Context,
 	th *Theme,
@@ -406,17 +487,15 @@ func (list *SideList) drawPlane(
 	selected, cursor bool,
 ) {
 	bounds := image.Rectangle{Max: size}
-	cut := gtx.Dp(th.Cut.Small)
 	pressed := state.click.Pressed() || list.Preview == kit.StatePressed
 	press := transition(gtx, &state.press, pressed, th.Motion.Press, th.Motion.Press)
-	if !selected && hover > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
-	}
-	if press > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
+	if !selected {
+		RowWash(gtx, th, bounds, hover, press, false)
+	} else if press > 0 {
+		kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Press(), press*.16))
 	}
 	if cursor && !selected {
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), th.R.Fg3)
+		kit.Stroke(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), max(1, gtx.Dp(1)), th.R.Fg3)
 	}
 }
 
@@ -434,13 +513,24 @@ func (list *SideList) drawRow(
 		title = th.R.Fg
 	}
 	if selected {
-		title, facts, quiet = th.R.OnSel, th.R.OnSel2, th.R.OnSel2
+		title, quiet = RowInk(th, true)
+		facts = title
 	}
 	if row.Tone != palette.Idle {
-		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(8), th.R.Stone(row.Tone))
+		kit.ToneMark(gtx, th.Theme, image.Rectangle{Max: size}, row.Tone)
 	}
 
 	x := gtx.Dp(SideInset) + max(row.Depth, 0)*gtx.Dp(SideIndent)
+	if row.Depth >= 1 {
+		guideX := x - gtx.Dp(SideIndent)/2
+		hair := max(1, gtx.Dp(1))
+		ink := th.R.Guide()
+		if selected {
+			ink = th.R.Sel
+		}
+		paint.FillShape(gtx.Ops, ink, clip.Rect(image.Rect(guideX, 0, guideX+hair, size.Y)).Op())
+		paint.FillShape(gtx.Ops, ink, clip.Rect(image.Rect(guideX, size.Y/2, x, size.Y/2+hair)).Op())
+	}
 	if row.Branch {
 		glyph := Icon.ChevronRight
 		if row.Open {
@@ -522,16 +612,13 @@ func (list *SideList) drawTrailing(
 		opacity.Pop()
 	}
 	if swap > 0 {
-		box := gtx.Dp(28)
-		ink := th.R.Fg2
-		if selected {
-			ink = th.R.OnSel
-		}
+		box := gtx.Dp(32)
 		state.action.Icon, state.action.Description = Icon.More, row.Title
+		state.action.Small, state.action.Kind = true, kit.PlaqueQuiet
 		state.action.Preview = kit.StateRest
 		opacity := paint.PushOpacity(gtx.Ops, swap)
 		Place(gtx, image.Rect(size.X-gtx.Dp(6)-box, (size.Y-box)/2, size.X-gtx.Dp(6), (size.Y+box)/2), func(gtx layout.Context) layout.Dimensions {
-			return state.action.Layout(gtx, th, ink)
+			return state.action.Layout(gtx, th.Theme)
 		})
 		opacity.Pop()
 	}
@@ -547,10 +634,9 @@ func (list *SideList) drawEditor(gtx layout.Context, th *Theme, row SideRow, sta
 	}
 	line := gtx.Sp(th.T.Row.Line)
 	field := image.Rect(-gtx.Dp(6), (gtx.Constraints.Max.Y-line)/2-gtx.Dp(4), gtx.Constraints.Max.X, (gtx.Constraints.Max.Y+line)/2+gtx.Dp(4))
-	kit.FillCut(gtx.Ops, field, gtx.Dp(th.Cut.Token), th.R.Field)
-	kit.StrokeCut(gtx.Ops, field, gtx.Dp(th.Cut.Token), max(1, gtx.Dp(1)), th.R.Fg2)
+	kit.FieldSurface(gtx, th.Theme, field, gtx.Dp(th.Cut.Token), th.R.Field, 1, false)
 	ink := colorOp(gtx.Ops, th.R.Fg)
-	selection := colorOp(gtx.Ops, palette.WithAlpha(th.R.Sel, .6))
+	selection := colorOp(gtx.Ops, SelectedText(th))
 	offset := op.Offset(image.Pt(0, (gtx.Constraints.Max.Y-line)/2)).Push(gtx.Ops)
 	editor := gtx
 	editor.Constraints = layout.Exact(image.Pt(max(0, gtx.Constraints.Max.X-gtx.Dp(6)), line))
@@ -569,7 +655,7 @@ func (list *SideList) consume(gtx layout.Context, overlays *Overlays, row SideRo
 		list.events = append(list.events, SideEvent{Kind: SideOpen, ID: row.ID})
 	}
 	if state.action.Clicked(gtx) && overlays != nil {
-		box := gtx.Dp(28)
+		box := gtx.Dp(32)
 		anchor := overlays.AnchorOf(&state.action.Clickable, image.Pt(box, box))
 		list.events = append(list.events, SideEvent{Kind: SideMenu, ID: row.ID, Anchor: anchor})
 	}

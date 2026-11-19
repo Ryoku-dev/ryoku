@@ -1,0 +1,406 @@
+package torrent
+
+import (
+	"context"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"time"
+
+	"github.com/anacrolix/dht/v2"
+	"github.com/anacrolix/dht/v2/krpc"
+	"github.com/anacrolix/log"
+	"github.com/anacrolix/missinggo/v2"
+
+	"github.com/pion/webrtc/v4"
+	"golang.org/x/time/rate"
+
+	"github.com/anacrolix/torrent/iplist"
+	"github.com/anacrolix/torrent/metainfo"
+
+	"github.com/anacrolix/torrent/mse"
+	"github.com/anacrolix/torrent/storage"
+	"github.com/anacrolix/torrent/version"
+)
+
+// Contains config elements that are exclusive to tracker handling. There may be other fields in
+// ClientConfig that are also relevant.
+type ClientTrackerConfig struct {
+	// Don't announce to trackers. This only leaves DHT to discover peers.
+	DisableTrackers bool `long:"disable-trackers"`
+	// Defines DialContext func to use for HTTP tracker announcements
+	TrackerDialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+	// Don't verify HTTPS tracker certificates. Certificates are verified by default.
+	TrackerInsecureSkipVerify bool
+	// Defines ListenPacket func to use for UDP tracker announcements
+	TrackerListenPacket func(network, addr string) (net.PacketConn, error)
+	// Deprecated. Takes a tracker's hostname and requests DNS A and AAAA records. Used in case DNS lookups
+	// require a special setup (i.e., dns-over-https). TODO: Wire back into UDP tracker client
+	// implementation, or deprecate in favour of a Client DNS resolver. It was done manually before
+	// calling the Announce.Do wrapper.
+	LookupTrackerIp func(*url.URL) ([]net.IP, error)
+	// How long to wait before retrying an announce that failed. Each further consecutive failure
+	// doubles the wait, up to FailedAnnounceMaxInterval. A tracker that has gone away is retried
+	// forever, so without a growing interval every torrent keeps knocking at this rate.
+	FailedAnnounceMinInterval time.Duration
+	// The cap on the doubling described above. Set it to FailedAnnounceMinInterval to retry at a
+	// constant interval.
+	FailedAnnounceMaxInterval time.Duration
+}
+
+const (
+	defaultFailedAnnounceMinInterval = time.Minute
+	defaultFailedAnnounceMaxInterval = 30 * time.Minute
+)
+
+// failedAnnounceInterval is how long to wait after an announce that failed, given how many
+// consecutive failures there have been (1 for the first).
+func (cfg *ClientTrackerConfig) failedAnnounceInterval(consecutiveFailures int) time.Duration {
+	d := cfg.FailedAnnounceMinInterval
+	if d <= 0 {
+		d = defaultFailedAnnounceMinInterval
+	}
+	maxInterval := cfg.FailedAnnounceMaxInterval
+	if maxInterval <= 0 {
+		maxInterval = defaultFailedAnnounceMaxInterval
+	}
+	if maxInterval < d {
+		maxInterval = d
+	}
+	for i := 1; i < consecutiveFailures; i++ {
+		d *= 2
+		if d >= maxInterval {
+			return maxInterval
+		}
+	}
+	return d
+}
+
+type ClientDhtConfig struct {
+	// Don't create a DHT.
+	// cfg.NoDHT aka cfg.DisableDHT
+	NoDHT            bool `long:"disable-dht"`
+	DhtStartingNodes func(network string) dht.StartingNodesGetter
+	// Called for each anacrolix/dht Server created for the Client.
+	ConfigureAnacrolixDhtServer       func(*dht.ServerConfig)
+	PeriodicallyAnnounceTorrentsToDht bool
+	// OnQuery hook func
+	DHTOnQuery func(query *krpc.Msg, source net.Addr) (propagate bool)
+}
+
+type LocalServiceDiscoveryConfig struct {
+	// Interface on which to multicast announce messages
+	Ifi string
+	Ip6 bool
+}
+
+// Probably not safe to modify this after it's given to a Client, or to pass it to multiple Clients.
+type ClientConfig struct {
+	ClientTrackerConfig
+	ClientDhtConfig
+	MetainfoSourcesConfig
+
+	// Store torrent file data in this directory unless DefaultStorage is
+	// specified.
+	DataDir string `long:"data-dir" description:"directory to store downloaded torrent data"`
+	// The address to listen for new uTP and TCP BitTorrent protocol connections. DHT shares a UDP
+	// socket with uTP unless configured otherwise.
+	ListenHost func(network string) string
+	ListenPort int
+	// Defines ListenPacket func to use for the uTP socket (which the DHT server shares). If set,
+	// uTP and DHT run over the returned net.PacketConn.
+	ListenPacket func(network, addr string) (net.PacketConn, error)
+	// cfg.NoDefaultPortForwarding aka cfg.DisableUpnp
+	NoDefaultPortForwarding bool
+	UpnpID                  string
+	DisablePEX              bool `long:"disable-pex"`
+
+	// Never send chunks to peers.
+	NoUpload bool `long:"no-upload"`
+	// Disable uploading even when it isn't fair.
+	DisableAggressiveUpload bool `long:"disable-aggressive-upload"`
+	// Upload even after there's nothing in it for us. By default uploading is
+	// not altruistic, we'll only upload to encourage the peer to reciprocate.
+	Seed bool `long:"seed"`
+	// Only applies to chunks uploaded to peers, to maintain responsiveness communicating local
+	// Client state to peers. Each limiter token represents one byte. The Limiter's burst must be
+	// large enough to fit a whole chunk, which is usually 16 KiB (see TorrentSpec.ChunkSize). If
+	// limit is not Inf, and burst is left at 0, the implementation will choose a suitable burst.
+	UploadRateLimiter *rate.Limiter
+	// Rate limits all reads from connections to peers. Each limiter token represents one byte. The
+	// Limiter's burst must be bigger than the largest Read performed on the underlying
+	// rate-limiting io.Reader minus one. This is likely to be the larger of the main read loop
+	// buffer (~4096), and the requested chunk size (~16KiB, see TorrentSpec.ChunkSize). If limit is
+	// not Inf, and burst is left at 0, the implementation will choose a suitable burst.
+	//
+	// If the field is nil, no rate limiting is applied. And it can't be adjusted dynamically.
+	DownloadRateLimiter *rate.Limiter
+	// Maximum unverified bytes across all torrents. Not used if zero.
+	MaxUnverifiedBytes int64
+	// Minimum age an outstanding request must reach before another peer is allowed to steal it.
+	// Zero or negative disables the check, which is the historical behaviour.
+	//
+	// Stealing (see PeerConn.applyRequestState) hands a request to a peer that looks better, and
+	// its trigger is a one-request difference in queue depth. Across a large peer set that
+	// difference is noise: queue depths move by one every time a chunk lands, so without a floor
+	// the same request can migrate several times inside a single round-trip. Each migration is a
+	// Cancel on the wire, and a Cancel only prevents a transfer if it reaches the peer before the
+	// peer has served the request. Otherwise the block arrives regardless and is thrown away as
+	// ConnStats.ChunksReadWasted, while the stealer requests the same block again.
+	//
+	// A request younger than a round-trip has not yet had the opportunity to be answered, so its
+	// holder has not been shown to be failing and there is no information in moving it. Requiring
+	// an age gives each holder one uninterrupted attempt, and because the age is reset every time
+	// the request is issued (PeerConn.request), it also caps how often a single request can move.
+	//
+	// Latency is what makes this matter: the data already committed to the wire when a Cancel is
+	// sent scales with round-trip time, so on a LAN the cost of a steal is near zero and on a
+	// tunnelled path it is not.
+	StealRequestGrace time.Duration
+
+	// User-provided Client peer ID. If not present, one is generated automatically.
+	PeerID string
+	// For the bittorrent protocol.
+	DisableUTP bool
+	// For the bittorrent protocol.
+	DisableTCP bool `long:"disable-tcp"`
+	// Called to instantiate storage for each added torrent. Builtin backends
+	// are in the storage package. If not set, the "file" implementation is
+	// used (and Closed when the Client is Closed). A DefaultStorage provided
+	// here is owned by the caller and is not Closed by the Client: if it
+	// implements storage.ClientImplCloser (as the builtin backends do, e.g. to
+	// release a piece completion database), Close it after Client.Close
+	// returns, and also if NewClient fails.
+	DefaultStorage storage.ClientImpl
+
+	HeaderObfuscationPolicy HeaderObfuscationPolicy
+	// The crypto methods to offer when initiating connections with header obfuscation.
+	CryptoProvides mse.CryptoMethod
+	// Chooses the crypto method to use when receiving connections with header obfuscation.
+	CryptoSelector mse.CryptoSelector
+
+	// libtorrent: settings_pack::anonymous_mode
+	// Do not send the client version to peers in the extension handshake.
+	// Use a generic user-agent for HTTP requests,
+	// a libtorrent-like peer ID prefix (BEP20),
+	// and an empty UPnP ID.
+	AnonymousMode bool
+
+	IPBlocklist      iplist.Ranger
+	DisableIPv6      bool `long:"disable-ipv6"`
+	DisableIPv4      bool
+	DisableIPv4Peers bool
+	// Perform logging and any other behaviour that will help debug.
+	Debug bool `help:"enable debugging"`
+	// Deprecated: Use Slogger. If Slogger is set, Logger will be bridged from it automatically.
+	Logger log.Logger
+	// If unset, falls back to deferring to the old analog Logger.
+	Slogger *slog.Logger
+
+	// Used for torrent sources and webseeding if set.
+	WebTransport http.RoundTripper
+	// Defines proxy for HTTP requests, such as for trackers. It's commonly set from the result of
+	// "net/http".ProxyURL(HTTPProxy).
+	HTTPProxy func(*http.Request) (*url.URL, error)
+	// Defines DialContext func to use for HTTP requests, such as for fetching metainfo and webtorrent seeds
+	HTTPDialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+	// HTTPUserAgent changes default UserAgent for HTTP requests
+	HTTPUserAgent string
+	// HttpRequestDirector modifies the request before it's sent.
+	// Useful for adding authentication headers, for example
+	HttpRequestDirector func(*http.Request) error
+	// WebsocketTrackerHttpHeader returns a custom header to be used when dialing a websocket connection
+	// to the tracker. Useful for adding authentication headers
+	WebsocketTrackerHttpHeader func() http.Header
+	// Updated occasionally to when there's been some changes to client
+	// behaviour in case other clients are assuming anything of us. See also
+	// `bep20`.
+	ExtendedHandshakeClientVersion string
+	// Peer ID client identifier prefix. We'll update this occasionally to
+	// reflect changes to client behaviour that other clients may depend on.
+	// Also see `extendedHandshakeClientVersion`.
+	Bep20 string
+
+	// Peer dial timeout to use when there are limited peers.
+	NominalDialTimeout time.Duration
+	// Minimum peer dial timeout to use (even if we have lots of peers).
+	MinDialTimeout             time.Duration
+	EstablishedConnsPerTorrent int
+	HalfOpenConnsPerTorrent    int
+	TotalHalfOpenConns         int
+	// Maximum number of peer addresses in reserve.
+	TorrentPeersHighWater int
+	// Minumum number of peers before effort is made to obtain more peers.
+	TorrentPeersLowWater int
+
+	// Limit how long handshake can take. This is to reduce the lingering
+	// impact of a few bad apples. 4s loses 1% of successful handshakes that
+	// are obtained with 60s timeout, and 5% of unsuccessful handshakes.
+	HandshakesTimeout time.Duration
+	// Maximum number of accepted connections that may be in the handshake phase at once. Further
+	// accepted connections are closed until some handshakes complete or time out. Zero or less is
+	// unlimited.
+	MaxPendingIncomingHandshakes int
+	// Maximum number of accepted connections from a single IP that may be in the handshake phase at
+	// once. Zero or less is unlimited.
+	MaxPendingIncomingHandshakesPerIp int
+	// How long between writes before sending a keep alive message on a peer connection that we want
+	// to maintain.
+	KeepAliveTimeout time.Duration
+	// Maximum bytes to buffer per peer connection for peer request data before it is sent. This
+	// must be >= the request chunk size from peers.
+	MaxAllocPeerRequestDataPerConn int
+
+	// The IP addresses as our peers should see them. May differ from the
+	// local interfaces due to NAT or other network configurations.
+	PublicIp4 net.IP
+	PublicIp6 net.IP
+
+	// Accept rate limiting affects excessive connection attempts from IPs that fail during
+	// handshakes or request torrents that we don't have.
+	DisableAcceptRateLimiting bool
+	// Don't add connections that have the same peer ID as an existing
+	// connection for a given Torrent.
+	DropDuplicatePeerIds bool
+	// Drop peers that are complete if we are also complete and have no use for the peer. This is a
+	// bit of a special case, since a peer could also be useless if they're just not interested, or
+	// we don't intend to obtain all of a torrent's data.
+	DropMutuallyCompletePeers bool
+	// Whether to use the Client's own listen sockets (the "default dialers") to make outgoing
+	// connections to regular peers. This is enabled by default. Setting it to false disables
+	// these default dialers, so that outgoing peer connections are only made through any
+	// additional Dialer added by other means (see Client.AddDialer), such as a SOCKS5 proxy
+	// dialer. This has no effect on incoming connections, which are controlled separately by
+	// AcceptPeerConnections.
+	DialForPeerConns bool
+	// Whether to accept peer connections at all.
+	AcceptPeerConnections bool
+	// Whether a Client should want conns without delegating to any attached Torrents. This is
+	// useful when torrents might be added dynamically in callbacks for example.
+	AlwaysWantConns bool
+
+	Extensions PeerExtensionBits
+	// Bits that peers must have set to proceed past handshakes.
+	MinPeerExtensions PeerExtensionBits
+
+	DisableWebtorrent bool
+	DisableWebseeds   bool
+
+	Callbacks Callbacks
+
+	// ICEServerList defines a slice describing servers available to be used by
+	// ICE, such as STUN and TURN servers.
+	ICEServerList []webrtc.ICEServer
+
+	// Deprecated. ICEServers does not support server authentication and therefore
+	// it cannot be used with most TURN servers. Use ICEServerList instead.
+	// ICEServers is kept for legacy support.
+	ICEServers []string
+
+	DialRateLimiter *rate.Limiter
+
+	PieceHashersPerTorrent int // default: 2
+
+	// Enable BEP-14 Local Service Discovery by setting this. A nil value
+	// leaves LPD disabled.
+	LocalServiceDiscovery *LocalServiceDiscoveryConfig
+}
+
+func (cfg *ClientConfig) SetListenAddr(addr string) *ClientConfig {
+	host, port, err := missinggo.ParseHostPort(addr)
+	if err != nil {
+		panic(err)
+	}
+	cfg.ListenHost = func(string) string { return host }
+	cfg.ListenPort = port
+	return cfg
+}
+
+func NewDefaultClientConfig() *ClientConfig {
+	cc := &ClientConfig{
+		HTTPUserAgent:                  version.DefaultHttpUserAgent,
+		ExtendedHandshakeClientVersion: version.DefaultExtendedHandshakeClientVersion,
+		Bep20:                          version.DefaultBep20Prefix,
+		UpnpID:                         version.DefaultUpnpId,
+		NominalDialTimeout:             20 * time.Second,
+		MinDialTimeout:                 3 * time.Second,
+		EstablishedConnsPerTorrent:     50,
+		HalfOpenConnsPerTorrent:        25,
+		TotalHalfOpenConns:             100,
+		TorrentPeersHighWater:          500,
+		TorrentPeersLowWater:           50,
+		HandshakesTimeout:              4 * time.Second,
+		KeepAliveTimeout:               time.Minute,
+		MaxAllocPeerRequestDataPerConn: 1 << 20,
+		ListenHost:                     func(string) string { return "" },
+		UploadRateLimiter:              unlimited,
+		DisableAcceptRateLimiting:      true,
+		DropMutuallyCompletePeers:      true,
+		HeaderObfuscationPolicy: HeaderObfuscationPolicy{
+			Preferred:        true,
+			RequirePreferred: false,
+		},
+		CryptoSelector:         mse.DefaultCryptoSelector,
+		CryptoProvides:         mse.AllSupportedCrypto,
+		ListenPort:             42069,
+		Extensions:             defaultPeerExtensionBytes(),
+		DialForPeerConns:       true,
+		AcceptPeerConnections:  true,
+		MaxUnverifiedBytes:     64 << 20,
+		StealRequestGrace:      initDurationFromEnv(stealRequestGraceEnvKey, defaultStealRequestGrace),
+		DialRateLimiter:        rate.NewLimiter(10, 10),
+		PieceHashersPerTorrent: 2,
+
+		MaxPendingIncomingHandshakes:      128,
+		MaxPendingIncomingHandshakesPerIp: 8,
+	}
+	cc.DhtStartingNodes = func(network string) dht.StartingNodesGetter {
+		return func() ([]dht.Addr, error) { return dht.GlobalBootstrapAddrs(network) }
+	}
+	cc.PeriodicallyAnnounceTorrentsToDht = true
+	cc.MetainfoSourcesMerger = func(t *Torrent, info *metainfo.MetaInfo) error {
+		spec, err := TorrentSpecFromMetaInfoErr(info)
+		if err != nil {
+			return err
+		}
+		return t.MergeSpec(spec)
+	}
+	cc.MetainfoSourcesTimeout = time.Minute
+	return cc
+}
+
+type HeaderObfuscationPolicy struct {
+	RequirePreferred bool // Whether the value of Preferred is a strict requirement.
+	Preferred        bool // Whether header obfuscation is preferred.
+}
+
+func (cfg *ClientConfig) setRateLimiterBursts() {
+	// What about chunk size?
+	if cfg.UploadRateLimiter.Burst() == 0 {
+		cfg.UploadRateLimiter.SetBurst(cfg.MaxAllocPeerRequestDataPerConn)
+	}
+	setDefaultDownloadRateLimiterBurstIfZero(cfg.DownloadRateLimiter)
+}
+
+// Returns the download rate.Limit handling the special nil case.
+func EffectiveDownloadRateLimit(l *rate.Limiter) rate.Limit {
+	if l == nil {
+		return rate.Inf
+	}
+	return l.Limit()
+}
+
+type MetainfoSourcesConfig struct {
+	// Used for torrent metainfo sources only. Falls back to the http.Client created to wrap
+	// WebTransport.
+	MetainfoSourcesClient *http.Client
+	// If a sources successfully fetches metainfo, this function is called to apply the metainfo. t
+	// is provided to prevent a race as the fetcher for the source was bound to it. Returning an
+	// error will kill the respective sourcer.
+	MetainfoSourcesMerger func(t *Torrent, info *metainfo.MetaInfo) error
+	// Timeout for a single attempt to fetch metainfo from a source over HTTP. Without it a source
+	// that accepts the connection but never responds holds the attempt open until the torrent is
+	// dropped. Zero disables the timeout.
+	MetainfoSourcesTimeout time.Duration
+}

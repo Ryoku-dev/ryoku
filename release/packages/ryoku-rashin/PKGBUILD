@@ -14,9 +14,14 @@ url="https://ryoku.dev"
 # Apache-2.0; memory adapts MIT code and prompts (Hermes Agent, OpenClaw,
 # Hindsight, nanobot, PicoClaw, Engram) and Apache-2.0 ones (Codex, mem0, Letta,
 # Letta Code); the built-in skill sets are MIT (Superpowers, OpenSpec, Spec Kit)
-# and Apache-2.0 (Elephant and Goldfish); the rest of the package is
+# and Apache-2.0 (Elephant and Goldfish); Harper's Go port is Apache-2.0,
+# and regexp2 is MIT. Its SCOWL-derived dictionary carries the notices in
+# Rashin's NOTICE, and the foldhash word identity hash is Zlib.
+# The writing checks adapt MIT word lists
+# (write-good, weasel-words, too-wordy, retext-equality, blocklint, textstat)
+# and BSD-3-Clause cliches (proselint); the rest of the package is
 # GPL-3.0-or-later.
-license=('GPL-3.0-or-later' 'Apache-2.0' 'OFL-1.1' 'MIT')
+license=('GPL-3.0-or-later' 'Apache-2.0' 'OFL-1.1' 'MIT' 'BSD-3-Clause' 'LicenseRef-SCOWL' 'Zlib')
 # Keep Rashin on the same update as its desktop integration.
 depends=(
   "ryoku-desktop=$epoch:$pkgver"
@@ -29,7 +34,12 @@ depends=(
   'bubblewrap'
 )
 # Rashin installs Hindsight, its optional memory engine, with uv only when asked.
-optdepends=('uv: set up Hindsight, the optional memory engine, on this computer')
+optdepends=(
+  'uv: set up Hindsight, the optional memory engine, on this computer'
+  'llama-cpp: run downloaded models on this computer (or let Rashin fetch llama.cpp)'
+  'ggml-vulkan: run them on the graphics card'
+  'ggml-cuda: run them on an NVIDIA card with CUDA'
+)
 makedepends=('go' 'pkgconf' 'vulkan-headers')
 source=()
 

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import Qt5Compat.GraphicalEffects
 import "Singletons"
+import "look"
 import "lib/redact.js" as Redact
 
 // The annotations that read the captured pixels back instead of drawing over
@@ -96,7 +97,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 visible: cell.isRedact && (!cell.isMosaic || !cell.a.pal || cell.a.pal.length === 0)
-                color: Theme.redactSolid
+                color: Look.redactSolid
             }
 
             Repeater {
@@ -157,7 +158,7 @@ Item {
                 anchors.centerIn: parent
                 radius: cell.magD / 2
                 color: "transparent"
-                border.color: Theme.ink
+                border.color: Look.ink
                 border.width: Math.max(2, cell.magD * 0.03)
                 visible: cell.isMag
             }
@@ -188,7 +189,7 @@ Item {
                     width: Math.abs(a.points[1].x - a.points[0].x)
                     height: Math.abs(a.points[1].y - a.points[0].y)
                     shape: a.shape || "ellipse"
-                    fill: Theme.ink
+                    fill: Look.ink
                 }
             }
         }
@@ -196,7 +197,7 @@ Item {
         Rectangle {
             id: dimPlate
             anchors.fill: parent
-            color: Theme.scrim
+            color: Look.spotlightDim
             visible: false
             layer.enabled: true
         }
@@ -251,7 +252,7 @@ Item {
                 id: lensMask
                 anchors.fill: parent
                 shape: lens.a.shape || "ellipse"
-                fill: Theme.ink
+                fill: Look.ink
                 visible: false
                 layer.enabled: true
             }
@@ -265,7 +266,7 @@ Item {
             LensShape {
                 anchors.fill: parent
                 shape: lens.a.shape || "ellipse"
-                stroke: lens.a.color !== undefined ? lens.a.color : Theme.ink
+                stroke: lens.a.color !== undefined ? lens.a.color : Look.ink
                 strokeW: Math.max(2, (lens.a.width || 4) / 2)
             }
         }

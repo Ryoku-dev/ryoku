@@ -11,7 +11,7 @@ manager supplies the runtime and build dependencies, and the installer fetches
 the pinned fonts and cursor theme its archive does not carry.
 
 The Void edition is niri-only because Hyprland needs GCC 15 and Void ships GCC
-14. Wayfire, Zen Browser, LocalSend, Voxtype, asusctl, adw-gtk-theme, and GPU
+14. Zen Browser, LocalSend, Voxtype, asusctl, adw-gtk-theme, and GPU
 passthrough are not available. A conversion keeps the machine's existing
 bootloader and snapshot stack; the shell installer provisions neither.
 Snapshot rollback works when the existing root is btrfs with snapper set up,
@@ -53,7 +53,7 @@ The login screen, console, and boot prompt then follow the desktop keyboard
 layout.
 
 Fedora stays on the nouveau NVIDIA driver. The conversion sets up snapshots on
-a btrfs root, does not offer Wayfire, and has no Fedora ISO.
+a btrfs root and has no Fedora ISO.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash

@@ -28,36 +28,30 @@ func machine(t *testing.T, vault bool) string {
 	return dir
 }
 
-// An agent is told the three things it cannot know by itself: what Ryoku and
-// its vault are, what Rashin is, and that the folder it works in is searchable.
-func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
-	vault := machine(t, true)
+// An agent is told where it works and that the folder is indexed, with the
+// index's size and languages.
+func TestAnAgentIsToldItsFolderAndItsCodeIndex(t *testing.T) {
+	machine(t, true)
 	text := Agent(Session{
 		Info:     protocol.SessionInfo{Cwd: "/work/app/wt", Worktree: "/work/app/wt", Branch: "fix/login", Project: "p1"},
 		Project:  "app",
 		Index:    &protocol.IndexInfo{Root: "/work/app", Files: 412, Languages: []protocol.Count{{Name: "cpp", Count: 300}, {Name: "c", Count: 100}, {Name: "bash", Count: 12}}},
 		Semantic: true,
-		Tools:    true,
 		Screen:   true,
 	})
 	for _, want := range []string{
-		"The user did not write this part",
-		"Ryoku, a Linux desktop built on Arch",
 		"- Folder: /work/app/wt", "- Project: app", "- Branch: fix/login",
-		vault + " is this machine's map", "desktop.md", "ryoku owner <path>",
-		"Rashin is Ryoku's optional assistant", "Rashin > Settings > Providers",
 		"an index of /work/app (412 files: 300 C++, 100 C, 12 shell) with search by meaning built in",
-		"when another code index or search skill you carry finds little here",
-		"from the rashin MCP server", "a hidden desktop of your own",
-		"rashin search", "rashin find <name>", "rashin references <name>",
-		"End of context from Rashin.",
+		"a hidden desktop of your own",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the brief does not say %q", want)
 		}
 	}
-	if strings.Contains(text, "Worktree:") {
-		t.Error("the brief names the worktree again though it is the folder")
+	for _, gone := range []string{"Worktree:", "The user did not write this part", "MCP"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the brief still says %q", gone)
+		}
 	}
 	var many []protocol.Count
 	for _, name := range []string{"go", "qml", "cpp", "python", "lua", "json", "yaml", "toml"} {
@@ -65,55 +59,53 @@ func TestAnAgentIsToldAboutRyokuTheVaultRashinAndCodeSearch(t *testing.T) {
 	}
 	wide := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}, Index: &protocol.IndexInfo{Root: "/work/app", Files: 16, Languages: many}})
 	if !strings.Contains(wide, "(16 files: 2 Go, 2 QML, 2 C++, 2 Python, 2 Lua, 2 JSON, 2 more languages)") {
-		t.Errorf("an index of many languages reads: %s", wide[strings.Index(wide, "Code search"):])
+		t.Errorf("an index of many languages reads: %s", wide)
 	}
 }
 
-// What is not there is not claimed: no vault on a machine without one, no
-// search over a folder that cannot be indexed, no count for an index still
-// being built.
+// What is not there is not claimed: no index over a folder that cannot be
+// indexed, no count for an index still being built, no screen not offered.
 func TestTheBriefClaimsOnlyWhatIsThere(t *testing.T) {
 	machine(t, false)
 	text := Agent(Session{Info: protocol.SessionInfo{Cwd: "/home/someone"}})
-	if strings.Contains(text, "vault") && strings.Contains(text, "this machine's map") {
-		t.Error("the brief points at a vault that does not exist")
-	}
-	if strings.Contains(text, "Code search\n") {
-		t.Error("the brief offers a search over a folder that is not indexed")
+	if strings.Contains(text, "Code index") || strings.Contains(text, "Screen:") || strings.Contains(text, "- Reach:") {
+		t.Errorf("a plain session's brief reads %q", text)
 	}
 	building := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}, Index: &protocol.IndexInfo{Root: "/work/app"}})
 	if !strings.Contains(building, "an index of /work/app, and it follows your edits") {
-		t.Errorf("an index still being built reads: %s", building[strings.Index(building, "Code search"):])
+		t.Errorf("an index still being built reads: %s", building)
 	}
 }
 
-// A team task's agent runs in a sandbox that hides the vault, so it is not
-// sent there; it is told instead what it can change and what looks empty.
+// A team task's agent runs in a sandbox that hides the vault; it is told
+// what it can change and what looks empty, and its team's brief follows.
 func TestATeamAgentIsToldWhatItsSandboxReaches(t *testing.T) {
-	vault := machine(t, true)
+	machine(t, true)
 	text := Agent(Session{
 		Info:     protocol.SessionInfo{Cwd: "/teams/digest", Team: "team-1", TeamTask: "task-1"},
 		Writable: []string{"/home/me/Projects/site"},
 		Team:     "Your team is Digest.",
 	})
-	for _, gone := range []string{vault, "this machine's map", "ryoku owner", "vault wiki page"} {
-		if strings.Contains(text, gone) {
-			t.Errorf("the team brief still says %q", gone)
-		}
-	}
 	for _, want := range []string{
 		"- Folder: /teams/digest",
 		"You can change only this folder and /home/me/Projects/site;",
 		"the Ryoku vault, the credential vault, other teams' folders and the paths Settings > Teams hides look empty",
 		"code search reaches only the indexes inside the folders you can change",
-		"Rashin is Ryoku's optional assistant", "Your team is Digest.",
+		"Your team is Digest.",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the team brief does not say %q", want)
 		}
 	}
-	if solo := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}}); !strings.Contains(solo, "The vault wiki page rashin is the full guide.") || strings.Contains(solo, "- Reach:") {
-		t.Error("a session of no team lost the vault or was told of a sandbox")
+}
+
+// The vault guide is only offered where the vault can be read.
+func TestRashinPointsAtTheVaultGuideOnlyWhenItCanBeRead(t *testing.T) {
+	if !strings.Contains(Rashin(true), "The vault wiki page rashin is the full guide.") || strings.Contains(Rashin(false), "vault wiki page") {
+		t.Fatal("the vault guide pointer does not follow the vault's reach")
+	}
+	if strings.Contains(Rashin(true), "harness") || strings.Contains(Teams(true), "harness") {
+		t.Fatal("Rashin is still described with harnesses")
 	}
 }
 

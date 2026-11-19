@@ -9,7 +9,7 @@ import (
 )
 
 // ask puts a question of Rashin's own to the user in a session's transcript,
-// drawn and answered like a harness's permission request, and waits for the
+// drawn and answered like a tool's permission request, and waits for the
 // option they pick
 func (m *sessionManager) ask(ctx context.Context, id string, data protocol.PermissionData) (string, error) {
 	s, err := m.get(id)

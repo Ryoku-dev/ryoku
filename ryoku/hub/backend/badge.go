@@ -11,17 +11,18 @@ import (
 )
 
 type badgeView struct {
-	Code   string `json:"code,omitempty"`
-	ID     string `json:"id"`
-	Role   string `json:"role"`
-	RoleID byte   `json:"roleId"`
-	Login  string `json:"login"`
-	Issuer string `json:"issuer"`
-	Issued string `json:"issued"`
+	Code    string `json:"code,omitempty"`
+	ID      string `json:"id"`
+	Role    string `json:"role"`
+	RoleID  byte   `json:"roleId"`
+	Login   string `json:"login"`
+	Issuer  string `json:"issuer"`
+	Issued  string `json:"issued"`
+	Program string `json:"program,omitempty"`
 }
 
 func badgeViewFor(b badgeInfo, withCode bool) *badgeView {
-	out := &badgeView{ID: b.ID, Role: b.Role, RoleID: b.RoleID, Login: b.Login, Issuer: b.Issuer, Issued: b.Issued}
+	out := &badgeView{ID: b.ID, Role: b.Role, RoleID: b.RoleID, Login: b.Login, Issuer: b.Issuer, Issued: b.Issued, Program: b.Program}
 	if withCode {
 		out.Code = b.Code
 	}
@@ -160,6 +161,7 @@ func badgeIssue(args []string) error {
 	role := f.String("role", "", "")
 	login := f.String("login", "", "")
 	request := f.String("request", "", "")
+	program := f.String("program", "", "")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
@@ -185,7 +187,7 @@ func badgeIssue(args []string) error {
 		return e
 	}
 	defer clear(seed)
-	code, e := badgeSign(id, roleID, seed, req, *login, badgeDay(time.Now()))
+	code, e := badgeSign(id, roleID, seed, req, *login, *program, badgeDay(time.Now()))
 	if e != nil {
 		return e
 	}
@@ -193,7 +195,11 @@ func badgeIssue(args []string) error {
 	if e != nil {
 		return e
 	}
-	return printJSON(map[string]any{"code": code, "id": info.ID, "published": teamPublish("/v1/badges", code)})
+	out := map[string]any{"code": code, "id": info.ID, "published": teamPublish("/v1/badges", code)}
+	if info.Program != "" {
+		out["program"] = info.Program
+	}
+	return printJSON(out)
 }
 func badgeRevoke(args []string) error {
 	f, issuer, key, e := badgeIssuerFlags("badge revoke", args)

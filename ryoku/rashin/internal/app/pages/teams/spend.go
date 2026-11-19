@@ -1,8 +1,6 @@
 package teams
 
 import (
-	"strings"
-
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -15,7 +13,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// the month's spend by day, member, routine and engine; the limit itself is set in the Settings tab
+// the month's spend by day, member, routine and model; the limit itself is set in the Settings tab
 type spendTab struct {
 	scroll look.Scroller
 	month  teamsui.MonthSpend
@@ -56,12 +54,12 @@ func (s *spendTab) layout(gtx layout.Context, e *env.Env, p *Page, team protocol
 				if spend.Estimated {
 					children = append(children,
 						layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-						layout.Rigid(quiet(th, i18n.T("A harness did not report all of its tokens, so part of this is an estimate."))),
+						layout.Rigid(quiet(th, i18n.T("Some token counts are estimates because the model did not report them all."))),
 					)
 				}
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 			}),
-			section(th, i18n.T("By engine"), spendList(th, engineSpends(e.Snapshot(), spend.Engines), i18n.T("No task has run on an engine this month."))),
+			section(th, i18n.T("By model"), spendList(th, engineSpends(e.Snapshot(), spend.Engines), i18n.T("No task has run on a model this month."))),
 		)
 	}
 	right := func(gtx layout.Context) layout.Dimensions {
@@ -77,15 +75,12 @@ func (s *spendTab) layout(gtx layout.Context, e *env.Env, p *Page, team protocol
 	})
 }
 
-// the daemon leaves engines unworded, so each reads as the task header words the engine a task ran on
+// model ids in the ledger use the same names as member and task models
 func engineSpends(snapshot appstate.Snapshot, engines []protocol.NamedSpend) []protocol.NamedSpend {
 	named := make([]protocol.NamedSpend, len(engines))
 	for index, engine := range engines {
-		harness, model, _ := strings.Cut(engine.ID, protocol.EngineSpendSeparator)
 		named[index] = engine
-		if harness != "" {
-			named[index].Name = teamsui.TaskEngine(snapshot, protocol.TeamTask{Harness: harness, Model: model}).Line()
-		}
+		named[index].Name = teamsui.ModelEngine(snapshot, engine.ID, nil).Line()
 	}
 	return named
 }
@@ -96,7 +91,11 @@ func spendList(th *look.Theme, spends []protocol.NamedSpend, none string) layout
 		return quiet(th, none)
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		total := int64(0)
+		for _, spend := range spends {
+			total += max(0, spend.Tokens)
+		}
+		total = max(1, total)
 		children := make([]layout.FlexChild, 0, 2*len(spends))
 		for index, spend := range spends {
 			if index > 0 {
@@ -104,17 +103,25 @@ func spendList(th *look.Theme, spends []protocol.NamedSpend, none string) layout
 			}
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return kit.Label{Style: th.T.Label, Color: th.R.Fg, MaxLines: 2}.Layout(gtx, th.Theme, spend.Name)
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return kit.Label{Style: th.T.Label, Color: th.R.Fg, MaxLines: 2}.Layout(gtx, th.Theme, spend.Name)
+									}),
+									layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, tasksWord(spend.Tasks))),
+								)
 							}),
-							layout.Rigid(kit.Text(th.Theme, th.T.Caption, th.R.Fg3, tasksWord(spend.Tasks))),
+							layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
+							layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.Tf("%s tokens", teamsui.Tokens(spend.Tokens)))),
 						)
 					}),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-					layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.Tf("%s tokens", teamsui.Tokens(spend.Tokens)))),
+					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return (kit.BladeMeter{Fraction: float64(max(0, spend.Tokens)) / float64(total), Ink: th.R.Sel}).Layout(gtx, th.Theme)
+					}),
 				)
 			}))
 		}

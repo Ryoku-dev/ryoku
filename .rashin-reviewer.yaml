@@ -33,3 +33,6 @@ rules:
       - "ryoku/rashin/internal/index/embed/model/**"
     # The R2 retention Worker logs through console.log; wrangler tail reads it.
     debug-leftover: ["release/r2-retention/**"]
+    # A Python 2 log helper `go mod vendor` copies beside the cgo uTP sources,
+    # which ryoget never builds; nothing runs it.
+    python-syntax: ["ryoku/shell/ryoget/vendor/github.com/anacrolix/go-libutp/parse_log.py"]

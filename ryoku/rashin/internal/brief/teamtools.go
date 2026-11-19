@@ -9,7 +9,7 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// The team tools' names, the same in an agent's rashin MCP server and in Ask.
+// The team tools' names, the same in every mode that offers them.
 const (
 	ToolTeamsTemplates = "teams_templates"
 	ToolTeamsList      = "teams_list"
@@ -17,8 +17,8 @@ const (
 )
 
 // TeamTool is one of the tools that let a model read Rashin's teams and
-// propose one. Agents get them from the rashin MCP server and Ask from its
-// own tool list, from this one definition.
+// propose one. The engine's Rashin tools serve them from this one
+// definition.
 type TeamTool struct {
 	Name        string
 	Description string
@@ -48,8 +48,7 @@ func TeamTools() []TeamTool {
 		"name":         text("The member's name, unique in the team."),
 		"title":        text("Its role in a few words."),
 		"lead":         map[string]any{"type": "boolean", "description": "The one member that takes the team's tasks and hands pieces to the others."},
-		"harness":      text("A harness id such as claude, codex or omp; leave it out to follow the user's teams defaults."),
-		"model":        text("That harness's model id; leave it out for the harness's default."),
+		"model":        text("A model id such as auto, auto:smart or provider/model; leave it out to follow the user's teams defaults."),
 		"instructions": text("Its standing role: what it does and how."),
 	})
 	routine := object([]string{"title", "brief", "schedule"}, map[string]any{

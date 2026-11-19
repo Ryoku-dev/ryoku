@@ -50,7 +50,10 @@ func TestClipWatcherCapturesOffersInOrder(t *testing.T) {
 	fakeExpectDestroy(t, server, 0xff000004)
 
 	fakeSendOffer(t, server, 0xff000005, []string{"text/plain"}, dataDevicePrimaryEvent)
+	fakeSendOffer(t, server, 0xff000009, []string{"text/plain"}, dataDevicePrimaryEvent)
 	fakeExpectDestroy(t, server, 0xff000005)
+	fakeSend(t, server, wlDeviceID, dataDevicePrimaryEvent, wlUint(0))
+	fakeExpectDestroy(t, server, 0xff000009)
 
 	packet := fakeOfferPacket(0xff000006, []string{"text/plain"}, dataDeviceSelectionEvent)
 	packet = append(packet, fakeOfferPacket(0xff000007, []string{"image/jpeg"}, dataDeviceSelectionEvent)...)

@@ -3,6 +3,8 @@ package projects
 import (
 	"image"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -19,23 +21,35 @@ var projectViews = [...]string{TabOverview, TabGraph, TabChanges, TabTasks, TabA
 
 func (p *pageState) layoutProject(gtx layout.Context, e *env.Env) layout.Dimensions {
 	info, _ := p.projectInfo(e)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info) }),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutTabs(gtx, e) }),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = gtx.Constraints.Max
-			return p.rise.Layout(gtx, e.Theme, p.project+"\x00"+p.tab, 8, func(gtx layout.Context) layout.Dimensions {
-				return p.layoutView(gtx, e)
-			})
-		}),
-	)
+	return p.sheet.Layout(gtx, e.Theme, p.sheetPage(e), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if p.listShown {
+					return layout.Dimensions{}
+				}
+				return p.layoutTabs(gtx, e)
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min = gtx.Constraints.Max
+				key := p.project + "\x00" + p.tab
+				if p.risen != p.project {
+					p.risen = p.project
+					return p.layoutView(gtx, e)
+				}
+				return p.rise.Layout(gtx, e.Theme, key, 14, func(gtx layout.Context) layout.Dimensions {
+					return p.layoutView(gtx, e)
+				})
+			}),
+		)
+	})
 }
 
 func (p *pageState) layoutHeader(gtx layout.Context, e *env.Env, info protocol.ProjectInfo) layout.Dimensions {
 	content := look.PaneHeaderContent{
 		Title:   info.Name,
 		Facts:   []look.HeaderFact{{Text: paths.Short(info.Root), Kind: look.FactToken}},
-		Actions: []look.HeaderAction{{Icon: look.Icon.Terminal, Description: i18n.T("Open a terminal here")}, {Icon: look.Icon.Folder, Description: i18n.T("Open the folder")}},
+		Actions: []look.HeaderAction{{Icon: look.Icon.Terminal, Label: i18n.T("Terminal"), Description: i18n.T("Open a terminal here")}, {Icon: look.Icon.Folder, Label: i18n.T("Folder"), Description: i18n.T("Open the folder")}},
 		Menu: []kit.MenuItem{
 			{Icon: look.Icon.Settings, Label: i18n.T("Project settings")},
 			{Divider: true},
@@ -43,7 +57,7 @@ func (p *pageState) layoutHeader(gtx layout.Context, e *env.Env, info protocol.P
 		},
 	}
 	if info.Attention > 0 {
-		content.Claim, content.ClaimTone = i18n.Tf("%d need you", info.Attention), 3
+		content.Claim, content.ClaimTone = i18n.Tf("%d need you", info.Attention), palette.Attention
 	}
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
 	if index, ok := p.header.ActionClicked(); ok {
@@ -71,10 +85,7 @@ func (p *pageState) layoutTabs(gtx layout.Context, e *env.Env) layout.Dimensions
 			p.tabs.Selected = index
 		}
 	}
-	// a tab label sits 12 inside its box so the strip starts 12 early to put the first label under the title
-	dimensions := layout.Inset{Left: 9}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return p.tabs.Layout(gtx, th.Theme)
-	})
+	dimensions := p.tabs.Layout(gtx, th.Theme)
 	if index, changed := p.tabs.Changed(); changed && index < len(projectViews) {
 		e.NavigateWork(p.project, projectViews[index], p.worktree)
 	}

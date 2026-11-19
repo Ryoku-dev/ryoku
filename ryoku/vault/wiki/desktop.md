@@ -23,8 +23,11 @@ helps when you want to change something.
   place.
 - **Controls:** press Super+Escape for activity, connections, levels, extensions,
   and hold-to-activate session actions.
-- **Rashin:** press Alt+Space for optional read-only Ask. The Ryoku vault, wiki,
-  skill, and source map belong to the desktop and remain when Rashin is off.
+- **Rashin bar:** press Alt+Space to ask Rashin (optional, read-only), search
+  the web and start downloads. The Ryoku vault, wiki, skill, and source map
+  belong to the desktop and remain when Rashin is off.
+- **Kit:** press Super+K for the download manager, every shortcut, a command
+  library, your phone, dev tools and a typing test, one tab each.
 
 ## Keybinds worth learning
 

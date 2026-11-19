@@ -7,6 +7,7 @@ import (
 
 	i18n "ryoku-i18n"
 
+	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -17,7 +18,7 @@ const pruneEvery = 24 * time.Hour
 // day until the service closes.
 func (s *Service) pruneDaily() {
 	s.pruneTasks(s.background, protocol.TeamPruneParams{}, protocol.InitiatorRashin)
-	go func() {
+	s.startWorker(func() {
 		ticker := time.NewTicker(pruneEvery)
 		defer ticker.Stop()
 		for {
@@ -28,7 +29,7 @@ func (s *Service) pruneDaily() {
 				s.pruneTasks(s.background, protocol.TeamPruneParams{}, protocol.InitiatorRashin)
 			}
 		}
-	}()
+	})
 }
 
 // prune serves teams.prune for the user.
@@ -72,7 +73,7 @@ func (s *Service) pruneTasks(ctx context.Context, p protocol.TeamPruneParams, in
 		if lead, ok := s.state.task(t.Parent); ok && taskIsOpen(lead) {
 			continue
 		}
-		if !s.deleteSessions(ctx, t.Sessions) || s.state.removeTask(t.ID) != nil {
+		if !s.deleteSessions(ctx, t.Sessions) || paths.RemoveWritableTree(paths.ToolHome(t.Team, t.ID)) != nil || s.state.removeTask(t.ID) != nil {
 			continue
 		}
 		s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: t.ID})

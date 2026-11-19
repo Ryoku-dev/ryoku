@@ -46,6 +46,10 @@ import (
 // (quickshell#1094). One capture is enough to segfault the shell. grim and
 // other out-of-process captures are fine. A niri release that ships
 // ext-image-copy-capture can claim this again.
+//
+// CapPointerPosition: niri's IPC has no pointer query. It needs none: niri
+// sends pointer enter to a surface mapped under a still pointer, so a shell
+// surface learns where the pointer is the moment it opens.
 var foreignAPIs = []wm.ForeignAPI{}
 
 var capsManifest = []wm.Capability{

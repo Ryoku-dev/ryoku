@@ -104,7 +104,7 @@ func (w *whenBuilder) layout(gtx layout.Context, e *env.Env) layout.Dimensions {
 	rows = append(rows, w.fields(th)...)
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		if w.reading.problem != "" {
-			return look.Paragraph(th, th.T.Detail, th.R.Amber, w.reading.problem)(gtx)
+			return look.Paragraph(th, th.T.Detail, th.R.Jasper, w.reading.problem)(gtx)
 		}
 		return look.Paragraph(th, th.T.Detail, th.R.Fg2, w.reading.sentence)(gtx)
 	})

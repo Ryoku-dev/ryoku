@@ -22,12 +22,17 @@ const cardRewriteEvery = 24 * time.Hour
 const cardReplyTokens = 1024
 
 // cardGet is the card, built first when asked or when there is none yet.
-func (e *Engine) cardGet(ctx context.Context, rebuild bool) (protocol.MemoryCard, error) {
+func (e *Engine) cardGet(ctx context.Context, rebuild bool) (card protocol.MemoryCard, err error) {
+	defer func() {
+		if err == nil {
+			card = e.profileCard(card)
+		}
+	}()
 	store, err := e.store()
 	if err != nil {
 		return protocol.MemoryCard{}, err
 	}
-	card, err := store.Card()
+	card, err = store.Card()
 	if err != nil || (!rebuild && !card.Built.IsZero()) {
 		return card, err
 	}
@@ -35,6 +40,18 @@ func (e *Engine) cardGet(ctx context.Context, rebuild bool) (protocol.MemoryCard
 		model, _ := e.chooseModel(ctx, e.learn.lastModel())
 		return model
 	}, rebuild)
+}
+
+func (e *Engine) profileCard(card protocol.MemoryCard) protocol.MemoryCard {
+	if e.deps.Settings == nil || !e.on() {
+		return card
+	}
+	settings := e.deps.Settings()
+	if !settings.Features["profile"] {
+		return card
+	}
+	card.Text = render.Profile(settings.Memory.Profile, card.Text)
+	return card
 }
 
 // lastModel is the model the learner last used, "" for none yet.
@@ -263,7 +280,8 @@ func (e *Engine) rewriteCard(ctx context.Context, model learnModel, old string, 
 	zero := 0.0
 	reply, _, err := complete(ctx, e.deps.Client, llm.Request{
 		Model:       model.Model,
-		Strict:      true,
+		LocalOnly:   model.Local,
+		Light:       true,
 		Temperature: &zero,
 		MaxTokens:   cardReplyTokens,
 		Messages: []llm.Message{

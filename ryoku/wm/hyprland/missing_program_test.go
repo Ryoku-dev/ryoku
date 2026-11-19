@@ -15,20 +15,28 @@ func withoutProgram(t *testing.T, name string) {
 	t.Cleanup(func() { hasProgram = prev })
 }
 
-// With Rashin absent the Ask chord is switched off in the K() table, so
+// With the Rashin app absent its chord is switched off in the K() table, so
 // binds.lua never registers it, and a rebind the user recorded for it is
-// overruled the same way: the lookup is keyed by the shipped chord.
+// overruled the same way: the lookup is keyed by the shipped chord. The Rashin
+// bar needs no program and stays registered.
 func TestAbsentProgramSwitchesItsBindOff(t *testing.T) {
-	withoutProgram(t, "rashind")
-	got := string(renderRebinds(Overrides{KeybindRebinds: map[string]string{"ALT + Space": "SUPER + A"}}))
-	if !strings.Contains(got, `["ALT + Space"] = false`) {
-		t.Fatalf("Ask chord still registered without rashind:\n%s", got)
+	withoutProgram(t, "rashin-app")
+	got := string(renderRebinds(Overrides{KeybindRebinds: map[string]string{"SUPER + ALT + Space": "SUPER + A"}}))
+	if !strings.Contains(got, `["SUPER + ALT + Space"] = false`) {
+		t.Fatalf("Rashin window chord still registered without rashin-app:\n%s", got)
 	}
 	if strings.Contains(got, `"SUPER + A"`) {
 		t.Fatalf("a rebind of an absent program's bind leaked into the table:\n%s", got)
 	}
-	if strings.Contains(got, `"SUPER + ALT + Space"`) {
-		t.Fatalf("the Rashin window bind needs rashin-app, which is present, yet it was switched off:\n%s", got)
+	if strings.Contains(got, `["ALT + Space"] = false`) {
+		t.Fatalf("the Rashin bar needs no program, yet it was switched off:\n%s", got)
+	}
+}
+
+func TestRashinBarStaysOnWithoutRashind(t *testing.T) {
+	withoutProgram(t, "rashind")
+	if got := string(renderRebinds(Overrides{})); strings.Contains(got, `["ALT + Space"] = false`) {
+		t.Fatalf("the Rashin bar was switched off without rashind:\n%s", got)
 	}
 }
 

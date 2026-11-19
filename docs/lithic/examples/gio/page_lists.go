@@ -94,7 +94,7 @@ func listsTablet(th *theme.Theme) layout.Widget {
 }
 
 func listsRowList(th *theme.Theme) layout.Widget {
-	return section(th, "RowList", specimen(th, "Selected slab, wheel, trackpad and keyboard", func(gtx layout.Context) layout.Dimensions {
+	return section(th, "RowList", specimen(th, "Selection wash under listed tablets, wheel, trackpad and keyboard", func(gtx layout.Context) layout.Dimensions {
 		rows := []struct {
 			name, facts string
 			icon        *widget.Icon
@@ -107,6 +107,8 @@ func listsRowList(th *theme.Theme) layout.Widget {
 		tablets := make([]kit.Tablet, len(rows))
 		gtx.Constraints.Max.Y = gtx.Dp(th.RowHeight())*2 + gtx.Dp(tokens.SizeRowListGap)
 		return list.Layout(gtx, th, len(rows), 1, func(gtx layout.Context, index int) layout.Dimensions {
+			// the list draws the selection, so its tablets lay no plane of their own
+			tablets[index].Listed = true
 			return tablets[index].Layout(gtx, th, kit.TabletContent{
 				Mark: listMark(th, rows[index].icon), Title: rows[index].name,
 				Facts: rows[index].facts, FactsMono: true, Claim: "Running", Proof: "ally", Tone: palette.Alive, Progress: -1,
@@ -144,30 +146,20 @@ func listsEmpty(th *theme.Theme) layout.Widget {
 }
 
 func listsPane(th *theme.Theme) layout.Widget {
-	return section(th, "Pane", func(gtx layout.Context) layout.Dimensions {
-		widgets := []layout.Widget{
-			specimen(th, "Rail and list plane", func(gtx layout.Context) layout.Dimensions {
-				return kit.Slab(gtx, th.R.Ground, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.Y = gtx.Dp(tokens.SizeTabletHeight * 2)
-						return (kit.Pane{Kind: kit.PaneList}).Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
-							return layout.Dimensions{Size: gtx.Constraints.Min}
-						})
-					})
-				})
-			}),
-			specimen(th, "Work plane", func(gtx layout.Context) layout.Dimensions {
-				return kit.Slab(gtx, th.R.Ground, th.Cut.Mid, func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.Y = gtx.Dp(tokens.SizeTabletHeight * 2)
-						return (kit.Pane{Kind: kit.PaneWork}).Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
-							return layout.Dimensions{Size: gtx.Constraints.Min}
-						})
-					})
-				})
-			}),
+	pane := func(kind kit.PaneKind) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.Y = gtx.Dp(tokens.SizeTabletHeight * 2)
+			return (kit.Pane{Kind: kind}).Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
+				return layout.Dimensions{Size: gtx.Constraints.Min}
+			})
 		}
-		return grid(gtx, 2, th.Sp.S3, widgets)
+	}
+	return section(th, "Pane", func(gtx layout.Context) layout.Dimensions {
+		return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+			specimen(th, "List pane, beside the work pane", pane(kit.PaneList)),
+			specimen(th, "Work pane, running to the window's foot", pane(kit.PaneWork)),
+			specimen(th, "Page pane, clear of the window on every side", pane(kit.PanePage)),
+		})
 	})
 }
 
@@ -209,7 +201,7 @@ func listsHeader(th *theme.Theme) layout.Widget {
 }
 
 func listsSlab(th *theme.Theme) layout.Widget {
-	plain := specimen(th, "Rows on a lifted slab", func(gtx layout.Context) layout.Dimensions {
+	plain := specimen(th, "Rows on a slab, the design's card", func(gtx layout.Context) layout.Dimensions {
 		return kit.SlabRows(gtx, th,
 			settingRow(th, "Console router", "Reached from ally over the serial line", kit.Text(th, th.T.Mono, th.R.Fg, "/dev/ttyUSB0")),
 			settingRow(th, "Snapshots", "Kept on mika-server for seven days", kit.Text(th, th.T.Mono, th.R.Fg, "7 d")),
@@ -219,10 +211,18 @@ func listsSlab(th *theme.Theme) layout.Widget {
 		return kit.TonedSlabContent(gtx, th, palette.Attention, kit.Claim(th, palette.Attention, "scratch-arch has a new host key"))
 	})
 	return section(th, "Slab", func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(plain),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-			layout.Rigid(toned),
+		return vstack(gtx, th.Sp.S4,
+			func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				return plain(gtx)
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return grid(gtx, 3, th.Sp.S3, []layout.Widget{
+					specimen(th, "A slab outlined inside a slab", designSlab(th)),
+					specimen(th, "With a tone mark", designMarkedSlab(th)),
+					toned,
+				})
+			},
 		)
 	})
 }

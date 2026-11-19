@@ -3,26 +3,48 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"syscall"
-	"time"
-
-	"ryoku-rashin/internal/ask"
+	"ryoku-rashin/internal/autolearn"
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/daemon"
+	"ryoku-rashin/internal/decisions"
+	"ryoku-rashin/internal/engine"
+	engineask "ryoku-rashin/internal/engine/ask"
+	"ryoku-rashin/internal/engine/exec"
+	"ryoku-rashin/internal/engine/tool"
+	"ryoku-rashin/internal/engine/tools/agents"
+	asktools "ryoku-rashin/internal/engine/tools/ask"
+	"ryoku-rashin/internal/engine/tools/askuser"
+	"ryoku-rashin/internal/engine/tools/code"
+	"ryoku-rashin/internal/engine/tools/fs"
+	"ryoku-rashin/internal/engine/tools/goal"
+	"ryoku-rashin/internal/engine/tools/learn"
+	"ryoku-rashin/internal/engine/tools/rashin"
+	"ryoku-rashin/internal/engine/tools/report"
+	"ryoku-rashin/internal/engine/tools/shell"
+	"ryoku-rashin/internal/engine/tools/todo"
+	"ryoku-rashin/internal/engine/tools/web"
 	"ryoku-rashin/internal/gateway"
-	"ryoku-rashin/internal/harness"
+	"ryoku-rashin/internal/grievances"
 	"ryoku-rashin/internal/index"
 	"ryoku-rashin/internal/index/embed"
+	"ryoku-rashin/internal/judge"
+	"ryoku-rashin/internal/localmodels"
+	"ryoku-rashin/internal/mcpservers"
 	"ryoku-rashin/internal/memory"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/redact"
+	"ryoku-rashin/internal/rules"
+	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/skills"
 	"ryoku-rashin/internal/teams"
 	"ryoku-rashin/internal/workspace"
+	"syscall"
+	"time"
 )
 
 var version = "dev"
@@ -97,6 +119,7 @@ func run() error {
 		gw.Close()
 		return err
 	}
+	crew.SetModels(gw.Models)
 	// every scrubbed transcript and memory takes out the vault's values and
 	// the provider keys by name before the patterns run
 	defer redact.RegisterStore(crew.Scrubber, crew.VaultOpen)()
@@ -133,12 +156,60 @@ func run() error {
 		SetEngine: func(engine string) error { return d.SetMemoryEngine(engine) },
 	})
 	crew.SetMemory(mem)
-	// written out only the first time a model or the app asks for them
+	// These constructors do no work while their optional features are off.
 	library := skills.New(paths.SkillsDir())
+	managed := library.WithManaged(paths.ManagedSkillsDir())
 	crew.SetSkills(library)
-	asker := ask.New(gw, idx, crew, mem)
-	asker.SetSkills(library)
-	deps := daemon.Deps{Gateway: gw, Asker: asker, Harnesses: harness.New(), Indexer: idx, Work: work, Teams: crew, Memory: mem, Skills: library, Version: version, Events: events, Lock: lock}
+	local := localmodels.New(settings, events)
+	gw.SetLocal(local)
+	learning := autolearn.NewObserver(gw, managed, settings, events)
+	decisionBank := decisions.New(decisions.Deps{Client: gw, Settings: settings, Broadcast: events})
+	verdicts := judge.New(gw, settings)
+	rulebook := rules.New(rules.Deps{Client: gw, Settings: settings, Judge: verdicts})
+	issues := grievances.Open("")
+	registry := tool.NewRegistry()
+	for _, group := range [][]tool.Tool{
+		fs.Tools(), shell.Tools(), code.Tools(), web.Tools(), asktools.Tools(),
+		rashin.Tools(), agents.Tools(), todo.Tools(), askuser.Tools(),
+		goal.Tools(), learn.Tools(managed, events), report.Tools(issues, events),
+		engine.ContextTools(),
+	} {
+		registry.Add(group...)
+	}
+	registry.AddProvider(mcpservers.NewProvider(func() (*mcpservers.Store, error) { return d.MCPStore() }))
+	factory := engine.New(engine.Deps{
+		Gateway: gw, Index: idx, Memory: mem, Teams: crew, Skills: library,
+		Tools: registry,
+		Executor: func(info protocol.SessionInfo, spec *sandbox.Spec) exec.Executor {
+			if spec == nil {
+				return exec.Host(exec.HostOptions{})
+			}
+			return exec.Sandboxed(func(ctx context.Context) (*os.Process, io.ReadWriteCloser, error) {
+				argv, err := d.ToolHostCommand(*spec)
+				if err != nil {
+					return nil, nil, err
+				}
+				return exec.StartCommand(ctx, argv)
+			})
+		},
+		Host: func(info protocol.SessionInfo) tool.Host { return d.ToolHost(info) },
+		Context: []engine.ContextProvider{
+			autolearn.NewSkillsContext(library, settings, crew.SkillsOff),
+			decisionBank, rulebook, daemon.MemoryContext(mem),
+		},
+		Guards:    []engine.StreamGuards{rulebook},
+		Observers: []engine.TurnObserver{learning, decisionBank, rulebook},
+		Judge:     verdicts,
+		Ask:       engineask.New(gw),
+	})
+	deps := daemon.Deps{
+		Gateway: gw, Asker: factory, Agents: factory, Indexer: idx,
+		Work: work, Teams: crew, Memory: mem, Skills: library, Local: local,
+		ManagedSkills: managed, Decisions: decisionBank, Rules: rulebook, Grievances: issues,
+		Version: version, Events: events, Lock: lock,
+		CloseEngine:  func() { _ = factory.Close(); learning.Close(); _ = verdicts.Close() },
+		LearningBusy: learning.Busy,
+	}
 	// read now: once the file is replaced the kernel no longer names it
 	if program, programErr := os.Executable(); programErr == nil {
 		deps.Program = program

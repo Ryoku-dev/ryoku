@@ -4,17 +4,22 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Widgets
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
+import "bar"
+import "look"
 
+// The Rashin bar (Alt+Space): a command bar over everything, in the desktop's
+// design. This is the window, its arrival and its clients; the body is
+// bar/BarSurface. mode is where the shell asked it to open: "ask" is the root
+// list and "web" opens web search over it.
 Scope {
     id: root
 
     required property var screen
     property bool active: false
     property string mode: "ask"
-    property string tool: ""
 
     signal requestClose()
     signal modeChangeRequested(string mode)
@@ -24,39 +29,27 @@ Scope {
     readonly property var clearances: SidebarState.railClearances(screen)
     readonly property real screenWidth: screen && screen.width > 0 ? screen.width : 1280
     readonly property real screenHeight: screen && screen.height > 0 ? screen.height : 800
-    readonly property real gap: Tokens.s3 * s
+    readonly property real gap: Math.round(13 * s)
     readonly property real availableWidth: Math.max(1, screenWidth - clearances.left - clearances.right - gap * 2)
-    readonly property real panelWidth: Math.min(availableWidth, 720 * s)
-    readonly property real panelX: (screenWidth - panelWidth) / 2
-    readonly property real panelY: Math.max(clearances.top + gap, screenHeight * 0.18)
-    readonly property real maximumHeight: Math.max(1, screenHeight - panelY - clearances.bottom - gap)
-    readonly property real desiredHeight: Math.min(maximumHeight, surface.implicitHeight)
-    property real presentedHeight: desiredHeight
+    readonly property real panelY: Math.max(clearances.top + gap, Math.round(screenHeight * 0.18))
+    readonly property real maximumHeight: Math.max(1, Math.min(620 * s, screenHeight - panelY - clearances.bottom - gap))
+
+    // arrival: Lithic wipes down from its top edge, Material springs open from
+    // 90%, Adwaita grows from 97%, Fluent slides down 10 as it fades in
     property real reveal: active ? 1 : 0
-    property alias query: surface.query
-    readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
-
+    readonly property real shown: Math.max(0, Math.min(1, reveal))
     Behavior on reveal {
-        enabled: root.motionAllowed
-        NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
-    }
-
-    function switchMode(next) {
-        if (["ask", "chat", "tools", "web"].indexOf(next) < 0 || mode === next)
-            return;
-        modeChangeRequested(next);
-        Qt.callLater(surface.focusField);
-    }
-
-    onActiveChanged: {
-        if (active) {
-            if (tool === "compress" || tool === "install")
-                switchMode("tools");
-            Qt.callLater(surface.focusField);
+        NumberAnimation {
+            duration: Look.dur(root.active ? Look.openMs : Look.closeMs)
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: root.active ? Look.arrive : Look.leave
         }
     }
 
-    RashinClient { id: rashin }
+    RashinClient { id: rashinClient }
+    RashinSession { id: askSession; client: rashinClient; kind: "ask" }
+    SearchClient { id: searchClient }
+    DownloadsClient { id: downloadsClient }
 
     PanelWindow {
         id: panel
@@ -68,7 +61,8 @@ Scope {
         anchors { top: true; bottom: true; left: true; right: true }
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "ryoku-ask"
-        WlrLayershell.keyboardFocus: root.active ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: !root.active ? WlrKeyboardFocus.None
+            : surface.yieldsKeyboard ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive
         mask: Region {
             width: panel.width
             height: panel.height
@@ -86,17 +80,17 @@ Scope {
         }
 
         FocusScope {
-            id: focusSurface
-            x: root.panelX
-            y: root.panelY
-            width: root.panelWidth
-            height: root.presentedHeight
+            id: holder
+            x: Math.round((root.screenWidth - width) / 2)
+            y: root.panelY + (Look.fluent ? -Math.round(10 * root.s) * (1 - root.shown) : 0)
+            width: Math.round(surface.presentedWidth)
+            height: Math.round(surface.presentedHeight)
             focus: root.active
-            opacity: root.reveal
-            scale: 0.96 + root.reveal * 0.04
+            opacity: Math.min(1, root.shown * (Look.lithic ? 3 : 1.5))
+            scale: Look.material ? 0.9 + 0.1 * root.reveal : Look.adwaita ? 0.97 + 0.03 * root.shown : 1
             transformOrigin: Item.Top
             Keys.onEscapePressed: root.requestClose()
-            onFocusChanged: if (focus) Qt.callLater(function() { focusSurface.forceActiveFocus(); })
+            onFocusChanged: if (focus) Qt.callLater(surface.focusField)
 
             MouseArea {
                 anchors.fill: parent
@@ -105,27 +99,63 @@ Scope {
             }
 
             RectangularShadow {
-                anchors.fill: surface
-                radius: surface.radius
-                blur: 28 * root.s
-                spread: 4 * root.s
-                color: Qt.rgba(Tokens.keycapDark.r, Tokens.keycapDark.g, Tokens.keycapDark.b, 0.42)
-                visible: root.active
+                anchors.fill: slip
+                offset.y: Math.round((Look.lithic ? 5 : 10) * root.s)
+                blur: Math.round((Look.lithic ? 20 : 36) * root.s)
+                radius: Look.lithic ? 0 : Look.cornerAt(Look.cutFrame, slip.width, slip.height, root.s)
+                color: Look.shadow
             }
 
-            AskSurface {
-                id: surface
-                anchors.fill: parent
-                s: root.s
-                screen: root.screen
-                client: rashin
-                active: root.active
-                mode: root.mode
-                tool: root.tool
-                maximumHeight: root.maximumHeight
-                onRequestClose: root.requestClose()
-                onModeRequested: next => root.switchMode(next)
-                onBubblePinned: (question, answer) => root.bubblePinned(question, answer)
+            Item {
+                id: slip
+                width: holder.width
+                height: Look.lithic ? Math.ceil(holder.height * root.shown) : holder.height
+                clip: Look.lithic && root.shown < 0.999
+
+                Shape {
+                    id: frame
+                    width: holder.width
+                    height: holder.height
+                    s: root.s
+                    cutSize: Look.cutFrame
+                    cutTopRight: Look.cutFrameQuiet * root.s
+                    cutBottomLeft: Look.cutFrameQuiet * root.s
+                    fill: Look.frame
+                    strokeColor: Look.frameStroke
+                    strokeWidth: Qt.colorEqual(Look.frameStroke, "transparent") ? 0 : 1
+                }
+                Shape {
+                    anchors.fill: frame
+                    anchors.margins: 1
+                    visible: Look.fluent
+                    s: root.s
+                    cutSize: Look.cutFrame
+                    strokeColor: Look.frameInner
+                    strokeWidth: 1
+                }
+
+                BarSurface {
+                    id: surface
+
+                    readonly property bool yieldsKeyboard: surface.view !== null && surface.view !== undefined && surface.view.yieldsKeyboard === true
+
+                    width: holder.width
+                    height: holder.height
+                    s: root.s
+                    rashin: rashinClient
+                    session: askSession
+                    search: searchClient
+                    downloads: downloadsClient
+                    active: root.active
+                    screenName: root.screen ? root.screen.name : ""
+                    mode: root.mode
+                    baseWidth: Math.round(720 * root.s)
+                    maximumWidth: root.availableWidth
+                    maximumHeight: root.maximumHeight
+                    onRequestClose: root.requestClose()
+                    onModeRequested: next => root.modeChangeRequested(next)
+                    onBubblePinned: (question, answer) => root.bubblePinned(question, answer)
+                }
             }
         }
     }

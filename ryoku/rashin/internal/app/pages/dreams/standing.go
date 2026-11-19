@@ -59,22 +59,7 @@ func stalled(snapshot state.Snapshot, dream protocol.Team) bool {
 		return false
 	}
 	task, ok := standingTask(snapshot, dream)
-	if ok && task.Status == protocol.TaskBlocked && task.SignIn != "" {
-		// blocked on a sign-in: its own section offers it, and the manager starts by itself once it is done
-		return false
-	}
 	return !ok || task.Status == protocol.TaskBlocked || task.Status == protocol.TaskStopped || task.Status == protocol.TaskDone
-}
-
-// whether the dream's home of a harness is signed in now, which a task blocked earlier does not know
-func signedIn(snapshot state.Snapshot, dream protocol.Team, harness string) bool {
-	for _, info := range snapshot.Harnesses {
-		if info.ID == harness {
-			home, ok := info.Teams.HomeOf(dream.ID)
-			return ok && home.SignedIn != nil
-		}
-	}
-	return false
 }
 
 // how a dream stands in a word, its tone, and whether its manager is at work
@@ -87,11 +72,6 @@ func standing(snapshot state.Snapshot, dream protocol.Team) (word string, tone p
 		return i18n.T("Paused"), palette.Paused, false
 	case dream.Dream.Phase == protocol.DreamPresenting && dream.Dream.Presentation != nil && dream.Dream.Presentation.Verdict == "":
 		return i18n.T("Ready for you"), palette.Attention, false
-	case ok && task.Status == protocol.TaskBlocked && task.SignIn != "" && !signedIn(snapshot, dream, task.SignIn):
-		return i18n.T("Not signed in"), palette.Attention, false
-	case ok && task.Status == protocol.TaskBlocked && task.SignIn != "":
-		// the daemon starts the manager by itself once the harness is signed in for the dream
-		return i18n.T("Starting"), palette.Becoming, true
 	case ok && task.Status == protocol.TaskBlocked:
 		return i18n.T("Blocked"), palette.Failed, false
 	case stalled(snapshot, dream):

@@ -35,7 +35,6 @@ const niri = R.vocabulary(["float", "tile", "fullscreen", "maximize", "noroundin
                            "noshadow", "blur", "noblur", "xray", "columnwidth", "minsize", "maxsize", "scrollfactor",
                            "tiledstate", "babaisfloat", "blockout"],
                           ["opacity", "rounding", "borderSize", "blur"]);
-const wayfire = R.vocabulary(["pin", "maximize", "opacity", "workspace"], ["opacity"]);
 
 const wr = [
     { class: "firefox", title: "", action: "float", value: "" },
@@ -77,7 +76,6 @@ eq([shadowedLook.rules.length, shadowedLook.override.shadow], [0, "off"], "other
 const ids = wm => R.offered(wm).map(p => p.id);
 eq(["dim", "anim", "opaque"].filter(id => ids(niri).indexOf(id) >= 0), [], "niri offers no dim, animation or opaque switch");
 eq(["shadow", "rounding", "borderSize", "blur"].filter(id => ids(niri).indexOf(id) < 0), [], "but its shadow action and its looks");
-eq(["rounding", "borderSize", "blur", "shadow", "dim"].filter(id => ids(wayfire).indexOf(id) >= 0), [], "wayfire offers opacity alone");
 eq(R.optionsOf(R.props.find(p => p.id === "blur"), hypr).map(o => o.value), ["off"], "blur can only be turned off on hyprland");
 eq(["dim", "anim", "opaque", "rounding"].filter(id => ids(R.vocabulary([], [])).indexOf(id) < 0), [], "unknown looks are all offered");
 const dimmed = [{ class: "foot", title: "", opacity: -1, rounding: -1, borderSize: -1, blur: "inherit", shadow: "inherit", dim: "off", anim: "inherit", opaque: "inherit" }];

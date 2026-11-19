@@ -57,6 +57,8 @@ type nightlightState struct {
 	wmc      *wm.Client
 	stateDir string
 	tempFile string
+	quit     <-chan struct{}
+	workers  sync.WaitGroup
 	// process caches the backend's comm name once the provider answers caps. It
 	// stays empty until then, and backend() re-asks while it is empty, so a
 	// provider that only came up after the daemon started is still picked up
@@ -118,6 +120,7 @@ func (d *daemon) startNightlight() {
 		wmc:            d.wmc,
 		stateDir:       dir,
 		tempFile:       temp,
+		quit:           d.quit,
 		schedFile:      filepath.Join(dir, "ryoku-nightlight-schedule.json"),
 		schedMode:      nlSchedOff,
 		schedMarginMin: nlDefaultMarginMin,
@@ -179,8 +182,9 @@ func (d *daemon) startNightlight() {
 		n.publish(n.running())
 		return
 	}
-	go n.watch()
-	go n.runSchedule()
+	n.workers.Add(2)
+	go func() { defer n.workers.Done(); n.watch() }()
+	go func() { defer n.workers.Done(); n.runSchedule() }()
 }
 
 // backend resolves the provider's night-light process name from caps and caches
@@ -299,6 +303,11 @@ func outputSetSig(outputs []wm.Output) string {
 // A backend started by hand cannot be discovered while off because it changes
 // neither source; Ryoku's script remains the supported owner of that process.
 func (n *nightlightState) watch() {
+	stopFD, stop, err := quitEventFD(n.quit)
+	if err != nil {
+		return
+	}
+	defer func() { stop(); unix.Close(stopFD) }()
 	on, pid := n.runningPID()
 	temp := n.savedTemp()
 	n.publish(on)
@@ -330,6 +339,8 @@ func (n *nightlightState) watch() {
 		} else if on || n.markerEnabled() {
 			timeout = int(nightlightFallbackReconcile / time.Millisecond)
 		}
+		quitIndex := len(pfds)
+		pfds = append(pfds, unix.PollFd{Fd: int32(stopFD), Events: unix.POLLIN})
 		nready, err := unix.Poll(pfds, timeout)
 		if pidfd >= 0 {
 			unix.Close(pidfd)
@@ -338,6 +349,9 @@ func (n *nightlightState) watch() {
 			if err == unix.EINTR {
 				continue
 			}
+			return
+		}
+		if pfds[quitIndex].Revents != 0 {
 			return
 		}
 		stateChanged := false
@@ -378,7 +392,12 @@ func (n *nightlightState) watch() {
 func (n *nightlightState) loopNoWatch(on bool, temp int) {
 	tick := time.NewTicker(nightlightFallbackReconcile)
 	defer tick.Stop()
-	for range tick.C {
+	for {
+		select {
+		case <-n.quit:
+			return
+		case <-tick.C:
+		}
 		next, nextTemp := n.running(), n.savedTemp()
 		if next != on || nextTemp != temp {
 			on, temp = next, nextTemp
@@ -395,6 +414,11 @@ func (n *nightlightState) settle() (bool, int) {
 	want := n.markerEnabled()
 	deadline := time.Now().Add(2 * time.Second)
 	for {
+		select {
+		case <-n.quit:
+			return false, 0
+		default:
+		}
 		got, pid := n.runningPID()
 		if got == want || time.Now().After(deadline) {
 			return got, pid

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -17,10 +18,11 @@ import (
 
 	"ryoku-i18n"
 
+	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/protocol"
 )
 
-func Serve(ctx context.Context, socket string) error {
+func Serve(ctx context.Context, socket string, features ...string) error {
 	if err := os.MkdirAll(filepath.Dir(socket), 0o700); err != nil {
 		return err
 	}
@@ -31,7 +33,7 @@ func Serve(ctx context.Context, socket string) error {
 	}
 	defer listener.Close()
 	defer os.Remove(socket)
-	server := &server{data: makeFixtures()}
+	server := &server{data: makeFixtures(features...)}
 	go func() { <-ctx.Done(); _ = listener.Close() }()
 	for {
 		connection, err := listener.Accept()
@@ -46,10 +48,14 @@ func Serve(ctx context.Context, socket string) error {
 }
 
 type server struct {
-	mu   sync.Mutex
-	data fixtures
+	mu          sync.Mutex
+	data        fixtures
+	prompts     []protocol.Prompt
+	infra       agentInfraDemo
+	collections *collectionFixtures
 	// session events a method wrote, for the client to hear after its answer
-	told []protocol.SessionEventData
+	told   []protocol.SessionEventData
+	events []protocol.Event
 }
 
 func (s *server) serve(ctx context.Context, connection net.Conn) {
@@ -84,15 +90,23 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		if frame.Method == protocol.MSessionPermission && response.Error == nil {
 			s.resolvePermission(out, frame.Params)
 		}
-		if frame.Method == protocol.MSessionStart && response.Error == nil {
-			s.wake(out, frame.Params)
-		}
 		if response.Error == nil {
 			s.chose(out, frame.Method, frame.Params)
 		}
 		if response.Error == nil {
 			s.announce(out, frame.Method)
 			s.tellSessions(out, frame.Method, frame.Params)
+		}
+		if response.Error == nil && (frame.Method == protocol.MLocalDownload || frame.Method == protocol.MLocalAdd) {
+			var model protocol.LocalModelParams
+			if frame.Method == protocol.MLocalAdd {
+				var added protocol.LocalModel
+				_ = json.Unmarshal(response.Result, &added)
+				model.ID = added.ID
+			} else {
+				_ = decode(frame.Params, &model)
+			}
+			go s.playLocal(ctx, out, model.ID)
 		}
 	}
 }
@@ -106,6 +120,12 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	if strings.HasPrefix(method, "skills.") {
 		return s.callSkills(method, raw)
 	}
+	if strings.HasPrefix(method, "learning.") {
+		return s.callLearning(method, raw)
+	}
+	if strings.HasPrefix(method, "local.") {
+		return s.callLocal(method, raw)
+	}
 	switch method {
 	case protocol.MHello:
 		return protocol.HelloResult{Daemon: "rashind-demo", Version: "2.0.0-demo", Protocol: protocol.Version, Enabled: true}, nil
@@ -118,28 +138,10 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		return s.data.snapshot.Status, nil
 	case protocol.MModelsList:
 		return s.listModels(raw)
+	case protocol.MModelsProbe:
+		return s.probeModel(raw)
 	case protocol.MProvidersList:
 		return protocol.ProvidersResult{Providers: s.data.snapshot.Providers}, nil
-	case protocol.MHarnessesList:
-		return protocol.HarnessesResult{Harnesses: s.data.snapshot.Harnesses}, nil
-	case protocol.MHarnessesProbe:
-		var params protocol.HarnessProbeParams
-		if err := decode(raw, &params); err != nil {
-			return nil, err
-		}
-		return s.probeHarness(params)
-	case protocol.MHarnessesTeamsOpen:
-		var params protocol.HarnessTeamsOpenParams
-		if err := decode(raw, &params); err != nil {
-			return nil, err
-		}
-		return s.openTeamsHome(params)
-	case protocol.MHarnessesTeamsDone:
-		var params protocol.HarnessTeamsDoneParams
-		if err := decode(raw, &params); err != nil {
-			return nil, err
-		}
-		return s.finishTeamsHome(params)
 	case protocol.MIndexList:
 		return protocol.IndexesResult{Indexes: s.data.snapshot.Indexes}, nil
 	case protocol.MSettingsGet:
@@ -180,16 +182,18 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		info := s.newSession(params.Kind, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
+		info := s.newSession(params.Kind, params.Model, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
 		info.Temporary, info.Memory = params.Temporary, newMemoryMode(params)
 		if params.Title != "" {
 			info.Title = params.Title
 		}
-		// the model the session was opened on, as the daemon keeps it
-		if params.Model != "" {
-			info.Model = params.Model
+		if params.Kind == protocol.KindAgent && info.Model == "" {
+			info.Model = s.data.snapshot.Settings.Agent.Model
 		}
-		if params.Kind == protocol.KindAsk {
+		if len(params.Options) > 0 {
+			s.data.options[info.ID] = maps.Clone(params.Options)
+		}
+		if params.Mode != "" {
 			info.Mode = params.Mode
 		}
 		s.replaceSession(info)
@@ -199,8 +203,11 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := decode(raw, &params); err != nil {
 			return nil, err
 		}
-		info := s.newSession(protocol.KindAgent, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, "", params.ID)
+		info := s.newSession(protocol.KindAgent, params.Model, params.Cwd, params.Project, params.Worktree, params.Branch, "", params.ID)
 		info.Title = i18n.T("Moved from Ask")
+		if len(params.Options) > 0 {
+			s.data.options[info.ID] = maps.Clone(params.Options)
+		}
 		s.replaceSession(info)
 		return info, nil
 	case protocol.MSessionRename:
@@ -268,7 +275,17 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			return nil, err
 		}
 		return s.setMemory(params)
-	case protocol.MSessionSetOption, protocol.MSessionStart:
+	case protocol.MSessionSetOption:
+		var params protocol.SetOptionParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		if _, ok := s.session(params.ID); ok {
+			if s.data.options[params.ID] == nil {
+				s.data.options[params.ID] = make(map[string]string)
+			}
+			s.data.options[params.ID][params.Option] = params.Value
+		}
 		return protocol.Empty{}, nil
 	case protocol.MSessionQueue:
 		var params protocol.QueueParams
@@ -311,7 +328,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		info := s.newSession(
 			source.Kind,
-			source.Harness,
+			source.Model,
 			source.Cwd,
 			source.Project,
 			source.Worktree,
@@ -342,7 +359,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		if err := s.syncLocalProviders(); err != nil {
 			return nil, err
 		}
-		s.syncCustomHarnesses()
+		config.Validate(&s.data.snapshot.Settings)
 		if s.data.snapshot.Settings.Teams.Paused != paused {
 			s.holdEveryTeam(!paused)
 		}
@@ -753,7 +770,7 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			Goal:    params.Goal,
 			Status:  protocol.TaskBacklog,
 			Deps:    params.Deps,
-			Harness: params.Harness,
+			Model:   s.projectModel(params.Project, params.Model),
 			Created: time.Now(),
 			Updated: time.Now(),
 		}
@@ -813,17 +830,13 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			Head:    "demo-task",
 			Owned:   true,
 		}
-		session := s.newSession(
-			protocol.KindAgent,
-			params.Harness,
-			worktree.Path,
-			task.Project,
-			worktree.Path,
-			worktree.Branch,
-			task.ID,
-			"",
-		)
+		model := params.Model
+		if model == "" {
+			model = task.Model
+		}
+		session := s.newSession(protocol.KindAgent, model, worktree.Path, task.Project, worktree.Path, worktree.Branch, task.ID, "")
 		task.Status, task.Worktree, task.Sessions = protocol.TaskWorking, worktree.Path, []string{session.ID}
+		task.Model = session.Model
 		s.replaceTask(task)
 		return protocol.TaskStartResult{Task: task, Worktree: worktree, Session: session}, nil
 	case protocol.MTasksGate:
@@ -883,6 +896,27 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 	case protocol.MShutdown:
 		return protocol.Empty{}, nil
 	default:
+		if answer, handled, err := s.callWriting(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callPrompts(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callCompare(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callFlags(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callAgentInfra(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callArtifacts(method, raw); handled {
+			return answer, err
+		}
+		if answer, handled, err := s.callCollections(method, raw); handled {
+			return answer, err
+		}
 		if answer, handled, err := s.callDreams(method, raw); handled {
 			return answer, err
 		}
@@ -985,8 +1019,9 @@ func (s *server) deleteSession(id string) {
 		s.data.teams.sessions = append(s.data.teams.sessions[:index:index], s.data.teams.sessions[index+1:]...)
 	}
 	delete(s.data.events, id)
+	delete(s.data.options, id)
 }
-func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, worktree, branch, task, parent string) protocol.SessionInfo {
+func (s *server) newSession(kind protocol.SessionKind, model, cwd, project, worktree, branch, task, parent string) protocol.SessionInfo {
 	id := fmt.Sprintf("%s-demo-%d", kind, len(s.data.snapshot.Sessions)+1)
 	if worktree == "new" {
 		worktree = demoWorktrees + "/" + project + "/demo-new"
@@ -994,13 +1029,15 @@ func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, wo
 	if cwd == "" {
 		cwd = worktree
 	}
+	if kind == protocol.KindAgent {
+		model = s.projectModel(project, model)
+	}
 	info := protocol.SessionInfo{
 		ID:       id,
 		Kind:     kind,
 		Title:    i18n.T("New session"),
-		Harness:  harness,
-		Model:    "default",
-		Mode:     "default",
+		Model:    model,
+		Mode:     protocol.ApprovalsReadOnly,
 		Cwd:      cwd,
 		Origin:   protocol.OriginApp,
 		State:    protocol.StateIdle,
@@ -1012,36 +1049,37 @@ func (s *server) newSession(kind protocol.SessionKind, harness, cwd, project, wo
 		Task:     task,
 		Parent:   parent,
 	}
+	if kind == protocol.KindAgent && s.data.snapshot.Settings.Agent.Approvals != "" {
+		info.Mode = s.data.snapshot.Settings.Agent.Approvals
+	}
 	s.data.snapshot.Sessions = append([]protocol.SessionInfo{info}, s.data.snapshot.Sessions...)
 	s.data.events[id] = []protocol.SessionEvent{event(1, protocol.EvTitle, protocol.TitleData{Title: info.Title})}
-	return info
-}
-func (s *server) syncCustomHarnesses() {
-	// what a probe learned about an instance stays with it
-	learned := make(map[string]*protocol.HarnessCapabilities)
-	builtins := s.data.snapshot.Harnesses[:0]
-	for _, harness := range s.data.snapshot.Harnesses {
-		if harness.Custom {
-			learned[harness.ID] = harness.Capabilities
-		} else {
-			builtins = append(builtins, harness)
+	if kind == protocol.KindAgent {
+		s.data.options[id] = maps.Clone(s.data.snapshot.Settings.Agent.Options)
+		if s.data.snapshot.Settings.Agent.Plan {
+			if s.data.options[id] == nil {
+				s.data.options[id] = make(map[string]string)
+			}
+			s.data.options[id][protocol.OptionPlan] = protocol.OptionOn
 		}
 	}
-	for _, instance := range s.data.snapshot.Settings.Agent.Instances {
-		builtins = append(
-			builtins,
-			protocol.HarnessInfo{
-				ID:           instance.ID,
-				Name:         instance.Name,
-				Installed:    len(instance.Command) > 0,
-				Command:      append([]string(nil), instance.Command...),
-				Custom:       true,
-				Capabilities: learned[instance.ID],
-			},
-		)
-	}
-	s.data.snapshot.Harnesses = builtins
+	return info
 }
+func (s *server) projectModel(project, model string) string {
+	if model != "" {
+		return model
+	}
+	for _, item := range s.data.snapshot.Projects {
+		if item.ID == project && item.Settings.Model != "" {
+			return item.Settings.Model
+		}
+	}
+	if model = s.data.snapshot.Settings.Agent.Model; model != "" {
+		return model
+	}
+	return demoLocalID
+}
+
 func (s *server) worktree(path string) protocol.WorktreeInfo {
 	for _, result := range s.data.worktrees {
 		for _, worktree := range result.Worktrees {

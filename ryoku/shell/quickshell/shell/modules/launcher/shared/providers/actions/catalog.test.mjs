@@ -34,6 +34,7 @@ ok(entry("open-clipboard").surface === "clipboard", "Clipboard History uses the 
 ok(entry("open-sysinfo").surface === "sidebar-left", "System Info opens the left sidebar");
 ok(entry("open-toolkit").surface === "sidebar-left", "Control Deck opens the left sidebar");
 ok(entry("media-visualizer").surface === "visualizer", "Audio Visualizer toggles the visualizer surface");
+ok(entry("keybind-legend").surface === "cheatsheet#keys", "Keybind Reference opens Kit's Keys in the shell, not a process of its own");
 ok(entry("lock-screen").verb === "lock", "Lock Screen asks the daemon to lock");
 ok(entry("screen-record").verb === "record", "Screen Record asks the daemon to record");
 ok(entry("reload-shell").verb === "reload", "Reload Shell asks the daemon to reload");

@@ -98,17 +98,17 @@ Item {
             height: root.height
             scale: segmentPress.pressScale
 
-            Rectangle {
+            Shape {
                 anchors.fill: parent
-                radius: Style.radius
-                color: segment.selected ? Style.bone
+                cutSize: Look.cutSm
+                fill: segment.selected ? Style.bone
                     : segmentPress.pressed ? Style.tint16
                     : segmentPress.hovered ? Style.tint10 : "transparent"
-                border.width: Style.border
-                border.color: segment.selected ? Style.bone
+                strokeWidth: Look.material && !segment.selected ? 0 : Style.border
+                strokeColor: segment.selected ? Style.bone
                     : root.activeFocus ? Style.lineStrong : Style.line
 
-                Behavior on color {
+                Behavior on fill {
                     enabled: !Style.still
                     ColorAnimation { duration: Style.snap }
                 }

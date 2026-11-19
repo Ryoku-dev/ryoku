@@ -2,7 +2,6 @@ package teams
 
 import (
 	"slices"
-	"strings"
 	"time"
 
 	"ryoku-i18n"
@@ -26,7 +25,7 @@ func tasksWord(count int) string {
 	return i18n.Tf("%d tasks", count)
 }
 
-// the engines a team's members run on, each once, in the members' order
+// the models a team's members run on, each once, in the members' order
 func teamEngines(snapshot appstate.Snapshot, members []protocol.Member) []teamsui.Engine {
 	var engines []teamsui.Engine
 	for _, member := range members {
@@ -38,44 +37,18 @@ func teamEngines(snapshot appstate.Snapshot, members []protocol.Member) []teamsu
 	return engines
 }
 
-// each harness the engines run on, once
-func engineHarnesses(engines []teamsui.Engine) []string {
-	var names []string
-	for _, engine := range engines {
-		if !slices.Contains(names, engine.Harness) {
-			names = append(names, engine.Harness)
-		}
-	}
-	return names
-}
-
-// a team tile's line under its crew: the one engine, else how many and on what
-func enginesCaption(snapshot appstate.Snapshot, members []protocol.Member) string {
-	engines := teamEngines(snapshot, members)
-	switch len(engines) {
-	case 0:
-		return ""
-	case 1:
-		return engines[0].Line()
-	}
-	names := engineHarnesses(engines)
-	// engines on one harness differ by model, so the models tell them apart
-	if len(names) == 1 {
-		names = names[:0]
-		for _, engine := range engines {
-			names = append(names, engine.Short())
-		}
-	}
-	return i18n.Tf("%d engines: %s", len(engines), strings.Join(names, ", "))
-}
-
-// the header's fact of what a team runs on: the one engine whole, else three harnesses at most, then how many more
-func runsFact(snapshot appstate.Snapshot, members []protocol.Member) string {
-	engines := teamEngines(snapshot, members)
+// the header's fact of what a team runs on: the one model whole with where it runs, else three names at most, then how many more
+func runsFact(engines []teamsui.Engine) string {
 	if len(engines) == 1 {
 		return i18n.Tf("Runs %s", engines[0].Line())
 	}
-	names := engineHarnesses(engines)
+	// two members on one model with different options are one name here
+	var names []string
+	for _, engine := range engines {
+		if name := engine.Short(); !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
 	switch len(names) {
 	case 0:
 		return ""
@@ -87,6 +60,23 @@ func runsFact(snapshot appstate.Snapshot, members []protocol.Member) string {
 		return i18n.Tf("Runs %s, %s and %s", names[0], names[1], names[2])
 	}
 	return i18n.Tf("Runs %s, %s, %s and %d more", names[0], names[1], names[2], len(names)-3)
+}
+
+// a tile says what its team runs on only when that cannot run: a model at rest is not news on every tile
+func stalledLine(engines []teamsui.Engine) string {
+	var stalled []teamsui.Engine
+	for _, engine := range engines {
+		if engine.Missing {
+			stalled = append(stalled, engine)
+		}
+	}
+	switch len(stalled) {
+	case 0:
+		return ""
+	case 1:
+		return i18n.Tf("%s cannot run now", stalled[0].Short())
+	}
+	return i18n.Tf("%d of its models cannot run now", len(stalled))
 }
 
 // top-level tasks a team was given in the last seven days

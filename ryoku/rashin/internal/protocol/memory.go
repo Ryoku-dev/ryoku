@@ -119,7 +119,7 @@ type MemorySettings struct {
 	Learn bool `json:"learn"`
 	// Sessions lets Ask and agents search past conversations.
 	Sessions bool `json:"sessions"`
-	// Agents gives harness sessions the card and the memory tools.
+	// Agents gives Agent sessions the card and the memory tools.
 	Agents bool `json:"agents"`
 	// TeamSuggestions is TeamSuggestAsk or TeamSuggestNever.
 	TeamSuggestions string `json:"teamSuggestions"`
@@ -137,6 +137,14 @@ type MemorySettings struct {
 	Engine    string            `json:"engine"`
 	Hindsight HindsightSettings `json:"hindsight"`
 	Honcho    HonchoSettings    `json:"honcho"`
+	Profile   MemoryProfile     `json:"profile"`
+}
+
+type MemoryProfile struct {
+	Name   string   `json:"name,omitempty"`
+	Work   string   `json:"work,omitempty"`
+	About  string   `json:"about,omitempty"`
+	Traits []string `json:"traits,omitempty"`
 }
 
 // HindsightSettings say how Hindsight keeps memory: run on this computer by

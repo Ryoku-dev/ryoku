@@ -26,6 +26,9 @@ type Popover struct {
 	Open    bool
 	Opener  any
 	Preview State
+	// Viewport is the available window rectangle in anchor-local coordinates.
+	// When empty, Layout uses its local constraints, without assuming room above.
+	Viewport image.Rectangle
 
 	contentRect image.Rectangle
 	focusTag    int
@@ -94,26 +97,23 @@ func presentOverlay(gtx layout.Context, call op.CallOp, preview bool, bounds ima
 	deferOverlay(gtx, call)
 }
 
-// placePopover puts content below the anchor, above it when only that fits,
-// and otherwise clamps it margin inside the viewport's far edges, so its own
-// edge and a focus ring inside it are never cut off. The viewport's left edge
-// is the anchor's own, so content may start flush with it.
+// placePopover chooses a side without moving content over its opener.
+// Content is measured against the larger side before placement.
 func placePopover(viewport, anchor image.Rectangle, content image.Point, gap, margin int) image.Point {
-	maxX := viewport.Max.X - margin - content.X
-	minY := viewport.Min.Y + margin
-	maxY := viewport.Max.Y - margin - content.Y
-	x := clampCoordinate(anchor.Min.X, viewport.Min.X, maxX)
-	below := anchor.Max.Y + gap
-	above := anchor.Min.Y - gap - content.Y
-	y := below
-	switch {
-	case below <= maxY:
-	case above >= minY:
-		y = above
-	default:
-		y = clampCoordinate(below, minY, maxY)
+	below, above := popoverRoom(viewport, anchor, gap, margin)
+	content.Y = min(content.Y, max(below, above))
+	x := clampCoordinate(anchor.Min.X, viewport.Min.X+margin, viewport.Max.X-margin-content.X)
+	y := max(anchor.Max.Y+gap, viewport.Min.Y+margin)
+	if content.Y > below && (content.Y <= above || above > below) {
+		y = min(anchor.Min.Y-gap, viewport.Max.Y-margin) - content.Y
 	}
-	return image.Pt(x, clampCoordinate(y, minY, maxY))
+	return image.Pt(x, y)
+}
+
+func popoverRoom(viewport, anchor image.Rectangle, gap, margin int) (below, above int) {
+	below = max(0, viewport.Max.Y-margin-max(anchor.Max.Y+gap, viewport.Min.Y+margin))
+	above = max(0, min(anchor.Min.Y-gap, viewport.Max.Y-margin)-viewport.Min.Y-margin)
+	return
 }
 
 func clampCoordinate(value, low, high int) int {
@@ -190,7 +190,9 @@ func enclosingPopover(state *overlayFocus) *Popover {
 
 // Layout draws anchor in flow and content in the deferred overlay layer.
 func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layout.Dimensions {
-	anchorDimensions := anchor(gtx)
+	anchorContext := gtx
+	anchorContext.Constraints.Min.Y = 0
+	anchorDimensions := anchor(anchorContext)
 	opening := p.Open && (!p.wasOpen || !p.visible)
 	closing := !p.Open && p.wasOpen
 
@@ -229,7 +231,9 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 	}
 
 	if p.Open {
+		focusArea := clip.Rect(image.Rectangle{Max: anchorDimensions.Size}).Push(gtx.Ops)
 		event.Op(gtx.Ops, &p.focusTag)
+		focusArea.Pop()
 		p.focusState = overlayFocus{idle: opening || gtx.Focused(&p.focusTag), parent: outer, owner: p}
 		if opening {
 			gtx.Execute(key.FocusCmd{Tag: &p.focusTag})
@@ -265,6 +269,13 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 	}
 
 	window := gtx.Constraints.Max
+	viewport := p.Viewport
+	if viewport.Empty() || p.Preview != StateRest {
+		viewport = image.Rectangle{Max: window}
+	}
+	anchorRect := image.Rectangle{Max: anchorDimensions.Size}
+	gap := gtx.Dp(tokens.SizePopoverAnchorGap)
+	below, above := popoverRoom(viewport, anchorRect, gap, gap)
 	contentContext := overlayContentContext(gtx)
 	if p.Open {
 		contentContext.Values[overlayFocusValue] = &p.focusState
@@ -272,7 +283,7 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 		contentContext = contentContext.Disabled()
 	}
 	contentContext.Constraints.Min = image.Point{}
-	contentContext.Constraints.Max = image.Pt(max(0, window.X), max(0, window.Y))
+	contentContext.Constraints.Max = image.Pt(max(0, viewport.Dx()-2*gap), max(below, above))
 	contentRecord := op.Record(gtx.Ops)
 	contentDimensions := content(contentContext)
 	contentCall := contentRecord.Stop()
@@ -298,12 +309,7 @@ func (p *Popover) Layout(gtx layout.Context, anchor, content layout.Widget) layo
 		}
 	}
 
-	viewport := image.Rect(0, -window.Y, window.X, window.Y)
-	if p.Preview != StateRest {
-		viewport = image.Rectangle{Max: window}
-	}
-	anchorRect := image.Rectangle{Max: anchorDimensions.Size}
-	position := placePopover(viewport, anchorRect, contentDimensions.Size, gtx.Dp(tokens.SizePopoverAnchorGap), gtx.Dp(tokens.SizePopoverAnchorGap))
+	position := placePopover(viewport, anchorRect, contentDimensions.Size, gap, gap)
 	p.contentRect = image.Rectangle{Min: position, Max: position.Add(contentDimensions.Size)}
 	distance := gtx.Dp(tokens.SizePopoverEnterTravel)
 	if !p.Open {

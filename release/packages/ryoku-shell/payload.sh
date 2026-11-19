@@ -17,6 +17,11 @@ build)
 	cd "$RYOKU_SRC/ryoku/shell/ipc"
 	CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$RYOKU_BUILD_DIR/ryoku-shell" .
 	"$RYOKU_SRC/ryoku/shell/livewall/build.sh" "$RYOKU_BUILD_DIR/ryoku-livewall"
+	cd "$RYOKU_SRC/ryoku/shell/ryoget"
+	CGO_ENABLED=0 go build -trimpath -mod=vendor -tags nosqlite,purego_utp \
+		-o "$RYOKU_BUILD_DIR/ryoget" .
+	CGO_ENABLED=0 go build -trimpath -mod=vendor \
+		-o "$RYOKU_BUILD_DIR/ryoseek" ./cmd/ryoseek
 	;;
 install)
 	destdir=${2:?usage: payload.sh install DESTDIR systemd|runit}
@@ -27,6 +32,16 @@ install)
 	esac
 	install -Dm755 "$RYOKU_BUILD_DIR/ryoku-shell" "$destdir/usr/bin/ryoku-shell"
 	install -Dm755 "$RYOKU_BUILD_DIR/ryoku-livewall" "$destdir/usr/bin/ryoku-livewall"
+	install -Dm755 "$RYOKU_BUILD_DIR/ryoget" "$destdir/usr/bin/ryoget"
+	install -Dm755 "$RYOKU_BUILD_DIR/ryoseek" "$destdir/usr/bin/ryoseek"
+	install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/packaging/ryoget.desktop" \
+		"$destdir/usr/share/applications/ryoget.desktop"
+	if [ "$init" = systemd ]; then
+		install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/packaging/systemd/ryoget.service" \
+			"$destdir/usr/lib/systemd/user/ryoget.service"
+		install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/packaging/systemd/ryoseek.service" \
+			"$destdir/usr/lib/systemd/user/ryoseek.service"
+	fi
 	for script in "$RYOKU_SRC"/ryoku/shell/scripts/ryoku-*; do
 		[ -f "$script" ] || continue
 		install -Dm755 "$script" "$destdir/usr/bin/${script##*/}"

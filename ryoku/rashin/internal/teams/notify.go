@@ -36,7 +36,7 @@ type notification struct {
 // as the team's notify level and the quiet hours allow.
 func (s *Service) notify(n notification) {
 	if route, ok := s.notifyRoute(n); ok {
-		go s.post(n, route)
+		s.startWorker(func() { s.post(n, route) })
 	}
 }
 

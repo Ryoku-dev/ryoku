@@ -660,6 +660,40 @@ app windows, including during workspace transitions, without changing auto-hide,
 reserved space, or **Not over fullscreen**. Turn it off to restore the pinned
 dock's desktop layer.
 
+## Screen recording
+
+### `ryoku-shell record`
+
+Drives the screen recorder, `ryoku-cmd-record` on GPU Screen Recorder.
+
+- `record start [--fullscreen | --monitor NAME | --region [--geometry WxH+X+Y]]
+  [--with-desktop-audio] [--with-microphone-audio] [--discord]` starts a
+  capture in the background. `ryoku-shell record start --monitor eDP-1`
+- `record stop` saves it and prints the file. A second stop while it saves does
+  nothing.
+- `record pause` / `record resume` hold and continue it. A repeat changes
+  nothing, and neither does anything while it saves.
+- `record status` prints `recording` or `idle`, `record info` the backend as JSON.
+- `record settings [KEY VALUE]` prints or writes `~/.config/ryoku/recording.json`.
+- A bare `record` stops a live capture, else starts a fullscreen one.
+
+Two files under `~/.local/state/ryoku` hold the state every recording surface
+reads, each renamed into place whole:
+
+- `recorder-status.json` exists exactly while a capture is live: `recorderPid`,
+  `startedAt` (fractional epoch seconds), `requestedAudioMode`,
+  `activeAudioMode`, `audioFallback`, `target` (the monitor, `screen`, or the
+  `WxH+X+Y` box), `paused`, `pausedAt`, `pausedTotal` (seconds spent paused) and
+  `stopping` (saving).
+- `recorder-result.json` is rewritten when every start ends, saved, failed or
+  refused before it launched, and before the status file goes: `endedAt`, `ok`,
+  `path`, `reason` (what the notification said) and `cancelled` (a region
+  selection that was dismissed).
+
+The shell's `Recorder` service turns them into one phase: `arming` for the
+countdown, `starting`, `recording`, `paused`, `stopping`, then `saved` or
+`failed` for a moment, and `idle`. Its clock leaves paused time out.
+
 ## Environment and state
 
 Overrides (mostly for `deploy` and tests):

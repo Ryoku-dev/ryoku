@@ -1,0 +1,14 @@
+#!/bin/sh
+exec 2>&1
+
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+
+# The daemon is started on demand by the bar's Web view, and exits on its own
+# when idle; runit only needs the session plumbing in place.
+wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
+load_session_env
+require_bin "$BIN/ryoseek" || exec sv down .
+
+exec "$BIN/ryoseek" serve

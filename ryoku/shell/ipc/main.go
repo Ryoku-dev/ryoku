@@ -170,6 +170,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-shell daemon")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <launcher|clipboard|settings|cheatsheet|tools>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell overview")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell sight  (freeze the screen for a box; shortcut: tap Right Alt three times)")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell plugin <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <visualizer|visualizer-overlay>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell lock")

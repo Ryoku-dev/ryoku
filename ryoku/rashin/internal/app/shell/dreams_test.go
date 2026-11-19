@@ -3,8 +3,6 @@ package shell
 import (
 	"image"
 
-	"gioui.org/f32"
-	"gioui.org/io/pointer"
 	"slices"
 	"testing"
 
@@ -124,91 +122,29 @@ func TestADreamFocusOpensDreams(t *testing.T) {
 	}
 }
 
-// "Use the setup of" opens the setup for the new dream, and once it is done the manager starts without Resume
-func TestADreamStartsOnceItsSetupIsCopied(t *testing.T) {
-	stage := newStage(t, image.Pt(1440, 1400))
-	stage.open("dreams")
-	stage.click("New dream")
-	stage.click("Your dream")
-	statement := "Make a tea timer that rings on my phone."
-	stage.typeText(statement)
-	stage.scrollDialog("Your dream")
-	stage.click("Sign in when it starts")
-	stage.click("Use the setup of Mail desk")
-	stage.click("Start")
-	var made protocol.Team
-	stage.await("dream_create made the dream", func() bool {
-		for _, team := range stage.runtime.store.Snapshot().Teams {
-			if team.Dream != nil && team.Dream.Statement == statement {
-				made = team
-				return true
-			}
-		}
-		return false
-	})
-	stage.await("the setup terminal opens with Mail desk's config", func() bool {
-		home, _ := stage.harness("codex").Teams.HomeOf(made.ID)
-		return home.Opening && len(stage.argv) > 0
-	})
-	argv := stage.argv[len(stage.argv)-1]
-	home, _ := stage.harness("codex").Teams.HomeOf(made.ID)
-	at := slices.Index(argv, home.Home)
-	if at < 0 || at+1 >= len(argv) || argv[len(argv)-1] != "sh" {
-		t.Fatalf("the setup was started as %q", argv)
-	}
-	if _, ok := stage.named("Not signed in"); !ok {
-		t.Fatalf("the header does not say the dream waits for its sign-in; there is %v", stage.names())
-	}
-	// the terminal's command ends well, as the setup shell exiting 0 does
-	stage.shell.environment().Call(protocol.MHarnessesTeamsDone, protocol.HarnessTeamsDoneParams{Token: argv[at+1]}, new(protocol.HarnessTeamsDoneResult), func(error) {})
-	stage.await("the manager starts by itself", func() bool {
-		dream := dreamOf(stage, made.ID)
-		task := stage.runtime.store.Snapshot().TeamTasks[dream.Dream.Task]
-		return task.Status == protocol.TaskWorking
-	})
-	if _, ok := stage.named("Not signed in"); ok {
-		t.Fatal("the header still says Not signed in after the setup finished")
-	}
-	if _, ok := stage.named("Resume"); ok {
-		t.Fatal("the page asks for Resume although the manager started")
-	}
-}
-
-// a dream blocked on a sign-in that has since been made reads as starting, never as not signed in
-func TestTheDreamHeaderFollowsTheSignIn(t *testing.T) {
+// a dream starts its own manager without a separate account or setup terminal
+func TestADreamStartsWithoutAccountSetup(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 1400))
 	stage.open("dreams")
 	stage.click("New dream")
 	stage.click("Your dream")
 	stage.typeText("Make a plant watering reminder.")
 	stage.click("Start")
-	stage.await("the dream waits for its sign-in", func() bool {
-		_, ok := stage.named("Not signed in")
-		return ok
+	stage.await("the manager starts without sign-in", func() bool {
+		for _, team := range stage.runtime.store.Snapshot().Teams {
+			if team.Dream != nil && team.Dream.Statement == "Make a plant watering reminder." {
+				task := stage.runtime.store.Snapshot().TeamTasks[team.Dream.Task]
+				return task.Status == protocol.TaskWorking
+			}
+		}
+		return false
 	})
-	stage.click("Sign Codex in for Make a plant watering reminder.")
-	argv := stage.argv[len(stage.argv)-1]
-	token := argv[slices.Index(argv, "codex")-1]
-	stage.shell.environment().Call(protocol.MHarnessesTeamsDone, protocol.HarnessTeamsDoneParams{Token: token}, new(protocol.HarnessTeamsDoneResult), func(error) {})
-	stage.await("the header leaves Not signed in", func() bool {
-		_, ok := stage.named("Not signed in")
-		return !ok
-	})
-}
-
-// scroll wheels the dialog whose field is named by field down to its foot
-func (s *stage) scrollDialog(field string) {
-	s.t.Helper()
-	node, ok := s.named(field)
-	if !ok {
-		s.t.Fatalf("nothing on screen is called %q", field)
+	if _, ok := stage.named("Not signed in"); ok {
+		t.Fatal("a native dream still asks for a separate sign-in")
 	}
-	at := centre(node.Desc.Bounds)
-	position := f32.Pt(float32(at.X), float32(at.Y))
-	for range 8 {
-		s.queue(pointer.Event{Kind: pointer.Scroll, Position: position, Scroll: f32.Pt(0, 200)})
+	if len(stage.argv) != 0 {
+		t.Fatalf("starting the dream opened a setup terminal: %v", stage.argv)
 	}
-	s.settle()
 }
 
 // the bar rests on the phase, and inside Building on the pieces finished, never on the manager's estimate
@@ -225,7 +161,7 @@ func TestTheDreamBarFollowsThePhase(t *testing.T) {
 	}
 }
 
-// a dream that stopped on its sign-in and went on as the same task has finished nothing yet
+// a newly started dream has not yet finished a task
 func TestAFreshDreamHasFinishedNothing(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 1400))
 	stage.open("dreams")
@@ -233,13 +169,6 @@ func TestAFreshDreamHasFinishedNothing(t *testing.T) {
 	stage.click("Your dream")
 	stage.typeText("Make a plant watering reminder.")
 	stage.click("Start")
-	stage.await("the dream waits for its sign-in", func() bool {
-		_, ok := stage.named("Not signed in")
-		return ok
-	})
-	stage.click("Sign Codex in for Make a plant watering reminder.")
-	argv := stage.argv[len(stage.argv)-1]
-	stage.shell.environment().Call(protocol.MHarnessesTeamsDone, protocol.HarnessTeamsDoneParams{Token: argv[slices.Index(argv, "codex")-1]}, new(protocol.HarnessTeamsDoneResult), func(error) {})
 	stage.await("the manager works", func() bool {
 		_, ok := stage.named("Working")
 		return ok
@@ -249,11 +178,10 @@ func TestAFreshDreamHasFinishedNothing(t *testing.T) {
 	}
 }
 
-// under the presentation, who built it and on what, from the tasks' own records
 func TestThePresentationNamesWhoBuiltIt(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 2400))
 	stage.open("dreams/dream-receipts")
-	for _, name := range []string{"Who built it", "Developer", "Codex", "gpt-5.6", "Claude Code", "sonnet"} {
+	for _, name := range []string{"Who built it", "Developer"} {
 		if _, ok := stage.named(name); !ok {
 			t.Errorf("the presentation does not show %q; there is %v", name, stage.names())
 		}

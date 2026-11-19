@@ -27,34 +27,54 @@ T.Popup {
     closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutside
     implicitWidth: liveContent.implicitWidth
     implicitHeight: liveContent.implicitHeight
+    property var _placement: null
+    width: _placement ? _placement.width : implicitWidth
+    height: _placement ? _placement.height : implicitHeight
 
     function calculatePlacement() {
-        if (!anchorItem || !parent || width <= 0 || height <= 0)
+        if (!anchorItem || !parent)
             return null
+        const window = liveContent.Window.window
+        const viewport = !previewEmbedded && window ? window.contentItem : parent
+        const origin = viewport.mapToItem(parent, 0, 0)
         const point = anchorItem.mapToItem(parent, 0, 0)
         const gap = LithicTokens.size.popoverAnchorGap
-        // the window edge keeps the same 8, so the popover's edge and a focus ring inside it stay whole
         const margin = LithicTokens.size.popoverAnchorGap
-        const clampX = x => Math.max(margin, Math.min(x, parent.width - width - margin))
-        const clampY = y => Math.max(margin, Math.min(y, parent.height - height - margin))
+        const leftEdge = origin.x + margin
+        const rightEdge = origin.x + viewport.width - margin
+        const topEdge = origin.y + margin
+        const bottomEdge = origin.y + viewport.height - margin
+        const placedWidth = Math.min(implicitWidth, Math.max(0, rightEdge - leftEdge))
+        const clampX = x => Math.max(leftEdge, Math.min(x, rightEdge - placedWidth))
         if (placementSide === "right") {
             const right = point.x + anchorItem.width + gap
-            const left = point.x - width - gap
-            const placedX = right + width <= parent.width - margin ? right
-                            : left >= margin ? left
-                            : clampX(right)
+            const rightRoom = Math.max(0, rightEdge - right)
+            const leftRoom = Math.max(0, point.x - gap - leftEdge)
+            const placedLeft = implicitWidth > rightRoom
+                               && (implicitWidth <= leftRoom || leftRoom > rightRoom)
+            const sideWidth = Math.min(implicitWidth, placedLeft ? leftRoom : rightRoom)
+            const placedX = placedLeft ? point.x - gap - sideWidth : right
+            const placedHeight = Math.min(implicitHeight, Math.max(0, bottomEdge - topEdge))
             return {
                 x: placedX,
-                y: clampY(point.y + (anchorItem.height - height) / 2),
+                y: Math.max(topEdge, Math.min(point.y + (anchorItem.height - placedHeight) / 2,
+                                             bottomEdge - placedHeight)),
+                width: sideWidth,
+                height: placedHeight,
                 above: false
             }
         }
         const below = point.y + anchorItem.height + gap
-        const above = point.y - height - gap
-        const placedAbove = below + height > parent.height - margin && above >= margin
+        const belowRoom = Math.max(0, bottomEdge - below)
+        const aboveRoom = Math.max(0, point.y - gap - topEdge)
+        const placedAbove = implicitHeight > belowRoom
+                            && (implicitHeight <= aboveRoom || aboveRoom > belowRoom)
+        const placedHeight = Math.min(implicitHeight, placedAbove ? aboveRoom : belowRoom)
         return {
             x: clampX(point.x),
-            y: placedAbove ? above : clampY(below),
+            y: placedAbove ? point.y - gap - placedHeight : below,
+            width: placedWidth,
+            height: placedHeight,
             above: placedAbove
         }
     }
@@ -63,6 +83,7 @@ T.Popup {
         const placement = calculatePlacement()
         if (!placement)
             return
+        _placement = placement
         openAbove = placement.above
         placementPosition = Qt.point(placement.x, placement.y)
         x = placement.x
@@ -105,8 +126,11 @@ T.Popup {
             if (item === liveContent)
                 return
         }
-        if (menu)
-            menu.focusItem(-1, _markOpener)
+        if (menu) {
+            const current = Array.isArray(menu.items)
+                            ? menu.items.findIndex(entry => entry.checked && !entry.disabled && !entry.divider) : -1
+            menu.focusItem(current, _markOpener)
+        }
     }
 
     function _findMenu(item) {
@@ -132,17 +156,25 @@ T.Popup {
     }
     onWidthChanged: {
         if (visible || previewEmbedded)
-            placeAtAnchor()
+            Qt.callLater(placeAtAnchor)
     }
     onHeightChanged: {
         if (visible || previewEmbedded)
-            placeAtAnchor()
+            Qt.callLater(placeAtAnchor)
     }
     onPreviewEmbeddedChanged: {
         if (previewEmbedded)
             Qt.callLater(placeAtAnchor)
     }
     onPlacementSideChanged: placeAtAnchor()
+    onImplicitWidthChanged: {
+        if (visible || previewEmbedded)
+            placeAtAnchor()
+    }
+    onImplicitHeightChanged: {
+        if (visible || previewEmbedded)
+            placeAtAnchor()
+    }
 
     background: Item {
         transform: Translate { y: root.slideOffset }
@@ -154,6 +186,22 @@ T.Popup {
         implicitHeight: children.length > 0 ? children[0].implicitHeight : 0
         enabled: root.previewEmbedded || root.opened
         transform: Translate { y: root.previewEmbedded ? 0 : root.slideOffset }
+    }
+
+    Binding {
+        target: liveContent.children.length > 0 ? liveContent.children[0] : null
+        property: "height"
+        value: liveContent.height
+        when: root.visible || root.previewEmbedded
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+
+    Binding {
+        target: liveContent.children.length > 0 ? liveContent.children[0] : null
+        property: "width"
+        value: liveContent.width
+        when: root.visible || root.previewEmbedded
+        restoreMode: Binding.RestoreBindingOrValue
     }
 
     Item {
@@ -251,6 +299,13 @@ T.Popup {
 
     Connections {
         target: root.parent
+        ignoreUnknownSignals: true
+        function onWidthChanged() { if (root.visible || root.previewEmbedded) root.placeAtAnchor() }
+        function onHeightChanged() { if (root.visible || root.previewEmbedded) root.placeAtAnchor() }
+    }
+
+    Connections {
+        target: liveContent.Window.window
         ignoreUnknownSignals: true
         function onWidthChanged() { if (root.visible || root.previewEmbedded) root.placeAtAnchor() }
         function onHeightChanged() { if (root.visible || root.previewEmbedded) root.placeAtAnchor() }

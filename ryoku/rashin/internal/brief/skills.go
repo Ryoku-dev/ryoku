@@ -13,15 +13,18 @@ var setNotes = map[string]string{
 	"speckit": "after `rashin skills setup speckit [dir]` in the project",
 }
 
-// Skills is what a model is told about the built-in skills it may use: each
-// set that is on with its skills' names, where they lie and how to use them,
-// short enough for every prompt. tools says the model holds the skills and
-// skill tools; one without them is told the rashin command. Empty when no
-// set is on.
+// Skills describes the offered built-in and managed skills, including their
+// actual paths. tools selects the in-process skill tools or CLI instructions.
 func Skills(result protocol.SkillsResult, tools bool) string {
-	var b strings.Builder
+	var b, managed strings.Builder
 	for _, set := range result.Sets {
 		if !set.On || len(set.Skills) == 0 {
+			continue
+		}
+		if set.ID == protocol.ManagedSkillSet {
+			for _, skill := range set.Skills {
+				fmt.Fprintf(&managed, "- %s (%s): %s\n", skill.Name, skill.ID, skill.Path)
+			}
 			continue
 		}
 		b.WriteString("- " + set.Name + " (" + set.ID + ")")
@@ -46,13 +49,19 @@ func Skills(result protocol.SkillsResult, tools bool) string {
 		}
 		b.WriteString(": " + skillNames(set.Skills) + "\n")
 	}
-	if b.Len() == 0 {
+	if b.Len() == 0 && managed.Len() == 0 {
 		return ""
 	}
 	list := b.String()
 	b.Reset()
-	fmt.Fprintf(&b, "Built-in skills, each at %s/<set>/skills/<name>/SKILL.md:\n", result.Root)
-	b.WriteString(list)
+	if list != "" {
+		fmt.Fprintf(&b, "Built-in skills, each at %s/<set>/skills/<name>/SKILL.md:\n", result.Root)
+		b.WriteString(list)
+	}
+	if managed.Len() > 0 {
+		b.WriteString("Learned skills at their own SKILL.md paths:\n")
+		b.WriteString(managed.String())
+	}
 	if tools {
 		fmt.Fprintf(&b, "Before a task, find the skill that fits with the %s tool, read it with the %s tool or open its file, and follow it.", ToolSkills, ToolSkill)
 	} else {

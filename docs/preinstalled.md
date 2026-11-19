@@ -51,7 +51,7 @@ QML running against a stale plugin.
 | `ryoku-shell` | The Quickshell desktop: bar, pill, launcher, overview, wallpaper, visualizer, ryoshot capture, and the lock screen |
 | `ryoku-hub` | Ryoku Settings, the control center (Appearance, Desktop, Windows, Devices, Connections, Apps, Accounts, System, and Updates) |
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
-| `ryoku-rashin` | Optional Rashin package: read-only Ask on free models, external coding harnesses in Agent, project and system Index, the Lithic app and the bar client. It is opt in, removable, and uses zero resources while off or absent |
+| `ryoku-rashin` | Optional native Ask, Agents, Teams and Dreams engine, project and system Index, Lithic app and bar client. It prefers local models, but downloads no weights or llama.cpp runtime until asked. It is removable and uses zero resources while off or absent |
 | `ryoku-blobs` | The shared `Ryoku.Blobs`, `Ryoku.Spatial3D`, `Ryoku.Bus` and `Ryoku.Text` QML plugins |
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
@@ -198,8 +198,8 @@ Tools the desktop, the pill, and the capture stack shell out to by name.
 | `openrgb` | Per-device keyboard, mouse, RAM and motherboard lighting that follows the wallpaper palette, configurable from the wallpaper picker (Super + W) > Settings > Lighting |
 | `asusctl` | Native built-in Aura keyboard lighting on supported ASUS laptops; selected by hardware rather than installed everywhere |
 | `ddcutil` | External-monitor brightness over DDC/CI (the pill's DISPLAY faders) |
-| `ffmpeg`, `yt-dlp` | Media transcode and download; also the launcher's live-radio play path |
-| `curl`, `libnotify`, `xdg-utils`, `desktop-file-utils`, `python` | The plumbing the stash, scripts, and helpers rely on |
+| `ffmpeg`, `yt-dlp` | Media transcode; the Downloads engine's merges and its fallback for sites it has no resolver for; also the launcher's live-radio play path |
+| `curl`, `libnotify`, `xdg-utils`, `desktop-file-utils`, `python` | The plumbing the scripts and helpers rely on |
 
 ## Screen and capture toolkit
 

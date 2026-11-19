@@ -15,7 +15,6 @@ import (
 // what a conversation does with memory, picked before it starts and only narrowed after
 type memoryChoice struct {
 	control look.Select
-	lock    look.Tip
 	// what the next new conversation starts with, empty for its default
 	draft   string
 	changed string
@@ -75,24 +74,17 @@ func (choice *memoryChoice) layout(gtx layout.Context, e *env.Env, value string,
 	}
 	control := &choice.control
 	control.Form, control.Label, control.Icon, control.Return = look.SelectQuiet, i18n.T("Memory"), look.Icon.Memory, focus
-	dimensions := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return control.LayoutOptions(gtx, e.Theme, e.Overlays, options, selected)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if !locked {
-				return layout.Dimensions{}
-			}
-			words := i18n.T("Set when this conversation started.")
-			return choice.lock.Layout(gtx, e.Theme, e.Overlays, words, func(gtx layout.Context) layout.Dimensions {
-				return look.Named(gtx, words, look.IconWidget(look.Icon.Lock, 14, e.Theme.R.Fg3))
-			})
-		}),
-	)
+	dimensions := control.LayoutOptions(gtx, e.Theme, e.Overlays, options, selected)
 	if index, changed := control.Changed(); changed && index >= 0 && index < len(values) && values[index] != value {
 		choice.changed = values[index]
 	}
 	return dimensions
+}
+
+// the choice made at the start stays fixed except when the reader narrows memory
+func (choice *memoryChoice) lockReason(gtx layout.Context, e *env.Env) layout.Dimensions {
+	th := e.Theme
+	return look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.T("Set when this conversation started."))(gtx)
 }
 
 func (choice *memoryChoice) Changed() (string, bool) {

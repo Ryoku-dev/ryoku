@@ -207,7 +207,7 @@ Singleton {
             var d = root.defaultOf(row);
             if (d === undefined)
                 continue;
-            parts.push({ bind: row.bind, before: root.clone(root.value(row.bind)), after: root.clone(d),
+            parts.push({ bind: row.bind, before: root.clone(root.changeValue(row.bind, root.value(row.bind), true)), after: root.clone(root.changeValue(row.bind, d, false)),
                          label: String(row.changeLabel || row.label || "") });
         }
         if (parts.length === 0)
@@ -306,10 +306,16 @@ Singleton {
     // a change from the UI: write it, remember it for undo, and say so;
     // notice, already translated, replaces the plain "<label> changed" and
     // marks a discrete action (a list item added or removed) that never merges
+    function changeValue(bind, value, before) {
+        var store = root.stores[bind.store];
+        return store && typeof store.changeValue === "function" ? store.changeValue(bind.key, value, before) : value;
+    }
+
     function set(bind, v, label, page, notice) {
         if (!bind)
             return;
-        var before = root.clone(root.value(bind));
+        var before = root.clone(root.changeValue(bind, root.value(bind), true));
+        v = root.changeValue(bind, v, false);
         if (root.same(before, v))
             return;
         var entry = { bind: bind, before: before, after: root.clone(v), label: String(label || ""), page: String(page || ""),
@@ -357,7 +363,7 @@ Singleton {
     function writeChange(bind, v, label, page, settled) {
         root.writingChange = true;
         try {
-            root.write(bind, v, label, page, settled);
+            root.write(bind, root.changeValue(bind, v, false), label, page, settled);
         } finally {
             root.writingChange = false;
         }
@@ -377,7 +383,7 @@ Singleton {
 
     // undo puts back only what its change changed, keeping later changes to the same value
     function reverted(entry) {
-        var before = entry.before, after = entry.after, now = root.clone(root.value(entry.bind));
+        var before = entry.before, after = entry.after, now = root.clone(root.changeValue(entry.bind, root.value(entry.bind), true));
         var key = function (x) { return root.stable(x); };
         if (Array.isArray(after) && Array.isArray(now) && (before === undefined || Array.isArray(before))) {
             // nothing changed since: the list goes back exactly as it was

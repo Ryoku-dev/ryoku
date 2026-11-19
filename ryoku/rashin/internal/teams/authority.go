@@ -15,6 +15,7 @@ var readable = map[string]bool{
 	protocol.MTeamsTasks:          true,
 	protocol.MTeamsRoutines:       true,
 	protocol.MTeamsRoutinePreview: true,
+	protocol.MTeamsRoutineRuns:    true,
 	protocol.MTeamsApprovals:      true,
 	protocol.MTeamsActivity:       true,
 	protocol.MTeamsSpend:          true,

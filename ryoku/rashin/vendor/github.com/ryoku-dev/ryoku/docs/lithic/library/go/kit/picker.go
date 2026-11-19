@@ -24,10 +24,13 @@ type Picker struct {
 	// PreviewKeys draws an open preview as opened from the keys, with the
 	// keyboard ring on the current choice
 	PreviewKeys bool
+	// Viewport is the window rectangle relative to the anchor's layout origin.
+	Viewport image.Rectangle
 
 	button       Click
 	popover      Popover
 	menu         Menu
+	items        []MenuItem
 	hover, focus anim.Tween
 }
 
@@ -77,6 +80,7 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 	}
 	p.popover.Opener = &p.button.Clickable
 	p.popover.Preview = p.Preview
+	p.popover.Viewport = p.Viewport
 	value := ""
 	if selected >= 0 && selected < len(options) {
 		value = options[selected]
@@ -110,12 +114,12 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 					hovered = true
 				}
 				hover := hoverValue(gtx, th, &p.hover, hovered)
-				drawFieldSurface(gtx, th, bounds, finalCut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), focus, false)
+				FieldSurface(gtx, th, bounds, finalCut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), focus, false)
 				gtx.Constraints = layout.Exact(bounds.Max)
 				return layout.Inset{Left: unit.Dp(tokens.SizePickerInset), Right: unit.Dp(tokens.SizePickerInset)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return centerY(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-							layout.Flexed(1, rawText(th, th.T.Body, th.R.Fg, value)),
+							layout.Flexed(1, menuText(th, th.T.Body, th.R.Fg, value)),
 							layout.Rigid(layout.Spacer{Width: unit.Dp(tokens.SizePickerArrowGap)}.Layout),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								size := gtx.Dp(tokens.SizePickerArrow)
@@ -132,16 +136,18 @@ func (p *Picker) Layout(gtx layout.Context, th *theme.Theme, label string, optio
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
 	content := func(gtx layout.Context) layout.Dimensions {
-		items := make([]MenuItem, len(options))
+		if len(p.items) != len(options) {
+			p.items = make([]MenuItem, len(options))
+		}
 		for index, option := range options {
-			items[index] = MenuItem{Label: option, Checked: index == selected}
+			p.items[index] = MenuItem{Label: option, Checked: index == selected}
 			if p.PreviewKeys && index == selected {
-				items[index].Preview = StateFocus
+				p.items[index].Preview = StateFocus
 			}
 		}
 		// the keyboard starts on the current choice
 		p.menu.start = selected
-		return p.menu.Layout(gtx, th, items)
+		return p.menu.Layout(gtx, th, p.items)
 	}
 	return p.popover.Layout(gtx, anchor, content)
 }

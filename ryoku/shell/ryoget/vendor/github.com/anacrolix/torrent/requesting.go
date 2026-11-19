@@ -1,0 +1,509 @@
+package torrent
+
+import (
+	"cmp"
+	"context"
+	"encoding/gob"
+	"fmt"
+	"log/slog"
+	"runtime/pprof"
+	"time"
+	"unique"
+	"unsafe"
+
+	"github.com/RoaringBitmap/roaring/v2"
+	g "github.com/anacrolix/generics"
+	"github.com/anacrolix/generics/heap"
+	"github.com/anacrolix/missinggo/v2/panicif"
+	"github.com/anacrolix/multiless"
+	requestStrategy "github.com/anacrolix/torrent/internal/request-strategy"
+	"github.com/anacrolix/torrent/metainfo"
+	typedRoaring "github.com/anacrolix/torrent/typed-roaring"
+)
+
+type (
+	// Since we have to store all the requests in memory, we can't reasonably exceed what could be
+	// indexed with the memory space available.
+	maxRequests = int
+)
+
+func (t *Torrent) requestStrategyPieceOrderState(i int) requestStrategy.PieceRequestOrderState {
+	return requestStrategy.PieceRequestOrderState{
+		Priority:     t.piece(i).purePriority(),
+		Partial:      t.piecePartiallyDownloaded(i),
+		Availability: t.piece(i).availability(),
+	}
+}
+
+func init() {
+	gob.Register(peerId{})
+}
+
+type peerId struct {
+	*Peer
+	ptr uintptr
+}
+
+func (p peerId) Uintptr() uintptr {
+	return p.ptr
+}
+
+func (p peerId) GobEncode() (b []byte, _ error) {
+	b = unsafe.Slice((*byte)(unsafe.Pointer(&p.ptr)), unsafe.Sizeof(p.ptr))
+	return
+}
+
+func (p *peerId) GobDecode(b []byte) error {
+	if uintptr(len(b)) != unsafe.Sizeof(p.ptr) {
+		panic(len(b))
+	}
+	ptr := unsafe.Pointer(&b[0])
+	p.ptr = *(*uintptr)(ptr)
+	slog.Debug("decoded peerId", "ptr", fmt.Sprintf("%p", ptr))
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(&p.Peer)), unsafe.Sizeof(p.Peer))
+	copy(dst, b)
+	return nil
+}
+
+type (
+	// A request index is a chunk indexed across the entire torrent. It's a single integer and can
+	// be converted to a protocol request. TODO: This should be private.
+	RequestIndex = requestStrategy.RequestIndex
+	// This is request index but per-piece.
+	chunkIndexType    = requestStrategy.ChunkIndex
+	webseedSliceIndex RequestIndex
+)
+
+type desiredPeerRequests struct {
+	requestIndexes []RequestIndex
+	peer           *PeerConn
+	pieceStates    *peerRequestPieceStates
+	// The generation of pieceStates this was built against. The states are shared by all the
+	// Torrent's peers, so if someone else fills them while we're still sorting, our comparisons are
+	// against another peer's states.
+	pieceStatesGen uint64
+}
+
+type peerRequestPieceStates struct {
+	m map[pieceIndex]unique.Handle[requestStrategy.PieceRequestOrderState]
+	// Incremented whenever the states are discarded, so holders of a previous fill can detect it.
+	gen uint64
+}
+
+// Panics if the piece state wasn't set for this generation. Every request index that gets sorted
+// must have had its piece state set first.
+func (me *peerRequestPieceStates) Get(index pieceIndex) requestStrategy.PieceRequestOrderState {
+	h, ok := me.m[index]
+	panicif.False(ok)
+	return h.Value()
+}
+
+func (me *peerRequestPieceStates) Set(index pieceIndex, value requestStrategy.PieceRequestOrderState) {
+	// Nothing that reaches here should be zero: the peer has the piece, so its availability is at
+	// least one. If that changes, Get's presence check stops distinguishing unset from zero.
+	panicif.Zero(value)
+	g.MakeMapIfNil(&me.m)
+	me.m[index] = unique.Make(value)
+}
+
+// Reset all values without discarding allocation.
+func (me *peerRequestPieceStates) Clear() {
+	clear(me.m)
+	me.gen++
+}
+
+func (me *peerRequestPieceStates) Reset() {
+	me.m = nil
+	me.gen++
+}
+
+func (p *desiredPeerRequests) lessByValue(leftRequest, rightRequest RequestIndex) bool {
+	panicif.NotEq(p.pieceStatesGen, p.pieceStates.gen)
+	t := p.peer.t
+	leftPieceIndex := t.pieceIndexOfRequestIndex(leftRequest)
+	rightPieceIndex := t.pieceIndexOfRequestIndex(rightRequest)
+	ml := multiless.New()
+	// Push requests that can't be served right now to the end. But we don't throw them away unless
+	// there's a better alternative. This is for when we're using the fast extension and get choked
+	// but our requests could still be good when we get unchoked.
+	if p.peer.peerChoking {
+		ml = ml.Bool(
+			!p.peer.peerAllowedFast.Contains(leftPieceIndex),
+			!p.peer.peerAllowedFast.Contains(rightPieceIndex),
+		)
+	}
+	leftPiece := p.pieceStates.Get(leftPieceIndex)
+	rightPiece := p.pieceStates.Get(rightPieceIndex)
+	// Putting this first means we can steal requests from lesser-performing peers for our first few
+	// new requests.
+	priority := func() PiecePriority {
+		// Technically we would be happy with the cached priority here, except we don't actually
+		// cache it anymore, and Torrent.PiecePriority just does another lookup of *Piece to resolve
+		// the priority through Piece.purePriority, which is probably slower.
+		leftPriority := leftPiece.Priority
+		rightPriority := rightPiece.Priority
+		ml = ml.Int(
+			-int(leftPriority),
+			-int(rightPriority),
+		)
+		if !ml.Ok() {
+			if leftPriority != rightPriority {
+				panic("expected equal")
+			}
+		}
+		return leftPriority
+	}()
+	if ml.Ok() {
+		return ml.MustLess()
+	}
+	leftRequestState := t.requestState[leftRequest]
+	rightRequestState := t.requestState[rightRequest]
+	leftPeer := leftRequestState.peer.Value()
+	rightPeer := rightRequestState.peer.Value()
+	// Prefer chunks already requested from this peer.
+	ml = ml.Bool(rightPeer == p.peer, leftPeer == p.peer)
+	// Prefer unrequested chunks.
+	ml = ml.Bool(rightPeer == nil, leftPeer == nil)
+	if ml.Ok() {
+		return ml.MustLess()
+	}
+	if leftPeer != nil {
+		// The right peer should also be set, or we'd have resolved the computation by now.
+		ml = ml.Uint64(
+			rightPeer.requestState.Requests.GetCardinality(),
+			leftPeer.requestState.Requests.GetCardinality(),
+		)
+		// Could either of the lastRequested be Zero? That's what checking an existing peer is for.
+		leftLast := leftRequestState.when
+		rightLast := rightRequestState.when
+		if leftLast.IsZero() || rightLast.IsZero() {
+			panic("expected non-zero last requested times")
+		}
+		// We want the most-recently requested on the left. Clients like Transmission serve requests
+		// in received order, so the most recently-requested is the one that has the longest until
+		// it will be served and therefore is the best candidate to cancel.
+		ml = ml.CmpInt64(rightLast.Sub(leftLast).Nanoseconds())
+	}
+	// Just trigger on any webseed requests present on the Torrent. That suggests that the Torrent
+	// or files are prioritized enough to compete with PeerConn requests. Later we could filter on
+	// webseeds actually requesting or supporting requests for the pieces we're comparing.
+	if t.hasActiveWebseedRequests() {
+		// Prefer the highest possible request index, since webseeds prefer the lowest. Additionally,
+		// this should mean remote clients serve in reverse order so we meet webseeds responses in
+		// the middle.
+		ml = ml.Cmp(-cmp.Compare(leftRequest, rightRequest))
+	} else {
+		ml = ml.Int(
+			leftPiece.Availability,
+			rightPiece.Availability)
+		if priority == PiecePriorityReadahead {
+			// TODO: For readahead in particular, it would be even better to consider distance from the
+			// reader position so that reads earlier in a torrent don't starve reads later in the
+			// torrent. This would probably require reconsideration of how readahead priority works.
+			ml = ml.Int(leftPieceIndex, rightPieceIndex)
+		} else {
+			ml = ml.Int(t.pieceRequestOrder[leftPieceIndex], t.pieceRequestOrder[rightPieceIndex])
+		}
+		ml = multiless.EagerOrdered(ml, leftRequest, rightRequest)
+	}
+	// Prefer request indexes in order for storage write performance. Since the heap request heap
+	// does not contain duplicates, if we order at the request index level we should never have any
+	// ambiguity.
+	return ml.MustLess()
+}
+
+type desiredRequestState struct {
+	Requests   desiredPeerRequests
+	Interested bool
+}
+
+func (cl *Client) getRequestablePieces(key clientPieceRequestOrderKeySumType, f requestStrategy.RequestPieceFunc) {
+	input := key.getRequestStrategyInput(cl)
+	order := cl.pieceRequestOrder[key].pieces
+	requestStrategy.GetRequestablePieces(input, order, f)
+}
+
+func (t *Torrent) getRequestablePieces(f requestStrategy.RequestPieceFunc) {
+	t.cl.getRequestablePieces(t.clientPieceRequestOrderKey(), f)
+}
+
+// This gets the best-case request state. That means handling pieces limited by capacity, preferring
+// earlier pieces, low availability etc. It pays no attention to existing requests on the peer or
+// other peers. Those are handled later.
+func (p *PeerConn) getDesiredRequestState() (desired desiredRequestState) {
+	t := p.t
+	if !t.haveInfo() {
+		return
+	}
+	if t.closed.IsSet() {
+		return
+	}
+	if t.dataDownloadDisallowed.Bool() {
+		return
+	}
+	if t.storage == nil {
+		return
+	}
+	requestHeap := desiredPeerRequests{
+		peer:           p,
+		pieceStates:    &t.requestPieceStates,
+		requestIndexes: t.requestIndexes,
+	}
+	candidateLimit := p.requestCandidateLimit()
+	var stealCandidates []RequestIndex
+	requestHeap.pieceStates.Clear()
+	requestHeap.pieceStatesGen = t.requestPieceStates.gen
+	t.logPieceRequestOrder()
+	// Caller-provided allocation for roaring bitmap iteration.
+	var it typedRoaring.Iterator[RequestIndex]
+	t.getRequestablePieces(
+		func(ih metainfo.Hash, pieceIndex int, pieceExtra requestStrategy.PieceRequestOrderState) bool {
+			if ih != *t.canonicalShortInfohash() {
+				return true
+			}
+			if !p.peerHasPiece(pieceIndex) {
+				return true
+			}
+			requestHeap.pieceStates.Set(pieceIndex, pieceExtra)
+			allowedFast := p.peerAllowedFast.Contains(pieceIndex)
+			t.iterUndirtiedRequestIndexesInPiece(&it, pieceIndex, func(r requestStrategy.RequestIndex) {
+				if !allowedFast {
+					// We must signal interest to request this. TODO: We could set interested if the
+					// peers pieces (minus the allowed fast set) overlap with our missing pieces if
+					// there are any readers, or any pending pieces.
+					desired.Interested = true
+					// We can make or will allow sustaining a request here if we're not choked, or
+					// have made the request previously (presumably while unchoked), and haven't had
+					// the peer respond yet (and the request was retained because we are using the
+					// fast extension).
+					if p.peerChoking && !p.requestState.Requests.Contains(r) {
+						// We can't request this right now.
+						return
+					}
+				}
+				cancelled := &p.requestState.Cancelled
+				if !cancelled.IsEmpty() && cancelled.Contains(r) {
+					// Can't re-request while awaiting acknowledgement.
+					return
+				}
+				requestingPeer := t.requestingPeer(r)
+				if requestingPeer == nil || requestingPeer == p {
+					if len(requestHeap.requestIndexes) < candidateLimit {
+						requestHeap.requestIndexes = append(requestHeap.requestIndexes, r)
+					}
+				} else if len(stealCandidates) < candidateLimit {
+					if stealCandidates == nil {
+						stealCandidates = make([]RequestIndex, 0, candidateLimit)
+					}
+					stealCandidates = append(stealCandidates, r)
+				}
+			})
+			return len(requestHeap.requestIndexes) < candidateLimit
+		},
+	)
+	requestHeap.requestIndexes = mergeRequestCandidates(
+		requestHeap.requestIndexes,
+		stealCandidates,
+		candidateLimit,
+	)
+	t.assertPendingRequests()
+	desired.Requests = requestHeap
+	return
+}
+
+func mergeRequestCandidates(primary, steal []RequestIndex, limit int) []RequestIndex {
+	remaining := max(0, limit-len(primary))
+	return append(primary, steal[:min(len(steal), remaining)]...)
+}
+
+func (p *PeerConn) requestCandidateLimit() int {
+	// The piece order is already sorted by urgency, partial state,
+	// availability and piece index. Keep enough alternatives to refill the
+	// peer pipeline without rebuilding a heap containing the entire readahead
+	// window after every received 16 KiB chunk.
+	return requestCandidateLimitFor(
+		int(p.t.chunksPerRegularPiece()),
+		int(p.nominalMaxRequests()),
+	)
+}
+
+func requestCandidateLimitFor(chunksPerPiece, nominalMaxRequests int) int {
+	return max(chunksPerPiece*2, nominalMaxRequests*4)
+}
+
+// Update requests if there's a reason assigned.
+func (p *PeerConn) maybeUpdateActualRequestState() {
+	if p.needRequestUpdate == "" {
+		return
+	}
+	p.updateRequestsWithReason(p.needRequestUpdate)
+}
+
+// Updates requests right now with the given reason. Clobbers any deferred reason if there was one.
+// Does all the necessary checks and includes profiler tags to assign the overhead.
+func (p *PeerConn) updateRequestsWithReason(reason updateRequestReason) {
+	if p.closed.IsSet() {
+		return
+	}
+	if reason == peerUpdateRequestsTimerReason {
+		since := time.Since(p.lastRequestUpdate)
+		if since < updateRequestsTimerDuration {
+			panic(since)
+		}
+	}
+	if p.t.cl.config.Debug {
+		p.logger.Slogger().Debug("updating requests", "reason", p.needRequestUpdate)
+	}
+	pprof.Do(
+		context.Background(),
+		pprof.Labels("update request", string(reason)),
+		func(_ context.Context) {
+			p.updateRequests()
+		},
+	)
+	// Is there any chance we should leave this to run again, and have the caller clear it if they
+	// called with this reason?
+	p.needRequestUpdate = ""
+	p.lastRequestUpdate = time.Now()
+	if enableUpdateRequestsTimer {
+		p.updateRequestsTimer.Reset(updateRequestsTimerDuration)
+	}
+}
+
+func (p *PeerConn) updateRequests() {
+	next := p.getDesiredRequestState()
+	p.applyRequestState(next)
+	p.t.cacheNextRequestIndexesForReuse(next.Requests.requestIndexes)
+}
+
+func (t *Torrent) cacheNextRequestIndexesForReuse(slice []RequestIndex) {
+	// The incoming slice can be smaller when getDesiredRequestState short circuits on some
+	// conditions.
+	if cap(slice) > cap(t.requestIndexes) {
+		t.requestIndexes = slice[:0]
+	}
+}
+
+// Whether we should allow sending not interested ("losing interest") to the peer. I noticed
+// qBitTorrent seems to punish us for sending not interested when we're streaming and don't
+// currently need anything.
+func (p *Peer) allowSendNotInterested() bool {
+	// Except for caching, we're not likely to lose pieces very soon.
+	if p.t.haveAllPieces() {
+		return true
+	}
+	all, known := p.peerHasAllPieces()
+	if all || !known {
+		return false
+	}
+	// Allow losing interest if we have all the pieces the peer has.
+	return roaring.AndNot(p.peerPieces(), &p.t._completedPieces.Bitmap).IsEmpty()
+}
+
+// Transmit/action the request state to the peer. This includes work-stealing from other peers and
+// some piece order randomization within the preferred state calculated earlier in next. Cancels are
+// not done here, those are handled synchronously. We only track pending cancel acknowledgements.
+func (p *PeerConn) applyRequestState(next desiredRequestState) {
+	current := &p.requestState
+	// Make interest sticky
+	if !next.Interested && p.requestState.Interested {
+		if !p.allowSendNotInterested() {
+			next.Interested = true
+		}
+	}
+	if !p.setInterested(next.Interested) {
+		return
+	}
+	more := true
+	orig := next.Requests.requestIndexes
+	requestHeap := heap.InterfaceForSlice(
+		&next.Requests.requestIndexes,
+		next.Requests.lessByValue,
+	)
+	heap.Init(requestHeap)
+
+	t := p.t
+	originalRequestCount := current.Requests.GetCardinality()
+	for requestHeap.Len() > 0 {
+		numPending := maxRequests(current.Requests.GetCardinality() + current.Cancelled.GetCardinality())
+		if numPending >= p.nominalMaxRequests() {
+			break
+		}
+		req := heap.Pop(requestHeap)
+		if cap(next.Requests.requestIndexes) != cap(orig) {
+			panic("changed")
+		}
+
+		// don't add requests on receipt of a reject - because this causes request back
+		// to potentially permanently unresponsive peers - which just adds network noise.  If
+		// the peer can handle more requests it will send an "unchoked" message - which
+		// will cause it to get added back to the request queue
+		if p.needRequestUpdate == peerUpdateRequestsRemoteRejectReason {
+			continue
+		}
+
+		existing := t.requestingPeer(req)
+		if existing != nil && existing != p {
+			// don't steal on cancel - because this is triggered by t.cancelRequest below
+			// which means that the cancelled can immediately try to steal back a request
+			// it has lost which can lead to circular cancel/add processing
+			if p.needRequestUpdate == peerUpdateRequestsPeerCancelReason {
+				continue
+			}
+
+			// Don't steal from the poor.
+			diff := int64(current.Requests.GetCardinality()) + 1 - (int64(existing.uncancelledRequests()) - 1)
+			// Steal a request that leaves us with one more request than the existing peer
+			// connection if the stealer more recently received a chunk.
+			if diff > 1 || (diff == 1 && !p.lastUsefulChunkReceived.After(existing.lastUsefulChunkReceived)) {
+				continue
+			}
+			// Don't steal a request the current holder has not had time to answer. The tests
+			// above compare queue depths, which say nothing about whether the block is already
+			// on the wire; see ClientConfig.StealRequestGrace.
+			if !t.stealRequestGraceElapsed(req) {
+				continue
+			}
+			t.cancelRequest(req)
+		}
+		more = p.mustRequest(req)
+		if !more {
+			break
+		}
+	}
+	if !more {
+		// This might fail if we incorrectly determine that we can fit up to the maximum allowed
+		// requests into the available write buffer space. We don't want that to happen because it
+		// makes our peak requests dependent on how much was already in the buffer.
+		panic(fmt.Sprintf(
+			"couldn't fill apply entire request state [newRequests=%v]",
+			current.Requests.GetCardinality()-originalRequestCount))
+	}
+	newPeakRequests := maxRequests(current.Requests.GetCardinality() - originalRequestCount)
+	// log.Printf(
+	// 	"requests %v->%v (peak %v->%v) reason %q (peer %v)",
+	// 	originalRequestCount, current.Requests.GetCardinality(), p.peakRequests, newPeakRequests, p.needRequestUpdate, p)
+	p.peakRequests = newPeakRequests
+}
+
+// stealRequestGraceElapsed reports whether req has been outstanding with its current holder
+// long enough for another peer to be allowed to take it. Always true when
+// ClientConfig.StealRequestGrace is unset, which is the historical behaviour.
+//
+// The clock is requestState.when, which PeerConn.request rewrites on every issue, so the
+// grace is measured against the current holder rather than the request's total lifetime.
+func (t *Torrent) stealRequestGraceElapsed(req RequestIndex) bool {
+	grace := t.cl.config.StealRequestGrace
+	if grace <= 0 {
+		return true
+	}
+	// The caller has already resolved a requesting peer for req, so the state is present.
+	return time.Since(t.requestState[req].when) >= grace
+}
+
+// This could be set to 10s to match the unchoke/request update interval recommended by some
+// specifications. I've set it shorter to trigger it more often for testing for now.
+const (
+	updateRequestsTimerDuration = 3 * time.Second
+	enableUpdateRequestsTimer   = false
+)

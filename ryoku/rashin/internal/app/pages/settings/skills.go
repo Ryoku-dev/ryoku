@@ -11,7 +11,6 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/chat"
@@ -100,7 +99,7 @@ func (k *skillsPanel) layoutTitle(gtx layout.Context, th *look.Theme, root strin
 	k.folder.Kind, k.folder.Small, k.folder.Label = kit.PlaqueTonal, true, i18n.T("Show in files")
 	words := func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Skills"))),
+			layout.Rigid(look.SectionHead(th, ordinal(sectionSkills))),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(look.Paragraph(th, th.T.Proof, th.R.Fg2, proof)),
 		)
@@ -138,7 +137,7 @@ func (k *skillsPanel) layoutSet(gtx layout.Context, e *env.Env, settings protoco
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, group.Name)),
+					layout.Rigid(look.SectionHead(th, look.Head{Title: group.Name})),
 					layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 					layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, byline)),
 				)
@@ -253,7 +252,7 @@ func andList(words []string) string {
 // the whole row opens the skill; one its authors start only by name says so in words
 func (row *skillRow) layout(gtx layout.Context, th *look.Theme, skill protocol.Skill, shown bool) layout.Dimensions {
 	width := gtx.Constraints.Max.X
-	inset, pad := gtx.Dp(13), gtx.Dp(10)
+	inset, pad := gtx.Dp(th.Sp.S3), gtx.Dp(th.Sp.S2)
 	record := op.Record(gtx.Ops)
 	content := gtx
 	content.Constraints = layout.Constraints{Min: image.Pt(width-2*inset, 0), Max: image.Pt(width-2*inset, gtx.Constraints.Max.Y)}
@@ -287,7 +286,7 @@ func (row *skillRow) layout(gtx layout.Context, th *look.Theme, skill protocol.S
 		hover = 1
 	}
 	if hover > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(palette.Mix(th.R.Slab, th.R.Fg, tokens.AlphaHoverPlane), hover))
+		kit.Fill(gtx, th.Theme, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Hover(), hover))
 	}
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: size}

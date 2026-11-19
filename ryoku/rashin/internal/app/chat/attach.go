@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme"
 	"ryoku-i18n"
 
@@ -70,11 +71,11 @@ func (state *composerState) addAttachment(path string) {
 
 func (state *composerState) layoutAttachments(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	removed := -1
-	dimensions := look.Flow{Gap: 4, LineGap: 4}.Layout(gtx, len(state.images), func(gtx layout.Context, index int) layout.Dimensions {
+	dimensions := look.Flow{Gap: th.Sp.S1, LineGap: th.Sp.S1}.Layout(gtx, len(state.images), func(gtx layout.Context, index int) layout.Dimensions {
 		path := state.images[index]
 		remove := state.remove[path]
 		if remove == nil {
-			remove = &look.IconAction{Icon: look.Icon.Close, Description: i18n.T("Remove attachment")}
+			remove = &kit.IconPlaque{Kind: kit.PlaqueQuiet, Small: true, Icon: look.Icon.Close, Description: i18n.T("Remove attachment")}
 			state.remove[path] = remove
 		}
 		if remove.Clicked(gtx) {

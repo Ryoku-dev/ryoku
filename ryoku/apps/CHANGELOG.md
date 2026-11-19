@@ -1,6 +1,9 @@
 # Changelog: ryoku/apps/
 
 ## Unreleased
+- **The Compress video and Install app launchers are gone.** They opened the
+  Alt+Space bar's Tools, which became the download manager in Kit. Right-click
+  Compress and Install in the file manager keep working (`tools/`).
 - **Thunar follows the terminal picked in Settings.** Folder paths and quoted
   commands stay intact with or without the Xfce preferred-app helper.
 

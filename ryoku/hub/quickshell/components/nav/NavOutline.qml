@@ -12,8 +12,8 @@ Item {
     required property var tree
     property bool shown: false
     property bool animate: true
-    readonly property var sections: root.hub.outline
-    readonly property int current: root.hub.outlineIndex
+    readonly property var sections: root.shown ? root.hub.outline : []
+    readonly property int current: root.shown ? root.hub.outlineIndex : -1
     readonly property real rowHeight: 26
 
     width: parent ? parent.width : 0

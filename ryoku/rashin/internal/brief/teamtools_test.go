@@ -8,24 +8,20 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// Every agent hears what a team is, that teams do not talk to each other,
-// and how it proposes one: with its tools when it holds them, else the CLI.
-func TestEveryAgentIsToldHowToProposeATeam(t *testing.T) {
-	machine(t, false)
-	withTools := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}, Tools: true})
-	without := Agent(Session{Info: protocol.SessionInfo{Cwd: "/work/app"}})
+func TestTeamsGuideNamesTheToolsOrTheCLI(t *testing.T) {
+	withTools, without := Teams(true), Teams(false)
 	for _, text := range []string{withTools, without} {
-		for _, want := range []string{"\nTeams\n", "a lead that hands pieces", "Teams do not talk to each other", "Rashin Inbox", "credential"} {
+		for _, want := range []string{"a lead that hands pieces", "Teams do not talk to each other", "Rashin Inbox", "credential"} {
 			if !strings.Contains(text, want) {
-				t.Fatalf("the brief does not say %q:\n%s", want, text)
+				t.Fatalf("the teams guide does not say %q:\n%s", want, text)
 			}
 		}
 	}
 	if !strings.Contains(withTools, ToolProposeTeam) || !strings.Contains(withTools, ToolTeamsTemplates) || strings.Contains(withTools, "rashin teams propose") {
-		t.Fatalf("an agent with Rashin's tools is not pointed at them:\n%s", withTools)
+		t.Fatalf("the tools guide is not pointed at the team tools:\n%s", withTools)
 	}
 	if !strings.Contains(without, "rashin teams propose <file.json>") || strings.Contains(without, ToolProposeTeam) {
-		t.Fatalf("an agent without Rashin's tools is not pointed at the CLI:\n%s", without)
+		t.Fatalf("the CLI guide is not pointed at the command:\n%s", without)
 	}
 }
 

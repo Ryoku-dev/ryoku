@@ -43,9 +43,11 @@ type apiChat struct {
 type apiMessage struct {
 	Role       string          `json:"role"`
 	Content    json.RawMessage `json:"content"`
+	Reasoning  string          `json:"reasoning_content"`
 	ToolCalls  []wireToolCall  `json:"tool_calls"`
 	ToolCallID string          `json:"tool_call_id"`
 	Name       string          `json:"name"`
+	IsError    bool            `json:"is_error"`
 }
 
 type apiPart struct {
@@ -132,12 +134,15 @@ func apiToMessage(message apiMessage) (llm.Message, error) {
 		return llm.Message{Role: llm.RoleUser, Content: text, Images: images}, nil
 	case "assistant":
 		converted := llm.Message{Role: llm.RoleAssistant, Content: text}
+		if message.Reasoning != "" {
+			converted.Thinking = []llm.Thinking{{Text: message.Reasoning}}
+		}
 		for _, call := range message.ToolCalls {
 			converted.ToolCalls = append(converted.ToolCalls, llm.ToolCall{ID: call.ID, Name: call.Function.Name, Arguments: call.Function.Arguments})
 		}
 		return converted, nil
 	case "tool", "function":
-		return llm.Message{Role: llm.RoleTool, Content: text, ToolCallID: message.ToolCallID, Name: message.Name}, nil
+		return llm.Message{Role: llm.RoleTool, Content: text, ToolCallID: message.ToolCallID, Name: message.Name, Images: images, IsError: message.IsError}, nil
 	}
 	return llm.Message{}, errors.New(i18n.Tf("Rashin does not know the message role %s.", message.Role))
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { GAP, MARGIN, fitSize, slotPosition, clamp } = require("./pinlayout.js");
+const { GAP, MARGIN, fitSize, slotPosition, clamp, outputFor, initialPosition, zoom } = require("./pinlayout.js");
 
 test("large image fits within a third width and half height, aspect preserved", () => {
     const s = fitSize(4000, 3000, 1920, 1080);
@@ -64,4 +64,51 @@ test("clamp holds the card one inset inside the output", () => {
 
 test("clamp with an inset never inverts on an oversized card", () => {
     assert.deepEqual(clamp({ x: 0, y: 0 }, { w: 4000, h: 4000 }, 1920, 1080, 28), { x: 28, y: 28 });
+});
+
+const screens = [
+    { name: "DP-1", x: 0, y: 0, width: 1920, height: 1080 },
+    { name: "DP-2", x: 1920, y: -200, width: 2560, height: 1440 }
+];
+
+test("named output wins over the focused output", () => {
+    assert.equal(outputFor({ output: "DP-2", x: 2020, y: 0 }, screens, "DP-1"), "DP-2");
+});
+
+test("missing outputs and legacy pins fall back to the focused or first output", () => {
+    assert.equal(outputFor({ output: "gone" }, screens, "DP-2"), "DP-2");
+    assert.equal(outputFor({}, screens, "gone"), "DP-1");
+    assert.equal(outputFor({}, [], "gone"), "");
+});
+
+test("position without an output selects the screen containing the global point", () => {
+    assert.equal(outputFor({ x: 2020, y: -100 }, screens, "DP-1"), "DP-2");
+});
+
+test("global placement becomes output-local without adding a gutter", () => {
+    assert.deepEqual(initialPosition({ output: "DP-2", x: 2020, y: 0 }, 0,
+        { w: 300, h: 200 }, screens[1]), { x: 100, y: 200 });
+    assert.deepEqual(initialPosition({ output: "DP-1", x: 0, y: 0 }, 0,
+        { w: 300, h: 200 }, screens[0]), { x: 0, y: 0 });
+});
+
+test("missing output and malformed positions use the legacy slot rather than stale coordinates", () => {
+    const size = { w: 300, h: 200 };
+    const expected = slotPosition(0, size, screens[0].width, screens[0].height);
+    assert.deepEqual(initialPosition({ output: "gone", x: 5000, y: -100 }, 0, size, screens[0]), expected);
+    for (const position of [{ x: null, y: null }, { x: "100", y: 200 }, { x: Infinity, y: 0 }])
+        assert.deepEqual(initialPosition(position, 0, size, screens[0]), expected);
+});
+
+test("zoom grows around the centre rather than the top-left", () => {
+    const result = zoom({ x: 200, y: 200, w: 400, h: 200 }, 1.25, 1920, 1080);
+    assert.deepEqual(result, { x: 150, y: 175, w: 500, h: 250 });
+});
+
+test("zoom is aspect-preserving and bounded by the output and minimum size", () => {
+    const large = zoom({ x: 0, y: 0, w: 400, h: 200 }, 100, 1920, 1080);
+    assert.deepEqual(large, { x: 0, y: 0, w: 1920, h: 960 });
+    const small = zoom({ x: 200, y: 200, w: 400, h: 200 }, 0.001, 1920, 1080);
+    assert.equal(small.h, 16);
+    assert.equal(small.w, 32);
 });

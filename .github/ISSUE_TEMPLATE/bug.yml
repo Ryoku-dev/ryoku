@@ -27,7 +27,6 @@ body:
       options:
         - Hyprland
         - niri
-        - Wayfire
         - Not sure
     validations:
       required: true

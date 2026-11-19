@@ -69,6 +69,19 @@ remains the single cutover owner.
 They must converge. A change that lands on one but not the other is the bug this
 page exists to prevent.
 
+On Arch and CachyOS, a box with the retired Wayfire variant must acquire a
+supported variant before the update is complete. Before upgrading, update
+downloads the replacement, includes it in the package transaction and drops
+the retired split meta whose exact-version pin would block the new base. A
+running Wayfire session keeps its variant intact: update asks the user to log
+into a supported desktop or run `ryoku update` from a TTY after logging out.
+Doctor likewise never removes the old compositor from a running session.
+The migration uses the current supported session if there is one, otherwise an
+installed Hyprland variant, then an installed niri variant, and finally
+installs Hyprland if neither is present. After login to the replacement,
+doctor removes the retired compositor and checkout binary. An unavailable
+replacement leaves the old variant installed and reports the error.
+
 ### Void
 
 Void packages come from Ryoku's signed XBPS repositories. Stable releases use
@@ -831,11 +844,9 @@ quiet. `tests/ryoku-discord.sh` builds every kind of message offline.
 - **A system path a package owns may exist unowned first, and the update adopts
   it.** The ISO installer and `ryoku/shell/deploy.sh` seed some paths before a
   package owns them: the privileged helpers and their polkit rules, the Plymouth
-  theme, the shipped boot configs and lockscreen bundle, Wayfire's baseline
-  config, portal routing, window-decoration plugin and plugin metadata (a
-  checkout box has no Wayfire variant package), the boot hook, the modules-load
-  and udev rules, the default-apps mimeapps map, the keyring's D-Bus
-  environment drop-in and Secret Service override, and the logind lid-switch
+  theme, the shipped boot configs and lockscreen bundle, the boot hook,
+  the modules-load and udev rules, the default-apps mimeapps map, the keyring's
+  D-Bus environment drop-in and Secret Service override, and the logind lid-switch
   drop-in `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned
   copy collides with the package on the next transaction ("exists in
   filesystem") and aborts the whole atomic `-Syu`, so every ryoku pacman

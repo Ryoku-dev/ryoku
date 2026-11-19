@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
-import "Singletons"
+import "look"
 
 Item {
     id: canvas
@@ -287,7 +287,7 @@ Item {
                 y: cell.isText ? cell.a.points[0].y - canvas.sy : 0
                 text: cell.isText ? (cell.a.text || "") : ""
                 color: cell.isText ? cell.a.color : "transparent"
-                font.family: Theme.ui
+                font.family: Look.ui
                 font.pixelSize: cell.isText ? cell.a.size : 16
                 textFormat: Text.PlainText
                 renderType: Text.NativeRendering
@@ -327,13 +327,13 @@ Item {
                 height: cr * 2
                 radius: cr
                 color: cell.isCounter ? cell.a.color : "transparent"
-                border.color: Theme.accentInk
+                border.color: Look.inkOn(cell.isCounter ? cell.a.color : "black")
                 border.width: 2
                 Text {
                     anchors.centerIn: parent
                     text: cell.isCounter ? cell.a.n : ""
-                    color: Theme.accentInk
-                    font.family: Theme.ui
+                    color: Look.inkOn(cell.isCounter ? cell.a.color : "black")
+                    font.family: Look.ui
                     font.pixelSize: counterBadge.cr * 1.05
                     font.weight: Font.Bold
                 }
@@ -347,12 +347,12 @@ Item {
                 preferredRendererType: Shape.CurveRenderer
                 visible: cell.isOcr
                 ShapePath {
-                    strokeColor: cell.isOcr ? Theme.accent : "transparent"
+                    strokeColor: cell.isOcr ? Look.accent : "transparent"
                     strokeWidth: 1.5
                     strokeStyle: ShapePath.DashLine
                     dashPattern: [4, 3]
                     fillColor: cell.isOcr
-                        ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.10)
+                        ? Qt.rgba(Look.accent.r, Look.accent.g, Look.accent.b, 0.10)
                         : "transparent"
                     PathRectangle {
                         x: cell.isOcr ? Math.min(cell.a.points[0].x, cell.a.points[1].x) - canvas.sx : 0

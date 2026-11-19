@@ -144,8 +144,8 @@ func sessionFacts(snapshot state.Snapshot, info protocol.SessionInfo) []look.Hea
 	if info.Branch != "" {
 		facts = append(facts, look.HeaderFact{Text: info.Branch, Kind: look.FactToken})
 	}
-	if harness := harnessName(snapshot, info.Harness); harness != "" {
-		facts = append(facts, look.HeaderFact{Text: harness})
+	if info.Model != "" {
+		facts = append(facts, look.HeaderFact{Text: env.ModelWordsOf(info.Model)})
 	}
 	return facts
 }
@@ -175,6 +175,8 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 	view.Constraints = layout.Exact(image.Pt(size.X, max(0, top-gtx.Dp(8))))
 	p.lines.Sync(e, e.Snapshot(), &p.view, attached.Model)
 	p.view.SetMemoryText(chat.MemoryText{Fact: memoryui.FactText, Plain: env.PlainMemory})
+	p.view.SetFeatures(e.Feature)
+	p.view.SetArtifactActions(e.Call, e.Open, e.Notify)
 	p.view.Layout(view, e.Theme, e.Overlays, attached.Model)
 	p.handleActions(gtx, e, attached.Info, p.view.Actions())
 
@@ -192,19 +194,18 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Attached, width int) layout.Dimensions {
 	info := attached.Info
 	busy := attached.Model.Busy()
-	p.controls.sync(attached)
-	p.controls.wake(e, info)
+	p.controls.sync(e, attached)
 	options := chat.ComposerOptions{
 		Placeholder: i18n.T("Tell the agent what to do"), Busy: busy, Queue: info.Queue, CanAttach: true,
 		History: attached.Model.Prompts, Commands: func() []protocol.Command { return sessionCommands(attached.Model.Commands()) },
-		Controls: p.controls.widgets(e, e.Snapshot(), info, p.composer.FocusTag()),
+		Controls: p.controls.widgets(e, p.composer.FocusTag()),
 	}
 	if info.Temporary {
 		options.Placeholder = env.TemporaryAgentHint()
 	}
 	options.Answer = p.view.Asking(attached.Model)
 	e.ComposerDesktop(&p.composer, &options)
-	p.controls.update(e, info.ID)
+	p.controls.update(e, info)
 	gtx.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, gtx.Constraints.Max.Y)}
 	dimensions := p.composer.Layout(gtx, e.Theme, options)
 	if submission, ok := p.composer.Submitted(); ok {

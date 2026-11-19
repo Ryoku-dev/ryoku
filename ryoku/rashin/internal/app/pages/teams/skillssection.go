@@ -76,20 +76,22 @@ func (k *skillsSection) layout(e *env.Env, snapshot appstate.Snapshot, team prot
 		}})
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Skills"))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.T("The built-in skill sets this team's members get, while the set is on in Settings too."))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+		body := func(gtx layout.Context) layout.Dimensions {
+			switch {
+			case k.list.Problem() != "":
+				return look.Paragraph(th, th.T.Detail, th.R.Jasper, i18n.Tf("Rashin could not list its skills: %s", k.list.Problem()))(gtx)
+			case !ready:
+				return look.SkeletonRows(gtx, th, 4, true)
+			default:
+				return look.SettingsSlab(gtx, th, rows)
+			}
 		}
-		switch {
-		case k.list.Problem() != "":
-			children = append(children, layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Jasper, i18n.Tf("Rashin could not list its skills: %s", k.list.Problem()))))
-		case !ready:
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SkeletonRows(gtx, th, 4, true) }))
-		default:
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		return look.Section(gtx, th, look.Head{Title: i18n.T("Skills"), Number: 8, Of: sectionCount}, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.T("The built-in skill sets this team's members get, while the set is on in Settings too."))),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+				layout.Rigid(body),
+			)
+		})
 	}
 }

@@ -30,15 +30,17 @@ Popover {
     onAboutToShow: {
         search.clear();
         pop.query = "";
-        menuFlick.contentY = 0;
+        menu.focusedIndex = -1;
     }
     onOpened: search.forceActiveFocus()
 
     CutRect {
-        width: LithicTokens.size.menuWidthMax
-        implicitWidth: width
-        implicitHeight: body.implicitHeight + LithicTokens.space.s2 * 2
-        height: implicitHeight
+        width: pop.availableWidth
+        implicitWidth: LithicTokens.size.menuWidthMax
+        implicitHeight: search.implicitHeight + LithicTokens.space.s2
+                        + (menu.visible ? menu.implicitHeight : empty.implicitHeight)
+                        + LithicTokens.space.s2 * 2
+        height: pop.availableHeight
         fill: Lithic.stone4
         strokeColor: Lithic.vein
         strokeWidth: LithicTokens.size.hairline
@@ -50,6 +52,7 @@ Popover {
             y: LithicTokens.space.s2
             width: parent.width - LithicTokens.space.s2 * 2
             spacing: LithicTokens.space.s2
+            height: parent.height - LithicTokens.space.s2 * 2
 
             Search {
                 id: search
@@ -69,6 +72,7 @@ Popover {
             }
 
             Label {
+                id: empty
                 width: parent.width
                 visible: pop.shown.length === 0
                 topPadding: LithicTokens.space.s2
@@ -80,32 +84,17 @@ Popover {
                 elide: Text.ElideNone
             }
 
-            Flickable {
-                id: menuFlick
+            Menu {
+                id: menu
                 visible: pop.shown.length > 0
                 width: parent.width
-                height: Math.min(menu.implicitHeight, LithicTokens.size.menuItem * 8)
-                contentWidth: width
-                contentHeight: menu.implicitHeight
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
-
-                Menu {
-                    id: menu
-                    width: menuFlick.width
-                    menuWidth: menuFlick.width
-                    background: null
-                    items: pop.shown.map(e => ({ label: e.label, shortcut: e.id }))
-                    onTriggered: index => pop.pick(index)
-                    onFocusedIndexChanged: {
-                        var top = menu.topPadding + menu.focusedIndex * LithicTokens.size.menuItem;
-                        if (top < menuFlick.contentY)
-                            menuFlick.contentY = top;
-                        else if (top + LithicTokens.size.menuItem > menuFlick.contentY + menuFlick.height)
-                            menuFlick.contentY = top + LithicTokens.size.menuItem - menuFlick.height;
-                    }
-                    Keys.onEscapePressed: pop.close()
-                }
+                height: Math.min(implicitHeight, Math.max(0,
+                    body.height - search.height - body.spacing))
+                menuWidth: parent.width
+                background: null
+                items: pop.shown.map(e => ({ label: e.label, shortcut: e.id }))
+                onTriggered: index => pop.pick(index)
+                Keys.onEscapePressed: pop.close()
             }
         }
     }

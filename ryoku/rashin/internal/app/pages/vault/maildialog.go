@@ -157,7 +157,7 @@ func (d *mailDialog) rows(e *env.Env, p *Page, vault protocol.VaultInfo, local b
 			if d.problem == "" {
 				return layout.Dimensions{}
 			}
-			return look.Paragraph(th, th.T.Caption, th.R.Amber, d.problem)(gtx)
+			return look.Paragraph(th, th.T.Caption, th.R.Jasper, d.problem)(gtx)
 		},
 	}
 }

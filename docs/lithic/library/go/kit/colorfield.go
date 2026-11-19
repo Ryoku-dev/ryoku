@@ -225,7 +225,7 @@ func (f *ColorField) layoutHexField(gtx layout.Context, th *theme.Theme, size im
 	cut := gtx.Dp(th.Cut.Mid)
 	focused := gtx.Focused(&f.hex)
 	focus := previewTransition(gtx, &f.focus, f.Preview, StateFocus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
-	drawFieldSurface(gtx, th, bounds, cut, th.R.Field, focus, f.hexInvalid)
+	FieldSurface(gtx, th, bounds, cut, th.R.Field, focus, f.hexInvalid)
 
 	inset := gtx.Dp(unit.Dp(tokens.SizeTextFieldInset))
 	action := gtx.Dp(unit.Dp(tokens.SizeTextFieldSecretAction))

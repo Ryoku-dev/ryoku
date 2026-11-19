@@ -25,12 +25,16 @@ type editor struct {
 
 	header look.PaneHeader
 	scroll look.Scroller
+	sheet  look.Sheet
 
 	title         kit.TextField
 	brief         look.MultiLine
 	team, member  look.Select
 	teamID        string
 	memberID      string
+	kind, preset  look.Select
+	kindValue     string
+	presetValue   string
 	when          whenBuilder
 	more          kit.Disclosure
 	moreToggle    kit.Plaque
@@ -57,6 +61,10 @@ func (ed *editor) startNew(snapshot state.Snapshot, team string) {
 	}
 	ed.close()
 	ed.creating, ed.base, ed.teamID, ed.memberID = true, protocol.Routine{}, team, ""
+	ed.kindValue, ed.presetValue = protocol.RoutineTask, ""
+	if snapshot.Settings.Features["schedules"] && len(snapshot.Teams) == 0 {
+		ed.kindValue, ed.teamID = protocol.RoutineAsk, protocol.RoutinePersonal
+	}
 	ed.busy, ed.problem, ed.more.Open = false, "", false
 	ed.title.SetText("")
 	ed.brief.SetText("")
@@ -79,6 +87,7 @@ func (ed *editor) load(routine protocol.Routine) {
 	ed.title.SetText(routine.Title)
 	ed.brief.SetText(routine.Brief)
 	ed.teamID, ed.memberID = routine.Team, routine.Member
+	ed.kindValue, ed.presetValue = kindOf(routine), routine.Preset
 	ed.when.set(readPlan(routine.Schedule))
 	ed.missedValue, ed.overlapValue = missedOf(routine), overlapOf(routine)
 }
@@ -105,6 +114,12 @@ func (ed *editor) sync(snapshot state.Snapshot) (protocol.Routine, bool) {
 // the fields that differ from the routine, as a merge patch
 func (ed *editor) patch() map[string]any {
 	patch := make(map[string]any)
+	if ed.kindValue != kindOf(ed.base) {
+		patch["kind"] = ed.kindValue
+	}
+	if ed.presetValue != ed.base.Preset {
+		patch["preset"] = ed.presetValue
+	}
 	if title := strings.TrimSpace(ed.title.Text()); title != ed.base.Title {
 		patch["title"] = title
 	}
@@ -129,7 +144,7 @@ func (ed *editor) patch() map[string]any {
 // whether the form makes a routine the daemon will take
 func (ed *editor) ready(snapshot state.Snapshot) bool {
 	_, team := teamsui.TeamByID(snapshot.Teams, ed.teamID)
-	return team && strings.TrimSpace(ed.title.Text()) != "" && strings.TrimSpace(ed.brief.Text()) != "" &&
+	return (team || (ed.teamID == protocol.RoutinePersonal && ed.kindValue != protocol.RoutineTask && snapshot.Settings.Features["schedules"])) && strings.TrimSpace(ed.title.Text()) != "" && strings.TrimSpace(ed.brief.Text()) != "" &&
 		ed.when.reading.problem == "" && ed.when.reading.ready
 }
 
@@ -150,6 +165,7 @@ func (ed *editor) submit(e *env.Env) {
 		Team: ed.teamID, Title: strings.TrimSpace(ed.title.Text()), Brief: strings.TrimSpace(ed.brief.Text()),
 		Member: ed.memberID, Schedule: expression, Missed: ed.missedValue, Overlap: ed.overlapValue,
 		Enabled: ed.on.Value, RunNow: ed.runNow.Value,
+		Kind: ed.kindValue, Preset: ed.presetValue,
 	}
 	var created protocol.Routine
 	e.Call(protocol.MTeamsRoutineCreate, params, &created, func(err error) {
@@ -168,13 +184,21 @@ func (ed *editor) layout(gtx layout.Context, e *env.Env, page *Page, routine pro
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ed.layoutHeader(gtx, e, page, snapshot, routine) }),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			pageInfo := page.Sheet(e)
 			inset := look.ContentInset(e.Class)
-			return ed.scroll.Layout(gtx, th, 1, func(gtx layout.Context, _ int) layout.Dimensions {
-				return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return kit.DraftColumns(gtx, th.Theme,
-						func(gtx layout.Context) layout.Dimensions { return ed.layoutForm(gtx, e, snapshot, routine) },
-						func(gtx layout.Context) layout.Dimensions { return ed.aside.layout(gtx, e, ed, snapshot, routine) },
-					)
+			return ed.sheet.Layout(gtx, th, pageInfo, func(gtx layout.Context) layout.Dimensions {
+				return ed.scroll.Layout(gtx, th, 2, func(gtx layout.Context, index int) layout.Dimensions {
+					if index == 1 {
+						return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return ed.sheet.Colophon(gtx, th, pageInfo)
+						})
+					}
+					return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S5, Left: inset, Right: inset}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return kit.DraftColumns(gtx, th.Theme,
+							func(gtx layout.Context) layout.Dimensions { return ed.layoutForm(gtx, e, snapshot, routine) },
+							func(gtx layout.Context) layout.Dimensions { return ed.aside.layout(gtx, e, ed, snapshot, routine) },
+						)
+					})
 				})
 			})
 		}),

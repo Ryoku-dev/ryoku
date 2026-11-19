@@ -1,13 +1,15 @@
-import QtQuick
-import QtQuick.Layouts
-import "Singletons"
-import Ryoku.Ui.Singletons
+pragma ComponentBehavior: Bound
 
-Item {
+import QtQuick
+import Lithic
+import Ryoku.Ui.Singletons
+import "look"
+
+Flyout {
     id: pop
 
     /** Externally driven current colour; seeds the HSV state on change. */
-    property color selected: Theme.accent
+    property color selected: Look.sel
 
     /** Renders the eyedropper button in its armed (active) state. */
     property bool eyedropArmed: false
@@ -18,21 +20,15 @@ Item {
     /** The parent closes the popover and arms sampling in the overlay. */
     signal eyedropRequested()
 
-    signal closeRequested()
-
-    focus: visible
-    Keys.onEscapePressed: pop.closeRequested()
-
-    readonly property int arrow: 7
-    implicitWidth: card.implicitWidth
-    implicitHeight: card.implicitHeight + arrow
-
     property real hue: 0
     property real sat: 1
     property real val: 1
     property bool syncing: false
 
     readonly property color current: Qt.hsva(pop.hue, pop.sat, pop.val, 1)
+    readonly property real span: Math.round(200 * pop.u)
+    // the colour field's own corner: square in Lithic, the design's small round
+    readonly property real fieldRadius: Look.lithic ? 0 : (Look.material ? 12 : Look.adwaita ? 8 : 4) * pop.u
 
     /**
      * Pulls hue/sat/val from an incoming colour. Greys read back a NaN/-1 hue
@@ -47,10 +43,7 @@ Item {
     }
 
     onSelectedChanged: if (!pop.syncing) pop.syncFrom(pop.selected)
-    Component.onCompleted: {
-        pop.syncFrom(pop.selected);
-        appear.start();
-    }
+    Component.onCompleted: pop.syncFrom(pop.selected)
 
     /** Sets sat/val from a point inside the square and emits the new colour. */
     function pickSquare(px, py, w, h) {
@@ -81,234 +74,264 @@ Item {
     readonly property string hexText:
         "#" + hex2(current.r) + hex2(current.g) + hex2(current.b)
 
-    opacity: 0
-    scale: 0.92
-    transformOrigin: Item.Top
-    ParallelAnimation {
-        id: appear
-        NumberAnimation { target: pop; property: "opacity"; from: 0; to: 1; duration: Theme.snap; easing.type: Easing.OutCubic }
-        NumberAnimation { target: pop; property: "scale"; from: 0.92; to: 1; duration: Theme.snap; easing.type: Easing.OutCubic }
-    }
+    Column {
+        width: pop.span
+        spacing: Math.round(10 * pop.u)
 
-    Rectangle {
-        id: card
-        width: parent.width
-        height: parent.height - pop.arrow
-        radius: Theme.radius
-        color: Theme.panel
-        border.color: Theme.hair
-        border.width: 1
-        implicitWidth: 200
-        implicitHeight: content.implicitHeight + 24
-
-        ColumnLayout {
-            id: content
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 10
-
-            Rectangle {
-                id: square
-                Layout.fillWidth: true
-                Layout.preferredHeight: 120
-                radius: 6
-                clip: true
-                color: Qt.hsva(pop.hue, 1, 1, 1)
-
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 1) }
-                        GradientStop { position: 1; color: Qt.rgba(1, 1, 1, 0) }
-                    }
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        orientation: Gradient.Vertical
-                        GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0) }
-                        GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 1) }
-                    }
-                }
-
-                Rectangle {
-                    width: 12
-                    height: 12
-                    radius: 6
-                    color: Qt.rgba(0, 0, 0, 0)
-                    border.color: Theme.ink
-                    border.width: 2
-                    x: pop.sat * square.width - width / 2
-                    y: (1 - pop.val) * square.height - height / 2
-                }
-
-                TapHandler {
-                    onTapped: (p) => pop.pickSquare(p.position.x, p.position.y, square.width, square.height)
-                }
-                DragHandler {
-                    target: null
-                    onCentroidChanged: if (active) pop.pickSquare(centroid.position.x, centroid.position.y, square.width, square.height)
-                }
+        Item {
+            visible: Look.lithic
+            width: parent.width
+            height: Math.round(12 * pop.u)
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Colour").toUpperCase()
+                color: Look.fg3
+                font.family: Look.mono
+                font.pixelSize: Math.round(9 * pop.u)
+                font.weight: Font.Bold
+                font.letterSpacing: Look.tracking * pop.u
+                renderType: Text.CurveRendering
             }
+            Text {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: "1–8"
+                color: Look.fg3
+                font.family: Look.mono
+                font.pixelSize: Math.round(9 * pop.u)
+                renderType: Text.CurveRendering
+            }
+        }
+
+        Rectangle {
+            id: square
+            width: parent.width
+            height: Math.round(120 * pop.u)
+            radius: pop.fieldRadius
+            clip: true
+            color: Qt.hsva(pop.hue, 1, 1, 1)
 
             Rectangle {
-                id: hueStrip
-                Layout.fillWidth: true
-                Layout.preferredHeight: 14
-                radius: 7
-                clip: true
+                anchors.fill: parent
+                radius: parent.radius
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.000; color: Qt.hsva(0.000, 1, 1, 1) }
-                    GradientStop { position: 0.167; color: Qt.hsva(0.167, 1, 1, 1) }
-                    GradientStop { position: 0.333; color: Qt.hsva(0.333, 1, 1, 1) }
-                    GradientStop { position: 0.500; color: Qt.hsva(0.500, 1, 1, 1) }
-                    GradientStop { position: 0.667; color: Qt.hsva(0.667, 1, 1, 1) }
-                    GradientStop { position: 0.833; color: Qt.hsva(0.833, 1, 1, 1) }
-                    GradientStop { position: 1.000; color: Qt.hsva(1.000, 1, 1, 1) }
+                    GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 1) }
+                    GradientStop { position: 1; color: Qt.rgba(1, 1, 1, 0) }
                 }
-
-                Rectangle {
-                    width: 6
-                    height: parent.height + 4
-                    y: -2
-                    radius: 3
-                    color: Qt.rgba(0, 0, 0, 0)
-                    border.color: Theme.ink
-                    border.width: 2
-                    x: pop.hue * hueStrip.width - width / 2
-                }
-
-                TapHandler {
-                    onTapped: (p) => pop.pickHue(p.position.x, hueStrip.width)
-                }
-                DragHandler {
-                    target: null
-                    onCentroidChanged: if (active) pop.pickHue(centroid.position.x, hueStrip.width)
+            }
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                gradient: Gradient {
+                    orientation: Gradient.Vertical
+                    GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0) }
+                    GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 1) }
                 }
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-                Repeater {
-                    model: Theme.swatches
-                    Rectangle {
-                        id: swatch
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 18
-                        radius: 4
-                        color: modelData
-                        readonly property bool sel: Qt.colorEqual(pop.selected, modelData)
-                        border.color: sel ? Theme.ink
-                            : (swHover.hovered ? Qt.rgba(1, 1, 1, 0.5) : Qt.rgba(1, 1, 1, 0.18))
-                        border.width: sel ? 2 : 1
-                        scale: swHover.hovered ? 1.12 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-                        HoverHandler { id: swHover }
-                        TapHandler { onTapped: pop.picked(swatch.modelData) }
-                    }
-                }
+            // the picked point: a ring in Lithic's cut and the designs' round
+            CutRect {
+                visible: Look.lithic
+                width: Math.round(12 * pop.u)
+                height: width
+                x: pop.sat * square.width - width / 2
+                y: (1 - pop.val) * square.height - height / 2
+                design: "lithic"
+                cut: 3 * pop.u
+                strokeColor: "white"
+                strokeWidth: Math.max(1, Math.round(2 * pop.u))
+            }
+            Rectangle {
+                visible: !Look.lithic
+                width: Math.round(14 * pop.u)
+                height: width
+                radius: width / 2
+                x: pop.sat * square.width - width / 2
+                y: (1 - pop.val) * square.height - height / 2
+                color: pop.current
+                border.color: "white"
+                border.width: Math.max(1, Math.round(2 * pop.u))
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
+            TapHandler {
+                onTapped: (p) => pop.pickSquare(p.position.x, p.position.y, square.width, square.height)
+            }
+            DragHandler {
+                target: null
+                onCentroidChanged: if (active) pop.pickSquare(centroid.position.x, centroid.position.y, square.width, square.height)
+            }
+        }
 
-                IconButton {
-                    id: eyedrop
-                    icon: "pen"
-                    active: pop.eyedropArmed
-                    tooltip: I18n.tr("Pick a colour from the shot (i)")
-                    onClicked: pop.eyedropRequested()
-                }
+        Rectangle {
+            id: hueStrip
+            width: parent.width
+            height: Math.round(12 * pop.u)
+            radius: Look.lithic ? 0 : height / 2
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.000; color: Qt.hsva(0.000, 1, 1, 1) }
+                GradientStop { position: 0.167; color: Qt.hsva(0.167, 1, 1, 1) }
+                GradientStop { position: 0.333; color: Qt.hsva(0.333, 1, 1, 1) }
+                GradientStop { position: 0.500; color: Qt.hsva(0.500, 1, 1, 1) }
+                GradientStop { position: 0.667; color: Qt.hsva(0.667, 1, 1, 1) }
+                GradientStop { position: 0.833; color: Qt.hsva(0.833, 1, 1, 1) }
+                GradientStop { position: 1.000; color: Qt.hsva(1.000, 1, 1, 1) }
+            }
 
-                Rectangle {
-                    Layout.preferredWidth: 24
-                    Layout.preferredHeight: 24
-                    radius: 5
-                    color: pop.current
-                    border.color: Qt.rgba(1, 1, 1, 0.25)
-                    border.width: 1
-                }
+            Rectangle {
+                width: Math.round((Look.lithic ? 4 : 16) * pop.u)
+                height: Look.lithic ? parent.height + 6 * pop.u : width
+                anchors.verticalCenter: parent.verticalCenter
+                radius: Look.lithic ? 0 : width / 2
+                x: pop.hue * hueStrip.width - width / 2
+                color: Look.lithic ? "transparent" : Qt.hsva(pop.hue, 1, 1, 1)
+                border.color: "white"
+                border.width: Math.max(1, Math.round(2 * pop.u))
+            }
 
-                Rectangle {
-                    id: hexBox
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 24
-                    radius: 5
-                    color: Qt.rgba(1, 1, 1, 0.06)
-                    border.color: Theme.hair
-                    border.width: 1
+            TapHandler {
+                onTapped: (p) => pop.pickHue(p.position.x, hueStrip.width)
+            }
+            DragHandler {
+                target: null
+                onCentroidChanged: if (active) pop.pickHue(centroid.position.x, hueStrip.width)
+            }
+        }
 
-                    SequentialAnimation {
-                        id: hexFlash
-                        ColorAnimation { target: hexBox; property: "border.color"; to: Theme.accent; duration: 90 }
-                        ColorAnimation { target: hexBox; property: "border.color"; to: Theme.hair; duration: 240 }
-                    }
-
-                    TextInput {
-                        id: hexField
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        verticalAlignment: TextInput.AlignVCenter
-                        color: Theme.ink
-                        font.family: Theme.mono
-                        font.pixelSize: 12
-                        selectByMouse: true
-                        selectionColor: Theme.accent
-                        text: pop.hexText
-                        maximumLength: 7
-                        onActiveFocusChanged: if (activeFocus) selectAll()
-
-                        /**
-                         * Accepts a #rrggbb (or rrggbb) string on Enter or focus
-                         * loss; a value Qt cannot parse reverts to the current
-                         * colour so a half-typed hex never snaps the picker.
-                         */
-                        function commit() {
-                            var t = text.trim();
-                            if (t.length > 0 && t[0] !== "#") t = "#" + t;
-                            if (/^#[0-9a-fA-F]{3}$/.test(t))
-                                t = "#" + t[1] + t[1] + t[2] + t[2] + t[3] + t[3];
-                            if (/^#[0-9a-fA-F]{6}$/.test(t)) {
-                                pop.picked(t);
-                                pop.syncFrom(t);
-                            } else {
-                                hexFlash.start();
-                            }
-                            text = Qt.binding(function () { return pop.hexText; });
-                        }
-                        onEditingFinished: commit()
-                        Keys.onReturnPressed: commit()
-                        Keys.onEnterPressed: commit()
-                    }
+        Row {
+            width: parent.width
+            spacing: (width - Look.swatches.length * Math.round(20 * pop.u)) / (Look.swatches.length - 1)
+            Repeater {
+                model: Look.swatches
+                Chip {
+                    required property var modelData
+                    u: pop.u
+                    size: 20
+                    ink: modelData
+                    selected: Qt.colorEqual(pop.selected, modelData)
+                    onTapped: pop.picked(modelData)
                 }
             }
         }
-    }
 
-    Canvas {
-        width: pop.arrow * 2
-        height: pop.arrow
-        anchors.bottom: card.top
-        anchors.horizontalCenter: card.horizontalCenter
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.reset();
-            ctx.beginPath();
-            ctx.moveTo(0, height);
-            ctx.lineTo(width, height);
-            ctx.lineTo(width / 2, 0);
-            ctx.closePath();
-            ctx.fillStyle = Theme.panel;
-            ctx.fill();
+        Row {
+            width: parent.width
+            spacing: Math.round(8 * pop.u)
+
+            GlyphButton {
+                id: eyedrop
+                u: pop.u
+                cellWidth: 28
+                cellHeight: 28
+                iconSize: 16
+                icon: "eyedropper"
+                checked: pop.eyedropArmed
+                tip: I18n.tr("Pick a colour from the shot")
+                keyHint: "i"
+                onClicked: pop.eyedropRequested()
+            }
+
+            Item {
+                id: hexBox
+                width: parent.width - eyedrop.width - parent.spacing
+                height: eyedrop.height
+
+                readonly property bool editing: hexField.activeFocus
+                property real flash: 0
+                readonly property color rest: hexBox.editing ? Look.sel : Look.lithic ? Look.vein : Lithic.alpha(Look.fg, 0.14)
+                readonly property color edge: Lithic.mix(hexBox.rest, Look.alert, hexBox.flash)
+
+                CutRect {
+                    visible: Look.lithic
+                    anchors.fill: parent
+                    design: "lithic"
+                    cut: 3 * pop.u
+                    fill: Look.well
+                    strokeColor: hexBox.edge
+                    strokeWidth: Math.max(1, Math.round(pop.u))
+                }
+                Rectangle {
+                    visible: !Look.lithic
+                    anchors.fill: parent
+                    radius: (Look.material ? 8 : Look.adwaita ? 6 : 4) * pop.u
+                    color: Lithic.alpha(Look.fg, Look.fluent ? 0.05 : 0.08)
+                    border.width: Look.adwaita ? 0 : Math.max(1, Math.round(pop.u))
+                    border.color: Look.material || Look.fluent ? hexBox.edge : "transparent"
+                }
+                // Fluent's text box marks focus with an accent rule along its foot
+                Rectangle {
+                    visible: Look.fluent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 2 * pop.u
+                    anchors.rightMargin: 2 * pop.u
+                    height: Math.max(1, Math.round((hexBox.editing ? 2 : 1) * pop.u))
+                    color: hexBox.editing ? Look.sel : Look.fg3
+                }
+
+                SequentialAnimation {
+                    id: hexFlash
+                    NumberAnimation { target: hexBox; property: "flash"; to: 1; duration: 90 }
+                    NumberAnimation { target: hexBox; property: "flash"; to: 0; duration: 240 }
+                }
+
+                Rectangle {
+                    id: preview
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.round(6 * pop.u)
+                    width: Math.round(14 * pop.u)
+                    height: width
+                    radius: Look.lithic ? 0 : Look.fluent ? 3 * pop.u : width / 2
+                    color: pop.current
+                    border.color: Lithic.alpha(Look.fg, 0.25)
+                    border.width: Math.max(1, Math.round(pop.u))
+                }
+
+                TextInput {
+                    id: hexField
+                    anchors.left: preview.right
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: Math.round(8 * pop.u)
+                    anchors.rightMargin: Math.round(8 * pop.u)
+                    verticalAlignment: TextInput.AlignVCenter
+                    color: Look.fg
+                    font.family: Look.mono
+                    font.pixelSize: Math.round(11.5 * pop.u)
+                    font.capitalization: Look.lithic ? Font.AllUppercase : Font.MixedCase
+                    selectByMouse: true
+                    selectionColor: Look.sel
+                    selectedTextColor: Look.onSel
+                    text: pop.hexText
+                    maximumLength: 7
+                    onActiveFocusChanged: if (activeFocus) selectAll()
+
+                    /**
+                     * Accepts a #rrggbb (or rrggbb) string on Enter or focus
+                     * loss; a value Qt cannot parse reverts to the current
+                     * colour so a half-typed hex never snaps the picker.
+                     */
+                    function commit() {
+                        var t = text.trim();
+                        if (t.length > 0 && t[0] !== "#") t = "#" + t;
+                        if (/^#[0-9a-fA-F]{3}$/.test(t))
+                            t = "#" + t[1] + t[1] + t[2] + t[2] + t[3] + t[3];
+                        if (/^#[0-9a-fA-F]{6}$/.test(t)) {
+                            pop.picked(t);
+                            pop.syncFrom(t);
+                        } else {
+                            hexFlash.start();
+                        }
+                        text = Qt.binding(function () { return pop.hexText; });
+                    }
+                    onEditingFinished: commit()
+                    Keys.onReturnPressed: commit()
+                    Keys.onEnterPressed: commit()
+                }
+            }
         }
     }
 }

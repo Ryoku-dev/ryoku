@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
 import "lib/screens.js" as Screens
+import "../modules/kit/lib/route.js" as KitRoute
 
 // Shared per-monitor open/close state for every shell surface: the single source
 // of truth the CustomShortcut handlers flip and each resident surface binds its
@@ -128,13 +129,12 @@ Singleton {
     }
 
     function setAskMode(screen, mode) {
-        if (mode !== "ask" && mode !== "chat" && mode !== "tools" && mode !== "web")
+        if (mode !== "ask" && mode !== "web")
             return;
         const slice = root.sliceForMonitor(screen);
         if (!slice)
             return;
         slice.askMode = mode;
-        slice.askTool = "";
     }
 
     function closeTransientSurfaces(mon) {
@@ -142,6 +142,44 @@ Singleton {
         if (!slice)
             return;
         slice.askOpen = false;
+        root.closeKit();
+    }
+
+    function kitCommand(mon) {
+        const name = mon && typeof mon === "object" ? mon.name
+            : typeof mon === "string" && mon !== "" ? mon : Wm.focusedOutput;
+        return ["ryoku-kit", "--qml", Quickshell.shellPath("kit.qml"), "--monitor", name || ""];
+    }
+
+    function openKit(mon, section, page, args) {
+        const slice = root.sliceForMonitor(mon);
+        if (slice)
+            slice.askOpen = false;
+        const command = root.kitCommand(mon);
+        if (args)
+            command.push("--args", JSON.stringify(args));
+        if (section)
+            command.push(section, page || "");
+        Spawn.run(command);
+        root.surfaceClosed("sidebar-left", slice ? slice.modelData.name : "");
+    }
+
+    function toggleKit(mon) {
+        const slice = root.sliceForMonitor(mon);
+        if (slice)
+            slice.askOpen = false;
+        Spawn.run(root.kitCommand(mon).concat(["--toggle"]));
+        root.surfaceClosed("sidebar-left", slice ? slice.modelData.name : "");
+    }
+
+    function closeKit() {
+        Spawn.run(["qs", "-p", Quickshell.shellPath("kit.qml"), "ipc", "call", "kit", "close"]);
+    }
+
+    function openKitDownloads(mon, args) {
+        const slice = root.sliceForMonitor(mon);
+        if (slice)
+            root.openKit(mon, "downloads", "queue", args);
     }
 
     function routeOwnedSurface(id, mon) {
@@ -152,6 +190,17 @@ Singleton {
         if (!slice)
             return false;
 
+        // cheatsheet#<section>[/<page>] (ryoku-kit) opens Kit there and never
+        // closes it. The bare id is the toggle, which a bar style may own
+        // instead, so ShellBody decides that one.
+        const kit = KitRoute.parse(id);
+        if (kit.kit) {
+            if (kit.toggle)
+                return false;
+            root.openKit(mon, kit.section, kit.page);
+            return true;
+        }
+
         if (base !== "ask")
             return false;
 
@@ -160,12 +209,9 @@ Singleton {
             return true;
         }
 
-        slice.askMode = route === "chat" ? "chat"
-            : route === "web" ? "web"
-            : route.indexOf("tools") === 0 ? "tools" : "ask";
-        slice.askTool = route === "tools/compress" ? "compress"
-            : route === "tools/install" ? "install" : "";
+        slice.askMode = route === "web" ? "web" : "ask";
         slice.askOpen = true;
+        root.closeKit();
         root.surfaceClosed("sidebar-left", slice.modelData.name);
         return true;
     }
@@ -185,6 +231,8 @@ Singleton {
         const slice = root.sliceForMonitor(mon);
         if (slice && (base === "" || base === "ask"))
             slice.askOpen = false;
+        if (base === "" || base === KitRoute.BASE)
+            root.closeKit();
         root.surfaceClosed(id, mon);
     }
 
@@ -239,7 +287,6 @@ Singleton {
             property bool clipboardOpen: false          // clipboard overlay (Super+V)
             property bool askOpen: false
             property string askMode: "ask"
-            property string askTool: ""
 
             // The frame bar's master reveal for this monitor. Resting policy is
             // revealed: each edge then follows its Config reveal flag, and the

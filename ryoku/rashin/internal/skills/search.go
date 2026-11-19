@@ -16,28 +16,30 @@ const (
 
 // Search ranks the skills of the sets that are on against what is about to
 // be done, by BM25 over each skill's name and description, best first. An
-// empty query lists every one of them.
+// empty query lists every one of them. Managed skills that are not shadowed
+// follow the built-in ones, unless the managed set is off.
 func (l *Library) Search(params protocol.SkillsSearchParams, off []string) (protocol.SkillsSearchResult, error) {
 	root, err := l.Root()
 	if err != nil {
 		return protocol.SkillsSearchResult{}, err
 	}
-	var candidates []entry
+	var candidates []protocol.Skill
 	for _, e := range l.entries() {
 		if on(e.set, off) {
-			candidates = append(candidates, e)
+			candidates = append(candidates, e.skill(root))
 		}
+	}
+	for _, s := range l.Managed().Visible(off) {
+		candidates = append(candidates, managedSkill(s))
 	}
 	result := protocol.SkillsSearchResult{Skills: []protocol.Skill{}}
 	if strings.TrimSpace(params.Query) == "" {
-		for _, e := range candidates {
-			result.Skills = append(result.Skills, e.skill(root))
-		}
+		result.Skills = append(result.Skills, candidates...)
 		return result, nil
 	}
 	docs := make([]string, len(candidates))
-	for i, e := range candidates {
-		docs[i] = stems(strings.ReplaceAll(e.name, "-", " ") + " " + e.description)
+	for i, s := range candidates {
+		docs[i] = stems(strings.ReplaceAll(s.Name, "-", " ") + " " + s.Description)
 	}
 	scores := rank.BM25(stems(params.Query), docs)
 	order := make([]int, 0, len(candidates))
@@ -53,7 +55,7 @@ func (l *Library) Search(params protocol.SkillsSearchParams, off []string) (prot
 	}
 	limit = min(limit, searchMax, len(order))
 	for _, i := range order[:limit] {
-		result.Skills = append(result.Skills, candidates[i].skill(root))
+		result.Skills = append(result.Skills, candidates[i])
 	}
 	return result, nil
 }

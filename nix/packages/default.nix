@@ -65,6 +65,10 @@ let
     inherit pkgs src;
   };
 
+  ryoget = import ./ryoku-ryoget.nix {
+    inherit pkgs src;
+  };
+
   rashin = import ./ryoku-rashin.nix {
     inherit pkgs src;
   };
@@ -283,6 +287,7 @@ let
       cli
       hub
       paletteBridge
+      ryoget
       rashin
       ryostore
       ryomotion
@@ -312,6 +317,7 @@ in
     cli
     hub
     paletteBridge
+    ryoget
     rashin
     ryostore
     ryomotion

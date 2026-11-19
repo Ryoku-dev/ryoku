@@ -153,6 +153,7 @@ QtObject {
         readonly property int menuItem: 40
         readonly property int menuPaddingVertical: 6
         readonly property int menuShortcutGap: 13
+        readonly property real menuVisibleItemsCount: 10.5
         readonly property int menuWidthMax: 360
         readonly property int menuWidthMin: 220
         readonly property int newPlaqueHeight: 52
@@ -231,13 +232,16 @@ QtObject {
         readonly property int sectionIndexWidth: 200
         readonly property int segmentHeight: 36
         readonly property int segmentInset: 4
+        readonly property int settingsChoiceMin: 240
         readonly property int settingsControlMax: 320
         readonly property int settingsDetailGap: 2
         readonly property int settingsExpandedMax: 994
+        readonly property int settingsFieldMax: 420
         readonly property int settingsInsetSide: 36
         readonly property int settingsInsetVertical: 34
         readonly property int settingsMediumMax: 760
         readonly property int settingsRowGap: 13
+        readonly property int settingsTextMeasureMax: 720
         readonly property int skeletonBarGap: 8
         readonly property int skeletonBarHeight: 8
         readonly property real skeletonBarLongFraction: 0.6

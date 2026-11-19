@@ -1,6 +1,7 @@
 package look
 
 import (
+	"gioui.org/io/semantic"
 	"image"
 
 	"gioui.org/layout"
@@ -38,8 +39,8 @@ type HeaderAction struct {
 	Description string
 	Trail       layout.Widget
 	// the view this action is showing now
-	On       bool
-	Disabled bool
+	On, Gold, Busy bool
+	Disabled       bool
 }
 
 type PaneHeaderContent struct {
@@ -54,10 +55,10 @@ type PaneHeaderContent struct {
 }
 
 type headerAction struct {
-	icon  kit.IconPlaque
-	label kit.Click
-	hover anim.Tween
-	tip   Tip
+	icon   kit.IconPlaque
+	plaque kit.Plaque
+	label  kit.Click
+	hover  anim.Tween
 }
 
 type PaneHeader struct {
@@ -66,7 +67,6 @@ type PaneHeader struct {
 	actions  []headerAction
 	links    []kit.Click
 	overflow kit.IconPlaque
-	moreTip  Tip
 	menu     kit.Menu
 	vein     anim.Tween
 
@@ -122,10 +122,13 @@ func (header *PaneHeader) update(gtx layout.Context, content PaneHeaderContent) 
 	for index, action := range content.Actions {
 		state := &header.actions[index]
 		clicked := state.icon.Clicked(gtx)
+		if state.plaque.Clicked(gtx) {
+			clicked = true
+		}
 		if state.label.Clicked(gtx) {
 			clicked = true
 		}
-		if clicked && !action.Disabled {
+		if clicked && !action.Disabled && !action.Busy {
 			header.action = index + 1
 		}
 	}
@@ -191,14 +194,9 @@ func (header *PaneHeader) layoutFact(gtx layout.Context, th *Theme, index int, f
 	case FactToken:
 		return TokenChip(th, fact.Text)(gtx)
 	case FactMark:
-		return kit.Text(th.Theme, th.T.Caption, th.R.Amber, fact.Text)(gtx)
+		return kit.Marks(th.Theme, []kit.Mark{{Text: fact.Text, Attention: true}})(gtx)
 	case FactLink:
-		link := &header.links[index]
-		ink := th.R.Fg3
-		if link.Hovered() || header.Preview == kit.StateHover {
-			ink = th.R.Fg
-		}
-		return link.Layout(gtx, kit.Text(th.Theme, th.T.Caption, ink, fact.Text))
+		return Link(gtx, th, &header.links[index], fact.Text)
 	default:
 		return kit.Text(th.Theme, th.T.Caption, th.R.Fg3, fact.Text)(gtx)
 	}
@@ -232,7 +230,7 @@ func (header *PaneHeader) layoutAction(
 	state *headerAction,
 	action HeaderAction,
 ) layout.Dimensions {
-	if action.Disabled {
+	if action.Disabled || action.Busy {
 		gtx = gtx.Disabled()
 	}
 	body := func(gtx layout.Context) layout.Dimensions {
@@ -242,25 +240,50 @@ func (header *PaneHeader) layoutAction(
 			state.icon.Kind = kit.PlaqueQuiet
 			if action.On {
 				state.icon.Kind = kit.PlaqueOn
+			} else if action.Gold {
+				state.icon.Kind = kit.PlaqueGold
+			}
+			if action.Busy {
+				return kit.Working{Active: true, Size: 16}.Layout(gtx, th.Theme)
 			}
 			return state.icon.Layout(gtx, th.Theme)
 		}
+		if action.Trail == nil {
+			state.plaque.Icon, state.plaque.Label = action.Icon, action.Label
+			state.plaque.Small, state.plaque.Busy, state.plaque.Preview = true, action.Busy, header.Preview
+			state.plaque.Kind = kit.PlaqueTonal
+			if action.On {
+				state.plaque.Kind = kit.PlaqueOn
+			} else if action.Gold {
+				state.plaque.Kind = kit.PlaqueGold
+			}
+			return state.plaque.Layout(gtx, th.Theme)
+		}
 		return header.layoutLabelled(gtx, th, state, action)
 	}
-	return state.tip.Layout(gtx, th, overlays, action.Description, body)
+	return body(gtx)
 }
 
-// kit.Plaque can't hold an icon, a label and trailing content, this small one can
+// the attached status needs one hit target with the label, unlike a plain plaque
 func (header *PaneHeader) layoutLabelled(gtx layout.Context, th *Theme, state *headerAction, action HeaderAction) layout.Dimensions {
 	height := gtx.Dp(32)
 	cut := gtx.Dp(th.Cut.Small)
 	return state.label.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		semantic.Button.Add(gtx.Ops)
+		name := action.Description
+		if name == "" {
+			name = action.Label
+		}
+		semantic.LabelOp(name).Add(gtx.Ops)
+		semantic.EnabledOp(gtx.Source.Enabled()).Add(gtx.Ops)
 		hovered := state.label.Hovered() || header.Preview == kit.StateHover
 		hover := transition(gtx, &state.hover, hovered && gtx.Source.Enabled(), th.Motion.HoverIn, th.Motion.HoverOut)
 		// a secondary verb is tonal: the fill shows the cut, a hairline alone reads as a ring
 		ink, fill := th.R.Fg, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
 		if action.On {
 			ink, fill = th.R.OnSel, palette.Mix(th.R.Sel, th.R.Fg, tokens.AlphaHoverPlane*hover)
+		} else if action.Gold {
+			ink, fill = th.R.OnGold, palette.Mix(th.R.Gold, th.R.Fg, tokens.AlphaHoverPlane*hover)
 		}
 		if !gtx.Source.Enabled() {
 			ink, fill = palette.WithAlpha(ink, tokens.AlphaDisabled), palette.WithAlpha(fill, tokens.AlphaDisabled)
@@ -286,7 +309,7 @@ func (header *PaneHeader) layoutLabelled(gtx layout.Context, th *Theme, state *h
 		})
 		call := record.Stop()
 		bounds := image.Rect(0, 0, dimensions.Size.X, height)
-		kit.FillCut(gtx.Ops, bounds, cut, fill)
+		kit.Fill(gtx, th.Theme, bounds, cut, fill)
 		offset := op.Offset(image.Pt(0, (height-dimensions.Size.Y)/2)).Push(gtx.Ops)
 		call.Add(gtx.Ops)
 		offset.Pop()
@@ -317,9 +340,7 @@ func (header *PaneHeader) layoutOverflow(gtx layout.Context, th *Theme, overlays
 	if overlays != nil && overlays.IsOpen(tag) {
 		header.overflow.Kind = kit.PlaqueOn
 	}
-	return header.moreTip.Layout(gtx, th, overlays, header.overflow.Description, func(gtx layout.Context) layout.Dimensions {
-		return header.overflow.Layout(gtx, th.Theme)
-	})
+	return header.overflow.Layout(gtx, th.Theme)
 }
 
 func (header *PaneHeader) layoutVein(gtx layout.Context, th *Theme, scrolled bool) {

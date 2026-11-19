@@ -247,7 +247,7 @@ func (s *Stepper) layoutField(gtx layout.Context, th *theme.Theme) layout.Dimens
 	if s.Editable {
 		focus = previewTransition(gtx, &s.focus, s.Preview, StateFocus, gtx.Focused(&s.editor), th.Motion.FocusIn, th.Motion.FocusOut)
 	}
-	drawFieldSurface(gtx, th, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Field, focus, false)
+	FieldSurface(gtx, th, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Field, focus, false)
 	offset := op.Offset(image.Pt((size.X-value.Size.X)/2, (size.Y-value.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	offset.Pop()

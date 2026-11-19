@@ -122,7 +122,7 @@ func (f *ChordField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 	if placeholder == "" {
 		placeholder = "Not set"
 	}
-	caps := chordKeycaps(f.Chord)
+	caps := ChordFaces(f.Chord)
 
 	width := gtx.Constraints.Max.X
 	if width <= 0 {
@@ -156,7 +156,7 @@ func (f *ChordField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 			line = 1
 		}
 		bounds := image.Rectangle{Max: size}
-		drawFieldSurface(gtx, th, bounds, cut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), line, f.Conflict != "")
+		FieldSurface(gtx, th, bounds, cut, palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover), line, f.Conflict != "")
 
 		inset := gtx.Dp(unit.Dp(tokens.SizeTextFieldInset))
 		inner := exactContext(gtx, image.Pt(max(0, size.X-2*inset), size.Y))
@@ -192,37 +192,6 @@ func (f *ChordField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensio
 	conflict := Label{Style: th.T.Caption, Color: disabledInk(gtx, th, th.R.Jasper)}.Layout(lineGTX, th, f.Conflict)
 	offset.Pop()
 	return layout.Dimensions{Size: image.Pt(dims.Size.X, dims.Size.Y+gap+conflict.Size.Y), Baseline: dims.Baseline}
-}
-
-func layoutKeycaps(gtx layout.Context, th *theme.Theme, caps []string) layout.Dimensions {
-	padX, padY := gtx.Dp(th.Sp.S2), gtx.Dp(th.Sp.S1)
-	gap := gtx.Dp(th.Sp.S1)
-	cut := gtx.Dp(th.Cut.Token)
-	hairline := max(1, gtx.Dp(unit.Dp(tokens.SizeHairline)))
-	height := gtx.Sp(th.T.Label.Line) + 2*padY
-	x := 0
-	for index, face := range caps {
-		if index > 0 {
-			x += gap
-		}
-		record := op.Record(gtx.Ops)
-		textGTX := gtx
-		textGTX.Constraints = layout.Constraints{Max: image.Pt(max(0, gtx.Constraints.Max.X-x-2*padX), gtx.Sp(th.T.Label.Line))}
-		text := rawText(th, th.T.Label, disabledInk(gtx, th, th.R.Fg), face)(textGTX)
-		call := record.Stop()
-		capWidth := text.Size.X + 2*padX
-		if x+capWidth > gtx.Constraints.Max.X {
-			break
-		}
-		bounds := image.Rect(x, 0, x+capWidth, height)
-		Fill(gtx, th, bounds, cut, disabledInk(gtx, th, th.R.Field))
-		Stroke(gtx, th, bounds, cut, hairline, disabledInk(gtx, th, th.R.Edge))
-		offset := op.Offset(image.Pt(x+padX, padY)).Push(gtx.Ops)
-		call.Add(gtx.Ops)
-		offset.Pop()
-		x += capWidth
-	}
-	return layout.Dimensions{Size: image.Pt(x, height)}
 }
 
 type chordAction uint8
@@ -382,9 +351,11 @@ var chordFaces = map[string]string{
 	"bracketright": "]",
 }
 
-// chordKeycaps splits a chord into the faces its keycaps show, matching the
-// faces ryoku/wm DisplayKeys gives the keybind sheet.
-func chordKeycaps(chord string) []string {
+// ChordFaces splits a chord, written as ChordField records it ("Super+Shift+
+// Return"), into the faces its keycaps show, matching the faces ryoku/wm
+// DisplayKeys gives the keybind sheet ("Super", "Shift", "Enter"). Pass them
+// to Keycaps to set a stored shortcut outside a ChordField.
+func ChordFaces(chord string) []string {
 	var faces []string
 	for _, raw := range strings.Split(chord, "+") {
 		token := strings.TrimSpace(raw)

@@ -82,18 +82,16 @@ walk_closure() {
 # shellcheck disable=SC2034 # filled by walk_closure through namerefs
 declare -A neutral_hard=() neutral_opt=() neutral_seen=() \
 	niri_hard=() niri_opt=() niri_seen=() \
-	hypr_hard=() hypr_opt=() hypr_seen=() \
-	wayf_hard=() wayf_opt=() wayf_seen=()
+	hypr_hard=() hypr_opt=() hypr_seen=()
 walk_closure ryoku-desktop neutral_hard neutral_opt neutral_seen
 # Rashin is optional on Arch, but this edition's desktop package still
 # requires it, so its own dependencies belong to the desktop closure here.
 walk_closure ryoku-rashin neutral_hard neutral_opt neutral_seen
 walk_closure ryoku-desktop-niri niri_hard niri_opt niri_seen
 walk_closure ryoku-desktop-hyprland hypr_hard hypr_opt hypr_seen
-walk_closure ryoku-desktop-wayfire wayf_hard wayf_opt wayf_seen
 
 declare -A closure=() expected_lanes=()
-lane_order=(desktop dev system extra optional hyprland wayfire hardware:amd hardware:intel hardware:nvidia hardware:vm)
+lane_order=(desktop dev system extra optional hyprland hardware:amd hardware:intel hardware:nvidia hardware:vm)
 
 add_lane() {
 	local pkg=$1 lane=$2 current=${expected_lanes[$1]:-}
@@ -127,11 +125,7 @@ for pkg in "${!hypr_hard[@]}" "${!hypr_opt[@]}"; do
 	[[ -z ${neutral_hard[$pkg]:-}${neutral_opt[$pkg]:-}${niri_hard[$pkg]:-}${niri_opt[$pkg]:-} ]] \
 		&& add_lane "$pkg" hyprland
 done
-for pkg in "${!wayf_hard[@]}" "${!wayf_opt[@]}"; do
-	[[ -z ${neutral_hard[$pkg]:-}${neutral_opt[$pkg]:-}${niri_hard[$pkg]:-}${niri_opt[$pkg]:-} ]] \
-		&& add_lane "$pkg" wayfire
-done
-for pkg in "${!neutral_opt[@]}" "${!niri_opt[@]}" "${!hypr_opt[@]}" "${!wayf_opt[@]}"; do
+for pkg in "${!neutral_opt[@]}" "${!niri_opt[@]}" "${!hypr_opt[@]}"; do
 	closure[$pkg]=1
 	[[ -n ${expected_lanes[$pkg]:-} ]] || add_lane "$pkg" optional
 done
@@ -140,6 +134,12 @@ add_lane ryoku-keyring desktop
 add_lane ryoku-palette-bridge desktop
 add_lane udev desktop
 for pkg in dualsensectl dbus hidapi libusb; do add_lane "$pkg" optional; done
+# Sight installs trained data only when a recognition language is enabled.
+for code in ara chi_sim chi_tra deu fra hin ita jpn kor nld pol por rus spa tha tur ukr vie; do
+	add_lane "tesseract-data-$code" optional
+done
+# Theia installs its reading voice on demand
+add_lane espeak-ng optional
 # ryoku-gpu-lib32 installs the 32-bit GPU baseline on demand for games.
 for pkg in lib32-mesa lib32-vulkan-icd-loader lib32-vulkan-nouveau; do add_lane "$pkg" optional; done
 # Ryoport ships from its own repository, but it still installs and advises these
@@ -182,7 +182,7 @@ NR == 1 {
 	count = split($3, lanes, ",")
 	delete row_lane
 	for (i = 1; i <= count; i++) {
-		if (lanes[i] !~ /^(desktop|dev|system|extra|optional|hyprland|wayfire|hardware:(amd|intel|nvidia|vm))$/)
+		if (lanes[i] !~ /^(desktop|dev|system|extra|optional|hyprland|hardware:(amd|intel|nvidia|vm))$/)
 			bad("invalid lane " lanes[i])
 		if (row_lane[lanes[i]]++) bad("duplicate lane " lanes[i])
 	}

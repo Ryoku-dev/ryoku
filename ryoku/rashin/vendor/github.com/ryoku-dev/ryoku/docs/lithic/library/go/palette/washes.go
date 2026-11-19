@@ -93,9 +93,15 @@ func (r Roles) Hover() color.NRGBA { return r.Wash(0.06, 0.07) }
 // Press is the wash under a pressed row (Tone.press, .10 / .12).
 func (r Roles) Press() color.NRGBA { return r.Wash(0.10, 0.12) }
 
-// Select is the open page's wash: the selection at .16 dark, .14 light (Tone.select, which is
-// Lithic.container on the Lithic path, Lithic.qml _withMinerals), solved over the ground.
+// Select is the open page's wash, Tone.select, which is Lithic.container. On Lithic's ladder
+// (Lithic, and every design on Ryoku's colours) that is the selection at .16 dark, .14 light
+// (Lithic.qml _withMinerals), solved over the ground. A round design on the desktop's colours
+// wears the palette's own secondary container (Material), an opaque tone, returned as it is.
+// The ink on either is OnContainer (Tone.selectInk).
 func (r Roles) Select() color.NRGBA {
+	if r.Container.A == 255 {
+		return r.Container
+	}
 	if r.Dark {
 		return SRGBAlpha(r.Sel, r.Ground, 0.16)
 	}

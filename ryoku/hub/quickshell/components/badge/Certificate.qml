@@ -17,6 +17,7 @@ T.Popup {
     readonly property var entry: root.badge && root.badge.badge ? root.badge.badge : root.badge
     readonly property var emblemSpec: root.spec && root.spec.badge ? root.spec.badge : root.spec
     readonly property string role: root.entry ? String(root.entry.role || "tester") : "tester"
+    readonly property string program: root.entry && root.entry.program ? String(root.entry.program) : ""
     readonly property bool verified: !!root.entry && root.entry.verified !== false && root.entry.badgeCheck !== "offline"
     readonly property bool moving: root.opened && !Lithic.reduceMotion
     property real elapsed: 0
@@ -108,7 +109,7 @@ T.Popup {
                 }
             }
             Row {
-                x: 478; y: 390; spacing: 60
+                x: 478; y: 390; spacing: root.program !== "" ? 44 : 60
                 Column {
                     spacing: 8
                     Label { text: I18n.tr("Issued by"); typeRole: "monoSm"; font.pixelSize: 12; inkRole: "fg3" }
@@ -118,6 +119,23 @@ T.Popup {
                     spacing: 8
                     Label { text: I18n.tr("Issued on"); typeRole: "monoSm"; font.pixelSize: 12; inkRole: "fg3" }
                     Label { text: root.entry ? String(root.entry.issued || "") : ""; typeRole: "mono"; font.pixelSize: 18 }
+                }
+                Column {
+                    visible: root.program !== ""
+                    width: Math.max(0, 530 - x)
+                    spacing: 8
+                    Label { text: I18n.tr("Program"); typeRole: "monoSm"; font.pixelSize: 12; inkRole: "fg3" }
+                    // a long program takes a second, smaller line before the verification strip
+                    Label {
+                        width: parent.width
+                        text: root.program
+                        typeRole: "label"
+                        font.pixelSize: programFit.advanceWidth <= width ? 20 : 16
+                        lineHeight: font.pixelSize + 4
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        TextMetrics { id: programFit; font.family: Lithic.type.label.family; font.weight: Lithic.type.label.weight; font.pixelSize: 20; text: root.program }
+                    }
                 }
             }
             CutRect {

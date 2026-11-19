@@ -2,9 +2,11 @@ package kit
 
 import (
 	"image"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
+	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -39,7 +41,14 @@ func (working Working) Layout(gtx layout.Context, th *theme.Theme) layout.Dimens
 	activeFraction := float32(0)
 	reduced := working.Active && anim.Reduced()
 	if working.Active && !reduced {
-		phase = anim.Phase(gtx, th.Motion.Working) + 1/(2*float32(tokens.SizeWorkingFlakeCount))
+		if th.Motion.Working > 0 {
+			// one clock for every visible mark; the small flakes need twelve steps per cycle, not display-rate frames
+			const step = 75 * time.Millisecond
+			tick := gtx.Now.Truncate(step)
+			gtx.Execute(op.InvalidateCmd{At: tick.Add(step)})
+			phase = float32(tick.UnixNano()%int64(th.Motion.Working)) / float32(th.Motion.Working)
+		}
+		phase += 1 / (2 * float32(tokens.SizeWorkingFlakeCount))
 		if phase >= 1 {
 			phase--
 		}

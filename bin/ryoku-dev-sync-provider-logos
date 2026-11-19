@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-render Rashin's provider and harness logos from lobehub/lobe-icons at a
+# Re-render Rashin's provider logos from lobehub/lobe-icons at a
 # pinned commit into ryoku/rashin/internal/app/look/logos/masks: one alpha mask
 # per mark that logos/list.txt names, from the mono SVGs, plus the upstream
 # LICENSE beside them. Lithic paints roles, never brand colours, so only the

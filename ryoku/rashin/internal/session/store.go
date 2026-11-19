@@ -267,6 +267,10 @@ func (l *Log) writeLocked(ev protocol.SessionEvent) error {
 	}
 	l.info.LastSeq = ev.Seq
 	l.info.Updated = ev.TS
+	switch ev.Kind {
+	case protocol.EvUser, protocol.EvText, protocol.EvTurnEnd:
+		l.info.LastMessageAt = ev.TS
+	}
 	return l.persistMetaLocked()
 }
 
@@ -307,6 +311,27 @@ func (l *Log) Update(fn func(*protocol.SessionInfo), runner json.RawMessage) err
 		l.runner = append(l.runner[:0], runner...)
 	}
 	return l.persistMetaLocked()
+}
+
+// SetFlags preserves message recency when history is organised.
+func (l *Log) SetFlags(starred, archived *bool) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return os.ErrClosed
+	}
+	before := l.info
+	if starred != nil {
+		l.info.Starred = *starred
+	}
+	if archived != nil {
+		l.info.Archived = *archived
+	}
+	if err := l.persistMetaLocked(); err != nil {
+		l.info = before
+		return err
+	}
+	return nil
 }
 
 func (l *Log) persistMetaLocked() error {

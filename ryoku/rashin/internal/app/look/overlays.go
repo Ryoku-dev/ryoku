@@ -15,6 +15,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 )
 
 type Side uint8
@@ -52,8 +53,6 @@ type overlayEntry struct {
 	content   layout.Widget
 	rect      image.Rectangle
 	desired   bool
-	tip       bool
-	tipFrame  uint64
 	motion    anim.Tween
 	motionSet bool
 }
@@ -67,8 +66,6 @@ type Overlays struct {
 	tracker, outside, focus struct{}
 	items                   []*overlayEntry
 	marks                   map[any]image.Rectangle
-	tipFrame                uint64
-	lastTipClosed           int64
 }
 
 func (overlays *Overlays) Window() image.Point  { return overlays.window }
@@ -101,35 +98,15 @@ func (overlays *Overlays) AnchorOf(clickable *widget.Clickable, size image.Point
 }
 
 func (overlays *Overlays) Open(tag any, anchor image.Rectangle, placement Placement, content layout.Widget) {
-	overlays.open(tag, anchor, placement, content, false)
-}
-
-func (overlays *Overlays) open(
-	tag any,
-	anchor image.Rectangle,
-	placement Placement,
-	content layout.Widget,
-	tip bool,
-) {
 	if placement.Gap == 0 {
 		placement.Gap = 8
-	}
-	if tip {
-		for _, entry := range overlays.items {
-			if entry.tip && entry.tag != tag {
-				entry.desired = false
-			}
-		}
 	}
 	for index, entry := range overlays.items {
 		if entry.tag != tag {
 			continue
 		}
 		entry.anchor, entry.placement, entry.content = anchor, placement, content
-		entry.desired, entry.tip = true, tip
-		if tip {
-			entry.tipFrame = overlays.tipFrame
-		}
+		entry.desired = true
 		if index != len(overlays.items)-1 {
 			copy(overlays.items[index:], overlays.items[index+1:])
 			overlays.items[len(overlays.items)-1] = entry
@@ -137,8 +114,7 @@ func (overlays *Overlays) open(
 		return
 	}
 	overlays.items = append(overlays.items, &overlayEntry{
-		tag: tag, anchor: anchor, placement: placement, content: content,
-		desired: true, tip: tip, tipFrame: overlays.tipFrame,
+		tag: tag, anchor: anchor, placement: placement, content: content, desired: true,
 	})
 }
 
@@ -167,7 +143,7 @@ func (overlays *Overlays) IsOpen(tag any) bool { return overlays.entry(tag) != n
 func (overlays *Overlays) Top() (any, bool) {
 	for index := len(overlays.items) - 1; index >= 0; index-- {
 		entry := overlays.items[index]
-		if entry.desired && !entry.tip && !entry.placement.Passive {
+		if entry.desired && !entry.placement.Passive {
 			return entry.tag, true
 		}
 	}
@@ -202,11 +178,6 @@ func (overlays *Overlays) Track(gtx layout.Context) {
 
 func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 	overlays.window = gtx.Constraints.Max
-	for _, entry := range overlays.items {
-		if entry.tip && entry.desired && entry.tipFrame != overlays.tipFrame {
-			entry.desired = false
-		}
-	}
 	if tag, ok := overlays.Top(); ok {
 		entry := overlays.entry(tag)
 		for {
@@ -224,7 +195,9 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 	overlays.Track(gtx)
 	top, hasTop := overlays.Top()
 	if hasTop {
+		focusArea := clip.Rect(image.Rectangle{Max: overlays.window}).Push(gtx.Ops)
 		event.Op(gtx.Ops, &overlays.focus)
+		focusArea.Pop()
 		var holder any = &overlays.focus
 		if entry := overlays.entry(top); entry != nil && entry.placement.Focus != nil {
 			holder = entry.placement.Focus
@@ -237,9 +210,6 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 	kept := overlays.items[:0]
 	for _, entry := range overlays.items {
 		entry.motion.Duration = th.Motion.MenuIn
-		if entry.tip && entry.desired {
-			entry.motion.Duration = th.Motion.TooltipIn
-		}
 		target := float32(1)
 		if !entry.desired {
 			entry.motion.Duration = th.Motion.MenuOut
@@ -256,9 +226,6 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 			progress = 1
 		}
 		if !entry.desired && progress <= 0 {
-			if entry.tip {
-				overlays.lastTipClosed = gtx.Now.UnixNano()
-			}
 			// the last menu to leave hands the keyboard back; one that closes under another leaves it there
 			if !hasTop {
 				if target := entry.focusReturn(); target != nil {
@@ -278,11 +245,12 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 		op.Defer(gtx.Ops, layer.Stop())
 	}
 	overlays.items = kept
-	overlays.tipFrame++
+	// the shell lays the overlays out once, after everything else: the frame ends here
+	endSettingsFrame()
 }
 
 func (entry *overlayEntry) focusReturn() any {
-	if entry.tip || entry.placement.Passive {
+	if entry.placement.Passive {
 		return nil
 	}
 	if entry.placement.Return != nil {
@@ -300,22 +268,6 @@ func (overlays *Overlays) entry(tag any) *overlayEntry {
 	return nil
 }
 
-func (overlays *Overlays) desired(tag any) bool {
-	entry := overlays.entry(tag)
-	return entry != nil && entry.desired
-}
-
-func (overlays *Overlays) touchTip(tag any) {
-	if entry := overlays.entry(tag); entry != nil && entry.tip {
-		entry.tipFrame = overlays.tipFrame
-	}
-}
-
-func (overlays *Overlays) recentTip(now int64) bool {
-	const adjacent = int64(300_000_000)
-	return overlays.lastTipClosed != 0 && now-overlays.lastTipClosed <= adjacent
-}
-
 func (overlays *Overlays) layoutEntry(
 	gtx layout.Context,
 	th *Theme,
@@ -324,15 +276,16 @@ func (overlays *Overlays) layoutEntry(
 ) {
 	measure := gtx
 	measure.Constraints.Min = image.Point{}
-	measure.Constraints.Max = image.Pt(max(0, overlays.window.X-32), max(0, overlays.window.Y-32))
-	framed := entry.tip || entry.placement.Frame
+	gap := gtx.Dp(entry.placement.Gap)
+	if gap == 0 {
+		gap = gtx.Dp(8)
+	}
+	margin := gtx.Dp(8)
+	below, above := overlayRoom(overlays.window, entry.anchor, gap, margin)
+	measure.Constraints.Max = image.Pt(max(0, overlays.window.X-2*margin), max(below, above))
 	inset := layout.Inset{}
-	switch {
-	case entry.tip:
-		measure.Constraints.Max.X = min(measure.Constraints.Max.X, gtx.Dp(320))
-		inset = layout.Inset{Top: 6, Right: 8, Bottom: 6, Left: 8}
-	case framed:
-		inset = layout.UniformInset(8)
+	if entry.placement.Frame {
+		inset = layout.UniformInset(th.Sp.S2)
 	}
 	if entry.placement.Width > 0 {
 		width := min(measure.Constraints.Max.X, gtx.Dp(entry.placement.Width))
@@ -347,15 +300,13 @@ func (overlays *Overlays) layoutEntry(
 		overlays.window,
 		entry.anchor,
 		dimensions.Size,
-		gtx.Dp(entry.placement.Gap),
-		8,
+		gap,
+		margin,
 		entry.placement.Prefer,
 		entry.placement.Align,
 	)
 	travel := float32(gtx.Dp(6))
-	if entry.tip {
-		travel = float32(gtx.Dp(8))
-	} else if !entry.desired {
+	if !entry.desired {
 		travel = float32(gtx.Dp(4))
 	}
 	direction := float32(-1)
@@ -367,15 +318,24 @@ func (overlays *Overlays) layoutEntry(
 	opacity := paint.PushOpacity(gtx.Ops, progress)
 	bounds := image.Rectangle{Max: dimensions.Size}
 	entry.rect = image.Rectangle{Min: position, Max: position.Add(dimensions.Size)}
-	if framed {
-		cut := th.Cut.Menu
-		if entry.tip {
-			cut = th.Cut.Tooltip
+	cut := gtx.Dp(th.Cut.Menu)
+	if entry.placement.Passive && entry.placement.Frame {
+		shadow := float32(.267)
+		if th.R.Dark {
+			shadow = .8
 		}
-		kit.FillCut(gtx.Ops, bounds, gtx.Dp(cut), th.R.Stone4)
-		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(cut), max(1, gtx.Dp(1)), th.R.Vein)
+		cast := op.Offset(image.Pt(gtx.Dp(2), gtx.Dp(4))).Push(gtx.Ops)
+		kit.Fill(gtx, th.Theme, bounds, cut, palette.WithAlpha(th.R.Scrim, shadow))
+		cast.Pop()
 	}
+	if entry.placement.Frame {
+		// the surface kit.Menu stands on, so a framed popover and a menu are one thing in every design
+		kit.Fill(gtx, th.Theme, bounds, cut, th.R.Stone4)
+		kit.Stroke(gtx, th.Theme, bounds, cut, max(1, gtx.Dp(1)), th.R.Vein)
+	}
+	area := clip.Outline{Path: kit.Shape(gtx, th.Theme, bounds, cut, cut, cut, cut)}.Op().Push(gtx.Ops)
 	call.Add(gtx.Ops)
+	area.Pop()
 	opacity.Pop()
 	offset.Pop()
 }
@@ -393,34 +353,27 @@ func placeOverlay(
 		x = anchor.Max.X - content.X
 	}
 	x = min(max(x, margin), max(margin, window.X-margin-content.X))
-	below := anchor.Max.Y + gap
-	above := anchor.Min.Y - gap - content.Y
-	fitsBelow := below+content.Y <= window.Y-margin
-	fitsAbove := above >= margin
-	actual := prefer
-	if prefer == Below && !fitsBelow && fitsAbove {
+	below, above := overlayRoom(window, anchor, gap, margin)
+	content.Y = min(content.Y, max(below, above))
+	actual := Below
+	switch {
+	case prefer == Above && content.Y <= above:
 		actual = Above
-	} else if prefer == Above && !fitsAbove && fitsBelow {
-		actual = Below
+	case content.Y <= below:
+	case content.Y <= above || above > below:
+		actual = Above
 	}
-	y := below
+	y := max(anchor.Max.Y+gap, margin)
 	if actual == Above {
-		y = above
+		y = min(anchor.Min.Y-gap, window.Y-margin) - content.Y
 	}
-	y = min(max(y, margin), max(margin, window.Y-margin-content.Y))
 	return image.Pt(x, y), actual
 }
 
-func place(
-	window image.Point,
-	anchor image.Rectangle,
-	content image.Point,
-	gap int,
-	prefer Side,
-	align Align,
-) image.Point {
-	position, _ := placeOverlay(window, anchor, content, gap, 8, prefer, align)
-	return position
+func overlayRoom(window image.Point, anchor image.Rectangle, gap, margin int) (below, above int) {
+	below = max(0, window.Y-margin-max(anchor.Max.Y+gap, margin))
+	above = max(0, min(anchor.Min.Y-gap, window.Y-margin)-margin)
+	return
 }
 
 func AnyOpen(dialogs ...*kit.Dialog) bool {

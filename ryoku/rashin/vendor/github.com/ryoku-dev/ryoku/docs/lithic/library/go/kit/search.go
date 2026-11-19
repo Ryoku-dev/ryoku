@@ -64,7 +64,7 @@ func (s *Search) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	bounds := image.Rectangle{Max: size}
 	cut := gtx.Dp(th.Cut.Mid)
 	focus := previewTransition(gtx, &s.focus, s.Preview, StateFocus, gtx.Focused(&s.Editor), th.Motion.FocusIn, th.Motion.FocusOut)
-	drawFieldSurface(gtx, th, bounds, cut, th.R.Field, focus, false)
+	FieldSurface(gtx, th, bounds, cut, th.R.Field, focus, false)
 
 	iconSize := gtx.Dp(unit.Dp(tokens.SizeSearchIcon))
 	offset := op.Offset(image.Pt(gtx.Dp(unit.Dp(tokens.SizeSearchIconInset)), (size.Y-iconSize)/2)).Push(gtx.Ops)

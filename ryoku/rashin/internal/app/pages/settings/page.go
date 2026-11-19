@@ -1,6 +1,6 @@
 // Package settings is the Settings page: whether Rashin runs, the providers
-// Ask routes through, how Ask and the agents behave, what is indexed and how
-// the app looks.
+// and local models it routes through, how Ask and the agents behave, what is
+// indexed and how the app wears the desktop's look.
 package settings
 
 import (
@@ -11,6 +11,7 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
@@ -18,10 +19,13 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/config"
+	"ryoku-rashin/internal/protocol"
 )
 
 const (
 	sectionRashin = iota
+	sectionFeatures
 	sectionProviders
 	sectionAPI
 	sectionAsk
@@ -35,24 +39,36 @@ const (
 	sectionCount
 )
 
+// the least a select takes beside its row's words, so its value never wraps to a second line
+const selectWidth unit.Dp = 260
+
 // every control applies as it changes, there's nothing to save
 type Page struct {
 	header look.PaneHeader
 	scroll look.Scroller
 	blocks blockList
+	// the registration sheet and the folio under the column, the colophon at its foot
+	sheet  look.Sheet
+	reveal look.Reveal
 	// the sections stand in the sidebar's list with a search over them, a picker tops the column while the sidebar can't show them
 	sections look.SideList
 	find     kit.Search
-	index    kit.SectionIndex
+	index    look.Select
 	listed   bool
 	current  int
 	// the section just picked, until the list has moved to it
-	jumped bool
+	jumped    bool
+	jumpBlock int
 
-	turnOff kit.Plaque
-	off     kit.Confirm
-	offOpen bool
-	log     kit.Plaque
+	// what a machine that never changed a setting has, and what differs from it this frame
+	defaults protocol.Settings
+	changed  changes
+
+	turnOff  kit.Plaque
+	off      kit.Confirm
+	offOpen  bool
+	log      kit.Plaque
+	features featuresPanel
 
 	providers map[string]*providerRow
 	open      string
@@ -60,39 +76,37 @@ type Page struct {
 	providerOrder []string
 	usage         env.Usage
 	limits        env.LimitsWatch
+	local         localPanel
 	api           apiPanel
 
-	models     env.ModelMenu
-	route      look.Select
-	answerWith look.Select
+	askModel env.ModelForm
+	// the model the form was last filled from, so a pick stands until the daemon has it
+	askFilled  bool
+	askStored  string
+	askMay     look.Select
 	habits     kit.Toggle
-
-	harness   look.Select
-	approvals look.Select
-	askMay    look.Select
-	idle      kit.Stepper
-	notices   kit.Toggle
-	teams     teamsPanel
-	memory    memoryPanel
-	skills    skillsPanel
-	install   env.HarnessInstall
-	instances map[string]*instanceEditor
-	fresh     instanceEditor
-	// id of the unfolded harness, or newInstance
-	openInstance string
+	agentModel env.ModelForm
+	plan       kit.Toggle
+	approvals  look.Select
+	idle       kit.Stepper
+	notices    kit.Toggle
+	teams      teamsPanel
+	memory     memoryPanel
+	skills     skillsPanel
+	prompts    promptsBlock
+	mcp        mcpBlock
+	disk       diskBlock
+	profile    profileBlock
+	resume     resumeBlock
 
 	system   kit.Toggle
 	semantic kit.Toggle
 
-	zoom     kit.Stepper
-	motion   kit.Toggle
-	colours  kit.Segmented
-	contrast kit.Segmented
-	tint     kit.Segmented
+	appearance appearancePanel
 }
 
 func New() *Page {
-	return &Page{providers: make(map[string]*providerRow), instances: make(map[string]*instanceEditor)}
+	return &Page{providers: make(map[string]*providerRow), defaults: config.Defaults()}
 }
 
 // a name it doesn't know leaves the page where it is
@@ -101,6 +115,7 @@ func (p *Page) OpenSection(name string) {
 	p.usage.Forget()
 	p.limits.Forget()
 	p.skills.list.Forget()
+	p.reveal.Reset()
 	// the older names still lead to their section
 	aliases := map[string]string{"about": "rashin", "agent": "agents", "keyboard": "keys"}
 	if alias, ok := aliases[name]; ok {
@@ -116,11 +131,21 @@ func (p *Page) OpenSection(name string) {
 func (p *Page) AskTurnOff() { p.offOpen, p.off.Dialog.Open, p.off.Danger = true, true, true }
 
 func (p *Page) jump(section int) {
-	p.current, p.jumped = section, true
-	p.scroll.ScrollTo(p.blocks.first(section))
+	p.current, p.jumped, p.jumpBlock = section, true, 0
 }
 
 func (p *Page) ListShown(shown bool) { p.listed = shown }
+
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	page := p.page()
+	page.Facts = []string{i18n.Tf("%s sections", kit.Pad2(sectionCount))}
+	if count := p.changed.count(); count > 0 {
+		page.Facts = append(page.Facts, i18n.Tf("%s changed", kit.Pad2(count)))
+	}
+	return page
+}
+
+func (p *Page) SheetProgress() float32 { return p.scroll.Progress(p.blocks.total() + 1) }
 
 // settings lists its own sections while it is open, the New plaque still belongs to where it was opened from
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
@@ -155,13 +180,25 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		gtx.Constraints.Min = image.Point{}
 		return p.find.Layout(gtx, th.Theme)
 	})
-	top := field.Size.Y + gtx.Dp(13)
+	top := field.Size.Y + gtx.Dp(th.Sp.S3)
 
 	rows := make([]look.SideRow, 0, sectionCount)
-	for _, item := range all {
-		if item.matches(query) {
-			rows = append(rows, look.SideRow{ID: item.name, Title: item.label, Icon: item.icon})
+	for index, item := range all {
+		if !item.matches(query) {
+			continue
 		}
+		mark := kit.Pad2(index + 1)
+		selected := index == p.current
+		rows = append(rows, look.SideRow{
+			ID: item.name, Title: item.label, Icon: item.icon,
+			Trail: func(gtx layout.Context) layout.Dimensions {
+				ink := th.R.Fg3
+				if selected {
+					ink, _ = look.RowInk(th, true)
+				}
+				return kit.RawText(th.Theme, th.T.MonoSm, ink, mark)(gtx)
+			},
+		})
 	}
 	p.sections.Empty = i18n.T("No section matches what you typed.")
 	list := gtx
@@ -185,7 +222,7 @@ func (p *Page) New(*env.Env) {}
 func (p *Page) NewLabel() string { return "" }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
-	if p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) {
+	if p.local.overlay(gtx, e) || p.api.overlay(gtx, e) || p.memory.overlay(gtx, e) || p.mcp.overlay(gtx, e) || p.disk.overlay(gtx, e) {
 		return true
 	}
 	if !p.offOpen {
@@ -213,15 +250,16 @@ type section struct {
 func sections() [sectionCount]section {
 	return [sectionCount]section{
 		{"rashin", i18n.T("Rashin"), look.Icon.Thought, i18n.T("on off turn daemon log about version")},
-		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address")},
+		{"features", i18n.T("Features"), look.Icon.Features, i18n.T("optional on off compare research schedules prompts enhance writing analyze audio video share quote history search steps mind maps artifacts collections profile setup cards mcp disk care learn skills decisions rules reports tools learning Theia desktop")},
+		{"providers", i18n.T("Providers"), look.Icon.Graph, i18n.T("models routing route keys usage spend free paid local ollama llama.cpp address download gguf hugging face lfm graphics card vulkan cuda idle light")},
 		{"api", i18n.T("Local API"), look.Icon.Link, i18n.T("address port key token exports openai")},
-		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers answer with engine harness codex claude omp model memory habits shell approvals changes")},
-		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("harness harnesses omp approvals notices idle")},
-		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("ledger budget spend members sandbox mail sign-in login harness hidden secrets")},
-		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight")},
+		{"ask", i18n.T("Ask"), look.Icon.Ask, i18n.T("answers model auto memory habits shell approvals changes resume history minutes pick up prompts library templates snippets variables")},
+		{"agents", i18n.T("Agents"), look.Icon.Agents, i18n.T("model default thinking effort plan first approvals asking notices idle stop mcp servers tools connections")},
+		{"teams", i18n.T("Teams"), look.Icon.Teams, i18n.T("model default ledger budget spend members sandbox mail hidden secrets quiet hours notifications disk care usage storage clean free space")},
+		{"memory", i18n.T("Memory"), look.Icon.Memory, i18n.T("memory remember forget learn temporary privacy Honcho Hindsight profile about me you name work traits answers brief detailed plain technical warm direct examples step by step")},
 		{"skills", i18n.T("Skills"), look.Icon.Skills, i18n.T("skills built in sets specs plans designs reviews debugging tests teams")},
 		{"index", i18n.T("Index"), look.Icon.Index, i18n.T("search meaning semantic system folders hide code")},
-		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("theme colours colors dark light contrast tint zoom motion")},
+		{"appearance", i18n.T("Appearance"), look.Icon.Show, i18n.T("look style design lithic material adwaita fluent theme colours colors wallpaper dark light contrast tint motion gloss zoom desktop Ryoku Settings")},
 		{"keys", i18n.T("Keyboard"), look.Icon.Key, i18n.T("keys shortcuts keybinds")},
 	}
 }
@@ -248,19 +286,36 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 			p.find.Focus(gtx)
 		}
 	}
+	p.changed = changesOf(e.Snapshot().Settings, p.defaults, e)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			scrolled := p.scroll.Position.First > 0 || p.scroll.Position.Offset > 0
 			return p.header.Layout(gtx, th, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Settings"), Scrolled: scrolled})
 		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.layoutBody(gtx, e) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			specs := []look.Spec{
+				{Label: i18n.T("Sections"), Value: kit.Pad2(sectionCount)},
+				{Label: i18n.T("Changed"), Value: kit.Pad2(p.changed.count()), Lit: p.changed.count() > 0},
+			}
+			return layout.Inset{Top: th.Sp.S2, Left: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return look.SpecStrip(gtx, th, specs)
+			})
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return p.sheet.Layout(gtx, th, p.page(), func(gtx layout.Context) layout.Dimensions { return p.layoutBody(gtx, e) })
+		}),
 	)
+}
+
+// the section being read as a part of Settings, which numbers the folio and the colophon
+func (p *Page) page() look.SheetPage {
+	return look.PartPage(protocol.TabSettings, p.current+1, sections()[p.current].label, "")
 }
 
 func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	size := gtx.Constraints.Max
-	side, column := gtx.Dp(36), gtx.Dp(look.SettingsColumn)
+	side, column := gtx.Dp(th.Sp.S5), gtx.Dp(look.SettingsColumn)
 	p.follow()
 	width := min(column, size.X-2*side)
 	left := (size.X - width) / 2
@@ -272,10 +327,11 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 		for _, item := range all {
 			labels = append(labels, item.label)
 		}
-		top = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return p.index.Layout(gtx, th.Theme, labels, p.current, kit.FrameMedium)
-		}).Size.Y + gtx.Dp(13)
+		gap := gtx.Dp(th.Sp.S3)
+		top = look.Place(gtx, image.Rect(left, gap, left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, 0)
+			return p.index.Layout(gtx, th, e.Overlays, labels, p.current)
+		}).Size.Y + gap
 		p.choose()
 	}
 	look.Place(gtx, image.Rect(0, top, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
@@ -286,16 +342,15 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 // follows the section at the top of the column, unless one was just picked and the list is still on its way
 func (p *Page) follow() {
-	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	if p.jumped {
-		p.jumped = first != p.current
 		return
 	}
+	first, _ := p.blocks.locate(max(p.scroll.Position.First, 0))
 	p.current = first
 }
 
 func (p *Page) choose() {
-	if selected, ok := p.index.Selected(); ok && selected < sectionCount {
+	if selected, ok := p.index.Changed(); ok && selected < sectionCount {
 		p.jump(selected)
 	}
 }

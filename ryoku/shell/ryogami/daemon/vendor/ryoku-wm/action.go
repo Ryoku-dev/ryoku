@@ -27,9 +27,7 @@ const (
 	ActionWindowPlace           Action = "window.place"
 	ActionWindowMoveToWorkspace Action = "window.moveToWorkspace"
 	// ActionWindowMoveToWorkspaceBy sends the focused window one or more
-	// workspaces along the compositor's own order. Wayfire's grid has no native
-	// "previous/next workspace" move, so its moveWindowPrev/Next rows run this
-	// act; niri and Hyprland bind those behaviours natively and never call it.
+	// workspaces along the compositor's own order.
 	ActionWindowMoveToWorkspaceBy Action = "window.moveToWorkspaceBy" // <delta>
 
 	// ActionWindowSummon raises an already-open window to the current
@@ -40,11 +38,8 @@ const (
 	// scratch workspace. Providers with native bindings may never call it.
 	ActionWindowHide Action = "window.hide"
 
-	// The nine directional acts a keybind means for the window under focus
-	// or the screen it points at: the direction is the whole argument, no
-	// window id. Hyprland and niri bind these rows in their own config
-	// languages; wayfire has no such bindings, so its rows run these acts
-	// through the command plugin.
+	// Directional actions describe a move relative to the focused window or
+	// output; providers with native bindings may not need these actions.
 	ActionWindowFocusDirection    Action = "window.focusDirection" // <left|right|up|down>
 	ActionWindowFocusEdge         Action = "window.focusEdge"      // <left|right>
 	ActionWindowMoveBy            Action = "window.moveBy"         // <left|right|up|down>
@@ -97,6 +92,11 @@ const (
 	// the pointer from the composed frame and "visible" restores it; the action
 	// prints the previous state so callers can restore exactly what they found.
 	ActionCursorVisibility Action = "cursor.visibility"
+
+	// ActionPointerLocate prints where the pointer is as one JSON object,
+	// {"output":"<connector>","x":<n>,"y":<n>}, in logical pixels relative to
+	// that output's top-left corner. Needs CapPointerPosition.
+	ActionPointerLocate Action = "pointer.locate"
 
 	// Transient live overrides, not persisted settings: the launcher suppresses
 	// focus-follows-mouse while it is open and restores it on close.
@@ -187,8 +187,18 @@ func (a Action) Capability() Capability {
 		return CapTouchpadToggle
 	case ActionOutputCycle, ActionOutputEnable, ActionOutputRefresh:
 		return CapMonitorConfig
+	case ActionPointerLocate:
+		return CapPointerPosition
 	}
 	return ""
+}
+
+// PointerPosition is what pointer.locate prints: the output under the pointer
+// and the pointer's place on it, in logical pixels from its top-left corner.
+type PointerPosition struct {
+	Output string  `json:"output"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
 }
 
 // ClosestRefreshMode returns the advertised mode at the current physical

@@ -21,7 +21,14 @@ const historyLimit = 6
 
 // the editor's aside: when the schedule runs next, and how the last runs went
 type asideState struct {
-	runs [historyLimit]kit.Click
+	runs    [historyLimit]kit.Click
+	ledger  []protocol.RoutineRun
+	links   []kit.Click
+	loaded  string
+	busy    bool
+	problem string
+	shown   int
+	more    kit.Plaque
 }
 
 func (a *asideState) layout(gtx layout.Context, e *env.Env, ed *editor, snapshot state.Snapshot, routine protocol.Routine) layout.Dimensions {
@@ -37,6 +44,9 @@ func (a *asideState) layout(gtx layout.Context, e *env.Env, ed *editor, snapshot
 	}
 	if note := quietNote(ed, snapshot, routine); note != "" {
 		rows = append(rows, kit.AsideNote(th.Theme, note))
+	}
+	if e.Feature("schedules") && !ed.creating {
+		return a.layoutRuns(gtx, e, routine, rows)
 	}
 	rows = append(rows, kit.Text(th.Theme, th.T.Row, th.R.Fg, i18n.T("Last runs")))
 	if ed.creating {
@@ -123,4 +133,103 @@ func (a *asideState) historyRow(th *look.Theme, e *env.Env, index int, task prot
 			)
 		})
 	}
+}
+
+func (a *asideState) layoutRuns(gtx layout.Context, e *env.Env, routine protocol.Routine, rows []layout.Widget) layout.Dimensions {
+	th := e.Theme
+	version := routine.ID + ":" + routine.LastStatus
+	if routine.LastRun != nil {
+		version += routine.LastRun.String()
+	}
+	if a.loaded != version && !a.busy {
+		a.busy, a.loaded, a.problem, a.shown = true, version, "", 20
+		a.ledger, a.links = nil, nil
+		var result protocol.RoutineRunsResult
+		e.Call(protocol.MTeamsRoutineRuns, protocol.RoutineRunsParams{Routine: routine.ID}, &result, func(err error) {
+			a.busy = false
+			if a.loaded != version {
+				return
+			}
+			if err != nil {
+				a.problem = err.Error()
+				return
+			}
+			a.ledger = result.Runs
+			a.links = make([]kit.Click, len(result.Runs))
+		})
+	}
+	rows = append(rows, kit.Text(th.Theme, th.T.Row, th.R.Fg, i18n.T("Runs")))
+	if a.problem != "" {
+		rows = append(rows, kit.AsideNote(th.Theme, a.problem))
+	} else if a.busy {
+		rows = append(rows, kit.AsideNote(th.Theme, i18n.T("Reading runs")))
+	} else if len(a.ledger) == 0 {
+		rows = append(rows, kit.AsideNote(th.Theme, i18n.T("No run yet. Run it now to see what it does.")))
+	}
+	for index, run := range a.ledger[:min(a.shown, len(a.ledger))] {
+		click := &a.links[index]
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			if click.Clicked(gtx) {
+				switch {
+				case run.Dream != "":
+					e.NavigateTeams(env.TeamsPlace{Tab: protocol.TabDreams, Team: run.Dream})
+				case run.Kind == protocol.RoutineAsk && run.Session != "":
+					e.Attach(run.Session, func(err error) {
+						if err == nil {
+							e.Navigate(protocol.TabAsk, run.Session)
+						} else {
+							e.Notify(err.Error())
+						}
+					})
+				case run.Task != "":
+					teamsui.OpenTask(e, run.Task)
+				}
+			}
+			duration := i18n.T("Still working")
+			if run.Ended != nil {
+				duration = run.Ended.Sub(run.Started).Round(time.Second).String()
+			}
+			status := run.Status
+			switch status {
+			case protocol.TaskDone:
+				status = i18n.T("Done")
+			case protocol.TaskBlocked:
+				status = i18n.T("Did not finish")
+			case protocol.TaskStopped:
+				status = i18n.T("Stopped")
+			case "skipped":
+				status = i18n.T("Skipped")
+			case protocol.TaskReady:
+				status = i18n.T("Queued")
+			case protocol.TaskWorking, "starting":
+				status = i18n.T("Working")
+			case protocol.TaskNeedsYou:
+				status = i18n.T("Needs you")
+			}
+			return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				children := []layout.FlexChild{
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						label := look.Clauses(status, duration)
+						if run.Task == "" && run.Session == "" && run.Dream == "" {
+							return look.Paragraph(th, th.T.Body, th.R.Fg, label)(gtx)
+						}
+						return look.Link(gtx, th, click, label)
+					}),
+					layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, look.When(gtx.Now, run.Started))),
+				}
+				if run.Detail != "" {
+					children = append(children, layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg2, run.Detail)))
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			})
+		})
+	}
+	if a.shown < len(a.ledger) {
+		a.more.Kind, a.more.Label = kit.PlaqueTonal, i18n.T("Show more runs")
+		if a.more.Clicked(gtx) {
+			a.shown += 20
+		}
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return a.more.Layout(gtx, th.Theme) })
+	}
+	return kit.Aside(gtx, th.Theme, i18n.T("When it runs"), rows...)
 }

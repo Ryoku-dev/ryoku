@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -61,9 +62,8 @@ type stateFile struct {
 	Approvals []approvalRecord   `json:"approvals"`
 }
 
-// openState loads the state under dir, creating the directory when it is
-// missing. A task file that cannot be read is skipped, so one damaged report
-// does not take the rest of the board with it.
+// openState tolerates a damaged task file without losing the rest of the
+// board. Old team state is rewritten without removed external-engine fields.
 func openState(dir string) (*state, error) {
 	st := &state{
 		dir:         dir,
@@ -112,9 +112,83 @@ func openState(dir string) (*state, error) {
 		if json.Unmarshal(raw, &t) != nil || t.ID+".json" != name {
 			continue
 		}
+		if formerTask(&t, raw) {
+			data, err := json.MarshalIndent(t, "", "  ")
+			if err != nil {
+				return nil, err
+			}
+			if err := writeStateFile(filepath.Join(dir, "tasks"), name, append(data, '\n')); err != nil {
+				return nil, err
+			}
+		}
 		st.taskSet[t.ID] = t
 	}
+	if st.forgetHarnesses() || bytes.Contains(data, []byte(`"harness"`)) || bytes.Contains(data, []byte(`"repeats"`)) {
+		st.mu.Lock()
+		err = st.saveLocked()
+		st.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return st, nil
+}
+
+// formerApprovalRestore is the kind of a notice a former harness left in
+// the Inbox; it asked nothing and no longer happens.
+const formerApprovalRestore = "restore"
+
+// forgetHarnesses clears what a former external harness left in the state:
+// a member's model id only a harness took (one protocol.ValidEngineModel
+// refuses), in teams and in proposed teams, and its notices. The members
+// then follow the teams defaults. It reports whether it changed anything.
+func (st *state) forgetHarnesses() bool {
+	changed := false
+	clearModels := func(members []protocol.Member) {
+		for i, m := range members {
+			if !protocol.ValidEngineModel(m.Model) {
+				members[i].Model = ""
+				changed = true
+			}
+		}
+	}
+	for _, t := range st.teamSet {
+		clearModels(t.Members)
+	}
+	for id, rec := range st.approvalSet {
+		if rec.Kind == formerApprovalRestore || rec.Status == protocol.ApprovalPending && cardOf(rec) == "stall" {
+			delete(st.approvalSet, id)
+			changed = true
+			continue
+		}
+		if rec.Proposal != nil {
+			clearModels(rec.Proposal.Team.Members)
+		}
+	}
+	return changed
+}
+
+// formerTask clears what a former external harness left on a task read from
+// raw: a model id only a harness took, and the harness a blocked task waited
+// on (its former signIn field), which keeps it blocked with a reason the
+// user can retry from. It reports whether it changed the task.
+func formerTask(t *protocol.TeamTask, raw []byte) bool {
+	var former struct {
+		SignIn string `json:"signIn"`
+	}
+	_ = json.Unmarshal(raw, &former)
+	changed := false
+	if !protocol.ValidEngineModel(t.Model) {
+		t.Model = ""
+		changed = true
+	}
+	if bytes.Contains(raw, []byte(`"harness"`)) || bytes.Contains(raw, []byte(`"signIn"`)) {
+		changed = true
+	}
+	if former.SignIn != "" && t.Status == protocol.TaskBlocked {
+		t.Reason = i18n.T("It waited on a step Rashin no longer needs. Retry it to run it on its model.")
+	}
+	return changed
 }
 
 // teams lists every team by name.
@@ -252,6 +326,23 @@ func (st *state) removeTask(id string) error {
 	}
 	delete(st.taskSet, id)
 	return nil
+}
+
+func (st *state) removeTaskConfined(id string, root *os.Root, eligible func(protocol.TeamTask) bool) (bool, error) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	task, ok := st.taskSet[id]
+	if !ok {
+		return false, nil
+	}
+	if root == nil || !safeID(id) || !eligible(task) {
+		return false, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("This task is still in use or inside the history window."))
+	}
+	if err := root.Remove(id + ".json"); err != nil {
+		return false, err
+	}
+	delete(st.taskSet, id)
+	return true, nil
 }
 
 // routines lists every routine by team, then title.
@@ -533,5 +624,6 @@ func cloneTask(t protocol.TeamTask) protocol.TeamTask {
 func cloneApproval(rec approvalRecord) approvalRecord {
 	rec.Action = append(json.RawMessage(nil), rec.Action...)
 	rec.Options = slices.Clone(rec.Options)
+	rec.Steps = slices.Clone(rec.Steps)
 	return rec
 }

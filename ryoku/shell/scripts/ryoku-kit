@@ -1,33 +1,87 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ryoku/ui/Singletons/Spawn.qml explains why child Quickshell processes cannot inherit these handles.
-unset __QUICKSHELL_CRASH_INFO_FD __QUICKSHELL_CRASH_DUMP_PID \
-  __QUICKSHELL_CRASH_DUMP_FD __QUICKSHELL_CRASH_LOG_FD \
-  __QUICKSHELL_CRASH_SIGNAL
-
 usage() {
-  printf 'ryoku-kit [<tab> [<rail>]]\n' >&2
+  printf 'ryoku-kit [--toggle] [--monitor NAME] [--args JSON] [--qml PATH] [section [page]]\n' >&2
+  printf '  sections: downloads keys commands phone devtools typing\n' >&2
 }
 
-if (( $# > 2 )); then
+action=open
+monitor=
+args='{}'
+entry="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/shell/kit.qml"
+positionals=()
+while (( $# )); do
+  case "$1" in
+    --toggle) action=toggle; shift ;;
+    --monitor|--args|--qml)
+      if (( $# < 2 )); then
+        usage
+        exit 2
+      fi
+      case "$1" in
+        --monitor) monitor=$2 ;;
+        --args) args=$2 ;;
+        --qml) entry=$2 ;;
+      esac
+      shift 2
+      ;;
+    --) shift; positionals+=("$@"); break ;;
+    -*) usage; exit 2 ;;
+    *) positionals+=("$1"); shift ;;
+  esac
+done
+if (( ${#positionals[@]} > 2 )); then
   usage
   exit 2
 fi
-
-tab=${1:-keys}
-rail=${2:-}
-case "$tab" in
-  keys|commands|phone|devtools|typing) ;;
-  *)
-    usage
-    exit 2
-    ;;
+section=${positionals[0]-}
+page=${positionals[1]-}
+case "$section" in
+  ''|downloads|keys|commands|phone|devtools|typing) ;;
+  *) usage; exit 2 ;;
 esac
+entry=$(realpath -m -- "$entry")
 
-if qs -c keys ipc call kit open "$tab" "$rail" >/dev/null 2>&1; then
+request() {
+  if [[ $action == toggle ]]; then
+    qs -p "$entry" ipc call kit toggle "$monitor" >/dev/null 2>&1
+  else
+    qs -p "$entry" ipc call kit open "$section" "$page" "$args" "$monitor" >/dev/null 2>&1
+  fi
+}
+
+if request; then
   exit 0
 fi
 
-exec env RYOKU_KIT_TAB="$tab" RYOKU_KIT_RAIL="$rail" \
-  flock -n -o /tmp/ryoku-keys.lock qs -c keys
+runtime="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+if [[ ! -d $runtime || ! -O $runtime || ! -w $runtime ]]; then
+  printf 'ryoku-kit: private runtime directory is unavailable\n' >&2
+  exit 1
+fi
+mkdir -p -- "$runtime/ryoku"
+key=$(printf '%s' "$entry" | sha256sum)
+key=${key%% *}
+exec 9>"$runtime/ryoku/kit-$key.lock"
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  if request; then
+    exit 0
+  fi
+  if flock -n 9; then
+    if request; then
+      exit 0
+    fi
+    # Kit inherits the lifetime lock, not a resident launcher or its caller's pipes.
+    setsid -f env -u __QUICKSHELL_CRASH_INFO_FD -u __QUICKSHELL_CRASH_DUMP_PID \
+      -u __QUICKSHELL_CRASH_DUMP_FD -u __QUICKSHELL_CRASH_LOG_FD -u __QUICKSHELL_CRASH_SIGNAL \
+      RYOKU_KIT_ACTION="$action" RYOKU_KIT_SECTION="$section" \
+      RYOKU_KIT_PAGE="$page" RYOKU_KIT_ARGS="$args" RYOKU_KIT_MONITOR="$monitor" \
+      qs -p "$entry" </dev/null >/dev/null 2>&1
+    exit 0
+  fi
+  # Retry the lock too: a closing instance can lose IPC before it exits.
+  sleep 0.05
+done
+printf 'ryoku-kit: Kit did not become available\n' >&2
+exit 1

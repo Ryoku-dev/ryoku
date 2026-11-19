@@ -1,6 +1,38 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Removed the Wayfire desktop variant.** The package recipe, depthdeck bundle,
+  build-host dependency and ISO package closure are gone; Hyprland and niri
+  remain the shipped compositor variants.
+- **`ryoku-shell` ships `ryoget`, the download engine, and `ryoseek`, the web
+  search daemon.** Every edition builds both from one Go module and its
+  committed `vendor/` tree with `CGO_ENABLED=0` (`ryoget` with `-tags
+  nosqlite,purego_utp`; `ryoseek` links only the search code, about 8 MB), and
+  installs `/usr/bin/ryoget` and `/usr/bin/ryoseek`, their on-demand user units
+  (`ryoget.service`, `ryoseek.service`; runit services on Void; one row each in
+  `system/services/manifest.tsv`) and `ryoget.desktop`, which offers it for
+  magnet links and `.torrent` files without becoming the default. yt-dlp comes
+  along for sites without a native resolver, optional on Arch. `ryoget` links
+  anacrolix/torrent (MPL-2.0), whose source ships in the vendor tree
+  (`packages/ryoku-shell/`, `../void/packages/srcpkgs/ryoku-shell/`,
+  `../fedora/packages/rpm/ryoku-shell.spec`, `../nix/packages/ryoku-ryoget.nix`).
+- **Rashin no longer needs external coding harnesses.** Arch, CachyOS, Fedora,
+  Void and Nix package its native engine; llama.cpp and model weights are
+  downloads the user chooses, not shipped files. Adapted engine work credits
+  oh-my-pi (MIT) in Rashin's NOTICE.
+- **Rashin includes its grammar, dictionary and word list notices on every edition**
+  The Harper Go port keeps Apache-2.0, the dictionary keeps its full source
+  notices, foldhash keeps Zlib and the writing checks' word lists keep MIT and
+  BSD-3-Clause, declared for Arch, Fedora, Void and Nix.
+- **team.ryoku.dev takes version 3 badges that name a tested program.** A
+  `RYB` code may be version 3: the version 2 fields, then a u8
+  length-prefixed program (1 to 40 ASCII characters, letters and digits at
+  the ends, space, `.`, `+` and `-` between, never two spaces in a row),
+  signed under `ryoku-badge-v3`. `verifyCode` returns it as `program`, and
+  badges, revocations, card records, holder proofs and designs take either
+  version. Requests, revocations and approvals stay version 2; any other
+  version gets 400 `Unsupported code version`. Deploy the Worker before Mika
+  issues version 3 codes, which an older gate refuses.
 - **team.ryoku.dev approves card designs for every badge role.** `POST
   /v1/designs`, the list and the binder batch now take an approved design for
   any login holding an active badge, tester and contributor included (it was

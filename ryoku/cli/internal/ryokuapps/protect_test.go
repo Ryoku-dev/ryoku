@@ -74,7 +74,7 @@ func TestXBPSProtection(t *testing.T) {
 // The fixed set holds even when the database says nothing.
 func TestAlwaysProtected(t *testing.T) {
 	p := protection{}
-	for _, name := range []string{"ryoku-desktop", "ryoku-desktop-wayfire", "gpk", "pacman", "dnf5", "xbps", "polkit"} {
+	for _, name := range []string{"ryoku-desktop", "ryoku-desktop-niri", "gpk", "pacman", "dnf5", "xbps", "polkit"} {
 		if !p.covers(name) {
 			t.Errorf("%s not protected", name)
 		}

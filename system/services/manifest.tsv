@@ -28,6 +28,8 @@ ryoku-profile-session	user	session-global	ryoku-profile-session.service	-	none
 ryogami	user	session-global	ryogami.service	ryogami	none
 ryoku-shell	user	session-global	ryoku-shell.service	ryoku-shell	none
 ryoku-palette-bridge	user	on-demand	ryoku-palette-bridge.service	ryoku-palette-bridge	preserve
+ryoget	user	on-demand	ryoget.service	ryoget	preserve
+ryoseek	user	on-demand	ryoseek.service	ryoseek	preserve
 ryoku-idle	user	session-global	ryoku-idle.service	ryoku-idle	none
 ryoku-clamshell	user	session-global	ryoku-clamshell.service	ryoku-clamshell	none
 ryoku-ai-usage	user	on-demand	ryoku-ai-usage.timer	ryoku-ai-usage	preserve

@@ -46,7 +46,7 @@ type rowState struct {
 	menu    kit.Menu
 	menuTag struct{}
 	expand  kit.Click
-	refTip  look.Tip
+	refMore kit.Click
 	paths   graphPathCache
 }
 
@@ -101,9 +101,7 @@ type viewState struct {
 	detailToken   uint64
 	diffView      diffview.View
 	rise          look.Rise
-	detailRefTip  look.Tip
-	copyHash      look.IconAction
-	copyTip       look.Tip
+	copyHash      kit.IconPlaque
 	detailsBack   kit.Plaque
 	parentButtons map[string]*kit.Plaque
 	detailButtons map[string]*kit.Plaque

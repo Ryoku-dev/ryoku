@@ -1,0 +1,18 @@
+import { createRequire } from "node:module";
+import assert from "node:assert/strict";
+const A = createRequire(import.meta.url)("./activity.js");
+let a = A.update(A.empty(), [{ id: "old", state: "done" }, { id: "a", state: "active" }], false);
+assert.equal(a.finished, 0, "the initial queue is not news");
+a = A.update(a, [{ id: "old", state: "done" }, { id: "a", state: "done" }, { id: "b", state: "error" }], false);
+assert.deepEqual([a.finished, a.failed], [1, 1]);
+a = A.update(a, [{ id: "a", state: "done" }, { id: "b", state: "error" }], false);
+assert.deepEqual([a.finished, a.failed], [1, 1], "removal and repeated snapshots do not change news");
+a = A.seen(a);
+assert.deepEqual([a.finished, a.failed], [0, 0]);
+a = A.update(a, [{ id: "a", state: "done" }, { id: "b", state: "active" }, { id: "torrent", state: "seeding" }], false);
+assert.equal(a.finished, 1, "a torrent finishes when seeding starts");
+a = A.update(a, [{ id: "torrent", state: "done" }], false);
+assert.equal(a.finished, 1, "stopping seeding does not finish twice");
+a = A.update(a, [{ id: "torrent", state: "error" }], true);
+assert.deepEqual([a.finished, a.failed], [0, 0], "reading the section marks transitions seen");
+console.log("download activity: passed");

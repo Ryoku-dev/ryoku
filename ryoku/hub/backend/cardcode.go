@@ -477,7 +477,7 @@ func cardDesignArgs(args []string) (codedDesign, error) {
 		return d, fmt.Errorf("profile code accepts hardware flags only")
 	}
 	d.distro = map[string]int{"arch": 1, "cachyos": 2, "fedora": 3, "void": 4, "nixos": 5}[distro]
-	d.wm = map[string]int{"hyprland": 1, "niri": 2, "wayfire": 3}[wm]
+	d.wm = map[string]int{"hyprland": 1, "niri": 2}[wm]
 	var err error
 	d.cardID, err = ownCardID()
 	if err != nil {

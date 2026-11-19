@@ -285,12 +285,6 @@ EOF
   # the mimeapps map is materialized, so the mapping reaches installs on update.
   install -Dm644 "$_repo/ryoku/apps/nvim/ryoku-nvim.desktop" \
     "$pkgdir/usr/share/applications/ryoku-nvim.desktop"
-  # Compress video / Install app: launcher-searchable tools that open a
-  # multi-file picker and run the stash compress/install helpers on the pick.
-  install -Dm644 "$_repo/ryoku/apps/tools/compress-video.desktop" \
-    "$pkgdir/usr/share/applications/compress-video.desktop"
-  install -Dm644 "$_repo/ryoku/apps/tools/install-app.desktop" \
-    "$pkgdir/usr/share/applications/install-app.desktop"
   # Ryoku Hub: a launcher-searchable entry for the settings surface, so it shows
   # in the app launcher alongside its Super+comma keybind.
   install -Dm644 "$_repo/ryoku/hub/ryoku-hub.desktop" \
@@ -428,11 +422,6 @@ EOF
     install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
   done
   for s in "$_repo"/system/extras/ryoku-*; do
-    install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
-  done
-  # container runtime helper (ryoku-docker): the privileged door the stash
-  # Cobalt setup wizard drives. Its own directory because it is not hardware.
-  for s in "$_repo"/system/containers/ryoku-*; do
     install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
   done
   # the extras actuator (renamed from ryoku-extras-install); the ryoku-* glob
@@ -618,14 +607,6 @@ EOF
 
   install -Dm755 "$_repo/system/policy/ryoku-polkit-reload" \
     "$pkgdir/usr/bin/ryoku-polkit-reload"
-
-  # Container runtime: the same one-click grant for ryoku-docker (installed to
-  # /usr/bin by the containers glob above), so the stash Cobalt setup wizard can
-  # start docker.service and the cobalt container without a password prompt per
-  # step. The helper exposes no docker passthrough, so the grant cannot be turned
-  # into arbitrary root; see the rule's own comment.
-  install -Dm644 "$_repo/system/containers/46-ryoku-docker.rules" \
-    "$pkgdir/usr/share/polkit-1/rules.d/46-ryoku-docker.rules"
 
   # The sessionless lid policy belongs to logind. XBPS actions run the guarded
   # cutover that the ALPM hooks provide on Arch.

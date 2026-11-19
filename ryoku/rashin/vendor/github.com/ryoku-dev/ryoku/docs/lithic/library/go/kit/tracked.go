@@ -40,6 +40,13 @@ func LayoutSpacedCaps(gtx layout.Context, th *theme.Theme, style theme.TextStyle
 	return layoutTracked(gtx, th, style, disabledInk(gtx, th, ink), tracking, value, true)
 }
 
+// LayoutTracked draws one case-preserving tracked line without a semantic node.
+// A containing control can label its measured bounds without inheriting a
+// widget.Label viewport larger than the text.
+func LayoutTracked(gtx layout.Context, th *theme.Theme, style theme.TextStyle, ink color.NRGBA, tracking float32, value string) layout.Dimensions {
+	return layoutTracked(gtx, th, style, disabledInk(gtx, th, ink), tracking, value, false)
+}
+
 // layoutTracked draws one tracked line and returns its size and baseline. The line box is
 // placed as a Qt label with a fixed line height places it: the box is the style's line height
 // or the glyphs' own height, whichever is taller, and the glyphs stand at its top, the extra

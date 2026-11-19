@@ -26,6 +26,7 @@ import "modules/osd"
 import "modules/notifications"
 import "modules/capture"
 import "modules/ask"
+import "modules/sight"
 import "modules/gamebar"
 import "modules/confirm"
 import Ryoku.Ui
@@ -52,6 +53,8 @@ import stage as Stage
  */
 Scope {
     id: root
+    BusTopic { id: sightTopic; topic: "sight" }
+    ShellSetting { id: theiaOn; path: "sight.on"; fallback: true }
     property var desktopLayersReady: ({})
     function markDesktopLayerReady(name) {
         const next = Object.assign({}, desktopLayersReady);
@@ -363,7 +366,6 @@ Scope {
                     screen: perScreen.modelData
                     active: askLoader.showNow
                     mode: perScreen.st ? perScreen.st.askMode : "ask"
-                    tool: perScreen.st ? perScreen.st.askTool : ""
                     onRequestClose: if (perScreen.st) perScreen.st.askOpen = false
                     onModeChangeRequested: mode => ShellState.setAskMode(perScreen.modelData, mode)
                     onBubblePinned: (question, answer) => {
@@ -375,6 +377,60 @@ Scope {
                 }
             }
             Timer { id: askHold; interval: 15000 }
+
+            LazyLoader {
+                id: sightLoader
+                readonly property var cards: {
+                    const rows = sightTopic.data && sightTopic.data.cards || [];
+                    return rows.filter(function(card) {
+                        return String(card.output || (ShellState.primary ? ShellState.primary.name : ""))
+                            === String(perScreen.modelData.name);
+                    });
+                }
+                readonly property var selection: {
+                    const select = sightTopic.data && sightTopic.data.select;
+                    if (!select) return null;
+                    const frames = (select.frames || []).filter(function(frame) {
+                        return String(frame.output) === String(perScreen.modelData.name);
+                    });
+                    return frames.length > 0 ? Object.assign({}, select, { frames: frames }) : null;
+                }
+                readonly property var highlight: sightTopic.data && sightTopic.data.highlight || null
+                readonly property var inplace: {
+                    const value = sightTopic.data && sightTopic.data.inplace;
+                    return value && String(value.output || (ShellState.primary ? ShellState.primary.name : "")) === String(perScreen.modelData.name) ? value : null;
+                }
+                readonly property var speaking: sightTopic.data && sightTopic.data.speaking || null
+                property bool open: theiaOn.value !== false && (cards.length > 0 || selection !== null || highlight !== null || inplace !== null)
+                property bool showNow: false
+                activeAsync: theiaOn.value !== false && (open || sightHold.running)
+                onItemChanged: if (item) Qt.callLater(function() { sightLoader.showNow = sightLoader.open; })
+                onActiveChanged: if (!active) sightCollect.restart()
+                onOpenChanged: {
+                    if (open) {
+                        if (item) showNow = true;
+                        return;
+                    }
+                    showNow = false;
+                    if (active) sightHold.restart();
+                }
+                SightSurface {
+                    screen: perScreen.modelData
+                    active: sightLoader.showNow
+                    cards: sightLoader.cards
+                    selection: sightLoader.selection
+                    highlight: sightLoader.highlight
+                    inplace: sightLoader.inplace
+                    speaking: sightLoader.speaking
+                    hidden: sightTopic.data ? sightTopic.data.hidden === true : false
+                }
+            }
+            Timer { id: sightHold; interval: 15000 }
+            Timer {
+                id: sightCollect
+                interval: 1000
+                onTriggered: if (!sightLoader.active) gc()
+            }
 
             LazyLoader {
                 id: askBubbleLoader
@@ -526,8 +582,9 @@ Scope {
             LazyLoader {
                 id: osdKeyboardLoader
                 activeAsync: root.warm >= 1
-                KeyboardOsdWindow {
+                OsdWindow {
                     modelData: perScreen.modelData
+                    kind: "keyboard"
                 }
             }
             LazyLoader {
@@ -581,7 +638,9 @@ Scope {
             // style, a standalone layer-shell surface rather than frame chrome. It
             // shows on the output being recorded -- the screen holding the region
             // box, else the focused output, else the first screen -- so a
-            // multi-monitor setup gets one island on the right screen.
+            // multi-monitor setup gets one island on the right screen. While the
+            // active item owns "recording" it draws the status itself, so the
+            // island stays closed, and closes at once if ownership arrives mid-capture.
             LazyLoader {
                 id: recordIslandLoader
                 readonly property bool isTarget: {
@@ -597,7 +656,8 @@ Scope {
                     return ShellState.screens.length > 0 && ShellState.screens[0].name === s.name;
                 }
                 property bool open: isTarget && (Recorder.anyActive || Recorder.countingDown)
-                activeAsync: open || recordIslandHold.running
+                    && !Config.styleOwnsRecording
+                activeAsync: open || (recordIslandHold.running && !Config.styleOwnsRecording)
                 onOpenChanged: if (!open && active) recordIslandHold.restart()
                 RecordIsland {
                     modelData: perScreen.modelData
@@ -705,19 +765,13 @@ Scope {
             Bus.run("hub open");
             break;
         case "cheatsheet":
-            Quickshell.execDetached(["sh", "-c", "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys"]);
+            ShellState.toggleKit(undefined);
             break;
         case "screenshot":
             Quickshell.execDetached(["ryoku-cmd-ryoshot"]);
             break;
         case "ask":
             ShellState.requestSurfaceActive("ask", undefined);
-            break;
-        case "compress":
-            ShellState.requestSurfaceActive("ask#tools/compress", undefined);
-            break;
-        case "install":
-            ShellState.requestSurfaceActive("ask#tools/install", undefined);
             break;
         }
     }
@@ -738,7 +792,7 @@ Scope {
                 break;
             case "cheatsheet":
                 if (!Shells.owns("cheatsheet"))
-                    root.toggleSurface(id);
+                    ShellState.toggleKit(mon);
                 break;
             case "barToggle":
             case "overview":
@@ -953,13 +1007,6 @@ Scope {
             else
                 ShellState.closeSurface("polkit", "");
         }
-    }
-
-    // Stash steps a running task's own surface aside when it needs the auth
-    // island. (pill 332-335)
-    Connections {
-        target: Stash
-        function onAuthStepAside(mon, id) { ShellState.closeSurface(id, mon); }
     }
 
     // Daemon-facing surface channel. Target "shell" avoids the live pill's
@@ -1201,18 +1248,8 @@ Scope {
     }
     CustomShortcut {
         name: "ask"
-        description: I18n.tr("Ask Rashin")
+        description: I18n.tr("Open the Rashin bar")
         onPressed: root.toggleSurface("ask")
-    }
-    CustomShortcut {
-        name: "compress"
-        description: I18n.tr("Open Tools to compress media")
-        onPressed: root.toggleSurface("compress")
-    }
-    CustomShortcut {
-        name: "install"
-        description: I18n.tr("Open Tools to install a package")
-        onPressed: root.toggleSurface("install")
     }
 
     Binding {

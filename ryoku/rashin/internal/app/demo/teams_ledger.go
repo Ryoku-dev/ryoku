@@ -24,7 +24,7 @@ func demoActivity(clock teamsClock) []protocol.Activity {
 	activity := []protocol.Activity{
 		{Time: ago(3 * time.Minute), Actor: "you", Action: "task.create", Target: testers, OK: true, Team: demoTeamMail, Task: "task-testers", Initiator: you, Detail: i18n.T("It waits for a free slot.")},
 		{Time: ago(13 * time.Minute), Actor: i18n.T("Curator"), Action: "approval.ask", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: agent, Detail: i18n.T("Which angle should the piece take?")},
-		{Time: ago(17 * time.Minute), Actor: "Rashin", Action: "task.start", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: rashin, Detail: i18n.Tf("%s started work on it with %s, %s.", i18n.T("Curator"), "Claude Code", "sonnet")},
+		{Time: ago(17 * time.Minute), Actor: "Rashin", Action: "task.start", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: rashin, Detail: i18n.Tf("%s started work on it with %s.", i18n.T("Curator"), demoPaidID)},
 		{Time: ago(18 * time.Minute), Actor: "you", Action: "task.create", Target: colourPiece, OK: true, Team: demoTeamNews, Task: "task-colour-piece", Initiator: you},
 		{Time: ago(5 * time.Hour), Actor: "you", Action: "team.create", Target: i18n.T("Reading list"), OK: true, Team: demoTeamReading, Initiator: you},
 		{Time: ago(7 * time.Hour), Actor: "Rashin", Action: "task.prune", Target: i18n.T("Research desk"), OK: true, Team: demoTeamResearch, Initiator: rashin, Detail: i18n.Tf("Deleted %d finished tasks and their conversations.", 3)},
@@ -133,7 +133,7 @@ func demoTeamSpend(clock teamsClock, team protocol.Team, tasks []protocol.TeamTa
 		ended += member.tasks
 		spend.Members = append(spend.Members, protocol.NamedSpend{ID: member.id, Name: member.name, Tokens: member.tokens, Tasks: member.tasks})
 		if found, ok := teamMember(team, member.id); ok {
-			engine := protocol.NamedSpend{ID: found.Harness + protocol.EngineSpendSeparator + found.Model, Tokens: member.tokens, Tasks: member.tasks}
+			engine := protocol.NamedSpend{ID: found.Model, Tokens: member.tokens, Tasks: member.tasks}
 			spend.Engines = addEngines(spend.Engines, []protocol.NamedSpend{engine})
 		}
 	}

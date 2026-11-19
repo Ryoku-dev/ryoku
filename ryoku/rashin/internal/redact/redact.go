@@ -201,11 +201,12 @@ func lines(text string, strict bool, inPrivateKey *bool) string {
 			continue
 		}
 		if strict {
+			// bearer first: the assignment rule would eat the word Bearer and leave the token
+			line = bearerToken.ReplaceAllString(line, "Bearer "+Mark)
 			line = urlCredential.ReplaceAllString(line, "${1}"+Mark+"${2}")
 			line = secretAssignment.ReplaceAllString(line, "${1}${2}"+Mark)
 			line = fishSecret.ReplaceAllString(line, "${1}"+Mark)
 			line = secretWhitespace.ReplaceAllString(line, "${1}"+Mark)
-			line = bearerToken.ReplaceAllString(line, "Bearer "+Mark)
 		}
 		line = jwtToken.ReplaceAllString(line, Mark)
 		split[index] = secretToken.ReplaceAllStringFunc(line, token)

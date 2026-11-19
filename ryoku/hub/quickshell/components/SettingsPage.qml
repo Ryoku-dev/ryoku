@@ -29,6 +29,20 @@ Item {
     property var adaptRows: null
     // a live illustration of the page's settings, shown beside the page's head
     property Component headerPreview: null
+    // Large pages paint their first section while the remaining controls incubate.
+    property bool asynchronousSections: false
+    property var sectionLoaders: ({})
+    property int sectionFrontier: 1
+    property bool firstSectionPainted: false
+    Connections {
+        target: page.Window.window
+        enabled: page.visible && page.asynchronousSections && !page.firstSectionPainted
+        function onFrameSwapped() {
+            if (page.layout.length > 0 && page.layout[0].rows.length > 0 && page.sectionFrontier > 1
+                    && page.layout[0].rows.every(row => page.rowItems[row.id] && page.rowItems[row.id].rowControl.ready))
+                page.firstSectionPainted = true;
+        }
+    }
     // the page's scroll view, for bespoke content that measures itself in it
     readonly property Flickable flickable: flick
 
@@ -113,6 +127,10 @@ Item {
     }
 
     function rebuild() {
+        if (!page.visible) {
+            page.stale = true;
+            return;
+        }
         if (!page.schema || !page.ready)
             return;
         var rows = page.allRows();
@@ -131,12 +149,15 @@ Item {
             var bespoke = !!(page.bodies[sec.id] || page.footers[sec.id] || page.moreBodies[sec.id] || page.slabBodies[sec.id]);
             if (shown.length === 0 && !bespoke && !(gone && sec.missing))
                 continue;
-            out.push({ id: sec.id, title: sec.title, missing: gone ? (sec.missing || "") : "", rows: base, more: more,
-                       moreBody: !!page.moreBodies[sec.id] });
+            var entry = { id: sec.id, title: sec.title, missing: gone ? (sec.missing || "") : "", rows: base, more: more,
+                          moreBody: !!page.moreBodies[sec.id] };
             // a row whose words or options change under the same id is redrawn too
             var rowSig = r => r.id + "=" + r.label + "=" + (r.detail || "") + "=" + page.hub.unhonoredReason(r) + "=" + JSON.stringify(r.options || []) + "=" + (r.unavailable || "")
                 + "=" + (r.control || "") + "=" + JSON.stringify(r.bind || null);
-            sig.push(sec.id + ":" + base.map(rowSig).join(",") + "|" + more.map(rowSig).join(",") + "|" + gone + "|" + !!page.moreBodies[sec.id]);
+            entry.signature = sec.title + ":" + base.map(rowSig).join(",") + "|" + more.map(rowSig).join(",") + "|" + entry.missing + "|" + entry.moreBody;
+            var previous = page.sectionData[sec.id];
+            out.push(previous && previous.signature === entry.signature ? previous : entry);
+            sig.push(sec.id + ":" + entry.signature);
         }
         page.someHidden = anyHidden;
         var signature = sig.join(";");
@@ -197,6 +218,10 @@ Item {
             page.stale = false;
             page.rebuild();
         }
+        if (!page.visible)
+            pendingFocus.stop();
+        else if (pendingFocus.rowId !== "" || pendingFocus.sectionIndex >= 0)
+            pendingFocus.restart();
     }
     Connections {
         target: Changes
@@ -210,6 +235,62 @@ Item {
     Connections {
         target: ProviderSchema
         function onRevisionChanged() { page.refresh(); }
+    }
+
+    // Finish preceding sections as well, so a search or outline jump uses final geometry.
+    function finishSections(sid) {
+        var target = page.layout.findIndex(s => s.id === sid);
+        if (target < 0 || !page.visible)
+            return false;
+        var ready = true;
+        for (var i = 0; i <= target; i++) {
+            var section = page.layout[i];
+            page.sectionFrontier = Math.max(page.sectionFrontier, i + 1);
+            var loader = page.sectionLoaders[section.id];
+            if (!loader) {
+                ready = false;
+                continue;
+            }
+            loader.requested = true;
+            loader.asynchronous = false;
+            if (loader.status !== Loader.Ready || !page.sectionItems[section.id]
+                    || section.rows.some(row => !page.rowItems[row.id] || !page.rowItems[row.id].rowControl.ready))
+                ready = false;
+        }
+        return ready;
+    }
+
+    function flushLayout(item) {
+        if (!item.visible)
+            return;
+        var children = item.children || [];
+        for (var i = 0; i < children.length; i++)
+            page.flushLayout(children[i]);
+        if (typeof item.forceLayout === "function")
+            item.forceLayout();
+    }
+
+    // A short, unfinished tail must not clamp a landing to the old bottom.
+    function prepareLanding(item, offset) {
+        for (var i = 0; i < page.layout.length; i++) {
+            var y = item.mapToItem(flick.contentItem, 0, 0).y - offset;
+            if (y <= flick.contentHeight - flick.height)
+                break;
+            var loader = page.sectionLoaders[page.layout[i].id];
+            if (loader && loader.status === Loader.Ready && page.layout[i].rows.every(row =>
+                    page.rowItems[row.id] && page.rowItems[row.id].rowControl.ready))
+                continue;
+            if (!page.finishSections(page.layout[i].id))
+                return false;
+            page.flushLayout(body);
+        }
+        return true;
+    }
+
+    function queueFocus(rowId) {
+        pendingFocus.sectionIndex = -1;
+        pendingFocus.rowId = rowId;
+        pendingFocus.restart();
     }
 
     function sectionOfRow(rowId) {
@@ -257,7 +338,7 @@ Item {
     }
 
     function focusRow(rowId) {
-        if (!rowId)
+        if (!rowId || !page.visible)
             return;
         if (!page.ready || page.layout.length === 0 || !placed.done) {
             pendingFocus.rowId = rowId;
@@ -281,17 +362,40 @@ Item {
         }
         page.awaitRow = "";
         var where = page.sectionOfRow(id);
-        var secItem = page.sectionItems[where.section.id];
-        if (where.more && secItem && !secItem.moreOpen) {
-            secItem.openMore();
-            landTimer.rowId = id;
-            landTimer.restart();
+        if (!page.finishSections(where.section.id)) {
+            page.queueFocus(id);
             return;
         }
-        page.land(id);
+        var secItem = page.sectionItems[where.section.id];
+        if (where.more && !secItem.moreOpen)
+            secItem.openMore();
+        var item = page.rowItems[id];
+        if (!item || !item.rowControl.ready) {
+            page.queueFocus(id);
+            return;
+        }
+        page.flushLayout(body);
+        for (var parent = item.parent; parent && parent !== secItem; parent = parent.parent) {
+            if (parent.clip && parent.height + 0.5 < parent.implicitHeight) {
+                page.queueFocus(id);
+                return;
+            }
+        }
+        if (!page.prepareLanding(item, flick.height / 3)) {
+            page.queueFocus(id);
+            return;
+        }
+        Qt.callLater(page.land, id);
     }
 
     function landOnTemplate(rowId) {
+        var target = page.schema ? page.schema.rows.find(r => r.id === rowId) : null;
+        if (!page.layout.some(section => section.id === (target ? target.section : rowId)))
+            return;
+        if (!page.finishSections(target ? target.section : rowId)) {
+            page.queueFocus(rowId);
+            return;
+        }
         var row = page.schema ? page.schema.rows.find(r => r.id === rowId && r.template === true) : null;
         if (!row) {
             // a deep link may name a section rather than a row
@@ -348,7 +452,7 @@ Item {
             placed.queued = placed.queued.concat([() => page.land(id)]);
             return;
         }
-        if (!item)
+        if (!item || !page.visible)
             return;
         var y = item.mapToItem(flick.contentItem, 0, 0).y;
         // the index marks the landed row's section, whether or not the page has to scroll
@@ -363,6 +467,24 @@ Item {
         page.pointerQuiet = true;
         page.quietAt = pointerWatch.point.scenePosition;
         page.scrollTo(y - flick.height / 3);
+        page.landingAnchor = item;
+        page.landingOffset = flick.height / 3;
+    }
+
+    property Item landingAnchor: null
+    property real landingOffset: 0
+    function correctLanding() {
+        if (!page.landingAnchor || !page.visible || flick.moving)
+            return;
+        body.forceLayout();
+        var y = page.landingAnchor.mapToItem(flick.contentItem, 0, 0).y - page.landingOffset;
+        var target = Math.max(0, Math.min(y, flick.contentHeight - flick.height));
+        if (scrollAnim.running) {
+            scrollAnim.to = target;
+        } else {
+            page.heldY = target;
+            flick.contentY = target;
+        }
     }
 
     // whether the keys were in use, read from the mark the focused control shows
@@ -542,6 +664,7 @@ Item {
     }
 
     function scrollTo(y) {
+        page.landingAnchor = null;
         var target = Math.max(0, Math.min(y, flick.contentHeight - flick.height));
         scrollAnim.stop();
         scrollAnim.from = flick.contentY;
@@ -551,13 +674,28 @@ Item {
 
     function chooseSection(index) {
         var sec = page.layout[index];
-        var item = sec ? page.sectionItems[sec.id] : null;
-        if (!item)
+        if (!sec)
             return;
+        if (!page.finishSections(sec.id)) {
+            pendingFocus.sectionIndex = index;
+            pendingFocus.rowId = "";
+            pendingFocus.restart();
+            return;
+        }
+        var item = page.sectionItems[sec.id];
+        page.flushLayout(body);
+        if (!item || !page.prepareLanding(item, 0)) {
+            pendingFocus.sectionIndex = index;
+            pendingFocus.rowId = "";
+            pendingFocus.restart();
+            return;
+        }
         page.currentSection = index;
         page.indexHeld = true;
         page.heldY = -1;
         page.scrollTo(item.mapToItem(flick.contentItem, 0, 0).y);
+        page.landingAnchor = item;
+        page.landingOffset = 0;
         scrollAnim.focusSection = sec.id;
     }
 
@@ -640,11 +778,19 @@ Item {
     Timer {
         id: pendingFocus
         property string rowId: ""
+        property int sectionIndex: -1
         interval: 60
         onTriggered: {
+            if (!page.visible)
+                return;
+            var section = pendingFocus.sectionIndex;
+            pendingFocus.sectionIndex = -1;
             var id = pendingFocus.rowId;
             pendingFocus.rowId = "";
-            page.focusRow(id);
+            if (section >= 0)
+                page.chooseSection(section);
+            else
+                page.focusRow(id);
         }
     }
     onLayoutChanged: {
@@ -655,13 +801,6 @@ Item {
     }
     property string awaitRow: ""
     property real awaitUntil: 0
-
-    Timer {
-        id: landTimer
-        property string rowId: ""
-        interval: LithicTokens.motion.unfold + 20
-        onTriggered: page.land(landTimer.rowId)
-    }
 
     Timer {
         id: moreLand
@@ -692,6 +831,7 @@ Item {
                 scrollAnim.focusSection = "";
                 page.heldY = flick.contentY;
                 page.focusInSection(sid);
+                Qt.callLater(page.correctLanding);
                 return;
             }
             // any other scroll (a control brought into view) lets the index follow again
@@ -701,8 +841,10 @@ Item {
             }
             page.highlightId = scrollAnim.landing;
             page.heldY = flick.contentY;
+            page.focusQuietly = true;
             page.focusRowItem(page.rowItems[scrollAnim.landing]);
             scrollAnim.landing = "";
+            Qt.callLater(page.correctLanding);
             highlightClear.restart();
         }
     }
@@ -714,16 +856,34 @@ Item {
         contentHeight: body.y + body.height + LithicTokens.size.settingsInsetVertical
         boundsBehavior: Flickable.StopAtBounds
         clip: true
-        onContentYChanged: page.followReading()
-        onMovementStarted: page.indexHeld = false
+        onContentYChanged: {
+            if (page.landingAnchor && !scrollAnim.running && !flick.moving
+                    && page.heldY >= 0 && Math.abs(flick.contentY - page.heldY) > 1)
+                page.landingAnchor = null;
+            page.followReading();
+        }
+        onMovementStarted: {
+            page.landingAnchor = null;
+            page.indexHeld = false;
+        }
         // content that shrinks (a form closing) never leaves the page scrolled past its end
         function clampEnd() {
             var end = Math.max(0, flick.contentHeight - flick.height);
             if (!scrollAnim.running && !flick.moving && flick.contentY > end)
                 flick.contentY = end;
         }
-        onContentHeightChanged: flick.clampEnd()
-        onHeightChanged: flick.clampEnd()
+        onContentHeightChanged: {
+            if (page.landingAnchor)
+                Qt.callLater(page.correctLanding);
+            else
+                flick.clampEnd();
+        }
+        onHeightChanged: {
+            if (page.landingAnchor)
+                Qt.callLater(page.correctLanding);
+            else
+                flick.clampEnd();
+        }
 
         Column {
             id: body
@@ -767,121 +927,141 @@ Item {
             // does not recreate open folds (they would unfold again and the page would jump)
             Repeater {
                 model: sectionModel
-                delegate: Section {
-                    id: sec
+                delegate: Loader {
+                    id: sectionLoader
                     required property string sid
                     required property int index
-                    readonly property var modelData: page.sectionData[sec.sid]
-                        || ({ id: sec.sid, title: "", missing: "", rows: [], more: [], moreBody: false })
-                    readonly property bool moreOpen: moreFold.open
-                    readonly property Item moreBodyItem: moreBodyLoader.item
-                    readonly property bool hasMore: sec.modelData.more.length > 0 || sec.modelData.moreBody
-                    function openMore() {
-                        moreFold.open = true;
-                    }
                     width: body.width
-                    title: I18n.tr(modelData.title)
-                    // numbered and ruled, as a sheet numbers its parts
-                    ruled: true
-                    mark: (sec.index < 9 ? "0" : "") + (sec.index + 1) + " / " + (sectionModel.count < 10 ? "0" : "") + sectionModel.count
-                    Component.onCompleted: {
-                        page.sectionItems[sec.sid] = sec;
-                        // the first sections rise in turn as the page opens; later ones stand
-                        if (page.revealing && sec.index < 5)
-                            rise.play();
+                    asynchronous: page.asynchronousSections && index > 0
+                    property bool kept: false
+                    property bool requested: false
+                    active: kept || (page.visible && (requested || !page.asynchronousSections
+                        || index === 0 || (page.firstSectionPainted && index < page.sectionFrontier)))
+                    onLoaded: {
+                        kept = true;
+                        page.sectionFrontier = Math.max(page.sectionFrontier, index + 2);
                     }
-                    Reveal {
-                        id: rise
-                        item: sec
-                        order: sec.index + 1
-                    }
+                    Component.onCompleted: page.sectionLoaders[sid] = sectionLoader
                     Component.onDestruction: {
-                        if (page.sectionItems[sec.sid] === sec)
-                            delete page.sectionItems[sec.sid];
+                        if (page.sectionLoaders[sid] === sectionLoader)
+                            delete page.sectionLoaders[sid];
                     }
-
-                    Column {
-                        width: parent.width
-                        spacing: LithicTokens.space.s2
-
-                        Loader {
-                            width: parent.width
-                            active: !!page.bodies[sec.modelData.id]
-                            visible: active
-                            sourceComponent: page.bodies[sec.modelData.id] || null
+                    sourceComponent: Section {
+                        id: sec
+                        readonly property string sid: sectionLoader.sid
+                        readonly property int index: sectionLoader.index
+                        readonly property var modelData: page.sectionData[sec.sid]
+                            || ({ id: sec.sid, title: "", missing: "", rows: [], more: [], moreBody: false })
+                        readonly property bool moreOpen: moreFold.open
+                        readonly property Item moreBodyItem: moreBodyLoader.item
+                        readonly property bool hasMore: sec.modelData.more.length > 0 || sec.modelData.moreBody
+                        function openMore() {
+                            moreFold.open = true;
+                        }
+                        width: body.width
+                        title: I18n.tr(modelData.title)
+                        // numbered and ruled, as a sheet numbers its parts
+                        ruled: true
+                        mark: (sec.index < 9 ? "0" : "") + (sec.index + 1) + " / " + (sectionModel.count < 10 ? "0" : "") + sectionModel.count
+                        Component.onCompleted: {
+                            page.sectionItems[sec.sid] = sec;
+                            // the first sections rise in turn as the page opens; later ones stand
+                            if (page.revealing && sec.index < 5)
+                                rise.play();
+                        }
+                        Reveal {
+                            id: rise
+                            item: sec
+                            order: sec.index + 1
+                        }
+                        Component.onDestruction: {
+                            if (page.sectionItems[sec.sid] === sec)
+                                delete page.sectionItems[sec.sid];
                         }
 
-                        Slab {
+                        Column {
                             width: parent.width
-                            visible: sec.modelData.rows.length > 0 || sec.hasMore || !!page.slabBodies[sec.modelData.id]
-                            fill: Tone.card
+                            spacing: LithicTokens.space.s2
 
-                            Column {
+                            Loader {
                                 width: parent.width
+                                active: !!page.bodies[sec.modelData.id]
+                                visible: active
+                                sourceComponent: page.bodies[sec.modelData.id] || null
+                            }
 
-                                Loader {
+                            Slab {
+                                width: parent.width
+                                visible: sec.modelData.rows.length > 0 || sec.hasMore || !!page.slabBodies[sec.modelData.id]
+                                fill: Tone.card
+
+                                Column {
                                     width: parent.width
-                                    active: !!page.slabBodies[sec.modelData.id]
-                                    visible: active
-                                    sourceComponent: page.slabBodies[sec.modelData.id] || null
-                                }
 
-                                Repeater {
-                                    model: sec.modelData.rows
-                                    delegate: RowItem { host: page; afterBody: !!page.slabBodies[sec.modelData.id] }
-                                }
-
-                                Item {
-                                    visible: sec.hasMore
-                                    width: 1
-                                    height: sec.modelData.rows.length > 0 || !!page.slabBodies[sec.modelData.id] ? LithicTokens.size.settingsRowGap : 0
-                                }
-
-                                Disclosure {
-                                    id: moreFold
-                                    visible: sec.hasMore
-                                    width: parent.width
-                                    text: I18n.tr("More options")
-                                    // set while the fold is built, so a recreated fold opens without its unfold animation
-                                    open: page.openFolds[sec.modelData.id] === true
-                                    onOpenChanged: {
-                                        page.openFolds[sec.modelData.id] = moreFold.open;
-                                        if (moreFold.open)
-                                            moreFold.built = true;
+                                    Loader {
+                                        width: parent.width
+                                        active: !!page.slabBodies[sec.modelData.id]
+                                        visible: active
+                                        sourceComponent: page.slabBodies[sec.modelData.id] || null
                                     }
-                                    // the rows inside are made the first time the fold opens, then kept
-                                    property bool built: page.openFolds[sec.modelData.id] === true
 
                                     Repeater {
-                                        model: moreFold.built ? sec.modelData.more : []
-                                        delegate: RowItem { host: page }
+                                        model: sec.modelData.rows
+                                        delegate: RowItem { host: page; afterBody: !!page.slabBodies[sec.modelData.id] }
                                     }
-                                    Loader {
-                                        id: moreBodyLoader
-                                        width: parent ? parent.width : 0
-                                        active: sec.modelData.moreBody
-                                        visible: active
-                                        sourceComponent: page.moreBodies[sec.modelData.id] || null
+
+                                    Item {
+                                        visible: sec.hasMore
+                                        width: 1
+                                        height: sec.modelData.rows.length > 0 || !!page.slabBodies[sec.modelData.id] ? LithicTokens.size.settingsRowGap : 0
+                                    }
+
+                                    Disclosure {
+                                        id: moreFold
+                                        visible: sec.hasMore
+                                        width: parent.width
+                                        text: I18n.tr("More options")
+                                        // set while the fold is built, so a recreated fold opens without its unfold animation
+                                        open: page.openFolds[sec.modelData.id] === true
+                                        onOpenChanged: {
+                                            page.openFolds[sec.modelData.id] = moreFold.open;
+                                            if (moreFold.open)
+                                                moreFold.built = true;
+                                        }
+                                        // the rows inside are made the first time the fold opens, then kept
+                                        property bool built: page.openFolds[sec.modelData.id] === true
+
+                                        Repeater {
+                                            model: moreFold.built ? sec.modelData.more : []
+                                            delegate: RowItem { host: page }
+                                        }
+                                        Loader {
+                                            id: moreBodyLoader
+                                            width: parent ? parent.width : 0
+                                            active: sec.modelData.moreBody
+                                            visible: active
+                                            sourceComponent: page.moreBodies[sec.modelData.id] || null
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Loader {
-                            width: parent.width
-                            active: !!page.footers[sec.modelData.id]
-                            visible: active
-                            sourceComponent: page.footers[sec.modelData.id] || null
-                        }
+                            Loader {
+                                width: parent.width
+                                active: !!page.footers[sec.modelData.id]
+                                visible: active
+                                sourceComponent: page.footers[sec.modelData.id] || null
+                            }
 
-                        Label {
-                            width: parent.width
-                            visible: sec.modelData.missing.length > 0
-                            text: I18n.tr(sec.modelData.missing)
-                            typeRole: "detail"
-                            inkRole: "fg3"
-                            wrapMode: Text.Wrap
-                            elide: Text.ElideNone
+                            Label {
+                                width: parent.width
+                                visible: sec.modelData.missing.length > 0
+                                text: I18n.tr(sec.modelData.missing)
+                                typeRole: "detail"
+                                inkRole: "fg3"
+                                wrapMode: Text.Wrap
+                                elide: Text.ElideNone
+                            }
                         }
                     }
                 }
@@ -953,6 +1133,8 @@ Item {
 
         SettingRow {
             id: settingRow
+            stacked: rowControl.wide
+            topAligned: rowControl.topAligned
             hoverEnabled: !item.host.pointerQuiet
             unavailable: item.modelData.unavailable ? I18n.tr(item.modelData.unavailable) : ""
             width: parent.width
@@ -971,6 +1153,7 @@ Item {
 
             RowControl {
                 id: rowControl
+                width: settingRow.stacked ? settingRow.width : implicitWidth
                 row: item.modelData
                 pageId: item.host.pageId
                 overlayParent: item.host.hub.overlayItem

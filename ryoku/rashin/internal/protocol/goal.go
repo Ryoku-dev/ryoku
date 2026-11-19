@@ -4,7 +4,7 @@ import "time"
 
 // Goal is an objective an Agent session keeps working toward: after each
 // turn Rashin sends the agent on until it reports the goal done or blocked,
-// the turn budget runs out, or the user pauses or stops it.
+// the turn or token budget runs out, or the user pauses or stops it.
 type Goal struct {
 	Objective string `json:"objective"`
 	// Status is active, paused, done, blocked or stopped.
@@ -13,9 +13,13 @@ type Goal struct {
 	// paused or stopped it.
 	Reason string `json:"reason,omitempty"`
 	// Turns counts the turns run toward it, MaxTurns is the budget.
-	Turns    int       `json:"turns"`
-	MaxTurns int       `json:"maxTurns"`
-	Started  time.Time `json:"started"`
+	Turns    int `json:"turns"`
+	MaxTurns int `json:"maxTurns"`
+	// Tokens counts the tokens its turns spent (input plus output);
+	// MaxTokens is the token budget, 0 for none.
+	Tokens    int       `json:"tokens,omitempty"`
+	MaxTokens int       `json:"maxTokens,omitempty"`
+	Started   time.Time `json:"started"`
 	// Ended is set once it is done, blocked or stopped.
 	Ended *time.Time `json:"ended,omitempty"`
 }
@@ -43,14 +47,16 @@ const (
 	GoalClear = "clear"
 )
 
-// GoalParams changes a session's goal. Set takes Objective and an optional
-// MaxTurns; Turns takes MaxTurns; Complete and Block take the agent's
-// Summary; Get changes nothing.
+// GoalParams changes a session's goal. Set takes Objective and optional
+// MaxTurns and MaxTokens; Turns takes MaxTurns and MaxTokens (0 leaves the
+// token budget as it is); Complete and Block take the agent's Summary; Get
+// changes nothing.
 type GoalParams struct {
 	ID        string `json:"id"`
 	Op        string `json:"op"`
 	Objective string `json:"objective,omitempty"`
 	MaxTurns  int    `json:"maxTurns,omitempty"`
+	MaxTokens int    `json:"maxTokens,omitempty"`
 	Summary   string `json:"summary,omitempty"`
 }
 

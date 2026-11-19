@@ -153,7 +153,7 @@ var demoSkillSets = []demoSkillSet{
 			{
 				name: "egm-review", manual: true,
 				description: "Orchestrates the EGM Goldfish Review Protocol. Used as part of the EGM process to perform design document reviews. Executes five review phases: Initial Zoom Out Review, Comprehension Review, Design Critique, Intermediate Zoom Out Review, and Implementation Readiness.",
-				body:        "# Review, Validation & Automated Remediation\n\nReviews and validates a design document through specialized reviewer personas.\n\n## Delegation\n\nA Goldfish runs in a fresh context with no conversation history. Spawn each\nsubagent with your harness's subagent tool and wait for its report.\n",
+				body:        "# Review, Validation & Automated Remediation\n\nReviews and validates a design document through specialized reviewer personas.\n\n## Delegation\n\nA Goldfish runs in a fresh context with no conversation history. Spawn each\nsubagent with the native task tool and wait for its report.\n",
 			},
 		},
 	},
@@ -167,6 +167,9 @@ func (s *server) callSkills(method string, raw json.RawMessage) (any, error) {
 		var params protocol.SkillParams
 		if err := decode(raw, &params); err != nil {
 			return nil, err
+		}
+		if strings.HasPrefix(params.ID, protocol.ManagedSkillSet+"/") {
+			return s.managedSkill(params)
 		}
 		return skillContent(params)
 	}

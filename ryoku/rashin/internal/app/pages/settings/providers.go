@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -28,7 +29,7 @@ type providerRow struct {
 	add     kit.Plaque
 	test    kit.Plaque
 	signup  kit.Plaque
-	remove  map[string]*look.IconAction
+	remove  map[string]*kit.IconPlaque
 
 	// a local provider's address, edited in place until saved
 	address     kit.TextField
@@ -45,62 +46,76 @@ type providerRow struct {
 func (p *Page) providerRow(id string) *providerRow {
 	row := p.providers[id]
 	if row == nil {
-		row = &providerRow{remove: make(map[string]*look.IconAction)}
+		row = &providerRow{remove: make(map[string]*kit.IconPlaque)}
 		p.providers[id] = row
 	}
 	return row
 }
 
-func (p *Page) layoutProviders(gtx layout.Context, e *env.Env) layout.Dimensions {
+// providerBlocks keeps the tall local manager measurable by the virtual Settings list
+func (p *Page) providerBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widget) []layout.Widget {
 	th := e.Theme
 	p.usage.Load(e, usageDays, gtx.Now)
 	p.limits.Show(e, gtx.Now)
 	local, online := splitProviders(e.Snapshot().Providers)
 	online = p.standingOrder(online)
-	children := []layout.FlexChild{
-		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Providers"))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
-			i18n.T("Ask sends each question to a provider that is up. Your keys are stored encrypted on this machine."))),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			trend, loaded := p.usage.Trend()
-			if loaded && len(trend.Values) == 0 {
-				return layout.Dimensions{}
-			}
-			// the section already carries the heading, the proof names what the line counts
-			trend.Title, trend.Height = "", 72
-			return layout.Inset{Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
-			})
-		}),
-	}
-	if len(local) > 0 {
-		children = append(children,
-			layout.Rigid(p.providerGroup(e, i18n.T("On this computer"),
-				i18n.T("Models that run here or on your network. They need no key and Auto asks them first."), local)),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+	blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return sectionHead(gtx, th, sectionProviders) }),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2,
+				i18n.T("Ask sends each question to a provider that is up. Your keys are stored encrypted on this machine."))),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				trend, loaded := p.usage.Trend()
+				if loaded && len(trend.Values) == 0 {
+					return layout.Dimensions{}
+				}
+				// the section already carries the heading, the proof names what the line counts
+				trend.Title, trend.Height = "", 72
+				return layout.Inset{Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return trend.Layout(gtx, th) })
+				})
+			}),
 		)
+	})
+	if len(local) > 0 {
+		blocks = append(blocks, p.providerGroup(e, i18n.T("On this computer"),
+			i18n.T("Models on this computer answer first. Rashin starts its own when a question needs one and stops it when idle."), local))
 	}
-	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		if len(online) == 0 {
+	blocks = append(blocks, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			settings := e.Snapshot().Settings.Providers.Models
+			p.local.runtime.remote.Value = settings.RemoteFirst
 			return look.SettingsSlab(gtx, th, []look.Setting{{
-				Title: i18n.T("No providers yet"), Detail: i18n.T("The list arrives when Rashin has read its catalogue."),
+				Title:  i18n.T("Use online models before ones on this computer"),
+				Detail: i18n.T("When on, Ask tries an online model first. Your explicit model choice still wins."),
+				Control: func(gtx layout.Context) layout.Dimensions {
+					return namedSwitch(gtx, th, i18n.T("Use online models before ones on this computer"), &p.local.runtime.remote, func(on bool) {
+						setLocalOption(e, "remoteFirst", on, e.Report)
+					})
+				},
 			}})
-		}
-		return p.providerGroup(e, i18n.T("Online"),
-			i18n.T("Auto, Fast and Smart use free models only. A paid model answers only when you pick it."), online)(gtx)
-	}))
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		})
+	}, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if len(online) == 0 {
+				return look.SettingsSlab(gtx, th, []look.Setting{{
+					Title: i18n.T("No providers yet"), Detail: i18n.T("The list arrives when Rashin has read its catalogue."),
+				}})
+			}
+			return p.providerGroup(e, i18n.T("Online"),
+				i18n.T("Models on this computer answer first by default. Auto, Fast and Smart use free online models only; paid models answer only when picked."), online)(gtx)
+		})
+	})
+	return blocks
 }
 
 func (p *Page) providerGroup(e *env.Env, title, caption string, providers []protocol.ProviderInfo) layout.Widget {
 	th := e.Theme
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, title)),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, caption)),
+			layout.Rigid(groupHead(th, title, caption)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return foldSlab(gtx, th, len(providers), func(gtx layout.Context, index int) layout.Dimensions {
@@ -111,13 +126,20 @@ func (p *Page) providerGroup(e *env.Env, title, caption string, providers []prot
 	}
 }
 
-// the local ones keep the daemon's order, they are few and always there
+// the list retains the routing order even if the daemon returns providers in a different order
 func splitProviders(providers []protocol.ProviderInfo) (local, online []protocol.ProviderInfo) {
+	for _, id := range protocol.LocalProviders {
+		for _, provider := range providers {
+			if provider.Local && provider.ID == id {
+				local = append(local, provider)
+			}
+		}
+	}
 	for _, provider := range providers {
-		if provider.Local {
-			local = append(local, provider)
-		} else {
+		if !provider.Local {
 			online = append(online, provider)
+		} else if !slices.Contains(protocol.LocalProviders, provider.ID) {
+			local = append(local, provider)
 		}
 	}
 	return local, online
@@ -135,15 +157,23 @@ func (p *Page) layoutProvider(gtx layout.Context, e *env.Env, provider protocol.
 	}
 	word, tone := providerState(provider)
 	detail := providerMeta(provider, p.usage.Words(provider.ID))
-	head := foldHead{Title: provider.Name, Detail: detail, Mark: look.Mark{ID: provider.ID, Name: provider.Name}, Trail: kit.Claim(th.Theme, tone, word)}
+	head := foldHead{Title: provider.Name, Detail: detail, Mark: look.Mark{ID: provider.ID, Name: provider.Name}}
+	if provider.ID == protocol.ProviderRashinModels {
+		word, tone = p.local.standing(e.Snapshot().Local, provider)
+	}
+	head.Trail = kit.Claim(th.Theme, tone, word)
+	if provider.ID == protocol.ProviderRashinModels && p.open == provider.ID {
+		p.local.load(e)
+		p.local.loadDevices(e)
+	}
 	return withLimitLine(gtx, th, provider, p.open == provider.ID, func(gtx layout.Context) layout.Dimensions {
 		return row.fold.layout(gtx, th, p.open == provider.ID, head, func(gtx layout.Context) layout.Dimensions {
-			return row.layoutDetail(gtx, e, provider)
+			return row.layoutDetail(gtx, e, provider, &p.local)
 		})
 	})
 }
 
-func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider protocol.ProviderInfo) layout.Dimensions {
+func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider protocol.ProviderInfo, local *localPanel) layout.Dimensions {
 	th := e.Theme
 	row.update(gtx, e, provider)
 	children := make([]layout.FlexChild, 0, 12)
@@ -170,7 +200,11 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.layoutKey(gtx, e, provider, key) }),
 		)
 	}
-	if provider.Local {
+	if provider.ID == protocol.ProviderRashinModels {
+		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout), layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return local.layout(gtx, e)
+		}))
+	} else if provider.Local {
 		children = append(children,
 			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 			layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Address"))),
@@ -215,9 +249,13 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 				layout.Flexed(1, row.resultLine(th)),
 			)
 		}),
-		layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.models.layout(gtx, e, provider) }),
 	)
+	if provider.ID != protocol.ProviderRashinModels {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.models.layout(gtx, e, provider) }),
+		)
+	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -240,7 +278,7 @@ func (row *providerRow) layoutKey(gtx layout.Context, e *env.Env, provider proto
 	th := e.Theme
 	remove := row.remove[key.ID]
 	if remove == nil {
-		remove = &look.IconAction{Icon: look.Icon.Remove, Description: i18n.T("Remove key")}
+		remove = &kit.IconPlaque{Icon: look.Icon.Remove, Description: i18n.T("Remove key"), Kind: kit.PlaqueQuiet, Small: true}
 		row.remove[key.ID] = remove
 	}
 	if remove.Clicked(gtx) {
@@ -259,7 +297,7 @@ func (row *providerRow) layoutKey(gtx layout.Context, e *env.Env, provider proto
 		layout.Rigid(look.TokenChip(th, key.Masked)),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 		layout.Flexed(1, kit.RawText(th.Theme, th.T.Caption, ink, word)),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return remove.Layout(gtx, th, th.R.Fg3) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return remove.Layout(gtx, th.Theme) }),
 	)
 }
 
@@ -307,7 +345,7 @@ func (row *providerRow) update(gtx layout.Context, e *env.Env, provider protocol
 			}
 		})
 	}
-	if provider.Local {
+	if provider.Local && provider.ID != protocol.ProviderRashinModels {
 		row.signup.Label = i18n.Tf("Get %s", provider.Name)
 		row.updateAddress(gtx, e, provider)
 	}
@@ -428,6 +466,8 @@ func providerState(provider protocol.ProviderInfo) (string, palette.Tone) {
 	switch {
 	case !provider.Enabled:
 		return i18n.T("Off"), palette.Idle
+	case provider.OnDemand && provider.Available > 0 && !provider.Running:
+		return i18n.T("Starts when needed"), palette.Alive
 	case provider.Local && !provider.Running:
 		// a server that is not started is the reader's choice, not a fault
 		return i18n.T("Not running"), palette.Idle
@@ -448,6 +488,10 @@ func providerState(provider protocol.ProviderInfo) (string, palette.Tone) {
 func providerMeta(provider protocol.ProviderInfo, used string) string {
 	models := modelCount(provider)
 	switch {
+	case provider.OnDemand && provider.Running:
+		return withUsage(i18n.T("Running")+", "+models, used)
+	case provider.OnDemand:
+		return withUsage(i18n.T("Starts when needed")+", "+models, used)
 	case provider.Local && provider.Running:
 		return withUsage(i18n.T("Running")+", "+models, used)
 	case provider.Local:

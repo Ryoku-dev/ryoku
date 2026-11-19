@@ -18,6 +18,9 @@ Singleton {
     // reopening the tool lands on the tool you used last, matching the shell.
     property string lastAction: "shot"
 
+    // Beautify has been opened once, so the dock stops pointing it out.
+    property bool beautifySeen: false
+
     /**
      * Per-tool drawing style, keyed by tool id: { color, width, filled }. The
      * shell owns the live copy and writes it back through here so a chosen colour,
@@ -62,6 +65,7 @@ Singleton {
             delaySeconds: config.delaySeconds,
             recordMic: config.recordMic,
             lastAction: config.lastAction,
+            beautifySeen: config.beautifySeen,
             toolStyle: config.toolStyle
         }, null, 2));
     }
@@ -85,6 +89,7 @@ Singleton {
                 if (typeof c.delaySeconds === "number") config.delaySeconds = c.delaySeconds;
                 if (typeof c.recordMic === "boolean") config.recordMic = c.recordMic;
                 if (typeof c.lastAction === "string") config.lastAction = c.lastAction;
+                if (typeof c.beautifySeen === "boolean") config.beautifySeen = c.beautifySeen;
                 if (c.toolStyle && typeof c.toolStyle === "object") config.toolStyle = c.toolStyle;
             } catch (e) {
                 console.log("ryoshot: config parse failed, using defaults: " + e);

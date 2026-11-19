@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"encoding/json"
+	"net/url"
 	"strings"
 
 	"ryoku-rashin/internal/app/env"
@@ -13,6 +15,22 @@ import (
 // routines, routines/new[/<team>], routines/<routine>, vault[/<credential>]
 // or activity. It is false for any other route.
 func TeamsRoute(route string) (env.TeamsPlace, bool) {
+	path, query, hasQuery := strings.Cut(route, "?")
+	var draft *protocol.DreamCreateParams
+	if hasQuery {
+		if path != protocol.TabDreams+"/new" || len(query) > protocol.DreamDraftMaxBytes*3+32 {
+			return env.TeamsPlace{}, false
+		}
+		values, err := url.ParseQuery(query)
+		if err != nil || len(values) != 1 || len(values["draft"]) != 1 || len(values.Get("draft")) > protocol.DreamDraftMaxBytes {
+			return env.TeamsPlace{}, false
+		}
+		var params protocol.DreamCreateParams
+		if json.Unmarshal([]byte(values.Get("draft")), &params) != nil {
+			return env.TeamsPlace{}, false
+		}
+		draft, route = &params, path
+	}
 	parts := strings.Split(strings.Trim(route, "/"), "/")
 	if !teamsTab(parts[0]) {
 		return env.TeamsPlace{}, false
@@ -34,6 +52,7 @@ func TeamsRoute(route string) (env.TeamsPlace, bool) {
 	case protocol.TabDreams:
 		if part(1) == "new" {
 			place.Draft = env.DraftDream
+			place.DreamDraft = draft
 		} else {
 			place.Team = part(1)
 		}
@@ -56,6 +75,7 @@ func (place Place) teams() env.TeamsPlace {
 	return env.TeamsPlace{
 		Tab: place.Tab, Team: place.Team, View: place.TeamView, Task: place.TeamTask, Routine: place.Routine,
 		Credential: place.Credential, Draft: place.Draft, Template: place.Template,
+		DreamDraft: place.DreamDraft,
 	}
 }
 
@@ -63,6 +83,7 @@ func teamsPlace(teams env.TeamsPlace) Place {
 	return Place{
 		Tab: teams.Tab, Team: teams.Team, TeamView: teams.View, TeamTask: teams.Task, Routine: teams.Routine,
 		Credential: teams.Credential, Draft: teams.Draft, Template: teams.Template,
+		DreamDraft: teams.DreamDraft,
 	}
 }
 
@@ -77,7 +98,7 @@ func focusedTeams(focus protocol.UIOpenParams) (env.TeamsPlace, bool) {
 	case focus.Credential != "":
 		return env.TeamsPlace{Tab: protocol.TabVault, Credential: focus.Credential}, true
 	case focus.Tab == protocol.TabDreams && focus.Team == "new":
-		return env.TeamsPlace{Tab: protocol.TabDreams, Draft: env.DraftDream}, true
+		return env.TeamsPlace{Tab: protocol.TabDreams, Draft: env.DraftDream, DreamDraft: focus.DreamDraft}, true
 	case focus.Tab == protocol.TabDreams:
 		return env.TeamsPlace{Tab: protocol.TabDreams, Team: focus.Team}, true
 	case focus.Team != "":

@@ -21,7 +21,6 @@ all from one repository.
 [![Fedora](https://img.shields.io/badge/Fedora-0d0d0d?style=for-the-badge&logo=fedora&logoColor=white)](#editions)
 [![Hyprland](https://img.shields.io/badge/Hyprland-0d0d0d?style=for-the-badge&logo=hyprland&logoColor=white)](https://hypr.land)
 [![niri](https://img.shields.io/badge/niri-0d0d0d?style=for-the-badge&logo=niri&logoColor=white)](https://github.com/YaLTeR/niri)
-[![Wayfire](https://img.shields.io/badge/Wayfire-0d0d0d?style=for-the-badge)](https://wayfire.org)
 
 <kbd>[Download](https://ryoku.dev)</kbd> &middot; <kbd>[Showroom](https://ryoku.dev/showroom)</kbd> &middot; <kbd>[What Ryoku is](docs/ryoku.md)</kbd> &middot; <kbd>[Docs](docs/)</kbd> &middot; <kbd>[Contributing](CONTRIBUTING.md)</kbd>
 
@@ -54,10 +53,10 @@ controls grow out of the rail; let go and they melt back. It is built from
 small independent surfaces, so it grows with what you actually use: seven bar
 styles, desktop widgets, a store for more, and a plugin host.
 
-Rashin is the optional AI layer: Ask answers read-only questions about the
-machine through free models, Agent connects external coding harnesses, and
-Index searches projects and system code. It is off by default and uses no
-process, socket, timer or watcher until you turn it on.
+Rashin is the optional AI layer: one native engine runs Ask, Agents, Teams and
+Dreams; Index searches projects and system code. Models on this computer are
+preferred, with free remote models when none can answer. It is off by default
+and uses no process, socket, timer or watcher until you turn it on.
 
 Underneath, Ryoku is a distribution, not a config dump. The desktop, the
 installer and the system definition live in this repository, every machine is
@@ -74,8 +73,8 @@ remain experimental while those editions get wider hardware coverage.
 
 | Edition | Compositors | Get it | Status |
 |---|---|---|---|
-| **Arch Linux** | Hyprland, niri, Wayfire | signed ISO, or the [one-liner on an existing install](docs/install-without-iso.md#existing-arch-linux) | stable |
-| **CachyOS** | Hyprland, niri, Wayfire | signed ISO, or [the one-liner](docs/install-without-iso.md#existing-cachyos) | stable |
+| **Arch Linux** | Hyprland, niri | signed ISO, or the [one-liner on an existing install](docs/install-without-iso.md#existing-arch-linux) | stable |
+| **CachyOS** | Hyprland, niri | signed ISO, or [the one-liner](docs/install-without-iso.md#existing-cachyos) | stable |
 | **Void Linux** glibc, runit | niri | signed ISO, or [the one-liner](docs/install-without-iso.md#void-linux) | experimental |
 | **Fedora** 44 and 45 | Hyprland, niri | [the one-liner, on Workstation, KDE Plasma, Server or a spin](docs/install-without-iso.md#existing-fedora-44-or-45) | experimental |
 | **NixOS** | Hyprland, niri | [Ryoku on NixOS](https://github.com/Ryoku-dev/Ryoku-on-NixOS), a port for flake-based systems | community |
@@ -88,12 +87,10 @@ the live kernel through the installed system: CachyOS repositories, kernels,
 identity, tuning, hooks, and tools with Ryoku as its desktop. The Void ISO can
 add Steam and its 32-bit graphics stack with the installer Gaming question.
 
-Hyprland and niri are the first-class compositors; Wayfire 0.11 is the
-experimental third on Arch and CachyOS, reached by switching desktops in the
-Hub or with `ryoku wm use wayfire`. Void is niri-only until it ships GCC 15
-([why](void/README.md)). Fedora converts an existing mutable system in place,
-keeps GRUB with a Ryoku snapshots submenu, and leaves NVIDIA on nouveau
-([details](fedora/README.md)).
+Hyprland and niri are the supported compositors on Arch and CachyOS. Void is
+niri-only until it ships GCC 15 ([why](void/README.md)). Fedora converts an
+existing mutable system in place, keeps GRUB with a Ryoku snapshots submenu,
+and leaves NVIDIA on nouveau ([details](fedora/README.md)).
 
 The [no-ISO guide](docs/install-without-iso.md) covers each existing-system
 path, starting from a stock Void installation.

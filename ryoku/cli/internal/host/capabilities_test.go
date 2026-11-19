@@ -1,6 +1,11 @@
 package host
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestCapabilitiesJSONForSupportedHosts(t *testing.T) {
 	tests := []struct {
@@ -30,6 +35,7 @@ func TestCapabilitiesJSONForSupportedHosts(t *testing.T) {
 				"chpasswd": true, "gpasswd": true, "useradd": true,
 				"userdel": true, "usermod": true,
 			}}
+			tc.env["RYOKU_OS_RELEASE"] = filepath.Join(t.TempDir(), "missing-release")
 			app, stdout, stderr := testApp(runner, tc.env)
 			app.cfg.PasswdPath, app.cfg.GroupPath = writeUsersFixtures(t)
 			if code := app.Execute([]string{"capabilities"}); code != ExitOK {
@@ -49,5 +55,39 @@ func TestCapabilitiesRejectsArguments(t *testing.T) {
 	app, _, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd"})
 	if code := app.Execute([]string{"capabilities", "extra"}); code != ExitUsage {
 		t.Fatalf("capabilities with argument exit = %d", code)
+	}
+}
+
+func TestCommandEdition(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{
+		{"ID=arch\n", "arch"},
+		{"ID=\"cachyos\"\nID_LIKE=arch\n", "cachyos"},
+		{"ID=fedora\n", "fedora"},
+		{"ID=void\n", "void"},
+		{"ID=custom\nID_LIKE=\"arch linux\"\n", "arch"},
+		{"ID=unknown\n", ""},
+	} {
+		t.Run(tc.want+tc.body, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "os-release")
+			if err := os.WriteFile(path, []byte(tc.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			app, stdout, _ := testApp(&fakeRunner{}, map[string]string{
+				"RYOKU_OS_RELEASE": path, "RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd",
+			})
+			if got := app.commandEdition(); got != tc.want {
+				t.Fatalf("edition = %q, want %q", got, tc.want)
+			}
+			if code := app.Capabilities(); code != ExitOK {
+				t.Fatalf("capabilities exit = %d", code)
+			}
+			var facts hostCapabilities
+			if err := json.Unmarshal(stdout.Bytes(), &facts); err != nil {
+				t.Fatal(err)
+			}
+			if facts.Edition != tc.want {
+				t.Fatalf("capabilities edition = %q, want %q", facts.Edition, tc.want)
+			}
+		})
 	}
 }

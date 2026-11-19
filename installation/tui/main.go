@@ -4006,7 +4006,7 @@ func snapshot() {
 	at(&m, "apps") // a curated slim install: the gaming, VM and sharing rows off
 	m.picks = picks
 	m.loadStep()
-	for _, id := range []string{"gamescope", "gamemode", "mangohud", "controllers", "vm", "docker", "flatpak", "yazi", "localsend"} {
+	for _, id := range []string{"gamescope", "gamemode", "mangohud", "controllers", "vm", "flatpak", "yazi", "localsend"} {
 		m.keep[id] = false
 	}
 	for i, r := range m.appsRows() { // park the cursor on a removed row

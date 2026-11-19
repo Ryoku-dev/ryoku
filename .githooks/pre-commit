@@ -21,10 +21,14 @@ fail() {
 # em-dashes vendored sources still carry), and a key that differs from its
 # source no longer matches at lookup. sync.py already strips em-dashes from
 # every translation. The model's tokenizer.json is a third-party vocabulary,
-# and the em-dash is one of its tokens. The skill sets are upstream files kept
-# byte-identical by bin/ryoku-dev-sync-rashin-skills.
-exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/rashin/internal/index/embed/model/|^ryoku/rashin/internal/skills/sets/'
+# and the em-dash is one of its tokens, as it is in the vocabularies of the
+# grammar checker's tagger and chunker models (ported from Harper). The skill
+# sets are upstream files kept byte-identical by bin/ryoku-dev-sync-rashin-skills.
+exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/rashin/internal/index/embed/model/|^ryoku/rashin/internal/grammar/pos/model/|^ryoku/rashin/internal/skills/sets/'
 text='\.(md|txt|sh|bash|yml|yaml|toml|json|jsonc|conf|lua|tpl|fish|desktop|rules)$|(^|/)(README|NOTICE|LICENSE)$'
+# A Go module's vendor/ holds upstream files as `go mod vendor` copies them, the
+# same trees scan-slop and the review gate already treat as vendored.
+exempt+='|/vendor/'
 
 mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM)
 

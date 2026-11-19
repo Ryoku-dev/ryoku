@@ -43,17 +43,14 @@ Item {
         && newestArrival > 0 && nowMs - newestArrival < 4000
     readonly property bool mediaRecent: Media.playing
         || (Media.present && nowMs < mediaUntil)
-    readonly property string voiceState: Recorder.active ? "recording"
-        : noticeFresh ? "notice"
+    // a capture gets its own bubble instead of a face here, swapping faces resized the whole island
+    readonly property string voiceState: noticeFresh ? "notice"
         : mediaRecent && !S.Prefs.hasModule("media") ? "media"
         : "idle"
-    readonly property string page: voiceState === "recording" ? "recording"
-        : voiceState === "notice" ? "notifications"
+    readonly property string page: voiceState === "notice" ? "notifications"
         : voiceState === "media" ? "media" : "today"
     readonly property var bubbles: ({
-        left: voiceState !== "idle" && !S.Prefs.hasModule("clock") ? ["time"] : [],
-        right: voiceState === "recording" && Media.playing
-            && !S.Prefs.hasModule("media") ? ["media"] : []
+        left: voiceState !== "idle" && !S.Prefs.hasModule("clock") ? ["time"] : []
     })
     readonly property bool inlineBubbles: S.Prefs.span !== "islands"
     readonly property var voicePages: {
@@ -66,8 +63,7 @@ Item {
             pages.push("recording");
         return pages;
     }
-    readonly property string hintText: voiceState === "recording" ? "Recording details"
-        : voiceState === "notice" && newestNotice
+    readonly property string hintText: voiceState === "notice" && newestNotice
             ? String(newestNotice.summary || "Notifications")
         : voiceState === "media" && Media.player
             ? String(Media.player.trackTitle || "Now playing")
@@ -77,8 +73,7 @@ Item {
     states: [
         State { name: "idle" },
         State { name: "media" },
-        State { name: "notice" },
-        State { name: "recording" }
+        State { name: "notice" }
     ]
     implicitWidth: content.implicitWidth + 2 * K.Style.hitPad
     implicitHeight: K.Style.barH
@@ -256,11 +251,6 @@ Item {
     }
 
     Component {
-        id: recordingFace
-        V.VoiceRecording { scene: root.scene }
-    }
-
-    Component {
         id: noticeFace
         V.VoiceNotice {
             scene: root.scene
@@ -271,11 +261,6 @@ Item {
     Component {
         id: timeBubble
         V.TimeBubble { scene: root.scene }
-    }
-
-    Component {
-        id: mediaBubble
-        V.MediaBubble { scene: root.scene }
     }
 
     Row {
@@ -301,8 +286,7 @@ Item {
             Loader {
                 id: faceLoader
                 anchors.centerIn: parent
-                sourceComponent: root.displayState === "recording" ? recordingFace
-                    : root.displayState === "notice" ? noticeFace
+                sourceComponent: root.displayState === "notice" ? noticeFace
                     : root.displayState === "media" ? mediaFace : idleFace
             }
         }
@@ -311,12 +295,6 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.unread && root.displayState !== "notice"
             dot: true
-        }
-
-        Loader {
-            active: root.inlineBubbles && root.bubbles.right.indexOf("media") >= 0
-            visible: active
-            sourceComponent: mediaBubble
         }
     }
 

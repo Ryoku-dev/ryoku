@@ -1,0 +1,7 @@
+singleton Look Look.qml
+Shape Shape.qml
+Symbol Symbol.qml
+KeyHint KeyHint.qml
+Micro Micro.qml
+Chip Chip.qml
+TransferLine TransferLine.qml

@@ -1,6 +1,9 @@
 import QtQuick
 
-Rectangle {
+// A plate: the cut plaque Orpheus sets its controls and groups on. Design-aware
+// (Shape): Lithic cuts it, the round styles round it; Material lifts it a tone
+// with no outline. Colour stays on the shell palette.
+Shape {
     id: root
 
     property bool active: false
@@ -8,12 +11,12 @@ Rectangle {
 
     implicitWidth: childrenRect.width
     implicitHeight: childrenRect.height
-    radius: Style.plateRadius
-    color: active ? Style.bone : Style.plate
-    border.width: Style.border
-    border.color: active ? Style.bone : Style.lineSoft
+    cutSize: Look.cutMd
+    fill: active ? Style.bone : Style.plate
+    strokeWidth: Look.material && !active ? 0 : Style.border
+    strokeColor: active ? Style.bone : Style.lineSoft
 
-    Behavior on color {
+    Behavior on fill {
         enabled: !Style.still
         ColorAnimation { duration: Style.snap }
     }

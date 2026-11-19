@@ -32,7 +32,9 @@ func lookup(name string) (*Command, bool) {
 func sortedCommands() []*Command {
 	out := make([]*Command, 0, len(commands))
 	for _, c := range commands {
-		out = append(out, c)
+		if c.Group != "internal" {
+			out = append(out, c)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Group != out[j].Group {

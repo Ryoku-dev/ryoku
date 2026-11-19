@@ -174,15 +174,6 @@ qemu-desktop
 edk2-ovmf
 virglrenderer
 
-# Containers: the runtime behind the stash "Cobalt engine" switch, which runs
-# downloads through a local cobalt instance (cobalt ships only as a Docker
-# image). The service is deliberately NOT enabled here: a box that never opens
-# that switch should not pay for a running dockerd, a docker0 bridge and its
-# iptables rules. `ryoku-docker provision`, which the setup wizard drives,
-# enables it on first use. No docker-compose: the cobalt lifecycle is a single
-# `docker run` (ryoku/hyprland/scripts/stash-cobalt-server.sh).
-docker
-
 # Gaming (Bazzite-style stack): gamescope is a nested micro-compositor that runs
 # a game isolated from the desktop, bypassing the XWayland compositing that is
 # the real source of in-game and Steam-overlay lag on Wayland (run a title with

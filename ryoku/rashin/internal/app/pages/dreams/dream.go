@@ -4,6 +4,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -18,16 +19,21 @@ import (
 type dreamView struct {
 	header look.PaneHeader
 	scroll look.Scroller
-	// the page shown last, so another dream starts at its top
+	sheet  look.Sheet
+	reveal look.Reveal
+	// the page shown last, so another dream starts at its top and rises anew
 	shown string
+	// the rows the scroll list held last frame, for how far the page is read
+	rows int
 
+	phases       phaseStrip
 	cards        teamsui.NeedCards
 	presentation presentationView
-	signIn       teamsui.SignInActions
 	crew         teamsui.CrewLive
 	work         teamsui.TaskBoard
 	month        teamsui.MonthSpend
 	folder       kit.Plaque
+	providers    kit.Plaque
 }
 
 func (v *dreamView) layout(gtx layout.Context, e *env.Env, p *Page, dream protocol.Team) layout.Dimensions {
@@ -35,40 +41,59 @@ func (v *dreamView) layout(gtx layout.Context, e *env.Env, p *Page, dream protoc
 	snapshot := e.Snapshot()
 	if v.shown != dream.ID {
 		v.shown, v.scroll = dream.ID, look.Scroller{}
+		v.reveal.Reset()
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutHeader(gtx, e, snapshot, dream) }),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			column := gtx
-			column.Constraints.Max.X = min(gtx.Constraints.Max.X-2*gtx.Dp(look.ContentInset(e.Class)), gtx.Dp(look.BoardWidth))
-			v.work.Team, v.work.Pieces, v.work.Empty = dream.ID, true, i18n.T("The manager has not handed out any work yet.")
-			rows, _ := v.work.Rows(column, snapshot)
-			return v.scroll.Layout(gtx, th, 2+rows, func(gtx layout.Context, index int) layout.Dimensions {
-				return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
-					switch index {
-					case 0:
-						return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return look.Split(gtx, th,
-								func(gtx layout.Context) layout.Dimensions { return v.layoutMain(gtx, e, p, snapshot, dream) },
-								func(gtx layout.Context) layout.Dimensions { return v.layoutAside(gtx, e, dream) },
-							)
-						})
-					case 1:
-						return layout.Inset{Top: th.Sp.S6, Bottom: th.Sp.S2}.Layout(gtx, kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Work")))
-					}
-					return v.work.LayoutRow(gtx, e, index-2)
+	main, aside := v.mainParts(gtx, e, p, snapshot, dream), v.asideParts(gtx, e, dream)
+	// the parts count on through both columns, and the work under them closes the page
+	of := len(main) + len(aside) + 1
+	page := look.PartPage(protocol.TabDreams, 1, dream.Name, "")
+	return v.sheet.Layout(gtx, th, page, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return v.layoutHeader(gtx, e, snapshot, dream) }),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				column := gtx
+				column.Constraints.Max.X = min(gtx.Constraints.Max.X-2*gtx.Dp(look.ContentInset(e.Class)), gtx.Dp(look.BoardWidth))
+				v.work.Team, v.work.Pieces, v.work.Empty = dream.ID, true, i18n.T("The manager has not handed out any work yet.")
+				rows, _ := v.work.Rows(column, snapshot)
+				v.rows = 3 + rows
+				return v.scroll.Layout(gtx, th, v.rows, func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Centred(gtx, e.Class, look.BoardWidth, func(gtx layout.Context) layout.Dimensions {
+						switch index {
+						case 0:
+							return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return look.Split(gtx, th,
+									func(gtx layout.Context) layout.Dimensions {
+										return v.layoutMain(gtx, e, snapshot, dream, main, of)
+									},
+									func(gtx layout.Context) layout.Dimensions {
+										return layoutParts(gtx, th, &v.reveal, aside, len(main)+1, of, len(main)+1)
+									},
+								)
+							})
+						case 1:
+							return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S3}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("Work"), Number: of, Of: of}))
+						case v.rows - 1:
+							return layout.Inset{Top: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return v.sheet.Colophon(gtx, th, page)
+							})
+						}
+						return v.work.LayoutRow(gtx, e, index-2)
+					})
 				})
-			})
-		}),
-	)
+			}),
+		)
+	})
 }
 
 func (v *dreamView) layoutHeader(gtx layout.Context, e *env.Env, snapshot state.Snapshot, dream protocol.Team) layout.Dimensions {
-	facts := []look.HeaderFact{
-		{Text: crewWord(dream)},
-		{Text: i18n.Tf("Started %s", look.Ago(gtx.Now, dream.Dream.Started))},
-		{Text: paths.Short(dream.Folder), Kind: look.FactLink},
+	facts := []look.HeaderFact{{Text: crewWord(dream)}}
+	if lead, at := teamsui.Lead(dream.Members); at >= 0 {
+		facts = append(facts, look.HeaderFact{Text: teamsui.MemberEngine(snapshot, lead).Place()})
 	}
+	facts = append(facts,
+		look.HeaderFact{Text: i18n.Tf("Started %s", look.Ago(gtx.Now, dream.Dream.Started))},
+		look.HeaderFact{Text: paths.Short(dream.Folder), Kind: look.FactLink},
+	)
 	content := look.PaneHeaderContent{
 		Title: dream.Name, Facts: facts,
 		Scrolled: v.scroll.Position.First > 0 || v.scroll.Position.Offset > 0,
@@ -76,9 +101,9 @@ func (v *dreamView) layoutHeader(gtx layout.Context, e *env.Env, snapshot state.
 	content.Claim, content.ClaimTone, _ = standing(snapshot, dream)
 	resume := dream.Paused || stalled(snapshot, dream)
 	if !finished(dream) {
-		action := look.HeaderAction{Icon: look.Icon.Pause, Label: i18n.T("Pause"), Description: i18n.T("Pause the dream: its team stops until you resume it")}
+		action := look.HeaderAction{Icon: look.Icon.Pause, Label: i18n.T("Pause")}
 		if resume {
-			action = look.HeaderAction{Icon: look.Icon.Play, Label: i18n.T("Resume"), Description: i18n.T("Let the manager go on with the dream")}
+			action = look.HeaderAction{Icon: look.Icon.Play, Label: i18n.T("Resume")}
 		}
 		content.Actions = []look.HeaderAction{action}
 	}
@@ -92,30 +117,108 @@ func (v *dreamView) layoutHeader(gtx layout.Context, e *env.Env, snapshot state.
 	return dimensions
 }
 
-// what the CEO reads and answers, top to bottom: the dream, where it stands, its sign-in, its presentation, its questions, its team
-func (v *dreamView) layoutMain(gtx layout.Context, e *env.Env, p *Page, snapshot state.Snapshot, dream protocol.Team) layout.Dimensions {
+// what the CEO reads first: how the dream stands in a sentence over the dream in their own words, then how far it is
+func (v *dreamView) layoutMain(gtx layout.Context, e *env.Env, snapshot state.Snapshot, dream protocol.Team, parts []part, of int) layout.Dimensions {
 	th := e.Theme
 	return stack(gtx,
 		func(gtx layout.Context) layout.Dimensions {
-			return look.Monument(gtx, th, dream.Name, dream.Dream.Statement)
+			return v.reveal.Group(gtx, th, 0, func(gtx layout.Context) layout.Dimensions {
+				return stack(gtx,
+					func(gtx layout.Context) layout.Dimensions {
+						return look.Monument(gtx, th, heldSentence(gtx.Now, snapshot, dream), dream.Dream.Statement)
+					},
+					gap(th.Sp.S5),
+					func(gtx layout.Context) layout.Dimensions { return v.phases.layout(gtx, th, snapshot, dream) },
+					gap(th.Sp.S6),
+				)
+			})
 		},
-		gap(th.Sp.S4),
-		phaseStrip(th, dream),
-		gap(th.Sp.S6),
-		standingSection(th, gtx.Now, snapshot, dream),
-		v.signInSection(gtx, e, snapshot, dream),
-		v.presentation.section(gtx, e, p, dream),
-		v.questionsSection(gtx, e, snapshot, dream),
-		section(th, i18n.T("Team"), func(gtx layout.Context) layout.Dimensions {
-			style := teamsui.FullCrew(th)
-			style.Head = teamsui.CrewIdentity(th, style, i18n.T("You"), i18n.T("CEO"), false)
-			return teamsui.CrewChart(gtx, th, snapshot, dream.Members, v.crew.Of(dream.ID), style)
-		}),
+		func(gtx layout.Context) layout.Dimensions { return layoutParts(gtx, th, &v.reveal, parts, 1, of, 1) },
 	)
 }
 
+// what the CEO reads and answers, top to bottom: where it stands, its presentation, its questions, its team
+func (v *dreamView) mainParts(gtx layout.Context, e *env.Env, p *Page, snapshot state.Snapshot, dream protocol.Team) []part {
+	th := e.Theme
+	parts := []part{{title: i18n.T("Where it stands"), body: v.standingBody(gtx, e, snapshot, dream)}}
+	// a presentation waiting for its answer holds the page's one gold, so no question's card takes it
+	_, v.cards.Quiet = awaiting(dream)
+	if body := v.presentation.body(gtx, e, p, dream); body != nil {
+		parts = append(parts, part{title: i18n.T("Presentation"), body: body})
+	}
+	if body := v.questionsBody(e, snapshot, dream); body != nil {
+		parts = append(parts, part{title: i18n.T("Questions for you"), body: body})
+	}
+	return append(parts, part{title: i18n.T("Team"), body: func(gtx layout.Context) layout.Dimensions {
+		style := teamsui.FullCrew(th)
+		style.Head = teamsui.CrewIdentity(th, style, i18n.T("You"), i18n.T("CEO"), false)
+		return teamsui.CrewChart(gtx, th, snapshot, dream.Members, v.crew.Of(dream.ID), style)
+	}})
+}
+
+// the manager's own account of where the dream stands, and the way out when nothing can run its model
+func (v *dreamView) standingBody(gtx layout.Context, e *env.Env, snapshot state.Snapshot, dream protocol.Team) layout.Widget {
+	th := e.Theme
+	summary := look.Paragraph(th, th.T.Proof, th.R.Fg, dream.Dream.Summary)
+	if dream.Dream.Summary == "" {
+		summary = look.Paragraph(th, th.T.Body, th.R.Fg3, i18n.T("The manager has not said where it stands yet."))
+	}
+	widgets := []layout.Widget{summary}
+	if !finished(dream) && managerMissing(snapshot, dream) {
+		v.providers.Kind, v.providers.Small, v.providers.Label = kit.PlaqueTonal, true, i18n.T("Open Providers")
+		if v.providers.Clicked(gtx) && e.OpenSettings != nil {
+			e.OpenSettings("providers")
+		}
+		lead, _ := teamsui.Lead(dream.Members)
+		widgets = append(widgets,
+			gap(th.Sp.S3),
+			kit.Claim(th.Theme, palette.Failed, i18n.T("Model cannot run")),
+			gap(th.Sp.S1),
+			look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("Nothing can run %s now. Start it or add its key in Providers, then resume the dream.", teamsui.MemberEngine(snapshot, lead).Place())),
+			gap(th.Sp.S3),
+			func(gtx layout.Context) layout.Dimensions { return v.providers.Layout(gtx, th.Theme) },
+		)
+	}
+	return func(gtx layout.Context) layout.Dimensions { return stack(gtx, widgets...) }
+}
+
+// what waits on the CEO in this dream; the presentation is answered in its own part
+func (v *dreamView) questionsBody(e *env.Env, snapshot state.Snapshot, dream protocol.Team) layout.Widget {
+	th := e.Theme
+	var needs []teamsui.Need
+	for _, need := range teamsui.Needs(snapshot) {
+		switch {
+		case need.Approval != nil && need.Approval.Team == dream.ID && !presentationCard(dream, *need.Approval):
+			needs = append(needs, need)
+		case need.Task != nil && need.Task.Team == dream.ID:
+			needs = append(needs, need)
+		}
+	}
+	v.cards.Task = dream.Dream.Task
+	shown := v.cards.Shown(needs)
+	if len(shown) == 0 {
+		return nil
+	}
+	return func(gtx layout.Context) layout.Dimensions {
+		children := make([]layout.FlexChild, 0, len(shown))
+		for index, need := range shown {
+			bottom := th.Sp.S2
+			if index == len(shown)-1 {
+				bottom = 0
+			}
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return v.cards.Layout(gtx, e, need)
+				})
+			}))
+		}
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	}
+}
+
 // the month in tokens and finished tasks, and the dream's folder
-func (v *dreamView) layoutAside(gtx layout.Context, e *env.Env, dream protocol.Team) layout.Dimensions {
+func (v *dreamView) asideParts(gtx layout.Context, e *env.Env, dream protocol.Team) []part {
 	th := e.Theme
 	v.month.Team = dream.ID
 	v.month.Want(e, gtx.Now)
@@ -126,8 +229,8 @@ func (v *dreamView) layoutAside(gtx layout.Context, e *env.Env, dream protocol.T
 	if v.folder.Clicked(gtx) {
 		e.OpenFolder(dream.Folder)
 	}
-	return stack(gtx,
-		section(th, i18n.T("Over time"), func(gtx layout.Context) layout.Dimensions {
+	return []part{
+		{title: i18n.T("Over time"), body: func(gtx layout.Context) layout.Dimensions {
 			return stack(gtx,
 				budgetLine(th, dream),
 				gap(th.Sp.S5),
@@ -138,8 +241,8 @@ func (v *dreamView) layoutAside(gtx layout.Context, e *env.Env, dream protocol.T
 					return look.HoldUntil(gtx, loaded, func(gtx layout.Context) layout.Dimensions { return done.Layout(gtx, th) })
 				},
 			)
-		}),
-		section(th, i18n.T("Files"), func(gtx layout.Context) layout.Dimensions {
+		}},
+		{title: i18n.T("Files"), body: func(gtx layout.Context) layout.Dimensions {
 			return stack(gtx,
 				look.Paragraph(th, th.T.Mono, th.R.Fg2, paths.Short(dream.Folder)),
 				gap(th.Sp.S1),
@@ -147,8 +250,8 @@ func (v *dreamView) layoutAside(gtx layout.Context, e *env.Env, dream protocol.T
 				gap(th.Sp.S3),
 				func(gtx layout.Context) layout.Dimensions { return v.folder.Layout(gtx, th.Theme) },
 			)
-		}),
-	)
+		}},
+	}
 }
 
 // an unlimited dream says what it spent, a capped one shows its meter
@@ -157,69 +260,4 @@ func budgetLine(th *look.Theme, dream protocol.Team) layout.Widget {
 		return look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("No limit. %s tokens this month.", teamsui.Tokens(dream.Stats.MonthTokens)))
 	}
 	return teamsui.MonthMeter(th, dream.Stats.MonthTokens, dream.Budget.MonthTokens, dream.Budget.WarnPercent)
-}
-
-// the harness the manager runs on signs in for each dream on its own, from scratch or from a team's setup
-func (v *dreamView) signInSection(gtx layout.Context, e *env.Env, snapshot state.Snapshot, dream protocol.Team) layout.Widget {
-	th := e.Theme
-	lead, at := teamsui.Lead(dream.Members)
-	if at < 0 || finished(dream) {
-		return nil
-	}
-	harness, ok := teamsui.MemberHarness(snapshot, lead)
-	if !ok || !harness.Installed || harness.Teams == nil {
-		return nil
-	}
-	task, running := standingTask(snapshot, dream)
-	waiting := running && task.Status == protocol.TaskBlocked && task.SignIn != ""
-	if teamsui.SignedIn(harness, dream.ID) {
-		if !waiting {
-			return nil
-		}
-		return section(th, i18n.T("Sign-in"), look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.T("Signed in. The manager is starting.")))
-	}
-	return section(th, i18n.T("Sign-in"), func(gtx layout.Context) layout.Dimensions {
-		return stack(gtx,
-			look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.Tf("%s runs the manager and signs in for each dream on its own. Sign it in, or start from the setup of a team that is signed in.", harness.Name)),
-			gap(th.Sp.S3),
-			func(gtx layout.Context) layout.Dimensions {
-				return v.signIn.Row(gtx, e, harness, dream, harness.Name, gtx.Now)
-			},
-		)
-	})
-}
-
-// what waits on the CEO in this dream, the presentation aside, and the manager's sign-in, which has its own section
-func (v *dreamView) questionsSection(gtx layout.Context, e *env.Env, snapshot state.Snapshot, dream protocol.Team) layout.Widget {
-	th := e.Theme
-	var needs []teamsui.Need
-	for _, need := range teamsui.Needs(snapshot) {
-		switch {
-		case need.Approval != nil && need.Approval.Team == dream.ID && !presentationCard(dream, *need.Approval):
-			needs = append(needs, need)
-		case need.Task != nil && need.Task.Team == dream.ID && need.Task.SignIn == "":
-			needs = append(needs, need)
-		}
-	}
-	v.cards.Task = dream.Dream.Task
-	shown := v.cards.Shown(needs)
-	if len(shown) == 0 {
-		return nil
-	}
-	return func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{
-			layout.Rigid(look.SectionTitle(th, i18n.T("Questions for you"), v.cards.Open(shown))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-		}
-		for _, need := range shown {
-			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return v.cards.Layout(gtx, e, need)
-				})
-			}))
-		}
-		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout))
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-	}
 }

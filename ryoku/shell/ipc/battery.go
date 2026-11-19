@@ -174,6 +174,18 @@ func (b *batteryState) state() batteryFrame {
 	if v, err := physical.GetProperty(batteryDevIface + ".HealthSupported"); err == nil {
 		frame.HealthSupported, _ = v.Value().(bool)
 	}
+	// HealthPercentage/HealthSupported only exist on UPower builds that ship
+	// them; on the rest the pack still reports Capacity, the wear percentage
+	// (energy-full / energy-full-design) every UPower carries. Read it in the
+	// same scan so QML never probes the bus itself.
+	if !frame.HealthSupported {
+		var capacity float64
+		readFrom(physical, &capacity, "Capacity")
+		if capacity > 0 {
+			frame.HealthSupported = true
+			frame.Health = capacity
+		}
+	}
 	return frame
 }
 

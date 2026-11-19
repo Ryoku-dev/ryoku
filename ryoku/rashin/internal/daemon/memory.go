@@ -11,9 +11,9 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// teamMemory are the memory methods a team task's agent may call on its
-// session's own socket: search, remember and forget. What each may reach is
-// memory's to decide from the team the socket belongs to.
+// teamMemory are the memory methods a team task's tools may call: search,
+// remember and forget. What each may reach is memory's to decide from the
+// team the session belongs to.
 var teamMemory = map[string]bool{
 	protocol.MMemorySearch: true,
 	protocol.MMemoryAdd:    true,
@@ -41,9 +41,9 @@ func (d *Daemon) memoryCall(ctx context.Context, c *connection, method string, r
 	return d.deps.Memory.Handle(ctx, from, method, raw)
 }
 
-// sessionMemory are the memory methods an agent's MCP server calls for its
-// conversation: memory reads within what the conversation may read, and
-// writes show in it.
+// sessionMemory are the memory methods a session's memory tools call, or
+// another program calls for a conversation: memory reads within what the
+// conversation may read, and writes show in it.
 var sessionMemory = map[string]bool{
 	protocol.MMemorySearch:   true,
 	protocol.MMemorySessions: true,
@@ -51,20 +51,21 @@ var sessionMemory = map[string]bool{
 	protocol.MMemoryForget:   true,
 }
 
-// memoryCaller fills who calls from the connection, never from what the
-// caller claims. A connection on a team session's own socket is that task's
-// agent, and one on a read-only Ask's own socket is that Ask. On the main
-// socket the caller is the app or another program, such as an agent's MCP
-// server or the CLI. Another program's search, remember or forget names the
-// conversation it runs for, which is taken only when it is no team's; the
-// app's own calls are the user's, whatever they name.
+// memoryCaller fills who calls from the caller, never from what it claims.
+// A session's own tools (the tool host) are a team task's agent for a team
+// session, else that session. On the main socket the caller is the app or
+// another program, such as the CLI. Another program's search, remember or
+// forget names the conversation it runs for, which is taken only when it is
+// no team's; the app's own calls are the user's, whatever they name.
 func (d *Daemon) memoryCaller(c *connection, method string, raw json.RawMessage) (core.MemoryCaller, error) {
 	if c.session != "" {
 		info, ok := d.manager.Info(c.session)
-		if ok && info.Kind == protocol.KindAsk && info.Team == "" {
+		switch {
+		case !ok:
+			return core.MemoryCaller{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
+		case info.Team == "":
 			return core.MemoryCaller{Session: info.ID}, nil
-		}
-		if !ok || info.Team == "" || info.TeamTask == "" {
+		case info.TeamTask == "":
 			return core.MemoryCaller{}, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("An agent can use only its own tools here."))
 		}
 		return core.MemoryCaller{Team: info.Team, Task: info.TeamTask}, nil

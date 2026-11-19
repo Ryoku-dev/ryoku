@@ -155,9 +155,9 @@ reviews.
 | **section** | A ruled head (`section` title, hairline, section ordinal) over its content. | `Lithic/Section.qml` |
 | **slab** | The cut plane that holds a section's rows: the paper in Lithic, drawn by a vein hairline, cut 7, inset 21. | `Lithic/Slab.qml` |
 | **toned slab** | A slab on a mineral field; Home's "Needs you" is the one in the Hub. | `components/Home.qml:798-815` |
-| **setting row** | Title, detail and a right-aligned control; rows are 13 apart with a hairline between. | `Lithic/SettingRow.qml` |
+| **setting row** | Title and detail beside a short right-aligned control, top-aligned beside a taller single control, or above a full-width group or list with a 13 px gap; rows are 13 apart with a hairline between. | `Lithic/SettingRow.qml` |
 | **Changed tag** | The word "Changed" beside a row title whose value differs from its default. | `SettingRow.qml:169-224` |
-| **reset plaque** | The quiet small plaque before the control of a changed row. | `SettingRow.qml:169-224` |
+| **reset plaque** | The quiet small plaque before a side-by-side control or at a stacked title's far end when its value is changed. | `SettingRow.qml` |
 | **More options** | The disclosure at a slab's foot; its rows are built on first open. | `SettingsPage.qml:826-852` |
 | **Related** | The closing section of tonal plaques to nearby pages. | `SettingsPage.qml:876-898` |
 | **datasheet** | Home's two-column table of facts, keys in mono, split by one vein rule. | `components/Home.qml:909-946` |
@@ -493,7 +493,7 @@ tablets, tabs, tooltips and the list-and-detail frame) are in
 | plaque, `danger` / `dangerLine` | `jasper` fill / `jasper` ink and hairline | 7 / 6 | 40 / 32 |
 | plaque, `on` | `sel` fill, `onSel` ink; only the placard's Undo | 6 | 32 |
 | icon button | wash on hover, `fg2` glyph | 6 | 34 |
-| setting row | `row` title, `detail` in `fg2`, control at most 320 wide | none | at least 44 |
+| setting row | `row` title, `detail` in `fg2`; short control at most 320 wide, groups and lists stacked at full width | none | at least 44 |
 | toggle | track and knob; on is `sel` | 4, knob 2 | 22 x 40 |
 | segmented (also the Hub's tabs) | `field` track with vein, `sel` segment | 7, segment 5 | 36 |
 | slider | 6 px track, `sel` handle 8 x 20, value in `label` | | 32 |

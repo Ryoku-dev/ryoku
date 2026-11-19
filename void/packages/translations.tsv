@@ -33,13 +33,13 @@ dbus	dbus	optional
 ddcutil	ddcutil	desktop	
 desktop-file-utils	desktop-file-utils	desktop	
 dkms	dkms	desktop	
-docker	docker	desktop	
 dolphin	dolphin	optional	
 dualsensectl	dualsensectl	optional	repo=ryoku
 dosfstools	dosfstools	system	
 easyeffects	easyeffects	desktop	
 edk2-ovmf	edk2-ovmf	desktop	
 efibootmgr	efibootmgr	system	
+espeak-ng	espeak-ng	optional	
 eza	eza	desktop	
 fastfetch	fastfetch	desktop	
 fd	fd	desktop	
@@ -56,6 +56,8 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc	desktop	
+ggml-cuda	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
+ggml-vulkan	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	github-cli	desktop	
 glibc	glibc	desktop	
@@ -135,6 +137,7 @@ limine-snapper-sync	limine-snapper-sync	system	repo=ryoku
 linux	linux	system	
 linux-firmware	linux-firmware linux-firmware-intel linux-firmware-nvidia linux-firmware-broadcom	system	
 linux-headers	linux-headers	desktop	
+llama-cpp	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	repo=ryoku
 looking-glass	-	optional	No Void repository package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	
@@ -215,7 +218,6 @@ ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
 ryoku-desktop-hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout.
-ryoku-desktop-wayfire	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 ryoku-dictation	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
@@ -248,7 +250,25 @@ sudo	sudo	system
 swtpm	swtpm	optional	
 syntax-highlighting	syntax-highlighting	desktop	
 tesseract	tesseract-ocr	desktop	
+tesseract-data-ara	tesseract-ocr-ara	optional	
+tesseract-data-chi_sim	tesseract-ocr-chi_sim	optional	
+tesseract-data-chi_tra	tesseract-ocr-chi_tra	optional	
+tesseract-data-deu	tesseract-ocr-deu	optional	
 tesseract-data-eng	tesseract-ocr-eng	desktop	
+tesseract-data-fra	tesseract-ocr-fra	optional	
+tesseract-data-hin	tesseract-ocr-hin	optional	
+tesseract-data-ita	tesseract-ocr-ita	optional	
+tesseract-data-jpn	tesseract-ocr-jpn	optional	
+tesseract-data-kor	tesseract-ocr-kor	optional	
+tesseract-data-nld	tesseract-ocr-nld	optional	
+tesseract-data-pol	tesseract-ocr-pol	optional	
+tesseract-data-por	tesseract-ocr-por	optional	
+tesseract-data-rus	tesseract-ocr-rus	optional	
+tesseract-data-spa	tesseract-ocr-spa	optional	
+tesseract-data-tha	tesseract-ocr-tha	optional	
+tesseract-data-tur	tesseract-ocr-tur	optional	
+tesseract-data-ukr	tesseract-ocr-ukr	optional	
+tesseract-data-vie	tesseract-ocr-vie	optional	
 thunar	Thunar	optional	
 tigervnc	tigervnc	optional	
 translate-shell	translate-shell	desktop	
@@ -273,7 +293,6 @@ vulkan-intel	mesa-vulkan-intel	hardware:intel
 vulkan-radeon	mesa-vulkan-radeon	hardware:amd	
 vulkan-swrast	mesa-vulkan-lavapipe	hardware:vm	
 waifu2x-ncnn-vulkan	waifu2x-ncnn-vulkan	desktop	repo=ryoku
-wayfire	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 wayland	wayland	desktop	
 webkit2gtk-4.1	libwebkit2gtk41	desktop	
 weston	weston	desktop	
@@ -281,8 +300,6 @@ wireless-regdb	wireless-regdb	desktop
 wireplumber	wireplumber	desktop	
 wl-clip-persist	wl-clip-persist	desktop	
 wl-clipboard	wl-clipboard	desktop	
-wlopm	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
-wlr-randr	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 wlsunset	wlsunset	desktop	
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
@@ -291,7 +308,6 @@ xdg-desktop-portal	-	hyprland	Hyprland is not packaged on Void.
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	-	hyprland	Hyprland is not packaged on Void.
-xdg-desktop-portal-wlr	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 xdg-user-dirs	xdg-user-dirs	desktop	
 xdg-utils	xdg-utils	desktop	
 xorg-xcursorgen	xcursorgen	desktop	

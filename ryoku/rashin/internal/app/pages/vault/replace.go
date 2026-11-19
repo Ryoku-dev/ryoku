@@ -63,7 +63,7 @@ func (d *replaceDialog) layout(gtx layout.Context, e *env.Env) {
 			if d.problem != "" {
 				children = append(children,
 					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-					layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Amber, d.problem)),
+					layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Jasper, d.problem)),
 				)
 			}
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)

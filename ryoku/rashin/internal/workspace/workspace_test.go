@@ -91,7 +91,7 @@ func (f *fakeSessions) New(_ context.Context, params protocol.SessionNewParams) 
 	f.next++
 	now := time.Now()
 	info := protocol.SessionInfo{
-		ID: "agent-test-" + intString(f.next), Kind: params.Kind, Harness: params.Harness,
+		ID: "agent-test-" + intString(f.next), Kind: params.Kind, Model: params.Model,
 		Cwd: params.Cwd, Project: params.Project, Worktree: params.Worktree, Task: params.Task,
 		Title: params.Title, State: protocol.StateIdle, Created: now, Updated: now,
 	}
@@ -158,7 +158,7 @@ func testWork(t *testing.T, client llm.Client) (*Work, string, *fakeSessions) {
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-m", "initial")
 	work, err := Open(&fakeBroadcaster{}, client, func() protocol.Settings {
-		return protocol.Settings{Ask: protocol.AskSettings{Model: "auto"}, Agent: protocol.AgentSettings{Harness: "omp"}}
+		return protocol.Settings{Ask: protocol.AskSettings{Model: "auto"}, Agent: protocol.AgentSettings{Model: "auto"}}
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -363,6 +363,37 @@ func TestPreviewCleanupAndWatchLifecycle(t *testing.T) {
 	work.mu.RUnlock()
 	if watchersOff != 0 || refsOff != 0 {
 		t.Fatalf("watch off: watchers=%d refs=%d", watchersOff, refsOff)
+	}
+}
+
+func TestTaskModelFollowsTaskThenProjectThenAgentUnlessOverridden(t *testing.T) {
+	for _, tc := range []struct {
+		name, taskModel, projectModel, override, want string
+	}{
+		{"agent", "", "", "", "auto"},
+		{"project", "", "provider/project", "", "provider/project"},
+		{"task", "provider/task", "provider/project", "", "provider/task"},
+		{"start", "provider/task", "provider/project", "provider/start", "provider/start"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			work, repo, sessions := testWork(t, fakeClient{})
+			project := addTestProject(t, work, repo)
+			work.mu.Lock()
+			work.projects[project.ID].Settings.Model = tc.projectModel
+			work.mu.Unlock()
+			task, err := work.taskCreate(protocol.TaskCreateParams{Project: project.ID, Title: "Task", Goal: "Build it", Model: tc.taskModel})
+			if err != nil {
+				t.Fatal(err)
+			}
+			started, err := work.taskStart(context.Background(), protocol.TaskStartParams{ID: task.ID, Model: tc.override})
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, ok := sessions.Info(started.Session.ID)
+			if !ok || info.Model != tc.want || started.Task.Model != tc.want {
+				t.Fatalf("session = %+v, task = %+v, want model %q", info, started.Task, tc.want)
+			}
+		})
 	}
 }
 

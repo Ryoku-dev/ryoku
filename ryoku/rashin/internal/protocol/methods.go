@@ -19,7 +19,6 @@ const (
 	MSessionSetModel   = "session.set_model"
 	MSessionSetMode    = "session.set_mode"
 	MSessionSetOption  = "session.set_option"
-	MSessionStart      = "session.start"
 	MSessionRename     = "session.rename"
 	MSessionDelete     = "session.delete"
 	MSessionStop       = "session.stop"
@@ -32,6 +31,7 @@ const (
 	MSessionRevertTurn = "session.revert_turn"
 	MSessionGoal       = "session.goal"
 	MAsk               = "ask"
+	MGlance            = "glance"
 
 	MScreenList    = "screen.list"
 	MScreenAct     = "screen.act"
@@ -44,16 +44,32 @@ const (
 	MProvidersEnable    = "providers.enable"
 	MProvidersLimits    = "providers.limits"
 	MModelsList         = "models.list"
+	MModelsProbe        = "models.probe"
 	MGatewayUsage       = "gateway.usage"
 	MGatewayAPI         = "gateway.api"
 	MGatewayAPIKey      = "gateway.api_key"
 
-	MHarnessesList  = "harnesses.list"
-	MHarnessesProbe = "harnesses.probe"
-	// MHarnessesTeamsOpen and MHarnessesTeamsDone open a sign-in or the setup
-	// in a harness's team home and finish it.
-	MHarnessesTeamsOpen = "harnesses.teams_open"
-	MHarnessesTeamsDone = "harnesses.teams_done"
+	MLocalModels         = "local.models"
+	MLocalDevices        = "local.devices"
+	MLocalDownload       = "local.download"
+	MLocalCancel         = "local.cancel"
+	MLocalRemove         = "local.remove"
+	MLocalSearch         = "local.search"
+	MLocalAdd            = "local.add"
+	MLocalRuntimeInstall = "local.runtime_install"
+	MLocalStart          = "local.start"
+	MLocalStop           = "local.stop"
+
+	MLearningSkills          = "learning.skills"
+	MLearningSkillDelete     = "learning.skill_delete"
+	MLearningDecisions       = "learning.decisions"
+	MLearningDecisionDelete  = "learning.decision_delete"
+	MLearningRules           = "learning.rules"
+	MLearningRuleSave        = "learning.rule_save"
+	MLearningRuleDelete      = "learning.rule_delete"
+	MLearningRuleForge       = "learning.rule_forge"
+	MLearningGrievances      = "learning.grievances"
+	MLearningGrievancesClear = "learning.grievances_clear"
 
 	MIndexList       = "index.list"
 	MIndexAdd        = "index.add"
@@ -211,6 +227,43 @@ const (
 	MSkillsList   = "skills.list"
 	MSkillsGet    = "skills.get"
 	MSkillsSearch = "skills.search"
+
+	MWritingCheck       = "writing.check"
+	MWritingTransform   = "writing.transform"
+	MWritingCancel      = "writing.cancel"
+	MWritingVoiceGet    = "writing.voice.get"
+	MWritingVoiceSet    = "writing.voice.set"
+	MWritingVoiceLearn  = "writing.voice.learn"
+	MWritingWords       = "writing.words"
+	MWritingWordsAdd    = "writing.words.add"
+	MWritingWordsRemove = "writing.words.remove"
+	MPromptsList        = "prompts.list"
+	MPromptsSave        = "prompts.save"
+	MPromptsDelete      = "prompts.delete"
+	MPromptsExpand      = "prompts.expand"
+	MCompareStart       = "compare.start"
+	MCompareKeep        = "compare.keep"
+	MSessionSetFlags    = "session.set_flags"
+	MMCPList            = "mcp.list"
+	MMCPSave            = "mcp.save"
+	MMCPDelete          = "mcp.delete"
+	MMCPCheck           = "mcp.check"
+	MMCPSignIn          = "mcp.signin"
+	MDiskUsage          = "disk.usage"
+	MDiskClean          = "disk.clean"
+	MArtifactOpen       = "artifact.open"
+	MArtifactErrors     = "artifact.errors"
+	MArtifactRepair     = "artifact.repair"
+	MArtifactClose      = "artifact.close"
+	MCollectionsList    = "collections.list"
+	MCollectionsSave    = "collections.save"
+	MCollectionsAdd     = "collections.add"
+	MCollectionsItems   = "collections.items"
+	MCollectionsRemove  = "collections.remove"
+	MCollectionsCheck   = "collections.check"
+	MCollectionsChat    = "collections.chat"
+	MTeamsRoutineRuns   = "teams.routine_runs"
+	MTeamsAgentSetup    = "teams.agent_setup"
 )
 
 // Event names.
@@ -220,7 +273,9 @@ const (
 	EvtSessionsChanged  = "sessions.changed"  // SessionsChanged
 	EvtSettingsChanged  = "settings.changed"  // Settings
 	EvtProvidersChanged = "providers.changed" // ProvidersResult
-	EvtHarnessesChanged = "harnesses.changed" // HarnessesResult
+	EvtLocalProgress    = "local.progress"    // LocalProgress
+	EvtLocalChanged     = "local.changed"     // LocalResult
+	EvtLearningChanged  = "learning.changed"  // LearningChanged
 	EvtIndexProgress    = "index.progress"    // IndexProgress
 	EvtIndexChanged     = "index.changed"     // IndexInfo
 	EvtUIFocus          = "ui.focus"          // UIOpenParams, app clients only
@@ -272,12 +327,11 @@ var Methods = []Method{
 	m(MSessionCancel, SessionRef{}, Empty{}, "Cancel the running turn."),
 	m(MSessionPermission, PermissionParams{}, Empty{}, "Answer a permission request."),
 	m(MSessionSetModel, SetModelParams{}, Empty{}, "Pick the session's model."),
-	m(MSessionSetMode, SetModeParams{}, Empty{}, "Pick the session's mode: a harness mode, or what Ask may do."),
-	m(MSessionSetOption, SetOptionParams{}, Empty{}, "Set one option the session's harness offers."),
-	m(MSessionStart, SessionRef{}, Empty{}, "Start the session's agent process without a prompt, so it reports its model and options."),
+	m(MSessionSetMode, SetModeParams{}, Empty{}, "Pick the session's mode: what it may do without asking."),
+	m(MSessionSetOption, SetOptionParams{}, Empty{}, "Set one option the session's model offers, or Plan first."),
 	m(MSessionRename, RenameParams{}, SessionInfo{}, "Rename a session."),
 	m(MSessionDelete, SessionRef{}, Empty{}, "Delete a session and its log."),
-	m(MSessionStop, SessionRef{}, Empty{}, "Stop the session's agent process; the session stays resumable."),
+	m(MSessionStop, SessionRef{}, Empty{}, "Stop what runs for the session (its tool host, background terminals); the session stays resumable."),
 	m(MSessionHandoff, HandoffParams{}, SessionInfo{}, "Move an Ask session's work to a new Agent session."),
 	m(MSessionQueue, QueueParams{}, SessionInfo{}, "Queue a follow-up sent when the running turn ends."),
 	m(MSessionUnqueue, UnqueueParams{}, SessionInfo{}, "Remove a queued follow-up."),
@@ -291,6 +345,7 @@ var Methods = []Method{
 	m(MScreenControl, ScreenControlParams{}, ScreenState{}, "Take, hand back, watch or stop a session's screen, or have the agent ask the user."),
 	m(MSessionRevertTurn, TurnParams{}, GitOpResult{}, "Restore the worktree files to the checkpoint taken before a turn."),
 	m(MAsk, AskParams{}, AskResult{}, "Create or continue an Ask session, attach and prompt."),
+	m(MGlance, GlanceParams{}, AskResult{}, "Create or continue a temporary capture conversation, attach and prompt."),
 
 	m(MProvidersList, Empty{}, ProvidersResult{}, "Catalogue providers and their keys."),
 	m(MProvidersAddKey, AddKeyParams{}, ProviderInfo{}, "Store a provider key."),
@@ -299,14 +354,32 @@ var Methods = []Method{
 	m(MProvidersEnable, EnableProviderParams{}, ProviderInfo{}, "Turn a provider on or off for routing."),
 	m(MProvidersLimits, ProviderParams{}, Empty{}, "Read the providers' account limits again where they are older than ten minutes; the result arrives as providers.changed."),
 	m(MModelsList, ModelsParams{}, ModelsResult{}, "Chat models, their tier and the routes."),
+	m(MModelsProbe, ModelProbeParams{}, ModelProbeResult{}, "Check that a model answers and calls tools with the options given. The Rashin app's alone."),
 	m(MGatewayUsage, UsageParams{}, GatewayUsage{}, "Requests and tokens per day, provider and model."),
 	m(MGatewayAPI, Empty{}, APIInfo{}, "The local API: whether it is on, where it listens."),
 	m(MGatewayAPIKey, APIKeyParams{}, APIKey{}, "The key other programs present to the local API; rotate replaces it."),
 
-	m(MHarnessesList, HarnessesListParams{}, HarnessesResult{}, "External harnesses and whether they are installed."),
-	m(MHarnessesProbe, HarnessProbeParams{}, HarnessProbeResult{}, "Start a harness once in a team sandbox, without a prompt, to read its models and check a model and options."),
-	m(MHarnessesTeamsOpen, HarnessTeamsOpenParams{}, HarnessTeamsOpenResult{}, "Open a terminal in a harness's team home: its sign-in, or a shell for its setup. The Rashin app's alone."),
-	m(MHarnessesTeamsDone, HarnessTeamsDoneParams{}, HarnessTeamsDoneResult{}, "Finish a sign-in or setup the terminal it opened in was given the token for, and record what it set up."),
+	m(MLocalModels, Empty{}, LocalResult{}, "Rashin's own models, their catalogue and the llama.cpp runtime; starts nothing."),
+	m(MLocalDevices, Empty{}, LocalDevicesResult{}, "Probe devices on explicit request, cached until the llama.cpp runtime binary changes. The Rashin app's alone."),
+	m(MLocalDownload, LocalModelParams{}, Empty{}, "Download a model or resume its download; progress arrives as local.progress. The Rashin app's alone."),
+	m(MLocalCancel, LocalModelParams{}, Empty{}, "Pause a download, keeping what it has. The Rashin app's alone."),
+	m(MLocalRemove, LocalModelParams{}, LocalResult{}, "Delete a model's files and unload it. The Rashin app's alone."),
+	m(MLocalSearch, LocalSearchParams{}, LocalSearchResult{}, "A Hugging Face repo's GGUF files at its current revision."),
+	m(MLocalAdd, LocalAddParams{}, LocalModel{}, "Add a model from Hugging Face, pinned to its revision, and start its download. The Rashin app's alone."),
+	m(MLocalRuntimeInstall, LocalRuntimeParams{}, Empty{}, "Download Rashin's own llama-server; progress arrives as local.progress. The Rashin app's alone."),
+	m(MLocalStart, LocalModelParams{}, LocalRuntime{}, "Start llama-server, loading a model when one is named. The Rashin app's alone."),
+	m(MLocalStop, LocalModelParams{}, LocalRuntime{}, "Stop llama-server. The Rashin app's alone."),
+
+	m(MLearningSkills, Empty{}, LearningSkillsResult{}, "The skills Rashin wrote itself."),
+	m(MLearningSkillDelete, LearningSkillParams{}, LearningSkillsResult{}, "Delete a skill Rashin wrote. The Rashin app's alone."),
+	m(MLearningDecisions, LearningDecisionsParams{}, LearningDecisionsResult{}, "Decision memory per project: architecture, product and style."),
+	m(MLearningDecisionDelete, DecisionDeleteParams{}, DecisionBank{}, "Delete one decision from a project's memory. The Rashin app's alone."),
+	m(MLearningRules, LearningRulesParams{}, LearningRulesResult{}, "Rules, global and for a project."),
+	m(MLearningRuleSave, RuleSaveParams{}, Rule{}, "Write a rule file. The Rashin app's alone."),
+	m(MLearningRuleDelete, RuleRef{}, Empty{}, "Delete a rule file. The Rashin app's alone."),
+	m(MLearningRuleForge, RuleForgeParams{}, RuleForgeResult{}, "Propose a rule from a complaint about a conversation; nothing is saved. The Rashin app's alone."),
+	m(MLearningGrievances, LearningGrievancesParams{}, LearningGrievancesResult{}, "What models reported about tools that misbehaved, newest first."),
+	m(MLearningGrievancesClear, GrievancesClearParams{}, Empty{}, "Delete reports about tools. The Rashin app's alone."),
 
 	m(MIndexList, Empty{}, IndexesResult{}, "Indexes."),
 	m(MIndexAdd, IndexAddParams{}, IndexInfo{}, "Register and index a project folder."),
@@ -464,6 +537,43 @@ var Methods = []Method{
 	m(MSkillsList, Empty{}, SkillsResult{}, "The built-in skill sets, their skills and where they lie."),
 	m(MSkillsGet, SkillParams{}, SkillContent{}, "Read a skill's SKILL.md or one of its files."),
 	m(MSkillsSearch, SkillsSearchParams{}, SkillsSearchResult{}, "Skills that fit what is about to be done, best first."),
+
+	m(MWritingCheck, WritingCheckParams{}, WritingCheckResult{}, "Check writing and return fixes."),
+	m(MWritingTransform, WritingTransformParams{}, WritingTransformResult{}, "Transform a piece of writing."),
+	m(MWritingCancel, WritingCancelParams{}, Empty{}, "Cancel a writing request."),
+	m(MWritingVoiceGet, WritingVoiceGetParams{}, WritingVoice{}, "Read your writing voice."),
+	m(MWritingVoiceSet, WritingVoiceSetParams{}, WritingVoice{}, "Save your writing voice."),
+	m(MWritingVoiceLearn, WritingVoiceLearnParams{}, WritingVoice{}, "Learn your writing voice from samples."),
+	m(MWritingWords, WritingWordsParams{}, WritingWords{}, "Read your dictionary."),
+	m(MWritingWordsAdd, WritingWordParams{}, WritingWords{}, "Add a word to your dictionary."),
+	m(MWritingWordsRemove, WritingWordParams{}, WritingWords{}, "Remove a word from your dictionary."),
+	m(MPromptsList, PromptsListParams{}, PromptsListResult{}, "List prompts and templates."),
+	m(MPromptsSave, PromptSaveParams{}, Prompt{}, "Save a prompt or template."),
+	m(MPromptsDelete, PromptDeleteParams{}, Empty{}, "Delete a saved prompt."),
+	m(MPromptsExpand, PromptExpandParams{}, PromptExpandResult{}, "Fill a prompt's variables."),
+	m(MCompareStart, CompareStartParams{}, CompareStartResult{}, "Ask other models the same question."),
+	m(MCompareKeep, CompareKeepParams{}, SessionInfo{}, "Keep one comparison conversation."),
+	m(MSessionSetFlags, SessionFlagsParams{}, SessionInfo{}, "Star or archive a conversation."),
+	m(MMCPList, MCPListParams{}, MCPListResult{}, "List tool servers and their state."),
+	m(MMCPSave, MCPServer{}, MCPServerInfo{}, "Save a tool server; app only."),
+	m(MMCPDelete, MCPDeleteParams{}, Empty{}, "Delete a tool server; app only."),
+	m(MMCPCheck, MCPCheckParams{}, MCPServerInfo{}, "Check a tool server and read its tools."),
+	m(MMCPSignIn, MCPSignInParams{}, MCPSignInResult{}, "Sign in to a tool server; app only."),
+	m(MDiskUsage, DiskUsageParams{}, DiskUsage{}, "Read agent storage and free space."),
+	m(MDiskClean, DiskCleanParams{}, DiskUsage{}, "Clean selected agent storage; app only."),
+	m(MArtifactOpen, ArtifactOpenParams{}, ArtifactOpenResult{}, "Open a local page preview."),
+	m(MArtifactErrors, ArtifactErrorsParams{}, ArtifactErrorsResult{}, "Read problems reported by a preview."),
+	m(MArtifactRepair, ArtifactRepairParams{}, AskResult{}, "Ask the conversation to fix a preview."),
+	m(MArtifactClose, ArtifactCloseParams{}, Empty{}, "Close a page preview."),
+	m(MCollectionsList, CollectionsListParams{}, CollectionsListResult{}, "List saved collections."),
+	m(MCollectionsSave, CollectionSaveParams{}, Collection{}, "Create or rename a collection."),
+	m(MCollectionsAdd, CollectionAddParams{}, CollectionItem{}, "Save text or a file to a collection."),
+	m(MCollectionsItems, CollectionItemsParams{}, CollectionItemsResult{}, "Read a collection's items."),
+	m(MCollectionsRemove, CollectionRemoveParams{}, Empty{}, "Remove a saved collection item."),
+	m(MCollectionsCheck, CollectionCheckParams{}, CollectionItem{}, "Check whether a saved source changed."),
+	m(MCollectionsChat, CollectionChatParams{}, AskResult{}, "Ask about a whole collection."),
+	m(MTeamsRoutineRuns, RoutineRunsParams{}, RoutineRunsResult{}, "Read a routine's run history."),
+	m(MTeamsAgentSetup, AgentSetupParams{}, AgentAnswer{}, "Ask the user to complete setup steps."),
 }
 
 var methodIndex = func() map[string]Method {

@@ -317,7 +317,7 @@ func (state *viewState) layoutChangePopover(gtx layout.Context, th *look.Theme, 
 		switch {
 		case item.Op == protocol.MemoryOpSuggested:
 			trailing = []layout.Widget{
-				state.memoryPlaque(th, plaques+":keep", kit.PlaqueLine, i18n.T("Keep"), Action{Kind: ActMemoryKeep, Value: item.ID}, nil),
+				state.memoryPlaque(th, plaques+":keep", kit.PlaqueTonal, i18n.T("Keep"), Action{Kind: ActMemoryKeep, Value: item.ID}, nil),
 				state.memoryPlaque(th, plaques+":dismiss", kit.PlaqueQuiet, i18n.T("Dismiss"), Action{Kind: ActMemoryDismiss, Value: item.ID}, nil),
 			}
 		case change.Undone:
@@ -413,13 +413,13 @@ func (state *viewState) layoutRefusedPopover(gtx layout.Context, th *look.Theme,
 		rows = append(rows, look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.T("It is about a sensitive topic, and Rashin leaves those out unless you say otherwise.")))
 		if !state.offered[session] {
 			foot = append(foot,
-				state.memoryPlaque(th, key+":sensitive", kit.PlaqueLine, i18n.T("Turn on sensitive topics"), Action{Kind: ActMemorySettings}, answered),
+				state.memoryPlaque(th, key+":sensitive", kit.PlaqueTonal, i18n.T("Turn on sensitive topics"), Action{Kind: ActMemorySettings}, answered),
 				state.memoryPlaque(th, key+":once", kit.PlaqueQuiet, i18n.T("Remember this once"), Action{Kind: ActRememberOnce, Value: data.Text}, answered),
 			)
 		}
 	case protocol.MemoryRefusedSecret:
 		rows = append(rows, look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.T("Rashin doesn't keep passwords, keys or tokens. Store it in the vault.")))
-		foot = append(foot, state.memoryPlaque(th, key+":vault", kit.PlaqueLine, i18n.T("Open the vault"), Action{Kind: ActOpenVault}, nil))
+		foot = append(foot, state.memoryPlaque(th, key+":vault", kit.PlaqueTonal, i18n.T("Open the vault"), Action{Kind: ActOpenVault}, nil))
 	case protocol.MemoryRefusedInstruction:
 		rows = append(rows, look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.T("Rashin keeps facts about you, never instructions to follow.")))
 	default:

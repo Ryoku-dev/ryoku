@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+
 	wm "ryoku-wm"
 )
 
@@ -27,7 +30,8 @@ type category struct {
 }
 
 type legend struct {
-	Categories []category `json:"categories"`
+	Categories  []category      `json:"categories"`
+	GestureKeys []wm.GestureKey `json:"gestureKeys"`
 }
 
 // keybinds groups the provider's effective legend into sections in the order the
@@ -36,13 +40,25 @@ type legend struct {
 // catalogue order. On a provider error there is no honest legend to draw, so the
 // result is the empty set and the Hub shows its empty state.
 func keybinds() legend {
-	l := legend{Categories: []category{}}
+	l := legend{Categories: []category{}, GestureKeys: wm.GestureKeys}
 	rows, err := wm.Open().Binds()
 	if err != nil {
 		return l
 	}
 	at := map[string]int{}
+	tapKey, highlightKey, inPlaceKey := sightGestureKeys()
 	for _, r := range rows {
+		switch r.ID {
+		case "shell.sight":
+			r.Chord = tapKey
+			r.Keys = wm.DisplayKeys(tapKey)
+		case "shell.sightHighlight":
+			r.Chord = highlightKey
+			r.Keys = wm.DisplayKeys(highlightKey)
+		case "shell.sightInPlace":
+			r.Chord = inPlaceKey
+			r.Keys = wm.DisplayKeys(inPlaceKey)
+		}
 		i, ok := at[r.Category]
 		if !ok {
 			i = len(l.Categories)
@@ -56,4 +72,28 @@ func keybinds() legend {
 		})
 	}
 	return l
+}
+
+func sightGestureKeys() (string, string, string) {
+	var settings struct {
+		Sight struct {
+			TapKey       string `json:"tapKey"`
+			HighlightKey string `json:"highlightKey"`
+			InPlace      struct {
+				Key string `json:"key"`
+			} `json:"inplace"`
+		} `json:"sight"`
+	}
+	if raw, err := os.ReadFile(shellStorePath()); err == nil {
+		_ = json.Unmarshal(raw, &settings)
+	}
+	allowed := func(name, fallback string) string {
+		for _, key := range wm.GestureKeys {
+			if key.Name == name {
+				return name
+			}
+		}
+		return fallback
+	}
+	return allowed(settings.Sight.TapKey, "Alt_R"), allowed(settings.Sight.HighlightKey, "Alt_L"), allowed(settings.Sight.InPlace.Key, "Control_R")
 }

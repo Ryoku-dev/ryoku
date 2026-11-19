@@ -87,13 +87,10 @@ type Member struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
 	Lead  bool   `json:"lead,omitempty"`
-	// Harness is a HarnessInfo ID, empty to follow the teams defaults; Model
-	// is that harness's model id, empty for the harness's own default.
-	Harness string `json:"harness"`
-	Model   string `json:"model,omitempty"`
-	// Options are harness option values by SessionOption ID, such as how
-	// hard to think, set after the model when a task starts; an option the
-	// harness refuses is left at its default.
+	// Model is a route or provider/model, empty to follow the teams
+	// defaults. Options are that model's knobs by SessionOption ID, such as
+	// how hard to think; empty follows the defaults' too. See ResolveEngine.
+	Model   string            `json:"model,omitempty"`
 	Options map[string]string `json:"options,omitempty"`
 	// Instructions are the member's standing role: what it does and how.
 	Instructions string `json:"instructions,omitempty"`
@@ -108,11 +105,33 @@ const (
 	EngineOptionValueMax = 200
 )
 
-// ValidEngineModel reports whether model may name a harness's model: empty
-// for the harness's default, else at most EngineModelMax runes without white
-// space. Whether the harness offers it is only known when a task starts.
+// IsRoute reports whether model is one of the routes the gateway always
+// accepts: RouteAuto, RouteFast or RouteSmart.
+func IsRoute(model string) bool {
+	return model == RouteAuto || model == RouteFast || model == RouteSmart
+}
+
+// ValidModel reports whether model names something the gateway can route: a
+// route, or provider/model with both parts present. It is the one rule for
+// every model setting (Ask, Agents, light work, teams).
+func ValidModel(model string) bool {
+	if IsRoute(model) {
+		return true
+	}
+	provider, name, ok := strings.Cut(model, "/")
+	return ok && provider != "" && name != ""
+}
+
+// ValidEngineModel reports whether model may be a member's, a task's or the
+// teams defaults' model: empty to follow the chain, else a ValidModel of at
+// most EngineModelMax runes without white space. A stored model that fails it
+// (an id an external harness used to take, such as "haiku") is cleared on
+// load, never routed.
 func ValidEngineModel(model string) bool {
-	return utf8.RuneCountInString(model) <= EngineModelMax && strings.IndexFunc(model, unicode.IsSpace) < 0
+	if model == "" {
+		return true
+	}
+	return utf8.RuneCountInString(model) <= EngineModelMax && strings.IndexFunc(model, unicode.IsSpace) < 0 && ValidModel(model)
 }
 
 // ValidEngineOptions reports whether options fit the engine limits: at most
@@ -129,36 +148,37 @@ func ValidEngineOptions(options map[string]string) bool {
 	return true
 }
 
-// ResolveEngine is the harness, model and options a member's task starts
-// with. A member that names no harness follows the teams defaults: their
-// Harness, else the Agents harness, else fallback, the registry's default
-// harness; its model and options, where it names none, are the defaults'
-// too. A member with a harness of its own takes only its own model and
-// options, empty for that harness's defaults. The daemon starts tasks and the
-// app describes them through this one chain.
-func ResolveEngine(member Member, settings Settings, fallback string) (harness, model string, options map[string]string) {
-	if member.Harness != "" {
-		return member.Harness, member.Model, member.Options
-	}
-	defaults := settings.Teams.Defaults
-	harness = defaults.Harness
-	if harness == "" {
-		harness = settings.Agent.Harness
-	}
-	if harness == "" {
-		harness = fallback
-	}
-	model, options = member.Model, member.Options
+// ResolveEngine is the model and options a member's task starts with: the
+// member's own model, else the teams defaults' (Teams.Defaults.Model), else
+// the Agents model (Agent.Model), else RouteAuto. Options are layered: the
+// Agents' options, then the defaults', then the member's, each overriding the
+// ids the layer below set, so a member that picks only effort keeps the rest.
+// A task's own model and options, when it names them, override the result.
+// The daemon starts tasks and the app describes them through this one chain.
+func ResolveEngine(member Member, settings Settings) (model string, options map[string]string) {
+	model = member.Model
 	if model == "" {
-		model = defaults.Model
+		model = settings.Teams.Defaults.Model
 	}
-	if len(options) == 0 {
-		options = defaults.Options
+	if model == "" {
+		model = settings.Agent.Model
 	}
-	return harness, model, options
+	if model == "" {
+		model = RouteAuto
+	}
+	for _, layer := range []map[string]string{settings.Agent.Options, settings.Teams.Defaults.Options, member.Options} {
+		for id, value := range layer {
+			if options == nil {
+				options = make(map[string]string, len(layer))
+			}
+			options[id] = value
+		}
+	}
+	return model, options
 }
 
-// TeamTools are the abilities Rashin grants a team beyond its harness.
+// TeamTools are the abilities Rashin grants a team beyond file and shell
+// work in its folder.
 type TeamTools struct {
 	// Screen lets its agents use a hidden screen of their own without being
 	// asked for it each time.
@@ -391,10 +411,7 @@ type TeamTask struct {
 	Sessions []string    `json:"sessions,omitempty"`
 	Report   *TeamReport `json:"report,omitempty"`
 	// Reason says why a task is blocked or stopped.
-	Reason string `json:"reason,omitempty"`
-	// SignIn names the harness a blocked task waits to be signed in for
-	// teams (HarnessTeams); a retry after the sign-in runs it.
-	SignIn   string     `json:"signIn,omitempty"`
+	Reason   string     `json:"reason,omitempty"`
 	Usage    TokenUsage `json:"usage"`
 	Turns    int        `json:"turns"`
 	MaxTurns int        `json:"maxTurns"`
@@ -408,12 +425,11 @@ type TeamTask struct {
 	Ended   *time.Time `json:"ended,omitempty"`
 	// Read is set once the user has opened the report.
 	Read bool `json:"read,omitempty"`
-	// Harness, Model and Options are the engine the task runs on. Before it
-	// starts, Model and Options hold only what was asked for this task and
-	// Harness is empty; at its start all three are set to what was resolved
-	// (ResolveEngine, then this task's own Model and Options), and Model
-	// follows a switch made in its session. A finished task keeps them.
-	Harness string            `json:"harness,omitempty"`
+	// Model and Options are the engine the task runs on. Before it starts
+	// they hold only what was asked for this task; at its start both are set
+	// to what was resolved (ResolveEngine, then this task's own Model and
+	// Options), and Model follows a switch made in its session. A finished
+	// task keeps them.
 	Model   string            `json:"model,omitempty"`
 	Options map[string]string `json:"options,omitempty"`
 }
@@ -452,8 +468,8 @@ type TeamTaskCreateParams struct {
 	Member string `json:"member,omitempty"`
 	Title  string `json:"title,omitempty"`
 	Brief  string `json:"brief"`
-	// Model and Options are an engine for this task only, on its member's
-	// harness; empty keeps the member's.
+	// Model and Options are an engine for this task only; empty keeps the
+	// member's (ResolveEngine).
 	Model   string            `json:"model,omitempty"`
 	Options map[string]string `json:"options,omitempty"`
 }
@@ -486,12 +502,45 @@ const (
 	RoutineFailuresMax = 5
 )
 
+const (
+	RoutineTask     = "task"
+	RoutineDream    = "dream"
+	RoutineAsk      = "ask"
+	RoutinePersonal = "personal"
+)
+
+type RoutineRun struct {
+	ID      string     `json:"id"`
+	Routine string     `json:"routine"`
+	Kind    string     `json:"kind"`
+	Team    string     `json:"team,omitempty"`
+	Task    string     `json:"task,omitempty"`
+	Dream   string     `json:"dream,omitempty"`
+	Session string     `json:"session,omitempty"`
+	Started time.Time  `json:"started"`
+	Ended   *time.Time `json:"ended,omitempty"`
+	Status  string     `json:"status"`
+	Detail  string     `json:"detail,omitempty"`
+	Tokens  int64      `json:"tokens,omitempty"`
+}
+
+type RoutineRunsParams struct {
+	Routine string `json:"routine,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
+}
+
+type RoutineRunsResult struct {
+	Runs []RoutineRun `json:"runs"`
+}
+
 // Routine is a task a team takes on by itself on a schedule.
 type Routine struct {
-	ID    string `json:"id"`
-	Team  string `json:"team"`
-	Title string `json:"title"`
-	Brief string `json:"brief"`
+	ID     string `json:"id"`
+	Team   string `json:"team"`
+	Title  string `json:"title"`
+	Brief  string `json:"brief"`
+	Kind   string `json:"kind,omitempty"`
+	Preset string `json:"preset,omitempty"`
 	// Member empty hands each run to the lead.
 	Member string `json:"member,omitempty"`
 	// Schedule is a five-field cron expression in the computer's time zone:
@@ -536,6 +585,8 @@ type RoutineCreateParams struct {
 	Team     string `json:"team"`
 	Title    string `json:"title"`
 	Brief    string `json:"brief"`
+	Kind     string `json:"kind,omitempty"`
+	Preset   string `json:"preset,omitempty"`
 	Member   string `json:"member,omitempty"`
 	Schedule string `json:"schedule"`
 	Missed   string `json:"missed,omitempty"`
@@ -576,13 +627,10 @@ const (
 	ApprovalCredential = "credential"
 	ApprovalRequest    = "request"
 	ApprovalAction     = "action"
+	ApprovalSetup      = "setup"
 	ApprovalBudget     = "budget"
 	// ApprovalTeam is a proposed team: approving it creates the team.
 	ApprovalTeam = "team"
-	// ApprovalRestore tells the user Rashin put back what changed in a
-	// harness's team home since the sign-in. It asks nothing: DecideOnce
-	// marks it read, and it waits until then.
-	ApprovalRestore = "restore"
 )
 
 // Approval statuses.
@@ -652,6 +700,8 @@ type Approval struct {
 	// Options make the approval a choice question: the user picks one with
 	// DecideChoose, or denies them all.
 	Options []string `json:"options,omitempty"`
+	Steps   []string `json:"steps,omitempty"`
+	Check   string   `json:"check,omitempty"`
 	// Choice is the option the user picked, kept for the record.
 	Choice string `json:"choice,omitempty"`
 	// Result is what came of an approved action, for the record.
@@ -663,9 +713,6 @@ type Approval struct {
 	Expires  time.Time          `json:"expires"`
 	// Unwatched marks an approval asked while no Rashin window was open.
 	Unwatched bool `json:"unwatched,omitempty"`
-	// Repeats counts the times an ApprovalRestore notice happened again, the
-	// same, before the user read it; 0 for once.
-	Repeats int `json:"repeats,omitempty"`
 }
 
 // ApprovalsParams lists approvals, newest first; Pending keeps only those
@@ -756,16 +803,13 @@ type TeamSpend struct {
 	Members  []NamedSpend `json:"members,omitempty"`
 	Routines []NamedSpend `json:"routines,omitempty"`
 	Teams    []NamedSpend `json:"teams,omitempty"`
-	// Engines is the spend by the engine tasks ran on: ID is the harness id
-	// and the model id joined by EngineSpendSeparator, the model empty for
-	// the harness's default; Name is left for the app to word.
+	// Engines is the spend by the model tasks ran on: ID is the model id the
+	// gateway answered with (provider/model); Name is left for the app to
+	// word.
 	Engines []NamedSpend `json:"engines,omitempty"`
-	// Estimated is set when a harness did not report some of its tokens.
+	// Estimated is set when a provider did not report some of its tokens.
 	Estimated bool `json:"estimated,omitempty"`
 }
-
-// EngineSpendSeparator joins a harness id and a model id in an Engines ID.
-const EngineSpendSeparator = "\x1f"
 
 // TeamPruneParams deletes finished tasks with their sessions: those of Team,
 // or of every team when it is empty, that ended more than KeepDays ago, or
@@ -781,9 +825,10 @@ type TeamRemoved struct {
 	ID string `json:"id"`
 }
 
-// The methods below are called by the rashin MCP server on behalf of the
-// agent of a team task. Session and Token identify the run; the daemon
-// refuses a token that does not belong to that session's live run.
+// The methods below are the team tools of a team task's agent, called
+// in-process by the engine on its behalf. Session and Token identify the run
+// (TeamToolContext); the daemon refuses a token that does not belong to that
+// session's live run.
 
 // AgentRef identifies the calling run.
 type AgentRef struct {
@@ -818,6 +863,14 @@ type AgentAskParams struct {
 	Title   string   `json:"title"`
 	Detail  string   `json:"detail,omitempty"`
 	Options []string `json:"options,omitempty"`
+}
+
+type AgentSetupParams struct {
+	AgentRef
+	Title string   `json:"title"`
+	Steps []string `json:"steps"`
+	Why   string   `json:"why"`
+	Check string   `json:"check,omitempty"`
 }
 
 // AgentHTTPParams makes one HTTPS request with a credential the team may

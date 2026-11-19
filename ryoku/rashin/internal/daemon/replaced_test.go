@@ -51,20 +51,16 @@ func stopsWithin(d *Daemon, limit time.Duration) bool {
 	}
 }
 
-// After an update the old daemon ran on for as long as the app stayed open,
-// so what the update fixed stayed broken. A daemon whose program was replaced
-// now exits by itself, but never under work: while an agent process is alive
-// it waits, and goes the moment that ends.
+// A daemon whose program was replaced exits once active tools stop. A native
+// runner with a live background tool keeps it up until the session ends.
 func TestADaemonMakesWayForANewerProgramOnceNothingRuns(t *testing.T) {
-	runner := &fakeRunner{}
-	d, path := watchedDaemon(t, Deps{Harnesses: &fakeHarnesses{runner: runner}, Version: "test"})
+	runner := &fakeRunner{alive: true}
+	d, path := watchedDaemon(t, Deps{Agents: &fakeAgents{runner: runner}, Version: "test"})
 	info, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.manager.start(context.Background(), info.ID); err != nil {
-		t.Fatal(err)
-	}
+	d.manager.announce(context.Background(), info.ID)
 	install(t, path, "#!/bin/sh\n# second, and longer\n")
 	if stopsWithin(d, 300*time.Millisecond) {
 		t.Fatal("the daemon exited under a running agent")

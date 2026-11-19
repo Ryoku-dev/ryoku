@@ -11,7 +11,6 @@ choice	file-manager	dolphin	Dolphin	dolphin	/usr/bin/dolphin	-	-	false	KDE file 
 choice	file-manager	thunar	Thunar	thunar	/usr/bin/thunar	-	-	false	light Xfce file manager	Xfce's lightweight file manager.	-
 choice	compositor	hyprland	Hyprland	ryoku-desktop-hyprland	-	-	-	true	dynamic tiling, the Ryoku default	Installs the Hyprland Ryoku desktop variant.	-
 choice	compositor	niri	niri	ryoku-desktop-niri	-	-	-	false	scrollable tiling	Installs the niri Ryoku desktop variant.	-
-choice	compositor	wayfire	Wayfire	ryoku-desktop-wayfire	-	-	-	false	experimental floating windows and depth deck	Installs the experimental Wayfire Ryoku desktop variant.	experimental
 policy	browser	fresh	-	-	-	firefox	-	-	-	-	-
 policy	browser	existing	-	-	-	-	firefox	-	-	-	-
 policy	login-shell	fresh	-	-	-	fish	-	-	-	-	-

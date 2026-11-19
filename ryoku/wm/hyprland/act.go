@@ -241,6 +241,9 @@ func runAct(args []string) error {
 		}
 		return evalLua(fmt.Sprintf(`hl.config({ cursor = { invisible = %t } })`, invisible))
 
+	case wm.ActionPointerLocate:
+		return locatePointer()
+
 	case wm.ActionScreenShader:
 		// A shader NAME, not a path: callers must not know the config layout.
 		// Empty clears.
@@ -659,6 +662,57 @@ func cursorVisibility() (string, error) {
 		return "hidden", nil
 	}
 	return "visible", nil
+}
+
+// locatePointer answers where the pointer is. A layer surface Hyprland maps
+// under a still pointer gets no pointer enter until the pointer moves, so a
+// surface that has to appear beside the pointer asks here instead.
+// cursorpos and monitor origins share the global logical space.
+func locatePointer() error {
+	raw, err := query("cursorpos")
+	if err != nil {
+		return fmt.Errorf("act %s: %w", wm.ActionPointerLocate, err)
+	}
+	var cursor struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
+	if err := json.Unmarshal(raw, &cursor); err != nil {
+		return fmt.Errorf("act %s: decode cursor position: %w", wm.ActionPointerLocate, err)
+	}
+	monitors, err := readMonitors()
+	if err != nil {
+		return fmt.Errorf("act %s: read outputs: %w", wm.ActionPointerLocate, err)
+	}
+	position, ok := pointerOnMonitor(cursor.X, cursor.Y, monitors)
+	if !ok {
+		return fmt.Errorf("act %s: the pointer is on no output", wm.ActionPointerLocate)
+	}
+	out, err := json.Marshal(position)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, string(out))
+	return err
+}
+
+// pointerOnMonitor finds the output holding a global logical point. A rotated
+// output swaps its logical width and height.
+func pointerOnMonitor(x, y float64, monitors []hyprMonitor) (wm.PointerPosition, bool) {
+	for _, m := range monitors {
+		if monitorDisabled(m) || m.Scale <= 0 {
+			continue
+		}
+		width, height := float64(m.Width)/m.Scale, float64(m.Height)/m.Scale
+		if m.Transform%2 == 1 {
+			width, height = height, width
+		}
+		localX, localY := x-float64(m.X), y-float64(m.Y)
+		if localX >= 0 && localY >= 0 && localX < width && localY < height {
+			return wm.PointerPosition{Output: m.Name, X: localX, Y: localY}, true
+		}
+	}
+	return wm.PointerPosition{}, false
 }
 
 // placeWindow applies the neutral output-local rectangle without ever falling

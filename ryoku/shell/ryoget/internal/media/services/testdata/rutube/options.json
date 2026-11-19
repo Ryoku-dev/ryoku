@@ -1,0 +1,12 @@
+{
+ "title": "Раненный кенгуру забежал в аптеку",
+ "duration": 81000,
+ "thumbnail_url": "https://pic.rtbcdn.ru/video/d2/a0/d2a0aec998494a396deafc7ba2c82add.jpg",
+ "author": {
+  "name": "NTDRussian"
+ },
+ "video_balancer": {
+  "default": "https://bl.rutube.ru/route/3eac3b4561676c17df9132a9a1e62e3e.m3u8?guids=5a9f8cc8-041e-452d-975f-a7fd00da3b2e_480x368_662062_D81000_B598007A64055_F25A44100_avc1.42c01e_mp4a.40.2&sign=Ysz2syrmeVwvRW3QITGGRg&expire=1795106846&guarantee=1&scheme=https",
+  "m3u8": "https://bl.rutube.ru/route/3eac3b4561676c17df9132a9a1e62e3e.m3u8?guids=5a9f8cc8-041e-452d-975f-a7fd00da3b2e_480x368_662062_D81000_B598007A64055_F25A44100_avc1.42c01e_mp4a.40.2&sign=Ysz2syrmeVwvRW3QITGGRg&expire=1795106846&guarantee=1&scheme=https"
+ }
+}

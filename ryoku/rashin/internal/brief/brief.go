@@ -1,6 +1,6 @@
-// Package brief is what every Rashin request is told about where it runs:
-// Ryoku, the Ryoku vault and Rashin itself. Ask reads it into its system
-// prompt and an agent session hears it ahead of its first prompt, so neither
+// Package brief is what Rashin tells a model about where it runs: Ryoku, the
+// Ryoku vault, Rashin itself and the session's own place. The engine's
+// system prompt is built from it (internal/engine/prompt.go), so no session
 // starts as a stranger on the machine.
 package brief
 
@@ -16,21 +16,31 @@ import (
 )
 
 const rashin = `Rashin is Ryoku's optional assistant and the system this conversation runs in. One daemon, rashind, does the work: it starts on demand and stops when idle. Ryoku Settings > Apps > Rashin turns it on or off.
-- Ask answers questions about this machine through Rashin's own router: on free models by default, on this computer's Ollama or llama.cpp while one runs, and on a paid model only when the user picks it. Settings > Ask can have a harness such as Codex, Claude Code or omp answer new asks in the app instead. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
-- The Agents tab of the app runs coding harnesses such as Claude Code, Codex, omp and OpenCode as sessions Rashin owns. Projects holds their Git worktrees, commit graph, review and tasks. Index shows what is indexed.
+- Ask answers questions about this machine. It opens from the Ask bar (Alt+Space by default), from ` + "`rashin <question>`" + ` in a terminal, and in the Ask tab of the Rashin app (Super+Alt+Space by default).
+- The Agents tab runs Rashin's own coding agents on a folder, under the approvals the user picks. Projects holds their Git worktrees, commit graph, review and tasks; Teams holds standing teams and dreams; Index shows what is indexed.
+- Models run on this computer first: Rashin's own local models, then the user's llama.cpp or Ollama, then free remote models, and a paid model only when the user picks one. ` + "`rashin api`" + ` serves the same router to other programs.
 - Code search is built in: rashin search, find, def, outline, references, peek, impact and overview, run inside an indexed folder. ` + "`rashin index list`" + ` shows the indexes, and a project added to Rashin is indexed by itself.
-- Model providers and their keys are in Rashin > Settings > Providers and ` + "`rashin providers`" + `. ` + "`rashin api`" + ` serves the router to other programs, ` + "`rashin status`" + ` says whether Rashin is on, and the settings file is ~/.config/ryoku/rashin.json.`
+- Model providers, local models and keys are in Rashin > Settings > Providers and ` + "`rashin providers`" + `. ` + "`rashin status`" + ` says whether Rashin is on, and the settings file is ~/.config/ryoku/rashin.json.`
 
 // rashinGuide points at the vault's guide to Rashin.
 const rashinGuide = "The vault wiki page rashin is the full guide."
 
 // vaultGuide names the vault at %s and how a model with its own tools uses it.
-const vaultGuide = "%s is this machine's map, kept current by Ryoku. Read AGENTS.md there for its rules, and desktop.md before you search the filesystem for where a setting lives. system.md, packages.md, ownership.md and logs.md cover the hardware, the packages, who owns a config file and where each log is, and wiki/ holds the guides. Change desktop state through its owning ryoku command, and run `ryoku owner <path>` before you edit a config file.\n"
+const vaultGuide = "%s is this machine's map, kept current by Ryoku. Read AGENTS.md there for its rules, and desktop.md before you search the filesystem for where a setting lives. system.md, packages.md, ownership.md and logs.md cover the hardware, the packages, who owns a config file and where each log is, and wiki/ holds the guides. Change desktop state through its owning ryoku command, and run `ryoku owner <path>` before you edit a config file."
 
-// Rashin describes Rashin to a model that runs inside it.
-func Rashin() string { return rashin + "\n" + rashinGuide }
+// Rashin describes Rashin to a model that runs inside it; vault adds the
+// pointer to the vault's guide, which a sandboxed team task cannot read.
+func Rashin(vault bool) string {
+	if vault {
+		return rashin + "\n" + rashinGuide
+	}
+	return rashin
+}
 
-const teams = `A team is a standing group of agents Rashin keeps for one purpose on this computer: members on harnesses and models of their own, a lead that hands pieces of each task to the others, routines that give it work on a schedule, a vault that keeps its credentials so no agent ever sees a value, and approvals that wait for the user in the Rashin Inbox. Teams do not talk to each other: each works only in its own folder.
+// VaultGuide is how a model with file tools uses the vault at dir.
+func VaultGuide(dir string) string { return fmt.Sprintf(vaultGuide, dir) }
+
+const teams = `A team is a standing group of agents Rashin keeps for one purpose on this computer: members on models of their own, a lead that hands pieces of each task to the others, routines that give it work on a schedule, a vault that keeps its credentials so no agent ever sees a value, and approvals that wait for the user in the Rashin Inbox. Teams do not talk to each other: each works only in its own folder.
 When the user asks for a team, or wants work done again and again on its own (a weekly digest, watching a repository, looking after this computer), propose one. Start from the closest template: light ones have one member, medium ones two and a routine, advanced ones several members on different models, routines bound to members and credentials. Name every credential the team will need, with the hosts it goes to and why, and Rashin asks the user for each value in the Rashin Inbox once the team exists. Nothing is made until the user creates the team from the Rashin Inbox, and its routines start off until the user turns them on: never tell the user a proposed team or its routines start by themselves.`
 
 // Teams describes Rashin's teams to a model and how it proposes one: with
@@ -62,12 +72,18 @@ func Vault(budget int) string {
 		if root == "" || remaining <= 0 {
 			break
 		}
-		body, err := readAtMost(filepath.Join(root, name), remaining)
+		header := "## " + name + "\n"
+		available := remaining - len(header) - 2
+		if available <= 0 {
+			break
+		}
+		body, err := readAtMost(filepath.Join(root, name), available)
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(&b, "## %s\n%s\n\n", name, strings.TrimSpace(body))
-		remaining -= len(body)
+		body = strings.TrimSpace(body)
+		fmt.Fprintf(&b, "%s%s\n\n", header, body)
+		remaining -= len(header) + len(body) + 2
 	}
 	if b.Len() == 0 {
 		return "The Ryoku vault is not available yet. Use read-only tools for live facts."
@@ -75,7 +91,7 @@ func Vault(budget int) string {
 	return strings.TrimSpace(b.String())
 }
 
-// Session is what an agent is told about the session it was started for.
+// Session is what an agent is told about the session it runs in.
 type Session struct {
 	Info protocol.SessionInfo
 	// Project is the name of the project the session belongs to, if any.
@@ -85,36 +101,24 @@ type Session struct {
 	Index *protocol.IndexInfo
 	// Semantic says the index also searches by meaning.
 	Semantic bool
-	// Tools says the agent was handed Rashin's MCP server, and Screen that
-	// the server offers it a screen of its own.
-	Tools  bool
+	// Screen says the session is offered a screen of its own.
 	Screen bool
 	// Team is what an agent working a team task is told about its team, its
 	// role and how the team works; empty for any other session.
 	Team string
 	// Writable are the folders a team agent may change besides its own.
 	Writable []string
-	// Memory is what Rashin remembers that the agent may use, with how to
-	// reach the rest; empty when the session uses no memory.
-	Memory string
-	// Skills is what the agent is told of the built-in skills (Skills);
-	// empty when no set is on, and for a team task, whose team brief names
-	// its team's sets.
-	Skills string
 }
 
-// Agent is the text an external agent hears once, ahead of its first prompt.
-// It names the vault instead of quoting it: the agent has its own tools to
-// read files, and a long preamble would crowd the user's request. A team
-// task's agent, whose sandbox hides the vault, is told what it can reach in
-// its place.
+// Agent is the session part of an agent's system prompt (engine Options
+// Brief): the folder it works in and what it can reach there, the code index
+// over it, its screen and, for a team task, its team. What every session is
+// told (Ryoku, the vault, Rashin, teams) and what the context providers add
+// (skills, decisions, rules, memory) are the prompt builder's, not this.
 func Agent(session Session) string {
 	info := session.Info
 	var b strings.Builder
-	b.WriteString("Context from Rashin. The user did not write this part; their request follows it.\n\n")
-	b.WriteString("You are working inside Rashin, the assistant built into Ryoku, a Linux desktop built on Arch. Rashin started you as a coding agent, shows your work in its app and puts your permission requests to the user.\n\n")
-
-	b.WriteString("Session\n")
+	b.WriteString("# Session\n")
 	fmt.Fprintf(&b, "- Folder: %s\n", info.Cwd)
 	if session.Project != "" {
 		fmt.Fprintf(&b, "- Project: %s\n", session.Project)
@@ -125,28 +129,15 @@ func Agent(session Session) string {
 	if info.Worktree != "" && info.Worktree != info.Cwd {
 		fmt.Fprintf(&b, "- Worktree: %s\n", info.Worktree)
 	}
-
 	if info.Team != "" {
 		b.WriteString("- Reach: you run in a sandbox. You can change only this folder")
 		if len(session.Writable) > 0 {
 			fmt.Fprintf(&b, " and %s", strings.Join(session.Writable, ", "))
 		}
 		b.WriteString("; the rest of this computer is read-only, while Rashin's state, the Ryoku vault, the credential vault, other teams' folders and the paths Settings > Teams hides look empty, and code search reaches only the indexes inside the folders you can change.\n")
-	} else if vault := VaultDir(); vault != "" {
-		b.WriteString("\nThe Ryoku vault\n")
-		fmt.Fprintf(&b, vaultGuide, vault)
 	}
-
-	b.WriteString("\nRashin\n")
-	b.WriteString(rashin)
-	if info.Team == "" {
-		b.WriteString("\n" + rashinGuide)
-	}
-	b.WriteString("\n")
-
 	if index := session.Index; index != nil {
-		b.WriteString("\nCode search\n")
-		fmt.Fprintf(&b, "Rashin keeps an index of %s", index.Root)
+		fmt.Fprintf(&b, "- Code index: Rashin keeps an index of %s", index.Root)
 		if index.Files > 0 {
 			fmt.Fprintf(&b, " (%d files", index.Files)
 			if len(index.Languages) > 0 {
@@ -157,44 +148,17 @@ func Agent(session Session) string {
 		if session.Semantic {
 			b.WriteString(" with search by meaning built in")
 		}
-		b.WriteString(", and it follows your edits. It reads every source language in the folder, so when another code index or search skill you carry finds little here, that one is likely skipping languages: use this one. Ask it before you grep or open files to find something. Run these from the session folder:\n")
-		b.WriteString("- rashin search \"<what you are looking for>\"  ranked passages with file and line\n")
-		b.WriteString("- rashin find <name>  a symbol by name\n")
-		b.WriteString("- rashin def <name>  a symbol's source\n")
-		b.WriteString("- rashin outline <file>  what a file defines\n")
-		b.WriteString("- rashin references <name>  where a symbol is used\n")
-		b.WriteString("- rashin impact <file>  what depends on a file\n")
-		b.WriteString("- rashin peek <file:start-end>  those lines\n")
-		b.WriteString("Add --format json for structured output.\n")
-		if session.Tools {
-			b.WriteString("The same search is in your tool list from the rashin MCP server, as its search, find, def, outline, references, impact and peek tools; prefer those to the shell.\n")
-		}
+		b.WriteString(", and it follows your edits. It reads every source language in the folder.\n")
 	}
 	if session.Screen {
-		b.WriteString("\nYour screen\n")
-		b.WriteString("When the work needs a graphical app, such as a web page to check or a program with no command line, the rashin screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
+		b.WriteString("- Screen: when the work needs a graphical app, such as a web page to check or a program with no command line, the screen tools give you a hidden desktop of your own to open apps on, look at, click and type into. The first use asks the user; they can watch it and take it over, and screen_ask_user hands it to them for sign-ins.\n")
 	}
-	if session.Skills != "" {
-		b.WriteString("\nSkills\n")
-		b.WriteString(session.Skills)
+	if team := strings.TrimSpace(session.Team); team != "" {
 		b.WriteString("\n")
-	}
-	b.WriteString("\nTeams\n")
-	b.WriteString(Teams(session.Tools))
-	b.WriteString("\n")
-	if session.Team != "" {
-		b.WriteString("\n")
-		b.WriteString(session.Team)
+		b.WriteString(team)
 		b.WriteString("\n")
 	}
-	if session.Memory != "" {
-		b.WriteString("\n")
-		b.WriteString(session.Memory)
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\nEnd of context from Rashin.")
-	return b.String()
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // languageNames are how the brief names an index's languages
@@ -233,7 +197,11 @@ func readAtMost(path string, limit int) (string, error) {
 		return "", err
 	}
 	if len(body) > limit {
-		return string(body[:limit]) + "\n[trimmed]", nil
+		const marker = "\n[trimmed]"
+		if limit <= len(marker) {
+			return string(body[:limit]), nil
+		}
+		return strings.TrimRight(strings.ToValidUTF8(string(body[:limit-len(marker)]), ""), " \t\n") + marker, nil
 	}
 	return string(body), nil
 }

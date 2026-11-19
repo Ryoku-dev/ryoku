@@ -108,13 +108,13 @@ func TestSSEParsesReasoningUsageAndSplitToolArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(deltas) != 3 {
+	if len(deltas) != 4 {
 		t.Fatalf("deltas = %#v", deltas)
 	}
-	if deltas[0].Reasoning != "think " || deltas[1].Text != "done" {
-		t.Fatalf("unexpected text deltas: %#v", deltas)
+	if deltas[0].Reasoning != "think " || deltas[1].Text != "done" || deltas[2].ToolStart == nil || deltas[2].ToolStart.Name != "search" {
+		t.Fatalf("unexpected text and start deltas: %#v", deltas)
 	}
-	if got := deltas[2].ToolCalls; len(got) != 1 || got[0].ID != "call_1" || got[0].Name != "search" || got[0].Arguments != `{"q":"ryoku"}` {
+	if got := deltas[3].ToolCalls; len(got) != 1 || got[0].ID != "call_1" || got[0].Name != "search" || got[0].Arguments != `{"q":"ryoku"}` {
 		t.Fatalf("tool calls = %#v", got)
 	}
 	final := stream.Final()

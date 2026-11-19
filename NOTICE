@@ -60,8 +60,9 @@ bridge that keeps the design in sync with the other dock designs. It is
 released under the GNU General Public License version 3; the ported portions
 keep that license, compatible with Ryoku's GPL-3.
 
-Kit's Dev tools, Commands, Typing test and Phone tabs
-(ryoku/shell/quickshell/keys/) and the phone module behind the Phone tab
+Kit's Dev tools, Commands, Typing test and Phone sections
+(ryoku/shell/quickshell/shell/modules/kit/sections/) and the phone module behind
+the Phone section
 (ryoku/shell/quickshell/shell/modules/phone/) are based on the cheatsheet pages,
 phone services and Phone sidebar of ii-p3drovfx by P3DROVFX and contributors
 (https://github.com/P3DROVFX/ii-p3drovfx). They are modified versions: Ryoku
@@ -74,7 +75,8 @@ phone packages on demand, and routes window placement through the
 window-manager seam. They are released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
 
-The word lists and key sounds under ryoku/shell/quickshell/keys/typing/assets/
+The word lists and key sounds under
+ryoku/shell/quickshell/shell/modules/kit/sections/typing/assets/
 come from Monkeytype (https://github.com/monkeytypegame/monkeytype), released
 under the GNU General Public License version 3 only; the pinned upstream commit
 is recorded in the manifests beside them.
@@ -372,3 +374,62 @@ Capitolini MC747" by Jastrow and "Atlante" by Roberto De Martino (public
 domain). They were graded to grey, cropped and scaled down, and Settings
 draws them as an ordered dither. Each credit shows under its plate, with the
 file pages in ryoku/hub/quickshell/registry/plates.js.
+
+Parts of Theia's writing checks (ryoku/rashin/internal/writing/) are adapted
+from seven projects. Selected English clarity terms come from write-good by
+Brian Ford (https://github.com/btford/write-good) and its dependencies
+weasel-words by Brian Ford (https://github.com/btford/weasel-words) and
+too-wordy by Matt Blair (https://github.com/duereg/too-wordy). Selected
+inclusive-wording terms come from retext-equality by Titus Wormer
+(https://github.com/retextjs/retext-equality) and blocklint by Troy Comi
+(https://github.com/PrincetonUniversity/blocklint). The reading ease and grade
+formulas are the Flesch and Flesch-Kincaid ones as documented by textstat by
+Shivam Bansal (https://github.com/textstat/textstat). Selected cliches come
+from proselint's garner list by Jordan Suchow, Michael Pacer and Lara A. Ross
+(https://github.com/amperser/proselint). They are modified versions: the terms
+are curated and rewritten as Go data, and the matchers, syllable estimate and
+machine-writing signals are Ryoku's own. All but proselint are released under
+the MIT License and proselint under the BSD 3-Clause License; ryoku/rashin/NOTICE
+carries each text with its copyright lines and the ryoku-rashin package
+installs it as /usr/share/licenses/ryoku-rashin/NOTICE. Those licenses are
+compatible with Ryoku's GPL-3 distribution.
+
+The built-in English checker in ryoku/rashin/internal/grammar/ is a Go port of
+Harper 3.2.0 by Automattic and the Harper contributors
+(https://github.com/Automattic/harper), pinned at commit
+ea9ab1b8f95be99a5d4040c53be92a6c2ad7f7f3. It is a modified version: Harper's
+Rust grammar engine is rewritten in Go and runs inside Rashin, without the
+Harper CLI or a separate process. Copyright 2024 Automattic Inc. Harper is
+released under Apache-2.0; the license is in ryoku/rashin/LICENSE.apache-2.0
+and installed as /usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. This
+license is compatible with Ryoku's GPL-3 distribution.
+
+The dictionary data bundled from that Harper commit are
+harper-core/dictionary.dict, annotations.json, irregular_nouns.json and
+irregular_verbs.json, shipped unchanged. Harper's dictionary began with the
+SCOWL-derived en_US Hunspell dictionary 2020.12.07 from LibreOffice dictionaries
+(https://github.com/LibreOffice/dictionaries/tree/master/en), imported at
+Harper commit ecb2534e80e63442ada23183dc8028df1d9ea329. The original dictionary
+blob b41fd203e6daf76934db99dec6572a230516368a matches LibreOffice's en/en_US.dic.
+Its word lists carry the SCOWL, VarCon, WordNet and Ispell notices, not only
+Harper's Apache license. The full supporting notice from
+https://raw.githubusercontent.com/LibreOffice/dictionaries/master/en/README_en_US.txt
+is reproduced in ryoku/rashin/NOTICE and installed as
+/usr/share/licenses/ryoku-rashin/NOTICE.
+
+The word identity hash in ryoku/rashin/internal/grammar/dict/word_id.go is a Go
+adaptation of foldhash 0.2.0 by Orson Peters (https://github.com/orlp/foldhash),
+using its numeric sponge and constants to preserve Harper's dictionary ids.
+It is a modified version, not the original Rust implementation. Copyright
+(c) 2024 Orson Peters. The Zlib license notice is reproduced in
+ryoku/rashin/NOTICE and installed as /usr/share/licenses/ryoku-rashin/NOTICE;
+the license is compatible with Ryoku's GPL-3 distribution.
+
+Theia runs these programs as separate tools and ships none of their code.
+eSpeak NG (https://github.com/espeak-ng/espeak-ng, GPL-3.0-or-later), by the
+eSpeak NG authors, reads answers aloud. Piper
+(https://github.com/rhasspy/piper, MIT), by Michael Hansen, is an optional
+second voice engine for voices a user adds; each voice carries its own license.
+yt-dlp (https://github.com/yt-dlp/yt-dlp, Unlicense), by the yt-dlp
+contributors, fetches the subtitles and audio of a video link in Ask.
+Ryoku starts them as programs when asked and never links them.

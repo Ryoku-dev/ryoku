@@ -26,7 +26,9 @@ func pageFoundation(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 			foundationSpace(th),
 			foundationCutRect(th),
 			foundationNotch(th),
+			foundationToneMark(th),
 			foundationBlade(th),
+			foundationFillBlade(th),
 			foundationFlake(th),
 			foundationHatch(th),
 			foundationFocus(th),
@@ -215,6 +217,27 @@ func notchCanvas(th *theme.Theme, ink color.NRGBA) layout.Widget {
 	}
 }
 
+// foundationToneMark is the mark the design wears: the notch above in Lithic,
+// a dot inside the corner in a round design (run with --design).
+func foundationToneMark(th *theme.Theme) layout.Widget {
+	plane := func(tone palette.Tone, height int) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions {
+			size := gtx.Constraints.Constrain(image.Pt(gtx.Dp(180), gtx.Dp(unit.Dp(height))))
+			bounds := image.Rectangle{Max: size}
+			kit.SlabSurface(gtx, th, bounds, gtx.Dp(th.Cut.Mid), th.R.Slab)
+			kit.ToneMark(gtx, th, bounds, tone)
+			return layout.Dimensions{Size: size}
+		}
+	}
+	return section(th, "ToneMark", func(gtx layout.Context) layout.Dimensions {
+		return grid(gtx, 3, th.Sp.S2, []layout.Widget{
+			specimen(th, "Alive, on a slab", plane(palette.Alive, 64)),
+			specimen(th, "Attention, on a slab", plane(palette.Attention, 64)),
+			specimen(th, "Failed, smaller on a 36 row", plane(palette.Failed, 36)),
+		})
+	})
+}
+
 func foundationBlade(th *theme.Theme) layout.Widget {
 	return section(th, "Blade", func(gtx layout.Context) layout.Dimensions {
 		fractions := []struct {
@@ -235,6 +258,27 @@ func foundationBlade(th *theme.Theme) layout.Widget {
 			}))
 		}
 		return grid(gtx, 3, th.Sp.S2, widgets)
+	})
+}
+
+// foundationFillBlade is the bar the design wears on a track in its design:
+// the blade above in Lithic, round ends in a round design (run with --design).
+func foundationFillBlade(th *theme.Theme) layout.Widget {
+	return section(th, "FillBlade", func(gtx layout.Context) layout.Dimensions {
+		return grid(gtx, 3, th.Sp.S2, []layout.Widget{
+			specimen(th, "A meter at 25 percent", func(gtx layout.Context) layout.Dimensions {
+				return (kit.BladeMeter{Fraction: .25}).Layout(gtx, th)
+			}),
+			specimen(th, "Progress at 50 percent", func(gtx layout.Context) layout.Dimensions {
+				return (kit.BladeProgress{Fraction: .5}).Layout(gtx, th)
+			}),
+			specimen(th, "A host's own 12 bar", func(gtx layout.Context) layout.Dimensions {
+				size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, gtx.Dp(12)))
+				kit.Fill(gtx, th, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Token), th.R.Field)
+				kit.FillBlade(gtx, th, image.Rect(0, 0, size.X*3/4, size.Y), th.R.Jade)
+				return layout.Dimensions{Size: size}
+			}),
+		})
 	})
 }
 

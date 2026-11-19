@@ -23,6 +23,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 rectData[80];
     vec4 borderColor;
     float borderWidth;
+    float cutCorners;
     vec4 waveInfo[4];
     vec4 waveData[64];
     vec4 waveColor;
@@ -40,6 +41,25 @@ float sdRoundedBox4(vec2 p, vec2 center, vec2 halfSize, vec4 r) {
     r.x  = (p.y > 0.0) ? r.y : r.x;
     vec2 q = abs(p) - halfSize + r.x;
     return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r.x;
+}
+
+// A box whose corners are 45-degree chamfer cuts instead of round arcs: the
+// intersection of the box with four diagonal half-planes, one per corner. r is
+// the cut leg (tr, br, bl, tl). The smooth-min weld still blends cut shapes.
+float sdCutBox4(vec2 p, vec2 center, vec2 halfSize, vec4 r) {
+    p -= center;
+    vec2 q = abs(p);
+    float cut = (p.x > 0.0) ? ((p.y > 0.0) ? r.y : r.x) : ((p.y > 0.0) ? r.z : r.w);
+    float box = max(q.x - halfSize.x, q.y - halfSize.y);
+    // diagonal corner plane: q.x + q.y <= halfSize.x + halfSize.y - cut
+    float diag = (q.x + q.y - (halfSize.x + halfSize.y - cut)) * 0.70710678;
+    return max(box, diag);
+}
+
+// Dispatch: cut corners for Lithic, round for the other designs.
+float sdCornerBox4(vec2 p, vec2 center, vec2 halfSize, vec4 r) {
+    return cutCorners > 0.5 ? sdCutBox4(p, center, halfSize, r)
+                            : sdRoundedBox4(p, center, halfSize, r);
 }
 
 float sdTrapezoid(vec2 p, float r1, float r2, float he) {
@@ -195,13 +215,13 @@ void main() {
         float d;
         int w = waveSlot(i);
         if (w >= 0 && waveStepped(w)) {
-            d = min(sdRoundedBox4(transformedPixel, center, rect.zw, radii),
+            d = min(sdCornerBox4(transformedPixel, center, rect.zw, radii),
                 waveBlocks(w, transformedPixel, center.y, center.y + rect.w));
         } else if (w >= 0) {
             float height = waveHeight(w, pixel.x);
             vec2 waveCenter = center + vec2(0.0, height * 0.5);
             vec2 waveHalfSize = rect.zw + vec2(0.0, height * 0.5);
-            d = sdRoundedBox4(transformedPixel, waveCenter, waveHalfSize, radii);
+            d = sdCornerBox4(transformedPixel, waveCenter, waveHalfSize, radii);
             if (transformedPixel.y > center.y) {
                 float slope = (waveHeight(w, pixel.x + 1.0) - waveHeight(w, pixel.x - 1.0)) * 0.5;
                 d /= sqrt(1.0 + slope * slope);
@@ -218,7 +238,7 @@ void main() {
                     rect.w - radius)
                 - radius;
         } else {
-            d = sdRoundedBox4(transformedPixel, center, rect.zw, radii);
+            d = sdCornerBox4(transformedPixel, center, rect.zw, radii);
         }
 
         // Use pre-computed minimum eigenvalue for SDF correction

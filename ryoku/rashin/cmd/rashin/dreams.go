@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	register(&Command{Name: "dreams", Group: "teams", Usage: "[list] [--format human|json|toon] | start <statement> [--name n] [--folder dir] [--harness id] [--model id] [--tokens n]", Summary: i18n.T("List dreams, or start one."), Run: runDreams})
+	register(&Command{Name: "dreams", Group: "teams", Usage: "[list] [--format human|json|toon] | start <statement> [--preset research] [--name n] [--folder dir] [--model id] [--tokens n]", Summary: i18n.T("List dreams, or start one."), Run: runDreams})
 }
 
 func runDreams(args []string) int {
@@ -35,7 +35,7 @@ func runDreams(args []string) int {
 	case "start":
 		params, err := parseDreamStart(args)
 		if err != nil {
-			return usageError("dreams start <statement> [--name n] [--folder dir] [--harness id] [--model id] [--tokens n]")
+			return usageError("dreams start <statement> [--preset research] [--name n] [--folder dir] [--model id] [--tokens n]")
 		}
 		return startDream(params)
 	default:
@@ -47,7 +47,7 @@ func runDreams(args []string) int {
 // out
 func listDreams(format string) int {
 	var snapshot protocol.Snapshot
-	if err := daemonCall(context.Background(), protocol.MSubscribe, protocol.Empty{}, &snapshot); err != nil {
+	if err := callIndex(protocol.MSubscribe, protocol.Empty{}, &snapshot); err != nil {
 		return report(err)
 	}
 	result := protocol.TeamsResult{Teams: []protocol.Team{}}
@@ -92,6 +92,11 @@ func parseDreamStart(args []string) (protocol.DreamCreateParams, error) {
 		value := args[i+1]
 		i++
 		switch arg {
+		case "--preset":
+			if value != "research" {
+				return p, errors.New(arg)
+			}
+			p.Preset = value
 		case "--name":
 			p.Name = value
 		case "--folder":
@@ -100,8 +105,6 @@ func parseDreamStart(args []string) (protocol.DreamCreateParams, error) {
 				return p, err
 			}
 			p.Folder = path
-		case "--harness":
-			p.Harness = value
 		case "--model":
 			p.Model = value
 		case "--tokens":
@@ -125,11 +128,19 @@ func parseDreamStart(args []string) (protocol.DreamCreateParams, error) {
 // New dream dialog for the user to start it there
 func startDream(p protocol.DreamCreateParams) int {
 	var team protocol.Team
-	err := daemonCall(context.Background(), protocol.MTeamsDreamCreate, p, &team)
+	err := callIndex(protocol.MTeamsDreamCreate, p, &team)
 	var refused *protocol.Error
 	if errors.As(err, &refused) && refused.Code == protocol.CodeForbidden {
+		data, encodeErr := json.Marshal(p)
+		if encodeErr != nil {
+			return report(encodeErr)
+		}
+		if len(data) > protocol.DreamDraftMaxBytes {
+			return report(errors.New(i18n.T("The dream draft is too large to open in Rashin.")))
+		}
 		fmt.Fprintln(os.Stdout, i18n.T("Finish starting the dream in Rashin."))
-		return runOpen([]string{"--route", protocol.TabDreams + "/new"})
+		route := teamsRoute(protocol.UIOpenParams{Tab: protocol.TabDreams, Team: "new", DreamDraft: &p})
+		return runOpen([]string{"--route", route})
 	}
 	if err != nil {
 		return report(err)

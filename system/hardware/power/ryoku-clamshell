@@ -25,7 +25,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-CLAMSHELL_BIN="${RYOKU_CLAMSHELL_BIN:-$SCRIPT_DIR/ryoku-clamshell}"
 
 PS_DIR="${RYOKU_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 DRM_DIR="${RYOKU_DRM_DIR:-/sys/class/drm}"
@@ -46,7 +45,6 @@ SUSPEND_REASON="${RYOKU_CLAMSHELL_SUSPEND_REASON:-$RUNTIME_DIR/ryoku-clamshell-$
 PGREP_BIN="${RYOKU_PGREP_BIN:-$(command -v pgrep || true)}"
 BUSCTL_BIN="${RYOKU_BUSCTL_BIN:-$(command -v busctl || true)}"
 LOGGER_BIN="${RYOKU_CLAMSHELL_LOGGER_BIN:-$(command -v logger || true)}"
-LID_POLL_INTERVAL="${RYOKU_CLAMSHELL_LID_POLL:-0.2}"
 MONITOR_FALLBACK="${RYOKU_CLAMSHELL_MONITOR_FALLBACK:-60}"
 HOST_BIN="$(command -v ryoku-host || true)"
 # Internal panels + non-display connectors. Everything else that reports
@@ -273,50 +271,6 @@ upower_lid_state() {
 lid_state() {
   acpi_lid_state
   [[ $LID_STATE_RESULT != unknown ]] || upower_lid_state
-}
-
-# The provider declares only the source of ordered edges. Its name and switch
-# mechanism stay behind the wm seam. Providers predating this capability
-# delivered their own callbacks, so an absent declaration keeps that behaviour.
-provider_lid_edge_source() {
-  local caps source
-  [[ -n $ryoku_bin && -x $ryoku_bin ]] || return 1
-  caps="$(RYOKU_WM_CALL_TIMEOUT="$WM_CALL_TIMEOUT" \
-    "$ryoku_bin" wm caps 2>/dev/null)" || return 1
-  source="$(jq -er '
-    .supports | arrays |
-    if any(.[]; . == "systemLidEdgeSource")
-    then "system" else "compositor" end
-  ' <<<"$caps" 2>/dev/null)" || return 1
-  printf '%s\n' "$source"
-}
-
-monitor_system_lid_edges() {
-  local previous=unknown state
-  while :; do
-    lid_state
-    state=$LID_STATE_RESULT
-    if [[ $state != unknown && $state != "$previous" ]]; then
-      send_event "RYOKU_LID_EDGE $state" || return 1
-      previous=$state
-    fi
-    sleep "$LID_POLL_INTERVAL"
-  done
-}
-
-dispatch_system_lid_edge() {
-  local state=$1
-  (( DAEMON_SESSION_ACTIVE == 1 )) || return 0
-  case "$state" in
-    closed) state=close ;;
-    open) state=open ;;
-    *) return 0 ;;
-  esac
-  # The edge path can wait for a secure suspend transaction. Keep the daemon
-  # free to dispatch the matching open, and never let this child inherit the
-  # daemon's singleton lock or FIFO descriptor.
-  ( exec 9>&- 8>&-
-    exec "$CLAMSHELL_BIN" lid "$state" ) &
 }
 
 write_lid_event_state() {
@@ -776,13 +730,6 @@ monitor_login1_owner_supervised() {
   return "$rc"
 }
 
-monitor_system_lid_edges_supervised() {
-  local rc
-  if monitor_system_lid_edges; then rc=0; else rc=$?; fi
-  announce_monitor_exit lid
-  return "$rc"
-}
-
 monitor_hardware_events() {
   local child="" rc
   # shellcheck disable=SC2329
@@ -871,9 +818,9 @@ reclaim_stale_clamshell_lock() {
 }
 
 run_daemon() {
-  local monitor_pid="" owner_monitor_pid="" lid_monitor_pid=""
+  local monitor_pid="" owner_monitor_pid=""
   local event hardware_dirty monitor_ready=0 monitor_missing_since=-1 owner_state=""
-  local lid_edge_source monitor_stopped read_timeout monitor_grace_remaining
+  local monitor_stopped read_timeout monitor_grace_remaining
   if ! hw_laptop; then
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "desktop detected; clamshell disabled"
     exit 0
@@ -885,10 +832,6 @@ run_daemon() {
   if ! command -v dbus-monitor >/dev/null 2>&1; then
     log "dbus-monitor not found; clamshell cannot recover login1 ownership" >&2
     exit 1
-  fi
-  if ! lid_edge_source="$(provider_lid_edge_source)"; then
-    log "cannot read the provider's lid edge source; leaving lid ownership to login1" >&2
-    return 1
   fi
 
   # one instance per user session. The lock fd must never reach a child that
@@ -923,10 +866,6 @@ run_daemon() {
   (umask 077; printf '%s\n' "$$" >"$daemon_tmp")
   mv -f "$daemon_tmp" "$DAEMON_STATE"
   cleanup_daemon() {
-    if [[ -n ${lid_monitor_pid:-} ]]; then
-      kill "$lid_monitor_pid" 2>/dev/null || true
-      wait "$lid_monitor_pid" 2>/dev/null || true
-    fi
     if [[ -n ${monitor_pid:-} ]]; then
       kill "$monitor_pid" 2>/dev/null || true
       wait "$monitor_pid" 2>/dev/null || true
@@ -973,11 +912,6 @@ run_daemon() {
       return 1
       ;;
   esac
-  if [[ $lid_edge_source == system ]]; then
-    ( exec 9>&-
-      monitor_system_lid_edges_supervised ) &
-    lid_monitor_pid=$!
-  fi
   # Hardware notifications are event-driven. The timeout only catches a
   # monitor killed too abruptly to publish its exit.
   while :; do
@@ -988,11 +922,6 @@ run_daemon() {
     while :; do
       if ! process_alive "$monitor_pid"; then
         break
-      fi
-      if [[ $lid_edge_source == system ]] &&
-         ! process_alive "$lid_monitor_pid"; then
-        log "system lid edge monitor stopped; refusing unsupervised lid ownership" >&2
-        return 1
       fi
 
       read_timeout=$MONITOR_FALLBACK
@@ -1018,17 +947,9 @@ run_daemon() {
       hardware_dirty=0
       while :; do
         case "$event" in
-          'RYOKU_SESSION_ACTIVE yes')
-            activate_session_owner
-            if [[ $lid_edge_source == system ]]; then
-              lid_state
-              dispatch_system_lid_edge "$LID_STATE_RESULT"
-            fi
-            ;;
+          'RYOKU_SESSION_ACTIVE yes') activate_session_owner ;;
           'RYOKU_SESSION_ACTIVE no') deactivate_session_owner ;;
           'RYOKU_LOGIN1_OWNER_CHANGED') recover_login1_owner ;;
-          'RYOKU_LID_EDGE closed') dispatch_system_lid_edge closed ;;
-          'RYOKU_LID_EDGE open') dispatch_system_lid_edge open ;;
           'RYOKU_INHIBITOR_EXIT')
             if (( DAEMON_SESSION_ACTIVE == 1 )) && ! inhibitor_active; then
               log "lid-switch inhibitor exited unexpectedly; reacquiring"
@@ -1036,10 +957,6 @@ run_daemon() {
             fi
             ;;
           'RYOKU_MONITOR_EXIT hardware') monitor_stopped=1 ;;
-          'RYOKU_MONITOR_EXIT lid')
-            log "system lid edge monitor stopped; refusing unsupervised lid ownership" >&2
-            return 1
-            ;;
           'RYOKU_MONITOR_EXIT owner'|'RYOKU_MONITOR_UNREADY owner') ;;
           *) hardware_dirty=1 ;;
         esac

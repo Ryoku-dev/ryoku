@@ -106,7 +106,7 @@ func (b *TaskBoard) LayoutRow(gtx layout.Context, e *env.Env, index int) layout.
 			return b.layoutColumns(gtx, e, snapshot)
 		case rowSection:
 			list := b.tasks[row.group]
-			return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, row.group.Label(), len(list)))
+			return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: row.group.Label(), Count: len(list)}))
 		case rowOlder:
 			return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return b.layoutOlder(gtx, e, snapshot)
@@ -154,7 +154,7 @@ func (b *TaskBoard) layoutColumns(gtx layout.Context, e *env.Env, snapshot state
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			rows := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, column.title, len(column.tasks)))
+					return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: column.title, Number: index + 1, Of: len(columns), Count: len(column.tasks)}))
 				}),
 			}
 			if len(column.tasks) == 0 {
@@ -193,7 +193,6 @@ func (b *TaskBoard) layoutTablet(gtx layout.Context, e *env.Env, snapshot state.
 		tablet = new(kit.Tablet)
 		b.tablets[task.ID] = tablet
 	}
-	tablet.Pane = th.R.Stone2
 	if tablet.Clicked(gtx) || tablet.DoubleClicked(gtx) {
 		OpenTask(e, task.ID)
 	}

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
-import { base64, digest } from '../src/codec.js';
-import { call, code, jpeg, keys, now, record, setup, uploadHeader } from './helpers.js';
+import { base64, decodeCode, digest } from '../src/codec.js';
+import { call, code, holderProof, jpeg, keys, now, record, setup, uploadHeader } from './helpers.js';
 
 async function publish(state, fields = {}) {
   const text = await code('RYB', fields.issuer === 2 ? state.mika : state.owner, { device: state.device, ...fields });
@@ -35,6 +35,25 @@ test('badge POST is idempotent, list paginates and filters corrupt or forged sto
   assert.deepEqual(list.badges.sort(), expected.sort());
   assert.deepEqual(list.revoked, []);
   assert.deepEqual(list.designs, []);
+});
+
+test('a v3 tester badge naming its program lists, carries records and holder proofs, and revokes like v2', async () => {
+  const state = await setup();
+  const badge = await publish(state, { issuer: 2, role: 1, login: 'tester', program: 'Ryoku v2 Hyperion' });
+  assert.equal(decodeCode('RYB', badge.text)[0], 3);
+  assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).badges, [badge.text]);
+  const value = await record(state.device);
+  assert.equal((await putRecord(state, value)).status, 200);
+  const cards = { [state.id]: 0 };
+  const pull = await call(state.env, 'POST', '/v1/cards/batch', JSON.stringify({ cards, holder: await holderProof(state.device, badge.text, badge.id, cards) }), { 'Content-Type': 'application/json' });
+  assert.equal(pull.status, 200);
+  const pulled = await pull.json();
+  assert.equal(pulled.holderLeft, 9);
+  assert.deepEqual(pulled.badges, [badge.text]);
+  const revoke = await code('RYX', state.mika, { id: badge.id, issuer: 2 });
+  assert.equal((await call(state.env, 'POST', '/v1/revoke', revoke)).status, 200);
+  assert.equal((await putRecord(state, await record(state.device, { updated: value.updated + 1 }))).status, 400);
+  assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).revoked, [revoke]);
 });
 
 test('records require an active device-bound badge and reject replay or stale data', async () => {

@@ -29,15 +29,18 @@ func (k fixedKeeper) Key(context.Context, bool, bool) ([]byte, error) {
 // fakeClock is the service's clock. It moves a millisecond on every read, so
 // things made one after another keep their order, and jumps when told.
 type fakeClock struct {
-	mu sync.Mutex
-	at time.Time
+	mu     sync.Mutex
+	at     time.Time
+	frozen bool
 	// hook runs once at the next read, outside the lock
 	hook func()
 }
 
 func (c *fakeClock) now() time.Time {
 	c.mu.Lock()
-	c.at = c.at.Add(time.Millisecond)
+	if !c.frozen {
+		c.at = c.at.Add(time.Millisecond)
+	}
 	at, hook := c.at, c.hook
 	c.hook = nil
 	c.mu.Unlock()
@@ -68,21 +71,17 @@ func (c *fakeClock) set(at time.Time) {
 }
 
 // fakeSessions stands in for the session manager: it records what Teams asks
-// of each session and keeps each session's goal. Options in refuse are
-// refused by SetOption; away leaves no Rashin window open.
+// of each session and keeps each session's goal; away leaves no Rashin
+// window open.
 type fakeSessions struct {
 	mu        sync.Mutex
 	count     int
 	infos     map[string]protocol.SessionInfo
 	made      []protocol.SessionNewParams
-	started   []string
 	goals     []protocol.GoalParams
 	continued []continued
 	stopped   []string
 	deleted   []string
-	models    map[string]string
-	options   map[string]map[string]string
-	refuse    map[string]bool
 	away      bool
 }
 
@@ -90,10 +89,7 @@ type fakeSessions struct {
 type continued struct{ session, text string }
 
 func newFakeSessions() *fakeSessions {
-	return &fakeSessions{
-		infos: make(map[string]protocol.SessionInfo), models: make(map[string]string),
-		options: make(map[string]map[string]string), refuse: make(map[string]bool),
-	}
+	return &fakeSessions{infos: make(map[string]protocol.SessionInfo)}
 }
 
 func (f *fakeSessions) Info(id string) (protocol.SessionInfo, bool) {
@@ -110,7 +106,7 @@ func (f *fakeSessions) New(_ context.Context, p protocol.SessionNewParams) (prot
 	defer f.mu.Unlock()
 	f.count++
 	info := protocol.SessionInfo{
-		ID: fmt.Sprintf("session-%d", f.count), Kind: p.Kind, Harness: p.Harness, Cwd: p.Cwd, Origin: p.Origin, State: protocol.StateIdle,
+		ID: fmt.Sprintf("session-%d", f.count), Kind: p.Kind, Model: p.Model, Cwd: p.Cwd, Origin: p.Origin, State: protocol.StateIdle,
 		Team: p.Team, TeamTask: p.TeamTask, Member: p.Member, Approvals: p.Approvals,
 	}
 	f.infos[info.ID] = info
@@ -120,36 +116,6 @@ func (f *fakeSessions) New(_ context.Context, p protocol.SessionNewParams) (prot
 
 func (f *fakeSessions) Prompt(context.Context, protocol.PromptParams) (protocol.PromptResult, error) {
 	return protocol.PromptResult{}, nil
-}
-
-func (f *fakeSessions) Start(_ context.Context, id string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.started = append(f.started, id)
-	return nil
-}
-
-func (f *fakeSessions) SetModel(_ context.Context, id, model string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.models[id] = model
-	info := f.infos[id]
-	info.Model = model
-	f.infos[id] = info
-	return nil
-}
-
-func (f *fakeSessions) SetOption(_ context.Context, id, option, value string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.refuse[option] {
-		return errors.New("the harness offers no such option")
-	}
-	if f.options[id] == nil {
-		f.options[id] = make(map[string]string)
-	}
-	f.options[id][option] = value
-	return nil
 }
 
 func (f *fakeSessions) Goal(_ context.Context, p protocol.GoalParams) (protocol.SessionInfo, error) {
@@ -225,17 +191,6 @@ func (f *fakeSessions) madeFor(task string) (protocol.SessionNewParams, bool) {
 		}
 	}
 	return protocol.SessionNewParams{}, false
-}
-
-func (f *fakeSessions) wasStarted(id string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for _, started := range f.started {
-		if started == id {
-			return true
-		}
-	}
-	return false
 }
 
 func (f *fakeSessions) wasStopped(id string) bool {
@@ -328,8 +283,8 @@ func (b *broadcasts) lastTeam(id string) (protocol.Team, bool) {
 }
 
 // harness is a bound service on temporary state with a fake clock, fake
-// sessions, a vault kept in memory, a recorded wake unit, what it broadcast
-// and the settings it reads, which a test may change.
+// sessions, a model listing, a vault kept in memory, a recorded wake unit,
+// what it broadcast and the settings it reads, which a test may change.
 type harness struct {
 	s        *Service
 	dir      string
@@ -353,10 +308,8 @@ func newHarness(t *testing.T, maxRunning int) *harness {
 }
 
 // newHarnessWith binds a service on the default settings as edit leaves
-// them, with the fake harness the test teams run on known and the registry's
-// default. Rashin's state and data dirs are the test's own, and every team
-// counts as signed in to every harness; a test of signing in sets
-// h.s.signedIn back to the real record.
+// them, with the gateway's models those of listModels. Rashin's state and
+// data dirs are the test's own.
 func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 	t.Helper()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -369,7 +322,6 @@ func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 		events:   &broadcasts{},
 		settings: config.Defaults(),
 	}
-	h.settings.Agent.Instances = []protocol.HarnessInstance{{ID: "fake", Name: "Fake", Command: []string{"fake-acp"}}}
 	if edit != nil {
 		edit(&h.settings)
 	}
@@ -380,13 +332,24 @@ func newHarnessWith(t *testing.T, edit func(*protocol.Settings)) *harness {
 		t.Fatal(err)
 	}
 	s.now = h.clock.now
-	s.defaultHarness = func(protocol.Settings) string { return "fake" }
-	s.signedIn = func(string, string) (time.Time, bool) { return time.Time{}, true }
+	s.SetModels(listModels)
 	t.Cleanup(func() { _ = s.Close() })
 	h.s = s
 	s.Bind(h.sessions)
 	waitFor(t, "the clock to set the wake unit", func() bool { return len(h.wake.seen()) > 0 })
 	return h
+}
+
+// listModels is the gateway's listing the tests run on: provider test's
+// models are usable, provider off's model is turned off.
+func listModels(context.Context, protocol.ModelsParams) (protocol.ModelsResult, error) {
+	var out protocol.ModelsResult
+	for _, name := range []string{"small", "big", "bigger", "opus", "task-model", "default-model"} {
+		out.Models = append(out.Models, protocol.ModelInfo{ID: "test/" + name, Provider: "test", Name: name, Tier: protocol.TierFree, Tools: true, Available: true})
+	}
+	out.Models = append(out.Models, protocol.ModelInfo{ID: "test/text", Provider: "test", Name: "text", Tier: protocol.TierFree, Available: true, ToolsKnown: true})
+	out.Models = append(out.Models, protocol.ModelInfo{ID: "off/model", Provider: "off", Name: "model"})
+	return out, nil
 }
 
 func (h *harness) currentSettings() protocol.Settings {
@@ -466,7 +429,7 @@ func (h *harness) newTeam(t *testing.T, name string, edit func(*protocol.TeamCre
 	t.Helper()
 	p := protocol.TeamCreateParams{
 		Name: name, Folder: filepath.Join(h.dir, "folders", slugName(name)),
-		Members: []protocol.Member{{Name: "Ana", Lead: true, Harness: "fake"}, {Name: "Ben", Harness: "fake"}},
+		Members: []protocol.Member{{Name: "Ana", Lead: true}, {Name: "Ben"}},
 	}
 	if edit != nil {
 		edit(&p)
@@ -488,8 +451,8 @@ func (h *harness) task(t *testing.T, id string) protocol.TeamTask {
 	return task
 }
 
-// agent waits until a task's latest session has started work, and returns
-// what that session's MCP server calls with.
+// agent waits until a task's latest session starts work, and returns the
+// reference its in-process team tools carry.
 func (h *harness) agent(t *testing.T, id string) protocol.AgentRef {
 	t.Helper()
 	var ref protocol.AgentRef

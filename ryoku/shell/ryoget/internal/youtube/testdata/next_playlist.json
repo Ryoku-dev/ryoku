@@ -1,0 +1,41 @@
+{
+ "contents": {
+  "twoColumnWatchNextResults": {
+   "playlist": {
+    "playlist": {
+     "title": "Blender Fundamentals 2.8",
+     "playlistId": "PLa1F2ddGya_-UvuAqHAksYnB0qL9yWDO6",
+     "totalVideos": 43,
+     "contents": [
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "MF1qEhBSfq4",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "First Steps - Blender 2.80 Fundamentals 59 seconds"
+          }
+         },
+         "simpleText": "First Steps - Blender 2.80 Fundamentals"
+        }
+       }
+      },
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "ILqOWe3zAbk",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "Viewport Navigation - Blender 2.80 Fundamentals 3 minutes, 42 seconds"
+          }
+         },
+         "simpleText": "Viewport Navigation - Blender 2.80 Fundamentals"
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

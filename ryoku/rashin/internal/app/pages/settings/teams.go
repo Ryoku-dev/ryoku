@@ -3,7 +3,6 @@ package settings
 import (
 	"maps"
 	"slices"
-	"time"
 
 	"gioui.org/layout"
 
@@ -31,7 +30,8 @@ type teamsPanel struct {
 	perTeam     kit.Stepper
 	saveRunning kit.Plaque
 
-	engine       teamsui.EngineForm
+	engine       env.ModelForm
+	inherit      env.ModelInherit
 	approvals    look.Select
 	notify       look.Select
 	limit        teamsui.TokenStepper
@@ -45,9 +45,8 @@ type teamsPanel struct {
 	from, to   kit.TextField
 	saveAsking kit.Plaque
 
-	hidden  teamsui.PathList
-	signIns map[string]*teamsui.SignInActions
-	memory  teamsui.TeamMemoryForm
+	hidden teamsui.PathList
+	memory teamsui.TeamMemoryForm
 
 	keep look.Select
 }
@@ -71,20 +70,15 @@ func (p *Page) teamsBlocks(gtx layout.Context, e *env.Env, blocks []layout.Widge
 	snapshot := e.Snapshot()
 	t := &p.teams
 	t.fill(snapshot.Settings.Teams)
-	running := t.runningGroup(e, snapshot.Settings.Teams)
+	running := t.runningGroup(e, snapshot.Settings.Teams, p.defaults.Teams, p.changed)
 	title := func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Teams"))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(running),
-		)
+		return look.Section(gtx, th, ordinal(sectionTeams), running)
 	}
 	return spacedBlocks(th, append(blocks, title),
-		t.defaultsGroup(e, snapshot),
+		t.defaultsGroup(e, snapshot, p.defaults.Teams.Defaults, p.changed),
 		t.askingGroup(e, snapshot.Settings.Teams),
-		t.signInGroup(e, snapshot, gtx.Now),
 		t.sandboxGroup(e, snapshot),
-		t.historyGroup(e, snapshot.Settings.Teams),
+		t.historyGroup(e, snapshot.Settings.Teams, p.defaults.Teams.KeepDays, p.changed.keep),
 	)
 }
 
@@ -98,7 +92,7 @@ func (t *teamsPanel) fill(settings protocol.TeamsSettings) {
 	if !t.filled || !sameEngine(stored, t.defaults) || stored.Budget != t.defaults.Budget {
 		t.defaults = stored
 		t.defaults.Options = maps.Clone(stored.Options)
-		t.engine.Set(stored.Harness, stored.Model, maps.Clone(stored.Options))
+		t.engine.Set(stored.Model, maps.Clone(stored.Options))
 		budget := stored.Budget
 		t.limit.Value, t.warn.Value, t.turns.Value, t.minutes.Value = budget.MonthTokens, budget.WarnPercent, budget.TaskTurns, budget.TaskMinutes
 	}
@@ -122,42 +116,14 @@ func (t *teamsPanel) fill(settings protocol.TeamsSettings) {
 }
 
 func sameEngine(a, b protocol.TeamDefaults) bool {
-	return a.Harness == b.Harness && a.Model == b.Model && maps.Equal(a.Options, b.Options)
+	return a.Model == b.Model && maps.Equal(a.Options, b.Options)
 }
 
-// a small heading, what the group is about, its slab, and the save for what it holds when it holds anything to save
 func teamsGroup(th *look.Theme, title, caption string, rows []look.Setting, save layout.Widget) layout.Widget {
-	return func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, title))}
-		if caption != "" {
-			children = append(children,
-				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, caption)),
-			)
-		}
-		children = append(children,
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
-		)
-		if save != nil {
-			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout), layout.Rigid(save))
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-	}
+	return group(th, title, caption, rows, save)
 }
 
-// the save under a group, dimmed while nothing in it changed
-func groupSave(th *look.Theme, plaque *kit.Plaque, changed bool) layout.Widget {
-	plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, i18n.T("Save")
-	return func(gtx layout.Context) layout.Dimensions {
-		if !changed {
-			gtx = gtx.Disabled()
-		}
-		return plaque.Layout(gtx, th.Theme)
-	}
-}
-
-func (t *teamsPanel) runningGroup(e *env.Env, settings protocol.TeamsSettings) layout.Widget {
+func (t *teamsPanel) runningGroup(e *env.Env, settings, stock protocol.TeamsSettings, diff changes) layout.Widget {
 	th := e.Theme
 	t.paused.Value, t.wake.Value = settings.Paused, settings.RoutinesWake
 	t.atOnce.Min, t.atOnce.Max, t.atOnce.Step = 1, protocol.TeamsMaxRunningMax, 1
@@ -179,8 +145,10 @@ func (t *teamsPanel) runningGroup(e *env.Env, settings protocol.TeamsSettings) l
 	}
 	rows := []look.Setting{
 		{
-			Title:  i18n.T("Pause every team"),
-			Detail: i18n.T("Nothing starts and no routine fires until you turn this off. Working tasks stop."),
+			Title:   i18n.T("Pause every team"),
+			Detail:  i18n.T("Nothing starts and no routine fires until you turn this off. Working tasks stop."),
+			Changed: diff.paused,
+			Reset:   func() { set(e, "teams", map[string]any{"paused": stock.Paused}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Pause every team"), &t.paused, func(on bool) {
 					set(e, "teams", map[string]any{"paused": on})
@@ -198,8 +166,10 @@ func (t *teamsPanel) runningGroup(e *env.Env, settings protocol.TeamsSettings) l
 			Control: func(gtx layout.Context) layout.Dimensions { return t.perTeam.Layout(gtx, th.Theme) },
 		},
 		{
-			Title:  i18n.T("Wake Rashin for routines"),
-			Detail: i18n.T("A timer starts Rashin at login and every 30 minutes while a routine is on. Off, routines run only while Rashin is up."),
+			Title:   i18n.T("Wake Rashin for routines"),
+			Detail:  i18n.T("A timer starts Rashin at login and every 30 minutes while a routine is on. Off, routines run only while Rashin is up."),
+			Changed: diff.wake,
+			Reset:   func() { set(e, "teams", map[string]any{"routinesWake": stock.RoutinesWake}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				return namedSwitch(gtx, th, i18n.T("Wake Rashin for routines"), &t.wake, func(on bool) {
 					set(e, "teams", map[string]any{"routinesWake": on})
@@ -207,19 +177,19 @@ func (t *teamsPanel) runningGroup(e *env.Env, settings protocol.TeamsSettings) l
 			},
 		},
 	}
-	return teamsGroup(th, i18n.T("Running"), "", rows, save)
+	return group(th, i18n.T("Running"), "", rows, save)
 }
 
-func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.Widget {
+func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot, stock protocol.TeamDefaults, diff changes) layout.Widget {
 	th := e.Theme
 	stored := snapshot.Settings.Teams.Defaults
 	t.engine.Agents = true
 	t.warn.Min, t.warn.Max, t.warn.Step, t.warn.Unit = 1, 99, 1, i18n.T("percent")
 	t.turns.Min, t.turns.Max, t.turns.Step, t.turns.Unit = 1, protocol.TeamTaskTurnsMax, 1, i18n.T("turns")
 	t.minutes.Min, t.minutes.Max, t.minutes.Step, t.minutes.Unit = 0, protocol.TeamTaskMinutesMax, 15, i18n.T("min")
-	harness, model, options := t.engine.Value()
+	model, options := t.engine.Value()
 	budget := protocol.TeamBudget{MonthTokens: t.limit.Value, WarnPercent: t.warn.Value, TaskTurns: t.turns.Value, TaskMinutes: t.minutes.Value}
-	edited := protocol.TeamDefaults{Harness: harness, Model: model, Options: options, Budget: budget}
+	edited := protocol.TeamDefaults{Model: model, Options: options, Budget: budget}
 	changed := !sameEngine(edited, t.defaults) || budget != t.defaults.Budget
 	save := func(gtx layout.Context) layout.Dimensions {
 		if t.saveDefaults.Clicked(gtx) && changed {
@@ -232,7 +202,7 @@ func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.W
 				patched[id] = value
 			}
 			t.saveDefaults.Busy = true
-			defaults := map[string]any{"harness": harness, "model": model, "options": patched, "budget": budget}
+			defaults := map[string]any{"model": model, "options": patched, "budget": budget}
 			e.SetSettings(map[string]any{"teams": map[string]any{"defaults": defaults}}, func(err error) {
 				t.saveDefaults.Busy = false
 				if err != nil {
@@ -242,17 +212,21 @@ func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.W
 		}
 		return groupSave(th, &t.saveDefaults, changed)(gtx)
 	}
-	agents := i18n.Tf("Same as Agents (%s)", teamsui.AgentsHarnessName(snapshot))
+	t.engine.Parts, t.engine.Agents = env.ModelOptions|env.ModelCheck, true
+	t.inherit = env.ModelInherit{Label: i18n.T("Agents default"), Model: snapshot.Settings.Agent.Model, Options: snapshot.Settings.Agent.Options}
+	t.engine.Inherit = &t.inherit
 	rows := []look.Setting{
 		{
-			Title:   i18n.T("Harness and model"),
-			Detail:  i18n.T("What a member left on the teams default runs, in every team. A member with a harness of its own keeps it."),
+			Title:   i18n.T("Model"),
+			Detail:  i18n.T("The model and options a new team starts with. A member that picks its own model keeps it."),
 			Below:   true,
-			Control: func(gtx layout.Context) layout.Dimensions { return t.engine.Layout(gtx, e, agents) },
+			Control: func(gtx layout.Context) layout.Dimensions { return t.engine.Layout(gtx, e) },
 		},
 		{
-			Title:  i18n.T("Permissions"),
-			Detail: i18n.T("What a new team may do before it asks you."),
+			Title:   i18n.T("Permissions"),
+			Detail:  i18n.T("What a new team may do before it asks you."),
+			Changed: diff.teamApprovals,
+			Reset:   func() { set(e, "teams", map[string]any{"defaults": map[string]any{"approvals": stock.Approvals}}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				dimensions := teamsui.ApprovalsSelect(gtx, e, &t.approvals, stored.Approvals)
 				if index, changed := t.approvals.Changed(); changed && index < len(teamsui.ApprovalValues) {
@@ -282,8 +256,10 @@ func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.W
 			Control: func(gtx layout.Context) layout.Dimensions { return t.minutes.Layout(gtx, th.Theme) },
 		},
 		{
-			Title:  i18n.T("Notifications"),
-			Detail: i18n.T("What a new team tells you on the desktop."),
+			Title:   i18n.T("Notifications"),
+			Detail:  i18n.T("What a new team tells you on the desktop."),
+			Changed: diff.teamNotify,
+			Reset:   func() { set(e, "teams", map[string]any{"defaults": map[string]any{"notify": stock.Notify}}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				dimensions := teamsui.NotifySelect(gtx, e, &t.notify, stored.Notify)
 				if index, changed := t.notify.Changed(); changed && index < len(teamsui.NotifyValues) {
@@ -302,7 +278,7 @@ func (t *teamsPanel) defaultsGroup(e *env.Env, snapshot state.Snapshot) layout.W
 		})
 	})...)
 	caption := i18n.T("A new team copies these. Changing them later changes no team you already have.")
-	return teamsGroup(th, i18n.T("New teams start with"), caption, rows, save)
+	return group(th, i18n.T("New teams start with"), caption, rows, save)
 }
 
 func (t *teamsPanel) askingGroup(e *env.Env, settings protocol.TeamsSettings) layout.Widget {
@@ -361,7 +337,7 @@ func (t *teamsPanel) askingGroup(e *env.Env, settings protocol.TeamsSettings) la
 			Control: func(gtx layout.Context) layout.Dimensions { return t.layoutQuietTimes(gtx, th) },
 		})
 	}
-	return teamsGroup(th, i18n.T("Asking and telling"), "", rows, save)
+	return group(th, i18n.T("Asking and telling"), "", rows, save)
 }
 
 // the times typed so far when they read, else the ones quiet hours start out with
@@ -392,17 +368,16 @@ func (t *teamsPanel) layoutQuietTimes(gtx layout.Context, th *look.Theme) layout
 
 func (t *teamsPanel) sandboxGroup(e *env.Env, snapshot state.Snapshot) layout.Widget {
 	th := e.Theme
-	harnessState := harnessStatePaths(snapshot.Harnesses)
-	always := append(protocol.TeamsAlwaysHiddenPaths(), harnessState...)
+	always := protocol.TeamsAlwaysHiddenPaths()
 	// an old saved list repeats what is now always hidden; it is dropped from what shows and what saves
 	hidden := slices.DeleteFunc(slices.Clone(snapshot.Settings.Teams.Hidden), func(path string) bool { return slices.Contains(always, path) })
 	t.hidden.Title, t.hidden.Placeholder = i18n.T("Choose a folder to hide"), "~/Private"
 	rows := []look.Setting{
 		{
 			Title:   i18n.T("Always hidden"),
-			Detail:  i18n.T("Where keys, sign-ins and private state live. Every team agent and every Check sees these as empty, whatever the list below says."),
+			Detail:  i18n.T("Where keys and private state live. Team agents see these as empty, whatever the list below says."),
 			Below:   true,
-			Control: func(gtx layout.Context) layout.Dimensions { return layoutAlwaysHidden(gtx, th, harnessState) },
+			Control: func(gtx layout.Context) layout.Dimensions { return layoutAlwaysHidden(gtx, th) },
 		},
 		{
 			Title:  i18n.T("Also hidden from every team"),
@@ -422,7 +397,7 @@ func (t *teamsPanel) sandboxGroup(e *env.Env, snapshot state.Snapshot) layout.Wi
 		},
 		{
 			Title:   i18n.T("Network"),
-			Detail:  i18n.T("Harnesses reach their model online, so an agent reaches what you can, services on this computer's localhost and your tailnet included."),
+			Detail:  i18n.T("Models run in the daemon. A team agent can reach your network, local services and tailnet unless you isolate them separately."),
 			Control: kit.Text(th.Theme, th.T.Label, th.R.Fg2, i18n.T("Shared")),
 		},
 	}
@@ -433,24 +408,11 @@ func (t *teamsPanel) sandboxGroup(e *env.Env, snapshot state.Snapshot) layout.Wi
 			Detail: i18n.T("This computer's kernel cannot keep team agents away from other programs' hidden sockets, such as your desktop's X server. Linux 6.12 or newer can."),
 		})
 	}
-	return teamsGroup(th, i18n.T("Sandbox"), "", rows, nil)
+	return group(th, i18n.T("Sandbox"), "", rows, nil)
 }
 
-// every harness's own state, which every team sandbox hides as well, each path once
-func harnessStatePaths(harnesses []protocol.HarnessInfo) []string {
-	var paths []string
-	for _, harness := range harnesses {
-		for _, path := range harness.State {
-			if !slices.Contains(paths, path) {
-				paths = append(paths, path)
-			}
-		}
-	}
-	return paths
-}
-
-// one line per kind of secret with the paths that hold it, then every harness's own state; none of it can be taken off
-func layoutAlwaysHidden(gtx layout.Context, th *look.Theme, harnessState []string) layout.Dimensions {
+// the always-hidden groups have no removable entry
+func layoutAlwaysHidden(gtx layout.Context, th *look.Theme) layout.Dimensions {
 	var children []layout.FlexChild
 	line := func(label string, paths []string) {
 		if len(children) > 0 {
@@ -461,120 +423,29 @@ func layoutAlwaysHidden(gtx layout.Context, th *look.Theme, harnessState []strin
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			// a path never breaks inside itself, the line breaks between them
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return look.Flow{Gap: 13, LineGap: 2}.Layout(gtx, len(paths), func(gtx layout.Context, index int) layout.Dimensions {
+				return look.Flow{Gap: th.Sp.S3, LineGap: th.Sp.S1}.Layout(gtx, len(paths), func(gtx layout.Context, index int) layout.Dimensions {
 					return kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg2, paths[index])(gtx)
 				})
 			}),
 		)
 	}
 	for _, group := range protocol.TeamsAlwaysHidden() {
-		line(hiddenKindName(group.Kind), group.Paths)
+		line(teamsui.HiddenKindName(group.Kind), group.Paths)
 	}
-	line(i18n.T("Every harness's own state"), harnessState)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-func hiddenKindName(kind string) string {
-	switch kind {
-	case protocol.HiddenKeys:
-		return i18n.T("Keys and password stores")
-	case protocol.HiddenGit:
-		return i18n.T("Git and code hosts")
-	case protocol.HiddenCloud:
-		return i18n.T("Cloud CLIs")
-	case protocol.HiddenPackages:
-		return i18n.T("Package registry tokens")
-	case protocol.HiddenBrowsers:
-		return i18n.T("Browsers")
-	case protocol.HiddenMail:
-		return i18n.T("Mail")
-	case protocol.HiddenChat:
-		return i18n.T("Chat apps")
-	case protocol.HiddenHistories:
-		return i18n.T("Shell histories")
-	case protocol.HiddenRyoku:
-		return i18n.T("Rashin and Ryoku private state")
-	case protocol.HiddenHost:
-		return i18n.T("Host daemons (all of /run: Docker, libvirt, the system bus and more)")
-	}
-	return kind
-}
-
-// each team runs each harness in a home of its own, signed in apart from the other teams and from the user's own setup
-func (t *teamsPanel) signInGroup(e *env.Env, snapshot state.Snapshot, now time.Time) layout.Widget {
-	th := e.Theme
-	harnesses := teamsui.TeamsHarnesses(snapshot)
-	if t.signIns == nil {
-		t.signIns = make(map[string]*teamsui.SignInActions)
-	}
-	rows := make([]look.Setting, 0, max(1, len(harnesses)))
-	for _, harness := range harnesses {
-		var waiting []protocol.Team
-		signed := 0
-		for _, team := range teamsui.HarnessTeams(snapshot, harness.ID) {
-			if teamsui.SignedIn(harness, team.ID) {
-				signed++
-				continue
-			}
-			waiting = append(waiting, team)
-		}
-		row := look.Setting{Title: harness.Name, Detail: signInSummary(signed, len(waiting))}
-		// only the teams that still wait are listed, a signed in team signs in again from its own settings
-		if len(waiting) > 0 {
-			row.Below = true
-			row.Control = func(gtx layout.Context) layout.Dimensions {
-				children := make([]layout.FlexChild, 0, 2*len(waiting))
-				for index, team := range waiting {
-					actions := t.signIns[harness.ID+"\x00"+team.ID]
-					if actions == nil {
-						actions = new(teamsui.SignInActions)
-						t.signIns[harness.ID+"\x00"+team.ID] = actions
-					}
-					if index > 0 {
-						children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout))
-					}
-					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return actions.Row(gtx, e, harness, team, team.Name, now)
-					}))
-				}
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-			}
-		}
-		rows = append(rows, row)
-	}
-	if len(harnesses) == 0 {
-		rows = append(rows, look.Setting{Title: i18n.T("No team runs on an installed harness yet.")})
-	}
-	caption := i18n.T("Each team runs each harness in a home of its own, signed in apart from the other teams and from you. Your own harness folders stay hidden from them.")
-	return teamsGroup(th, i18n.T("Sign-in for Teams"), caption, rows, nil)
-}
-
-// "3 teams signed in, 1 not"
-func signInSummary(signed, waiting int) string {
-	in := i18n.Tf("%d teams signed in", signed)
-	if signed == 1 {
-		in = i18n.T("1 team signed in")
-	}
-	switch {
-	case waiting == 0:
-		return in
-	case signed > 0:
-		return i18n.Tf("%s, %d not", in, waiting)
-	case waiting == 1:
-		return i18n.T("1 team not signed in")
-	}
-	return i18n.Tf("%d teams not signed in", waiting)
-}
-
-func (t *teamsPanel) historyGroup(e *env.Env, settings protocol.TeamsSettings) layout.Widget {
+func (t *teamsPanel) historyGroup(e *env.Env, settings protocol.TeamsSettings, stock int, changed bool) layout.Widget {
 	th := e.Theme
 	labels := []string{i18n.T("Forever"), i18n.T("30 days"), i18n.T("90 days"), i18n.T("1 year")}
 	selected := max(0, slices.Index(protocol.TeamsKeepDays, settings.KeepDays))
 	rows := []look.Setting{
 		{
-			Title:  i18n.T("Keep finished tasks"),
-			Detail: i18n.T("Older finished tasks go with their conversations. What they made stays in the team's folder."),
+			Title:   i18n.T("Keep finished tasks"),
+			Detail:  i18n.T("Older finished tasks go with their conversations. What they made stays in the team's folder."),
+			Changed: changed,
+			Reset:   func() { set(e, "teams", map[string]any{"keepDays": stock}) },
 			Control: func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Dp(180)
 				dimensions := t.keep.Layout(gtx, th, e.Overlays, labels, selected)
@@ -586,5 +457,5 @@ func (t *teamsPanel) historyGroup(e *env.Env, settings protocol.TeamsSettings) l
 		},
 		{Title: i18n.T("The activity ledger keeps the newest 5,000 entries.")},
 	}
-	return teamsGroup(th, i18n.T("History"), "", rows, nil)
+	return group(th, i18n.T("History"), "", rows, nil)
 }

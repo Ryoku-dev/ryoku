@@ -27,7 +27,22 @@ const (
 	BindShell  BindKind = "shell"  // the Ryoku shell performs it
 	BindApp    BindKind = "app"    // it launches or focuses an app
 	BindCustom BindKind = "custom" // a compositor's own bind, outside the shared set
+	// BindDaemon is read from the keyboard by the Ryoku shell daemon; compositors never bind it.
+	BindDaemon BindKind = "daemon"
 )
+
+// GestureKey is a modifier the daemon can observe without grabbing the keyboard.
+type GestureKey struct {
+	Name, Label string
+	Code        uint16
+}
+
+// GestureKeys excludes Super, whose tap and drag already control the desktop.
+var GestureKeys = []GestureKey{
+	{"Alt_R", "Right Alt", 100}, {"Alt_L", "Left Alt", 56},
+	{"Control_R", "Right Ctrl", 97}, {"Control_L", "Left Ctrl", 29},
+	{"Shift_R", "Right Shift", 54}, {"Shift_L", "Left Shift", 42},
+}
 
 // BindRow is one line of the effective bind legend a provider reports: a shipped
 // bind resolved against the user's rebinds, or a compositor's own custom bind.
@@ -42,10 +57,12 @@ type BindRow struct {
 	// recorded over. A family keeps its {n} so the Hub knows it stands for ten.
 	Default string `json:"default"`
 	// Chord is the effective chord after the user's rebind, what the session emits.
-	Chord      string   `json:"chord"`
-	Kind       BindKind `json:"kind"`
-	Rebindable bool     `json:"rebindable"`
-	Locked     bool     `json:"locked"`
+	Chord             string   `json:"chord"`
+	Kind              BindKind `json:"kind"`
+	Taps              int      `json:"taps,omitempty"`
+	WhileHighlighting bool     `json:"whileHighlighting,omitempty"`
+	Rebindable        bool     `json:"rebindable"`
+	Locked            bool     `json:"locked"`
 	// Unhonored, when set, is why the running compositor cannot perform this bind.
 	// The row is still listed so the sheet reads honestly rather than silently
 	// dropping a bind the user expects to see.
@@ -74,13 +91,15 @@ func DisabledSet(list []string) map[string]bool {
 // CatalogBind is one shipped Ryoku bind, compositor-neutral. It is the raw
 // material a provider turns into a BindRow.
 type CatalogBind struct {
-	ID       string
-	Category string
-	Label    string
-	Hint     string
-	Chord    string
-	Kind     BindKind
-	Locked   bool
+	ID                string
+	Category          string
+	Label             string
+	Hint              string
+	Chord             string
+	Kind              BindKind
+	Taps              int  `json:"taps,omitempty"`
+	WhileHighlighting bool `json:"whileHighlighting,omitempty"`
+	Locked            bool
 	// Family means Chord carries {n} and stands for ten binds, n = 1..10, on the
 	// digit key n%10 so the tenth is the 0 key. Numpad families read the number
 	// pad instead, KP_1..KP_9 then KP_0.
@@ -106,7 +125,7 @@ func HasProgram(name string) bool {
 // when the bind needs nothing or has what it needs. It names the app the user
 // installs, not the program inside it.
 func (c CatalogBind) Missing(has func(string) bool) string {
-	if c.Needs == "" || has(c.Needs) {
+	if c.Kind == BindDaemon || c.Needs == "" || has(c.Needs) {
 		return ""
 	}
 	return fmt.Sprintf("%s is not installed.", c.NeedsName)
@@ -239,7 +258,7 @@ var catalogue = []CatalogBind{
 
 	// Shell
 	{ID: "shell.launcher", Category: "Shell", Label: "App launcher", Chord: "SUPER + Space", Kind: BindShell},
-	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "Ask Rashin about this machine", Chord: "ALT + Space", Kind: BindShell, Needs: "rashind", NeedsName: "Rashin"},
+	{ID: "shell.ask", Category: "Shell", Label: "Rashin bar", Hint: "Ask, search the web and start downloads", Chord: "ALT + Space", Kind: BindShell},
 	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The Rashin app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app", NeedsName: "Rashin"},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
 	{ID: "shell.gamebar", Category: "Shell", Label: "Game Bar", Hint: "Capture, performance and tasks over a full screen game", Chord: "SUPER + SHIFT + G", Kind: BindShell},
@@ -256,6 +275,9 @@ var catalogue = []CatalogBind{
 	{ID: "shell.settings", Category: "Shell", Label: "Settings", Chord: "SUPER + comma", Kind: BindShell},
 	{ID: "shell.stageEditor", Category: "Shell", Label: "Stage Editor", Hint: "Edit the desktop on the focused screen", Chord: "SUPER + SHIFT + D", Kind: BindShell},
 	{ID: "shell.screenshot", Category: "Shell", Label: "Capture", Hint: "Screenshot and recording", Chord: "SUPER + SHIFT + S", Kind: BindShell},
+	{ID: "shell.sight", Category: "Shell", Label: "Theia", Hint: "Tap three times to look at part of the screen with Theia", Chord: "Alt_R", Kind: BindDaemon, Taps: 3, Needs: "rashind"},
+	{ID: "shell.sightHighlight", Category: "Shell", Label: "Theia on highlighted text", Hint: "Hold while you highlight text to see Theia's actions", Chord: "Alt_L", Kind: BindDaemon, WhileHighlighting: true, Needs: "rashind"},
+	{ID: "shell.sightInPlace", Category: "Shell", Label: "Theia in place", Hint: "Tap three times with text selected to translate or fix it where it is", Chord: "Control_R", Kind: BindDaemon, Taps: 3, Needs: "rashind"},
 	{ID: "shell.screenshotPrint", Category: "Shell", Label: "Screenshot", Chord: "Print", Kind: BindShell},
 	{ID: "shell.screenshotMonitor", Category: "Shell", Label: "Screenshot, whole screen", Chord: "SHIFT + Print", Kind: BindShell},
 	{ID: "shell.colorPicker", Category: "Shell", Label: "Pick a colour", Chord: "SUPER + SHIFT + C", Kind: BindShell},
@@ -439,6 +461,11 @@ func DisplayKeys(chord string) []string {
 }
 
 func displayToken(tok string) string {
+	for _, key := range GestureKeys {
+		if key.Name == tok {
+			return key.Label
+		}
+	}
 	if name, ok := displayNames[tok]; ok {
 		return name
 	}

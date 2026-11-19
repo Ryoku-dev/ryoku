@@ -1,6 +1,187 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Theia's highlight actions show on Hyprland.** Holding the highlight key
+  while selecting text and letting go showed nothing on Hyprland unless the
+  mouse moved within a second and a half: Hyprland sends no pointer enter to an
+  overlay it opens under a still pointer, so the bubble never learned where to
+  appear. The overlay now asks the compositor where the pointer is through the
+  new `pointer.locate` action (`pointerPosition` capability, Hyprland only), and
+  In place places its toast the same way (`modules/sight/SightSurface.qml`,
+  `ryoku/ui/Singletons/Wm.qml`, `ryoku/wm/hyprland/act.go`). niri already sends
+  that enter and is unchanged.
+- **Alt+Space opens the Rashin bar, a Raycast-style command bar.** One field
+  and one ranked list: a calculator answer, `Download <host>` for a pasted link
+  or magnet, live and recent downloads, recent asks, and the `Ask Rashin` and
+  `Search the web` fallbacks. Enter runs the row, Ctrl+Enter its second action,
+  Ctrl+K lists every action, Tab asks Rashin, and Escape steps back one layer at
+  a time. The bar draws in the design in use (Lithic, Material, Adwaita, Fluent)
+  with one gliding selection plate and the design's own view transitions, and
+  holds still under reduced motion (`quickshell/shell/modules/ask/`).
+- **Quick Ask stays; the Agent mode is gone from the bar.** Answers stream with
+  their actions, Open in Rashin continues them in the app, and Markdown answers
+  now leave room between paragraphs, lists and code in the bar, the bubble and
+  the launcher's Ask (`modules/ask/views/AskView.qml`, `services/lib/markdown.js`).
+- **Web searches in place, through its own search daemon, `ryoseek`.** While you
+  type the bar shows suggestions, a Wikipedia row and a definition card for "what
+  does X mean"; the full search runs on Enter or after 1.2 s of stillness, so
+  typing no longer sends a search at every pause. The Web section merges
+  Keenable and DuckDuckGo with Bing as the last resort, and Wikipedia, GitHub,
+  Stack Overflow, MDN, npm, crates.io, the Arch Wiki, Flathub, YouTube and Hacker
+  News answer by scope, plus Arch packages and the AUR on Arch-based editions.
+  DuckDuckGo had started answering every search with a bot check, which left
+  Web empty: `ryoseek` keeps one request budget per engine for every bar and
+  terminal, pauses an engine that blocks for its Retry-After or 15 minutes
+  doubling, remembers that across bar openings, and shows "paused until" instead
+  of an error. It starts on demand and exits after five idle minutes
+  (`modules/ask/views/WebView.qml`, `modules/ask/SearchClient.qml`,
+  `ryoget/cmd/ryoseek/`, `ryoget/internal/search/`).
+- **Paste several links at once.** Links in any pasted text (one per line, in a
+  sentence, Markdown, magnets) are pulled out and cleaned: tracking tags and
+  redirect wrappers removed, `youtu.be`, mobile and mirror addresses made normal,
+  duplicates dropped, signed download links left exactly as they are. The bar's
+  home list offers "Download N links" and says what it cleaned; Enter adds them
+  all, and Ctrl+Enter opens Kit's intake card, where each link fills in as it is
+  read, with one format for all or per link, ticks and one folder. `ryoget add -`
+  does the same from a terminal (`modules/ask/views/RootView.qml`,
+  `modules/kit/sections/downloads/`, `ryoget/internal/links/`).
+- **A download manager on a new engine, `ryoget`, in Kit's Downloads.** The
+  Rashin bar starts a download from a pasted link and Enter and lists what is
+  moving; the manager itself is a Kit section. Files download over several
+  connections and resume after a stop or a crash; videos and posts from YouTube,
+  X, Instagram, TikTok, Reddit, Bluesky, SoundCloud, Vimeo, Twitch, Streamable,
+  Dailymotion, Pinterest, Tumblr, Bilibili, Loom, OK.ru, Rutube, VK and Facebook
+  resolve natively, other sites through yt-dlp, and torrents and magnets
+  download with file selection and seeding limits. Each row draws its live piece
+  map; the selection shows beside the list its pieces, its speed over the last
+  minute and its files, and Settings is a page of its own. The daemon starts on
+  demand, keeps going after Kit and the bar close, notifies when a download lands
+  and exits when idle (`modules/kit/sections/downloads/`, `ryoget/`).
+- **Cobalt, its Docker container and the Stash tools are gone.** Compress,
+  Install, Installed apps, Recent downloads and the Cobalt switch leave the bar,
+  with `stash-cobalt.sh`, `stash-cobalt-server.sh`, `stash-download.sh` and the
+  `ryoku-shell compress` and `install` verbs. `ryoku-shell ask web` opens the bar
+  on Web and `ryoku-shell ask downloads` opens Kit's Downloads; right-click
+  Compress and Install in the file manager keep working (`ipc/daemon.go`,
+  `quickshell/shell/ShellBody.qml`, `quickshell/shell/services/ShellState.qml`).
+- **Kit is a tabbed manual, and a closed Kit costs nothing.** Super+K starts Kit
+  as a small program of its own; closing hides it, a reopen within the minute is
+  instant, and a minute after closing it quits, so a closed Kit holds no memory.
+  Six tabs run down the left (Downloads, Keys, Commands, Phone, Dev tools, Typing
+  test), each with one live figure and lit until opened when something changed
+  there, and the open tab is part of the page's outline. One field filters the
+  open section, Ctrl+F searches all of Kit, Ctrl+K lists the actions, Ctrl+1 to
+  Ctrl+6 and Ctrl+PgDn/PgUp move between sections and pages, Escape steps back
+  one layer, and it draws in the four designs. Keys is one scroll, searchable by
+  name in your language or by chord, with find-by-pressing-keys and Rebind in
+  Settings. Commands copies on Enter after asking for any blank and runs on
+  Ctrl+Enter in a terminal that stays open, and its catalogue is translated. Dev
+  tools cap how much they process, and the regex tester runs each pattern in a
+  short-lived helper stopped after 1.5 s, so a runaway pattern cannot freeze Kit.
+  The typing test keeps the keyboard after it ends, and History and Stats have
+  graphs. `ryoku-kit [section [page]]` opens Kit on a section, starting it or
+  reaching the running one, and an update removes the old
+  `~/.config/quickshell/keys` (`quickshell/shell/kit.qml`,
+  `quickshell/shell/modules/kit/`, `scripts/ryoku-kit`).
+- **Theia checks English without installing another program**
+  Automatic uses the built-in checker for English and your model for other
+  languages, and spelling fixes use the exact word you selected
+  (`quickshell/shell/modules/sight/TheiaIssues.qml`).
+- **Sight is now Theia, with a switch for the whole thing.** Every name you read
+  says Theia, one Theia switch turns off the gestures and the surface, and the
+  settings and shell.json keys keep their `sight` names (`ipc/sight.go`,
+  `quickshell/shell/modules/sight/`).
+- **Theia's panel has a More tile for what you turn on.** It opens a sheet of
+  actions grouped Read, Write and Translate, you can pin two as tabs, and the
+  highlight bubble's buttons are the ones you choose, with a More chip
+  (`modules/sight/SightPanel.qml`, `TheiaActionSheet.qml`, `TheiaCatalog.qml`, `SightBubble.qml`).
+- **Theia can summarize, deep read, solve, quiz you and read answers aloud.**
+  Key points, a TL;DR or the main point, seven lenses including a fact check,
+  maths in steps or LaTeX, a short quiz, and a voice on this computer that
+  stops when you close the panel (`modules/sight/TheiaSummary.qml`, `TheiaLenses.qml`,
+  `TheiaSolve.qml`, `TheiaQuiz.qml`, `ipc/sight_speak.go`).
+- **Theia fixes and rewrites what you write.** Spelling and grammar fixes you
+  accept one by one or all at once, rewrites, tones, fluent English, a
+  machine-writing check that says it is a rough guide, inclusive wording, how a
+  message reads, three replies and your own voice; Replace shows only for a
+  highlight with In place on, and only for results that are text to put back
+  (`modules/sight/TheiaIssues.qml`, `TheiaScore.qml`, `TheiaRewrite.qml`).
+- **Theia translates in more ways.** Pick natural, literal, formal or casual,
+  see it translated back, look a word up in the sense it is used, or have the
+  translation drawn over a picture (`modules/sight/SightTranslateRow.qml`,
+  `TheiaOverlay.qml`, `TheiaDefine.qml`, `ipc/sight_ocr.go`).
+- **Select text in any field, tap Right Ctrl three times, and Theia translates
+  or fixes it where it is.** A toast offers Undo, your clipboard is put back,
+  and Esc cancels (`ipc/sight_inplace.go`, `ipc/sight_replace.go`, `modules/sight/TheiaToast.qml`).
+- **Theia stays out of the apps you pick and has a Not now.** Choose apps where
+  no gesture fires, or keep it away until you switch app, for 15 minutes or for
+  an hour (`ipc/sight_quiet.go`).
+- **Battery health reads on every UPower build.** The daemon's battery scan
+  falls back to the pack's Capacity (the wear percentage every UPower carries)
+  when HealthPercentage/HealthSupported are absent, so the Orpheus power card
+  and the bar popout show a health figure instead of "Unavailable". QML keeps
+  reading the battery topic; no new probes
+  (`ipc/battery.go`).
+- **Orpheus wears the desktop's design language.** The bar body, its cards and
+  its settings now follow `theme.design` live, in all four styles: Lithic cuts
+  its corners (the blob field itself chamfers, not just the kit chrome) and
+  rules them with hairlines and tracked mono labels, Material rounds them into
+  tonal pills with no outline, Adwaita softens them into rounded cards, Fluent
+  keeps small corners and layered outlines. Colour stays on the shell palette,
+  so switching the design never touches it, and there is no per-bar picker. Each
+  design carries its own motion personality; micro-animations answer the hand
+  whenever motion is allowed, while the passive music wave only runs with
+  headroom (Balanced or Performance, never Power Saver). The blob plugin gains a
+  `cutCorners` mode so a welded bar can chamfer its corners while keeping the
+  liquid smooth-min weld
+  (`subshells/orpheus/qml/kit/Look.qml`, `kit/Shape.qml`, `kit/Style.qml`,
+  `components/Body.qml`, `settings/SettingsWindow.qml`,
+  `plugin/shaders/blob.frag`, `plugin/blobgroup.cpp`).
+- **Orpheus cards bud out of the bar and melt back into it.** The card now
+  rides the bar's own surface and blob field, so its neck smooth-mins into the
+  drop it grows from: opening swells the bar open into the page, closing drains
+  the fillet back into the band until the card melts shut, and travelling
+  between anchors stretches the page liquidly (content rides the blob's velocity
+  deform). The separate card window and its rim-seam overlap are gone; dismissal
+  and keyboard focus move into the bar window
+  (`subshells/orpheus/qml/components/Body.qml`, `qml/components/CardHost.qml`,
+  `qml/Scene.qml`, `qml/Metrics.js`).
+- **Tap Right Alt three times to explain, read, translate or ask about part of
+  the screen, or hold Left Alt while you highlight text.** A triple tap freezes
+  the screen, you drag over anything, and the box stays where it was with
+  Rashin's answer beside it, already streaming. Highlighted text gets a small
+  Translate, Explain, Ask bubble at the pointer instead, without freezing
+  anything. One panel switches between Explain, Text, Translate and Ask and
+  takes follow-ups in your own language, with local OCR and QR reading, the
+  text's language detected on this machine, the target language remembered,
+  Copy, Pin and Keep on screen. It only listens while Rashin is on; the shell
+  daemon reads the keyboard without grabbing it, no compositor binds the keys,
+  and the surface unloads once closed (`ipc/sight.go`, `ipc/sight_gesture.go`,
+  `ipc/sight_capture.go`, `ipc/sight_language.go`, `ipc/sight_ocr.go`,
+  `ipc/primary_selection.go`, `quickshell/shell/modules/sight/`).
+- **Pinned screenshots float where they were taken and can be traced over.**
+  A pin lands on its own spot and monitor above full-screen apps, fades with
+  Ctrl+wheel or 0 to 9, goes click-through for tracing with a blink toggle,
+  hides with the rest or alone, and drags out into other apps as a file
+  (`quickshell/ryopin/`, `scripts/ryoku-cmd-pin`).
+- **The key-press overlay finds keyboards when they appear instead of looking
+  every two seconds** (`ipc/keyboard_reader.go`, `ipc/keypress.go`).
+- **The capture UI takes the shape of the design in Style.** Bar, selection
+  and dock follow it, and Beautify gets a button that lifts the shot into a
+  card beside its edits (`ryoshot/CaptureBar.qml`, `ryoshot/beautify/`).
+- **Orpheus shows a recording in its own bubble on the bar.** It buds off the
+  island with the recorded length and the audio sources, opens a recording card,
+  and Ryoku's floating pill stays away unless Bar settings hand it back
+  (`subshells/orpheus/qml/recording/`, `services/Shells.qml`).
+- **The recording status tells the truth from start to saved.** The clock leaves
+  pauses out, a stop stays shown until the file is saved and a crashed recorder
+  leaves no ghost (`scripts/ryoku-cmd-record`, `services/Recorder.qml`).
+- **Notification cards take the shape of the design in Style.** Lithic burns a
+  tick fuse, Material drains a wavy ring round the app, Adwaita is GNOME's banner
+  and Fluent the Windows toast (`modules/notifications/NotificationLook.qml`).
+- **The volume, mic, brightness and keyboard pop-ups take the shape of the design
+  in Style.** Lithic hangs a small tab under the bar, Material an edge slider on
+  the right, Adwaita and Fluent a pill near the bottom (`modules/osd/OsdLook.qml`).
 - **The Game Bar's Discord voice widget can stack people vertically.** The new
   `voiceVertical` setting makes both the open card and the pinned overlay put
   each participant in one column when turned on; rows stay the default. The

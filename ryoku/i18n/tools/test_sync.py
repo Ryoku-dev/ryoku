@@ -29,6 +29,17 @@ class CopyDetectionTest(unittest.TestCase):
 
 
 class CatalogueExtractionTest(unittest.TestCase):
+    def test_command_catalogue_extracts_only_displayed_copy(self):
+        with tempfile.TemporaryDirectory() as catalog:
+            with open(os.path.join(catalog, "commands.json"), "w", encoding="utf-8") as source:
+                json.dump({"commands": [{"id": "ignored-id", "title": "Show a version",
+                           "description": "Read the installed version.", "command": "version --raw",
+                           "tags": ["ignored-tag"]}],
+                           "libraries": [{"label": "Linux", "groups": [{"label": "Files & folders"}]}]}, source)
+            keys = set()
+            sync._scan_command_catalogue(keys, catalog)
+        self.assertEqual(keys, {"Show a version", "Read the installed version.", "Linux", "Files & folders"})
+
     def test_translation_bridge_call_is_catalogued(self):
         calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")\n'
                                      'accessibleName: Lithic.tr("Reset %1").arg(title)')

@@ -21,11 +21,11 @@ func demoProposal() protocol.TeamProposeParams {
 			Purpose: i18n.T("Drafts the German and Portuguese strings Ryotunes is missing each week, and tells me which need a native speaker."),
 			Members: []protocol.Member{
 				{
-					Name: translator, Title: i18n.T("Drafts the translations"), Lead: true, Harness: "claude", Model: "sonnet",
+					Name: translator, Title: i18n.T("Drafts the translations"), Lead: true, Model: demoLocalID,
 					Instructions: i18n.T("You find the strings the German and Portuguese catalogues lack, draft each through DeepL with http_request and the DEEPL_API_KEY credential, and hand the drafts to the proofreader."),
 				},
 				{
-					Name: i18n.T("Proofreader"), Title: i18n.T("Reads them as a native speaker would"), Harness: "codex", Model: "gpt-5.6",
+					Name: i18n.T("Proofreader"), Title: i18n.T("Reads them as a native speaker would"), Model: demoFreeID,
 					Instructions: i18n.T("You read each draft in context, fix what reads stiffly, and mark the strings a native speaker should check."),
 				},
 			},

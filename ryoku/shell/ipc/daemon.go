@@ -167,6 +167,7 @@ type daemon struct {
 	topics          map[string]*stateTopic // subsystem name -> pub/sub state topic
 	callsMu         sync.Mutex             // guards calls
 	calls           map[string]callFunc    // "topic.method" -> control handler
+	callLanes       map[string]string      // optional ordered lane within a call namespace
 	clip            *clipState             // clipboard history state (nil until started)
 	tray            *trayState             // system tray watcher/host state (nil until started)
 	ryoWallMu       sync.Mutex             // guards ryoWall
@@ -177,8 +178,9 @@ type daemon struct {
 	battery         *batteryState          // UPower battery readout (nil when no system bus)
 	audioLevels     *audioState            // default-device volume readout (PipeWire via pactl)
 	keypress        *keypressManager       // evdev key stream while the overlay is enabled
-	mousemap        *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
-	sun             *sunState              // latest weather sunrise/sunset window
+	sight           *sightService
+	mousemap        *mouseMapManager // per-mouse evdev grab + uinput clone remapper
+	sun             *sunState        // latest weather sunrise/sunset window
 	sleepMu         sync.RWMutex
 	sleep           *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
 	suspendReqMu    sync.Mutex
@@ -494,6 +496,7 @@ func (d *daemon) bootstrap() {
 	go d.watchMatugenKnobs()
 	go d.ledsWorker()
 	d.startWM()
+	d.startSight()
 	go d.watchPowerSounds()
 	go d.watchAutoPowerSaver()
 	go d.watchPerformanceFlags()
@@ -1271,11 +1274,10 @@ var surfaceCommands = map[string]string{
 	"cheatsheet":          "cheatsheet",
 	"tools":               "tools",
 	"screenshot":          "screenshot",
+	"sight":               "sight",
 	"ask":                 "ask",
-	"ask chat":            "ask#chat",
-	"ask tools":           "ask#tools",
-	"compress":            "ask#tools/compress",
-	"install":             "ask#tools/install",
+	"ask web":             "ask#web",
+	"ask downloads":       "ask#downloads",
 	"menu quick-settings": "sidebar-left",
 	"menu screenshot":     "screenshot",
 	"menu app-launcher":   "launcher",
@@ -1308,6 +1310,18 @@ func (d *daemon) dispatch(line string) string {
 	}
 	cmd, args := fields[0], fields[1:]
 	routeCmd := cmd
+	if cmd == "sight" {
+		if len(args) != 0 {
+			return "err sight: unexpected arguments"
+		}
+		if d.sight == nil {
+			return "err sight: unavailable"
+		}
+		if err := d.sight.trigger(); err != nil {
+			return "err sight: " + err.Error()
+		}
+		return "ok"
+	}
 	switch cmd {
 	case "menu":
 		// menu close clears every open menu. App launcher and dedicated surface
@@ -1327,11 +1341,11 @@ func (d *daemon) dispatch(line string) string {
 		if len(args) == 0 {
 			break
 		}
-		if len(args) == 1 && (args[0] == "chat" || args[0] == "tools") {
+		if len(args) == 1 && (args[0] == "web" || args[0] == "downloads") {
 			routeCmd = line
 			break
 		}
-		return "err ask: expected chat or tools"
+		return "err ask: expected web or downloads"
 	case "dock":
 		return d.dockCLI(args)
 	case "powerprofiles":

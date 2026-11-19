@@ -8,6 +8,49 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
+func TestStoreFeatureDoesNotWaitForStoreLock(t *testing.T) {
+	store := New(nil)
+	if store.Feature("compare") {
+		t.Fatal("a new store enabled a feature")
+	}
+	features := map[string]bool{"compare": true}
+	store.ApplySnapshot(protocol.Snapshot{Settings: protocol.Settings{Features: features}})
+	features["compare"] = false
+	if !store.Feature("compare") {
+		t.Fatal("feature publication retained the caller's map")
+	}
+	if err := store.Apply(protocol.Event{Event: protocol.EvtSettingsChanged, Data: json.RawMessage(`{"features":{"history":true}}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if store.Feature("compare") || !store.Feature("history") {
+		t.Fatal("settings.changed did not replace published features")
+	}
+
+	locked, release, unlocked := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	go func() {
+		store.mu.Lock()
+		close(locked)
+		<-release
+		store.mu.Unlock()
+		close(unlocked)
+	}()
+	<-locked
+	defer func() {
+		close(release)
+		<-unlocked
+	}()
+	result := make(chan bool, 1)
+	go func() { result <- store.Feature("history") }()
+	select {
+	case enabled := <-result:
+		if !enabled {
+			t.Fatal("the published feature was lost while the store was locked")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Feature waited for the store lock")
+	}
+}
+
 func TestConnectionEpochAdvancesOnReadyTransitions(t *testing.T) {
 	store := New(nil)
 	if epoch := store.Snapshot().Epoch; epoch != 0 {
@@ -29,6 +72,25 @@ func TestConnectionEpochAdvancesOnReadyTransitions(t *testing.T) {
 	store.SetConnection(Ready)
 	if epoch := store.Snapshot().Epoch; epoch != 2 {
 		t.Fatalf("reconnected epoch = %d, want 2", epoch)
+	}
+}
+
+func TestStoreRejectsBrokenLocalEventsWithoutLosingLastModel(t *testing.T) {
+	store := New(nil)
+	store.ApplySnapshot(protocol.Snapshot{Local: protocol.LocalResult{
+		Models: []protocol.LocalModel{{ID: "lfm3", Name: "LFM3 Omni 2B", State: protocol.LocalInstalled}},
+	}})
+	if err := store.Apply(protocol.Event{Event: protocol.EvtLocalChanged, Data: json.RawMessage(`{`)}); err == nil {
+		t.Fatal("invalid local.changed was accepted")
+	}
+	if got := store.Snapshot().Local.Models; len(got) != 1 || got[0].Name != "LFM3 Omni 2B" {
+		t.Fatalf("invalid local.changed erased the installed model: %+v", got)
+	}
+	if err := store.Apply(protocol.Event{Event: protocol.EvtLocalProgress, Data: json.RawMessage(`{`)}); err == nil {
+		t.Fatal("invalid local.progress was accepted")
+	}
+	if got := store.Snapshot().LocalProgress; len(got) != 0 {
+		t.Fatalf("invalid local.progress added a download: %+v", got)
 	}
 }
 

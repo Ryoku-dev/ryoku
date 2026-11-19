@@ -4,9 +4,14 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
+import "look"
+import "../../services/lib/markdown.js" as Md
 
+// A pinned Quick Ask answer: Rashin's seal on the desktop, dragged anywhere, its
+// answer one tap away. Dragging it onto Remove unpins it.
 Scope {
     id: root
 
@@ -20,12 +25,12 @@ Scope {
     readonly property real s: Tokens.uiScaleFor(screen ? screen.name : "")
     readonly property real screenWidth: screen && screen.width > 0 ? screen.width : 1280
     readonly property real screenHeight: screen && screen.height > 0 ? screen.height : 800
-    readonly property real bubbleSize: 56 * s
+    readonly property real bubbleSize: Math.round(56 * s)
+    readonly property real edge: Math.round(13 * s)
     readonly property bool configuredScreen: Config.askBubble.screen.length > 0
         ? Config.askBubble.screen === String(screen ? screen.name : "")
         : Quickshell.screens.length > 0 && Quickshell.screens[0] === screen
     readonly property bool shown: enabled && configuredScreen && !suppressed
-    readonly property bool motionAllowed: shown && !Tokens.reduceMotion && !Motion.reduce
     property bool persisting: false
 
     onSuppressedChanged: if (suppressed) cardOpen = false
@@ -57,8 +62,8 @@ Scope {
             return;
         }
         const right = bubble.x + bubble.width / 2 >= root.screenWidth / 2;
-        bubble.x = right ? root.screenWidth - bubble.width - Tokens.s3 * root.s : Tokens.s3 * root.s;
-        bubble.y = Math.max(Tokens.s3 * root.s, Math.min(root.screenHeight - bubble.height - Tokens.s3 * root.s, bubble.y));
+        bubble.x = right ? root.screenWidth - bubble.width - root.edge : root.edge;
+        bubble.y = Math.max(root.edge, Math.min(root.screenHeight - bubble.height - root.edge, bubble.y));
         persistPosition();
     }
 
@@ -97,22 +102,33 @@ Scope {
             focus: root.cardOpen
             Keys.onEscapePressed: root.cardOpen = false
 
-            Rectangle {
+            Shape {
                 id: dismissTarget
-                x: (parent.width - width) / 2
-                y: parent.height - height - Tokens.s5 * root.s
-                width: 132 * root.s
-                height: 54 * root.s
-                radius: height / 2
-                color: Tokens.paperLift
-                border.width: Tokens.border
-                border.color: Tokens.lineStrong
+                x: Math.round((parent.width - width) / 2)
+                y: parent.height - height - Math.round(34 * root.s)
+                width: Math.round(132 * root.s)
+                height: Math.round(52 * root.s)
+                s: root.s
+                cutSize: Look.cutMenu
+                fill: Look.popover
+                strokeColor: Lithic.jasper
+                strokeWidth: 1
                 opacity: drag.active ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation { duration: Look.dur(Look.stateMs) }
+                }
                 Row {
                     anchors.centerIn: parent
-                    spacing: Tokens.s2 * root.s
-                    Text { text: "delete"; color: Tokens.inkMuted; font.family: "Material Symbols Rounded"; font.pixelSize: Tokens.fBody * root.s }
-                    Text { text: I18n.tr("Remove"); color: Tokens.inkDim; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall * root.s }
+                    spacing: Math.round(8 * root.s)
+                    Symbol { anchors.verticalCenter: parent.verticalCenter; s: root.s; name: "delete"; size: 18; ink: Lithic.jasper }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("Remove")
+                        color: Lithic.fg
+                        font.family: Look.sans
+                        font.pixelSize: Math.round(13 * root.s)
+                        renderType: Text.NativeRendering
+                    }
                 }
             }
 
@@ -121,10 +137,30 @@ Scope {
                 width: root.bubbleSize
                 height: root.bubbleSize
                 z: 3
-                RectangularShadow { anchors.fill: disc; radius: disc.radius; blur: Tokens.s3 * root.s; spread: Tokens.border; color: Qt.alpha(Tokens.paper, 0.52) }
-                Rectangle { id: disc; anchors.fill: parent; radius: width / 2; color: Tokens.bone; border.width: Tokens.border; border.color: Tokens.line }
-                AskOrb { anchors.centerIn: parent; s: root.s; orbSize: root.bubbleSize - Tokens.s3 * root.s; active: root.shown; mode: "ask"; preset: "avatar"; ink: Tokens.inkOnBone }
-                HoverHandler { cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor }
+
+                RectangularShadow {
+                    anchors.fill: disc
+                    offset.y: Math.round(4 * root.s)
+                    blur: Math.round(16 * root.s)
+                    radius: Look.cornerAt(LithicTokens.cut.large, disc.width, disc.height, root.s)
+                    color: Look.shadow
+                }
+                Shape {
+                    id: disc
+                    anchors.fill: parent
+                    s: root.s
+                    cutSize: LithicTokens.cut.large
+                    fill: Lithic.sel
+                }
+                AskOrb {
+                    anchors.centerIn: parent
+                    s: root.s
+                    orbSize: root.bubbleSize - Math.round(13 * root.s)
+                    active: root.shown && bubbleHover.hovered
+                    preset: "avatar"
+                    ink: Lithic.onSel
+                }
+                HoverHandler { id: bubbleHover; cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor }
                 TapHandler { onTapped: root.cardOpen = !root.cardOpen }
                 DragHandler {
                     id: drag
@@ -140,33 +176,73 @@ Scope {
                 }
             }
 
-            Rectangle {
+            Item {
                 id: answerCard
                 visible: root.shown && root.cardOpen
                 x: bubble.x < win.width / 2
-                    ? Math.min(win.width - width - Tokens.s3 * root.s, bubble.x + bubble.width + Tokens.s3 * root.s)
-                    : Math.max(Tokens.s3 * root.s, bubble.x - width - Tokens.s3 * root.s)
-                y: Math.max(Tokens.s3 * root.s, Math.min(win.height - height - Tokens.s3 * root.s, bubble.y - height / 2 + bubble.height / 2))
-                width: Math.min(420 * root.s, win.width - Tokens.s5 * root.s * 2)
-                implicitHeight: answerColumn.implicitHeight + Tokens.s4 * root.s * 2
-                height: Math.min(implicitHeight, win.height * 0.46)
-                radius: Tokens.radius * root.s
-                color: Tokens.paper
-                border.width: Tokens.border
-                border.color: Tokens.lineStrong
+                    ? Math.min(win.width - width - root.edge, bubble.x + bubble.width + root.edge)
+                    : Math.max(root.edge, bubble.x - width - root.edge)
+                y: Math.max(root.edge, Math.min(win.height - height - root.edge, bubble.y - height / 2 + bubble.height / 2))
+                width: Math.min(Math.round(420 * root.s), win.width - Math.round(68 * root.s))
+                height: Math.min(answerColumn.implicitHeight + Math.round(42 * root.s), win.height * 0.46)
                 z: 2
-                clip: true
+
+                RectangularShadow {
+                    anchors.fill: parent
+                    offset.y: Math.round(8 * root.s)
+                    blur: Math.round(28 * root.s)
+                    radius: Look.lithic ? 0 : Look.cornerAt(Look.cutFrame, answerCard.width, answerCard.height, root.s)
+                    color: Look.shadow
+                }
+                Shape {
+                    anchors.fill: parent
+                    s: root.s
+                    cutSize: Look.cutFrame
+                    cutTopRight: Look.cutFrameQuiet * root.s
+                    cutBottomLeft: Look.cutFrameQuiet * root.s
+                    fill: Look.frame
+                    strokeColor: Look.frameStroke
+                    strokeWidth: Qt.colorEqual(Look.frameStroke, "transparent") ? 0 : 1
+                }
                 Flickable {
                     anchors.fill: parent
-                    anchors.margins: Tokens.s4 * root.s
+                    anchors.margins: Math.round(21 * root.s)
                     contentHeight: answerColumn.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
+                    clip: true
                     Column {
                         id: answerColumn
                         width: parent.width
-                        spacing: Tokens.s2 * root.s
-                        Text { width: parent.width; visible: text.length > 0; text: root.question; color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall * root.s; font.weight: Font.DemiBold; wrapMode: Text.WordWrap }
-                        TextEdit { width: parent.width; text: root.answer.length > 0 ? root.answer : I18n.tr("No pinned answer"); color: Tokens.inkDim; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall * root.s; wrapMode: TextEdit.Wrap; readOnly: true; selectByMouse: true }
+                        spacing: Math.round(8 * root.s)
+                        Text {
+                            width: parent.width
+                            visible: text.length > 0
+                            text: root.question
+                            color: Lithic.fg
+                            font.family: Look.sans
+                            font.pixelSize: Math.round(14 * root.s)
+                            font.weight: Font.Medium
+                            wrapMode: Text.WordWrap
+                            renderType: Text.NativeRendering
+                        }
+                        TextEdit {
+                            width: parent.width
+                            text: Md.render(root.answer.length > 0 ? root.answer : I18n.tr("No pinned answer"), Look.prose(root.s, 13, Look.frame))
+                            textFormat: TextEdit.RichText
+                            color: Lithic.fg2
+                            selectionColor: Lithic.sel
+                            selectedTextColor: Lithic.onSel
+                            font.family: Look.sans
+                            font.pixelSize: Math.round(13 * root.s)
+                            wrapMode: TextEdit.Wrap
+                            readOnly: true
+                            selectByMouse: true
+                            onLinkActivated: url => {
+                                const safe = Md.safeUrl(url);
+                                if (safe.length > 0)
+                                    Spawn.runApp(["xdg-open", safe], { label: "browser" });
+                            }
+                        }
                     }
                 }
             }

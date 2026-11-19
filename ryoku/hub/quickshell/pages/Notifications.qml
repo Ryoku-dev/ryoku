@@ -4,6 +4,7 @@ import Ryoku.Ui.Singletons
 import ".."
 import "../Singletons"
 import "../components"
+import "../components/notifications"
 import "../schema/notifications.js" as Schema
 import "../ShellIndex.js" as ShellIndex
 
@@ -40,6 +41,11 @@ Item {
 
     readonly property string stateLine: I18n.tr("Notifications: %1. Pop-ups: %2.")
         .arg(notifications.activeCard.name).arg(popups.activeCard.name)
+
+    // Ryoku's own card and pop-up at work, in the design and the light or dark the desktop wears
+    readonly property string artName: Lithic.design + "-" + (Lithic.dark ? "dark" : "light") + ".webp"
+    readonly property url notificationArt: Qt.resolvedUrl("../art/notifications/" + root.artName)
+    readonly property url popupArt: Qt.resolvedUrl("../art/osd/" + root.artName)
 
     readonly property var life: ({ alive: true })
     Component.onDestruction: root.life.alive = false
@@ -99,6 +105,7 @@ Item {
         settingKey: "designs.notification"
         changeLabel: "Notification design"
         pageId: "notifications"
+        shippedArt: root.notificationArt
     }
 
     DesignShelf {
@@ -107,6 +114,7 @@ Item {
         settingKey: "designs.osd"
         changeLabel: "Pop-up design"
         pageId: "notifications"
+        shippedArt: root.popupArt
     }
 
     SettingsPage {
@@ -178,19 +186,43 @@ Item {
 
     Component {
         id: notificationGallery
-        DesignChooser {
-            shelf: notifications
-            accessibleName: I18n.tr("Notification designs")
-            ownerNote: root.ownerNote("notifications")
+        Column {
+            spacing: LithicTokens.space.s4
+
+            // only while Ryoku's own design is worn: a store design draws its own card
+            DesignExample {
+                width: parent.width
+                visible: notifications.active === notifications.shipped.id
+                source: root.notificationArt
+                caption: I18n.tr("How Ryoku's notifications move in %1, the design in use. It only shows the design.")
+            }
+            DesignChooser {
+                width: parent.width
+                shelf: notifications
+                accessibleName: I18n.tr("Notification designs")
+                ownerNote: root.ownerNote("notifications")
+            }
         }
     }
 
     Component {
         id: popupGallery
-        DesignChooser {
-            shelf: popups
-            accessibleName: I18n.tr("Pop-up designs")
-            ownerNote: root.ownerNote("osd")
+        Column {
+            spacing: LithicTokens.space.s4
+
+            // only while Ryoku's own design is worn: a store design draws its own pop-up
+            DesignExample {
+                width: parent.width
+                visible: popups.active === popups.shipped.id
+                source: root.popupArt
+                caption: I18n.tr("How Ryoku's pop-up moves in %1, the design in use. It only shows the design.")
+            }
+            DesignChooser {
+                width: parent.width
+                shelf: popups
+                accessibleName: I18n.tr("Pop-up designs")
+                ownerNote: root.ownerNote("osd")
+            }
         }
     }
 

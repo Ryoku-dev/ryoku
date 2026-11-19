@@ -145,7 +145,7 @@ func InitiatorMark(th *look.Theme, initiator string) layout.Widget {
 	case protocol.InitiatorAgent:
 		return look.IconWidget(look.Icon.Agents, 16, th.R.Fg3)
 	}
-	return look.RyokuMark(14, th.R.Fg3)
+	return look.RashinMark(14, th.R.Fg3)
 }
 
 // one ledger entry as a row: when, in a column of whenWidth, who started it,

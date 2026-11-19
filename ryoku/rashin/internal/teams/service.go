@@ -9,6 +9,7 @@ package teams
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,6 @@ import (
 
 	"ryoku-rashin/internal/config"
 	"ryoku-rashin/internal/core"
-	registry "ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/skills"
@@ -36,20 +36,21 @@ type Service struct {
 	settings func() protocol.Settings
 	sessions core.TeamSessions
 	now      func() time.Time
-	// defaultHarness is the registry's default harness for these settings,
-	// the last step of the engine chain
-	defaultHarness func(protocol.Settings) string
-	// signedIn reports whether a team is signed in to a harness
-	signedIn func(harness, team string) (time.Time, bool)
+	// models is the gateway's model listing, which a task's model must
+	// resolve in before its session starts; nil checks only the model's shape
+	models func(ctx context.Context, p protocol.ModelsParams) (protocol.ModelsResult, error)
 	// teamsSettings are the teams settings last seen, so a change is told
 	// from what it changed
 	teamsSettings protocol.TeamsSettings
+	features      teamFeatures
 
-	state  *state
-	ledger *ledger
-	runs   map[string]*run
-	clock  *scheduler
-	vault  *vault.Vault
+	state              *state
+	ledger             *ledger
+	runs               map[string]*run
+	routineRunsMu      sync.Mutex
+	scheduledQuestions map[string]bool
+	clock              *scheduler
+	vault              *vault.Vault
 	// memory keeps what teams remember; nil when the daemon runs without it
 	memory core.Memory
 	// skills are the built-in skill sets its members are given; nil when the
@@ -63,13 +64,18 @@ type Service struct {
 
 	background context.Context
 	cancel     context.CancelFunc
+	workersMu  sync.Mutex
+	workers    sync.WaitGroup
+	closing    bool
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 // approvalEffect carries out what an approval asked for once the user
 // decided, and returns what the waiting agent is told.
 type approvalEffect func(ctx context.Context, rec *approvalRecord, p protocol.ApprovalDecideParams) (string, error)
 
-// caller is the team task a call from an agent's MCP server belongs to.
+// caller is the team task a call from a session's team tools belongs to.
 type caller struct {
 	Team    string
 	Task    string
@@ -91,7 +97,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 	}
 	background, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		events: events, settings: settings, now: time.Now, vault: v, defaultHarness: registry.DefaultID, signedIn: registry.SignedIn,
+		events: events, settings: settings, now: time.Now, vault: v,
 		runs: make(map[string]*run), background: background, cancel: cancel,
 	}
 	var err error
@@ -112,6 +118,7 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 		protocol.ApprovalMail:       s.effectMail,
 		protocol.ApprovalCredential: s.effectCredential,
 		protocol.ApprovalRequest:    s.effectRequest,
+		protocol.ApprovalSetup:      s.effectSetup,
 		protocol.ApprovalTeam:       s.effectTeam,
 	}
 	return s, nil
@@ -119,21 +126,22 @@ func open(dir string, v *vault.Vault, wake func(on bool), events core.Broadcaste
 
 // Bind hands the service the session manager and starts what runs by itself:
 // queued tasks, the routine clock and the daily pruning. Tasks a restart
-// left while every team is paused stop, and team homes every team on a
-// harness once shared become one team's own first.
+// left while every team is paused stop.
 func (s *Service) Bind(sessions core.TeamSessions) {
 	settings := s.settings()
-	s.migrateHomes()
 	s.mu.Lock()
 	s.sessions = sessions
 	s.teamsSettings = settings.Teams
+	s.features = readTeamFeatures(settings)
 	s.mu.Unlock()
 	if settings.Teams.Paused {
 		for _, team := range s.state.teams() {
 			s.stopTeamTasks(team.ID, i18n.T("Every team was paused."))
 		}
 	}
+	s.followFeatureSettings(teamFeatures{research: true, schedules: true, setupcards: true}, readTeamFeatures(settings))
 	s.recoverRuns()
+	s.recoverRoutineHistory()
 	s.clock.start()
 	s.pruneDaily()
 	s.pump()
@@ -184,6 +192,8 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.RoutineRef) (any, error) { return s.runRoutine(ctx, p.ID, protocol.InitiatorYou) })
 	case protocol.MTeamsRoutinePreview:
 		return call(raw, func(p protocol.RoutinePreviewParams) (any, error) { return previewSchedule(p, s.now()), nil })
+	case protocol.MTeamsRoutineRuns:
+		return call(raw, func(p protocol.RoutineRunsParams) (any, error) { return s.routineRuns(p) })
 	case protocol.MTeamsApprovals:
 		return call(raw, func(p protocol.ApprovalsParams) (any, error) { return s.listApprovals(p), nil })
 	case protocol.MTeamsApprovalDecide:
@@ -207,6 +217,8 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return call(raw, func(p protocol.AgentRef) (any, error) { return s.agentStatus(ctx, p) })
 	case protocol.MTeamsAgentAsk:
 		return call(raw, func(p protocol.AgentAskParams) (any, error) { return s.agentAsk(ctx, p) })
+	case protocol.MTeamsAgentSetup:
+		return call(raw, func(p protocol.AgentSetupParams) (any, error) { return s.agentSetup(ctx, p) })
 	case protocol.MTeamsAgentHTTP:
 		return call(raw, func(p protocol.AgentHTTPParams) (any, error) { return s.agentHTTP(ctx, p) })
 	case protocol.MTeamsAgentMail:
@@ -222,7 +234,7 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 	case protocol.MTeamsAgentDream:
 		return call(raw, func(p protocol.AgentDreamParams) (any, error) { return s.agentDream(ctx, p) })
 	case protocol.MTeamsAgentPresent:
-		return call(raw, func(p protocol.AgentPresentParams) (any, error) { return s.agentPresent(ctx, p) })
+		return call(raw, func(p protocol.AgentPresentParams) (any, error) { return s.presentWithSources(ctx, p) })
 
 	case protocol.MVaultInfo:
 		return s.vaultInfo(), nil
@@ -240,6 +252,28 @@ func (s *Service) Handle(ctx context.Context, method string, raw json.RawMessage
 		return s.vaultMailTest(ctx), nil
 	}
 	return nil, protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.Tf("%s is not a Teams method.", method))
+}
+
+func (s *Service) feature(id string) bool { return s.settings().Features[id] }
+
+func (s *Service) Vault() *vault.Vault { return s.vault }
+
+func (s *Service) DiskTasks() []protocol.TeamTask { return s.state.tasks(nil) }
+
+func (s *Service) DiskRemoveTask(id string, root *os.Root) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	days := s.settings().Teams.KeepDays
+	removed, err := s.state.removeTaskConfined(id, root, func(task protocol.TeamTask) bool {
+		return !taskIsOpen(task) && task.Ended != nil && days > 0 && task.Ended.Before(s.now().AddDate(0, 0, -days))
+	})
+	if err != nil {
+		return err
+	}
+	if removed {
+		s.broadcast(protocol.EvtTeamTaskRemoved, protocol.TeamRemoved{ID: id})
+	}
+	return nil
 }
 
 // IsMethod reports whether a method belongs to Teams.
@@ -262,9 +296,41 @@ func (s *Service) Armed() bool { return s.clock.armed() }
 // Close stops the clock and the work the service started; running sessions
 // belong to the session manager, which stops them itself.
 func (s *Service) Close() error {
-	s.clock.stop()
-	s.cancel()
-	return s.vault.Close()
+	s.closeOnce.Do(func() {
+		s.workersMu.Lock()
+		s.closing = true
+		s.cancel()
+		s.workersMu.Unlock()
+		s.clock.stop()
+		s.workers.Wait()
+		s.state.disarmExpiry()
+		s.mu.Lock()
+		for _, run := range s.runs {
+			if run.timer != nil {
+				run.timer.Stop()
+				run.timer = nil
+			}
+		}
+		s.mu.Unlock()
+		s.closeErr = s.vault.Close()
+	})
+	return s.closeErr
+}
+
+func (s *Service) startWorker(work func()) {
+	s.workersMu.Lock()
+	if s.closing {
+		s.workersMu.Unlock()
+		return
+	}
+	s.workers.Add(1)
+	s.workersMu.Unlock()
+	go func() {
+		defer s.workers.Done()
+		if s.background.Err() == nil {
+			work()
+		}
+	}()
 }
 
 // broadcast sends a Teams event to every subscribed client.

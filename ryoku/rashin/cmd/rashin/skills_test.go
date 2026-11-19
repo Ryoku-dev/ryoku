@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -9,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"ryoku-rashin/internal/brief"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/skills"
 )
@@ -166,35 +164,5 @@ func TestSpecKitSetupRefusesASetThatIsOff(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(project, ".specify")); !os.IsNotExist(err) {
 		t.Fatalf("the project changed: %v", err)
-	}
-}
-
-func TestEveryAgentIsHandedTheSkillTools(t *testing.T) {
-	skillsDaemon(t, nil)
-	for _, env := range []map[string]string{
-		{"RASHIN_SESSION": "session-1", "RASHIN_CWD": "/work/app"},
-		{"RASHIN_SESSION": "session-2", "RASHIN_TEAM": "team-1", "RASHIN_TEAM_TOKEN": "token"},
-	} {
-		instructions, tools := serverTools(func(key string) string { return env[key] })
-		found := map[string]bool{}
-		for _, tool := range tools {
-			if brief.IsSkillTool(tool.Name) {
-				found[tool.Name] = tool.ReadOnly
-			}
-		}
-		if !found[brief.ToolSkills] || !found[brief.ToolSkill] || !strings.Contains(instructions, "skills searches") {
-			t.Fatalf("with %v the skill tools are %v", env, found)
-		}
-	}
-	_, tools := serverTools(func(string) string { return "" })
-	for _, tool := range tools {
-		if tool.Name != brief.ToolSkill {
-			continue
-		}
-		result := tool.Call(context.Background(), json.RawMessage(`{"id":"superpowers/test-driven-development"}`))
-		raw, _ := json.Marshal(result)
-		if !strings.Contains(string(raw), "SKILL.md of superpowers/test-driven-development") || !strings.Contains(string(raw), "name: test-driven-development") {
-			t.Fatalf("the skill tool answered %s", raw)
-		}
 	}
 }

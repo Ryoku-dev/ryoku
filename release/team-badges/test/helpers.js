@@ -18,15 +18,17 @@ export function requestCode(device) {
 export async function code(kind, signer, fields = {}) {
   const issuer = fields.issuer ?? 1, day = fields.day ?? 319;
   const login = new TextEncoder().encode(fields.login ?? 'neur0map');
+  // a program makes the badge v3
+  const program = fields.program === undefined ? null : new TextEncoder().encode(fields.program);
   let payload;
-  if (kind === 'RYB') payload = concat(new Uint8Array([2, issuer, fields.role ?? 4]), fields.device.raw, new Uint8Array([day >> 8, day & 255, login.length]), login);
+  if (kind === 'RYB') payload = concat(new Uint8Array([program ? 3 : 2, issuer, fields.role ?? 4]), fields.device.raw, new Uint8Array([day >> 8, day & 255, login.length]), login, ...(program ? [new Uint8Array([program.length]), program] : []));
   if (kind === 'RYX') payload = concat(new Uint8Array([2, issuer]), unhex(fields.id), new Uint8Array([day >> 8, day & 255]));
   if (kind === 'RYD') {
     const approvedAt = new Uint8Array(4);
     new DataView(approvedAt.buffer).setUint32(0, fields.approvedAt ?? 1794697200);
     payload = concat(new Uint8Array([2, issuer]), unhex(fields.sha), approvedAt, new Uint8Array([login.length]), login);
   }
-  const domain = { RYB: 'ryoku-badge-v2', RYX: 'ryoku-revoke-v2', RYD: 'ryoku-design-v2' }[kind];
+  const domain = fields.domain ?? { RYB: program ? 'ryoku-badge-v3' : 'ryoku-badge-v2', RYX: 'ryoku-revoke-v2', RYD: 'ryoku-design-v2' }[kind];
   return encodeCode(kind, concat(payload, await sign(signer, domain, payload)));
 }
 export function cardBody(id, strings = ['', '', '', '', '']) {

@@ -345,3 +345,21 @@ func TestAPIPassesAnInlineImageOnToAModelThatReadsPictures(t *testing.T) {
 		t.Fatalf("with no model that reads pictures the API answered %d %s after %d upstream calls", response.StatusCode, body, len(*unseen))
 	}
 }
+
+func TestAPIKeepsToolImagesAndReasoningForTheNextTurn(t *testing.T) {
+	const input = `{"model":"auto","messages":[
+		{"role":"assistant","reasoning_content":"checked context","tool_calls":[{"id":"call1","type":"function","function":{"name":"read","arguments":"{}"}}]},
+		{"role":"tool","name":"read","tool_call_id":"call1","is_error":true,"content":[
+			{"type":"text","text":"could not read"},
+			{"type":"image_url","image_url":{"url":"data:image/png;base64,aGVsbG8="}}
+		]}]}`
+	call, err := decodeChat([]byte(input))
+	if err != nil || len(call.request.Messages) != 2 {
+		t.Fatalf("decode = %#v, %v", call, err)
+	}
+	assistant, result := call.request.Messages[0], call.request.Messages[1]
+	if len(assistant.Thinking) != 1 || assistant.Thinking[0].Text != "checked context" ||
+		!result.IsError || len(result.Images) != 1 || string(result.Images[0].Data) != "hello" {
+		t.Fatalf("messages = %#v %#v", assistant, result)
+	}
+}

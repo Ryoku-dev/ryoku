@@ -415,13 +415,9 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 		"/usr/share/plymouth/themes/ryoku/bullet.png",
 		"/usr/share/plymouth/themes/ryoku/logo.png",
 		"/usr/lib/systemd/system/ryoku-network-kill-guard.service",
-		"/usr/lib/wayfire/libryoku-decor.so",
 		"/usr/lib/initcpio/install/ryoku-gpu-trim",
 		"/usr/share/ryoku/boot/default.conf",
 		"/usr/share/ryoku/lockscreen/ryoku-greeter",
-		"/usr/share/ryoku/config/wayfire/wayfire.ini",
-		"/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf",
-		"/usr/share/wayfire/metadata/ryoku-decor.xml",
 		"/etc/systemd/logind.conf.d/10-ryoku-lid.conf",
 		"/etc/boot/hooks/post.d/45-ryoku-windows",
 		"/etc/modules-load.d/99-ryoku-uinput.conf",
@@ -898,6 +894,93 @@ func TestDropSplitMetasNotServed(t *testing.T) {
 	removed = nil
 	if got := dropSplitMetasNotServed(map[string]bool{"ryoku-desktop-hyprland": true}); len(got) != 0 || len(removed) != 0 {
 		t.Fatalf("a served meta must stay, got %v removed %v", got, removed)
+	}
+}
+
+func TestPrepareRetiredWayfireVariantForOrdinaryUpdate(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
+	t.Setenv(wm.RetiredCompositors()[0].SessionHandle, "")
+	t.Setenv(wm.RetiredCompositors()[1].SessionHandle, "")
+	legacy := wm.RetiredCompositors()[1]
+	oldInstalled, oldRemove := splitMetaInstalled, splitMetaRemove
+	oldServed, oldPrefetch := retiredVariantServed, retiredVariantPrefetch
+	oldDetect, oldPkg := detectCompositorForMove, pkgInstalledForMove
+	t.Cleanup(func() {
+		splitMetaInstalled, splitMetaRemove = oldInstalled, oldRemove
+		retiredVariantServed, retiredVariantPrefetch = oldServed, oldPrefetch
+		detectCompositorForMove, pkgInstalledForMove = oldDetect, oldPkg
+	})
+	installed := map[string]bool{legacy.VariantPackage: true}
+	splitMetaInstalled = func(name string) bool { return installed[name] }
+	pkgInstalledForMove = func(name string) bool { return installed[name] }
+	detectCompositorForMove = func() string { return legacy.ConfigDir }
+	var calls []string
+	retiredVariantPrefetch = func(pkg string) error {
+		calls = append(calls, "download "+pkg)
+		return nil
+	}
+	splitMetaRemove = func(pkg string) error {
+		calls = append(calls, "remove "+pkg)
+		installed[pkg] = false
+		return nil
+	}
+	target := "ryoku-desktop-" + wm.ProviderHyprland
+	retiredVariantServed = func() map[string]bool { return map[string]bool{target: true} }
+	set, err := prepareRetiredVariantUpdate([]string{"ryoku/ryoku-desktop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"ryoku/" + target, "ryoku/ryoku-desktop"}
+	if !reflect.DeepEqual(set, want) {
+		t.Fatalf("upgrade targets = %v, want %v", set, want)
+	}
+	wantCalls := []string{"download ryoku/" + target, "remove " + legacy.VariantPackage}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("migration calls = %v, want %v", calls, wantCalls)
+	}
+	installed[legacy.VariantPackage] = true
+	installed[target] = true
+	calls = nil
+	if _, err := prepareRetiredVariantUpdate(nil); err != nil || !reflect.DeepEqual(calls, []string{"remove " + legacy.VariantPackage}) {
+		t.Fatalf("installed replacement should not download again: calls=%v err=%v", calls, err)
+	}
+	installed[target] = false
+	installed[legacy.VariantPackage] = true
+	calls = nil
+	retiredVariantPrefetch = func(pkg string) error {
+		calls = append(calls, "download "+pkg)
+		return errors.New("download failed")
+	}
+	if _, err := prepareRetiredVariantUpdate(nil); err == nil || !reflect.DeepEqual(calls, []string{"download ryoku/" + target}) || !installed[legacy.VariantPackage] {
+		t.Fatalf("download failure must preserve old variant: calls=%v installed=%v err=%v", calls, installed, err)
+	}
+	retiredVariantPrefetch = func(string) error { return nil }
+	splitMetaRemove = func(string) error { return errors.New("remove failed") }
+	if _, err := prepareRetiredVariantUpdate(nil); err == nil || !installed[legacy.VariantPackage] {
+		t.Fatalf("remove failure must preserve old variant: installed=%v err=%v", installed, err)
+	}
+	installed[legacy.VariantPackage] = false
+	if set, err := prepareRetiredVariantUpdate(nil); err != nil || len(set) != 0 {
+		t.Fatalf("no retired variant must do nothing: set=%v err=%v", set, err)
+	}
+	installed[legacy.VariantPackage] = true
+	retiredVariantServed = func() map[string]bool {
+		return map[string]bool{target: true, legacy.VariantPackage: true}
+	}
+	if set, err := prepareRetiredVariantUpdate(nil); err != nil || len(set) != 0 {
+		t.Fatalf("still-served variant must stay installed: set=%v err=%v", set, err)
+	}
+	installed[legacy.VariantPackage] = true
+	calls = nil
+	retiredVariantServed = func() map[string]bool { return nil }
+	if _, err := prepareRetiredVariantUpdate(nil); err == nil || len(calls) != 0 || !installed[legacy.VariantPackage] {
+		t.Fatalf("missing replacement must preserve old variant: calls=%v installed=%v err=%v", calls, installed, err)
+	}
+	installed[legacy.VariantPackage] = true
+	calls = nil
+	t.Setenv(legacy.SessionHandle, "/tmp/retired-compositor-test")
+	if _, err := prepareRetiredVariantUpdate(nil); err == nil || len(calls) != 0 || !installed[legacy.VariantPackage] {
+		t.Fatalf("live retired session must keep its variant: calls=%v installed=%v err=%v", calls, installed, err)
 	}
 }
 

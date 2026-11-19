@@ -16,6 +16,7 @@ on:
     paths:
       - 'ryoku/cli/**'
       - 'ryoku/shell/ipc/**'
+      - 'ryoku/shell/ryoget/**'
       - 'ryoku/wm/**'
       - 'ryoku-shell-installer/**'
       - 'installation/installerplan/**'
@@ -30,6 +31,7 @@ on:
     paths:
       - 'ryoku/cli/**'
       - 'ryoku/shell/ipc/**'
+      - 'ryoku/shell/ryoget/**'
       - 'ryoku/wm/**'
       - 'ryoku-shell-installer/**'
       - 'installation/installerplan/**'
@@ -82,6 +84,27 @@ jobs:
           go build ./...
           go vet ./...
           go test -short ./...
+
+  ryoget:
+    name: ryoget download engine
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/shell/ryoget/go.mod
+
+      - name: Build, vet, and test
+        shell: bash
+        working-directory: ryoku/shell/ryoget
+        run: |
+          CGO_ENABLED=0 go build -tags nosqlite,purego_utp ./...
+          CGO_ENABLED=0 go build ./cmd/ryoseek
+          CGO_ENABLED=0 go vet -tags nosqlite,purego_utp ./...
+          CGO_ENABLED=0 go test -tags nosqlite,purego_utp ./...
 
   wm:
     name: window-manager seam (ryoku-wm)

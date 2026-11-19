@@ -332,6 +332,13 @@ func Update(args []string) (err error) {
 			progress.fail(e)
 			return e
 		}
+		if updatePackageManager() == host.Pacman {
+			s, err = prepareRetiredVariantUpdate(s)
+			if err != nil {
+				progress.fail(err)
+				return err
+			}
+		}
 		set = s
 		switch {
 		case len(set) == 0 && held == 0:
@@ -665,11 +672,51 @@ func dbRejection(err error) bool {
 // splitMetapackages are compositor variants that may have exact-version pins
 // the target channel cannot satisfy. Removing an unserved meta with -Rdd lets
 // the channel transaction replace it without touching the compositor itself.
-var splitMetapackages = []string{
-	"ryoku-desktop-hyprland",
-	"ryoku-desktop-niri",
-	"ryoku-desktop-wayfire",
-	wm.RetiredCompositor().VariantPackage,
+var splitMetapackages = func() []string {
+	packages := []string{"ryoku-desktop-hyprland", "ryoku-desktop-niri"}
+	for _, retired := range wm.RetiredCompositors() {
+		packages = append(packages, retired.VariantPackage)
+	}
+	return packages
+}()
+
+// prepareRetiredVariantUpdate keeps a bootable supported variant in the
+// transaction before removing an obsolete split meta with an exact version pin.
+// A missing replacement in the repository leaves the old variant untouched.
+func prepareRetiredVariantUpdate(set []string) ([]string, error) {
+	for _, retired := range wm.RetiredCompositors() {
+		if !splitMetaInstalled(retired.VariantPackage) {
+			continue
+		}
+		if wm.RetiredCompositorLive(retired) {
+			return nil, fmt.Errorf(i18n.T("the retired %s desktop is still running; log into Hyprland or niri, or rerun `ryoku update` from a TTY after logging out"), retired.ConfigDir)
+		}
+		served := retiredVariantServed()
+		if served[retired.VariantPackage] {
+			continue
+		}
+		target := ryokuDesktopPkg + "-" + supportedCompositorForMove()
+		if !served[target] {
+			return nil, fmt.Errorf(i18n.T("the Ryoku repository does not serve %s; keeping the retired compositor variant installed"), target)
+		}
+		if !splitMetaInstalled(target) {
+			if err := retiredVariantPrefetch(ryokuTarget(target)); err != nil {
+				return nil, fmt.Errorf(i18n.T("could not download %s before retiring %s: %w"), target, retired.VariantPackage, err)
+			}
+		}
+		if err := splitMetaRemove(retired.VariantPackage); err != nil {
+			return nil, fmt.Errorf(i18n.T("could not remove the retired compositor variant %s: %w"), retired.VariantPackage, err)
+		}
+		progress.logf(i18n.T("Moving the retired compositor to %s before upgrading"), target)
+		set = prependMissingMoveTargets(set, ryokuTarget(target))
+	}
+	return set, nil
+}
+
+var retiredVariantServed = repoServedSet
+
+var retiredVariantPrefetch = func(pkg string) error {
+	return privileged("pacman", "-Sw", "--needed", "--noconfirm", pkg)
 }
 
 // Seams over the live box, replaced in tests.
@@ -731,7 +778,7 @@ func unownedFiles(paths []string) []string {
 // ryoku-wifi-powersave, ryoku-hub), their polkit rules, the Plymouth splash
 // theme, the ryoku-owned systemd units, the mkinitcpio install hooks the HOOKS
 // drop-in names, the shipped boot configs under /usr/share/ryoku/boot, the
-// Wayfire plugin and its metadata, the logind lid-switch drop-in, the boot hook,
+// logind lid-switch drop-in, the boot hook,
 // the uinput modules-load drop-in, the backlight udev rule, the lockscreen
 // greeter bundle, the default-apps mimeapps map, and the keyring's D-Bus
 // environment drop-in and Secret Service override. Every ryoku-desktop
@@ -743,15 +790,11 @@ func unownedFiles(paths []string) []string {
 const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 	"/usr/lib/systemd/system/ryoku-*," +
 	"/usr/lib/initcpio/install/ryoku-*," +
-	"/usr/lib/wayfire/libryoku-*," +
 	"/usr/share/polkit-1/rules.d/*ryoku*.rules," +
 	"/usr/share/plymouth/themes/ryoku/*," +
 	"/usr/share/ryoku/boot/*," +
 	"/usr/share/ryoku/lockscreen/ryoku-*," +
 	"/usr/share/ryoku/lockscreen/install-qylock," +
-	"/usr/share/ryoku/config/wayfire/*," +
-	"/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf," +
-	"/usr/share/wayfire/metadata/ryoku-*," +
 	"/etc/systemd/logind.conf.d/10-ryoku-lid.conf," +
 	"/etc/boot/hooks/post.d/*ryoku*," +
 	"/etc/modules-load.d/*ryoku*," +

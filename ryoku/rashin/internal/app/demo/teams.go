@@ -23,14 +23,15 @@ const (
 
 // everything Teams mode shows, kept apart from the snapshot because the daemon builds that part fresh on each read
 type teamsFixtures struct {
-	teams     []protocol.Team
-	tasks     []protocol.TeamTask
-	approvals []protocol.Approval
-	routines  []protocol.Routine
-	vault     protocol.VaultInfo
-	vaultLog  []protocol.VaultEvent
-	activity  []protocol.Activity
-	spend     map[string]protocol.TeamSpend
+	teams       []protocol.Team
+	tasks       []protocol.TeamTask
+	approvals   []protocol.Approval
+	routines    []protocol.Routine
+	routineRuns []protocol.RoutineRun
+	vault       protocol.VaultInfo
+	vaultLog    []protocol.VaultEvent
+	activity    []protocol.Activity
+	spend       map[string]protocol.TeamSpend
 	// the sessions that work team tasks, which the daemon keeps out of the snapshot's session list
 	sessions []protocol.SessionInfo
 	// the exact action each approval would run, kept beside it as the daemon keeps it
@@ -85,9 +86,9 @@ func demoTeamsSettings() protocol.TeamsSettings {
 		PerTeam:      protocol.DefaultTeamsPerTeam,
 		RoutinesWake: true,
 		Defaults: protocol.TeamDefaults{
-			Approvals: protocol.ApprovalsAsk,
-			Budget:    protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20, TaskMinutes: 60},
-			Notify:    protocol.NotifyAll,
+			Model: demoLocalID, Approvals: protocol.ApprovalsAsk,
+			Budget: protocol.TeamBudget{MonthTokens: 2_000_000, WarnPercent: 80, TaskTurns: 20, TaskMinutes: 60},
+			Notify: protocol.NotifyAll,
 		},
 		ApprovalHours: protocol.DefaultApprovalHours,
 		QuietHours:    &protocol.QuietHours{From: "22:00", To: "07:30"},
@@ -157,7 +158,7 @@ func demoTemplates() []protocol.TeamTemplate {
 			Description: i18n.T("An editor, a reader on a quicker model and a fact checker, with a weekly digest and an hourly watch for breaking news you can turn on. It asks for a NewsAPI key."),
 			Members: []protocol.Member{
 				{Name: editor, Title: i18n.T("Chief editor"), Lead: true, Instructions: i18n.T("You hand the reading to the reader and each story you pick to the fact checker, then write the digest: the stories worth the user's time, each in two sentences with its link.")},
-				{Name: reader, Title: i18n.T("News reader"), Harness: "claude", Model: "haiku", Instructions: i18n.T("You read the news through NewsAPI with http_request and the NEWS_API_KEY credential, and hand back every story on the user's topics with its link. When the credential is missing, ask for it with request_credential.")},
+				{Name: reader, Title: i18n.T("News reader"), Model: demoLocalID, Instructions: i18n.T("You read the news through NewsAPI with http_request and the NEWS_API_KEY credential, and hand back every story on the user's topics with its link. When the credential is missing, ask for it with request_credential.")},
 				{Name: i18n.T("Fact checker"), Title: i18n.T("Checks every story"), Instructions: i18n.T("You check each story you are given against a second source and say plainly what you could not confirm.")},
 			},
 			Approvals: protocol.ApprovalsAsk, Budget: protocol.TeamBudget{TaskTurns: 20},
@@ -193,7 +194,7 @@ func demoTemplate(id string) protocol.TeamTemplate {
 func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Time, month int64, crew ...protocol.Member) protocol.Team {
 	members := append([]protocol.Member(nil), template.Members...)
 	for index := range members {
-		members[index].ID, members[index].Harness, members[index].Model = crew[index].ID, crew[index].Harness, crew[index].Model
+		members[index].ID, members[index].Model = crew[index].ID, crew[index].Model
 		members[index].Options = crew[index].Options
 	}
 	budget := template.Budget
@@ -209,10 +210,8 @@ func teamFrom(template protocol.TeamTemplate, id, folder string, created time.Ti
 // every task is stored with the engine it started on, the session that worked it and that session's transcript
 func (fx *teamsFixtures) addTask(settings protocol.Settings, events map[string][]protocol.SessionEvent, team protocol.Team, task protocol.TeamTask, preview, activity string, lines ...line) {
 	task.Team, task.MaxTurns = team.ID, team.Budget.TaskTurns
-	if task.Started != nil {
-		member, _ := teamMember(team, task.Member)
-		startEngine(&task, member, settings, "")
-	}
+	member, _ := teamMember(team, task.Member)
+	startEngine(&task, member, settings)
 	if task.Session != "" {
 		task.Sessions = []string{task.Session}
 		transcript := teamTranscript(task, lines)
@@ -227,17 +226,17 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	at := func(t time.Time) *time.Time { return &t }
 	research := teamFrom(demoTemplate("research"), demoTeamResearch, "research-desk", now.AddDate(0, 0, -24), 2_000_000,
-		protocol.Member{ID: "member-editor", Harness: "claude", Model: "sonnet", Options: map[string]string{"effort": "high"}},
-		protocol.Member{ID: "member-researcher", Harness: "claude", Model: "haiku"})
+		protocol.Member{ID: "member-editor", Model: demoPaidID, Options: map[string]string{"effort": "high"}},
+		protocol.Member{ID: "member-researcher", Model: demoFreeID})
 	mail := teamFrom(demoTemplate("mail"), demoTeamMail, "mail-desk", now.AddDate(0, 0, -30), 1_000_000,
-		protocol.Member{ID: "member-writer", Harness: "codex", Model: "gpt-5.6"})
+		protocol.Member{ID: "member-writer", Model: demoLocalID})
 	repo := teamFrom(demoTemplate("repo"), demoTeamRepo, "repo-watch", now.AddDate(0, 0, -40), 3_000_000,
-		protocol.Member{ID: "member-reviewer", Harness: "codex", Model: "gpt-5.6"},
-		protocol.Member{ID: "member-triager", Harness: "claude", Model: "haiku"})
+		protocol.Member{ID: "member-reviewer", Model: demoPaidID},
+		protocol.Member{ID: "member-triager", Model: demoFreeID})
 	// one team that also knows the card about the user, so its brief shows both halves
 	repo.Memory = &protocol.TeamMemory{Remember: true, CarryReport: true, ReadsYou: true, Suggest: true}
 	system := teamFrom(demoTemplate("system"), demoTeamSystem, "system-care", now.AddDate(0, 0, -18), 1_000_000,
-		protocol.Member{ID: "member-caretaker", Harness: "claude"})
+		protocol.Member{ID: "member-caretaker", Model: demoLocalID})
 	system.Paused, system.PauseReason, system.Updated = true, protocol.PausedByYou, ago(26*time.Hour)
 	system.Notify = protocol.NotifyNeeds
 	news := protocol.Team{
@@ -245,8 +244,8 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		Purpose: i18n.T("Reads the news on the topics I follow and sends me a short digest every Monday."),
 		Folder:  paths.TeamsHome() + "/news-digest",
 		Members: []protocol.Member{
-			{ID: "member-curator", Name: i18n.T("Curator"), Title: i18n.T("Picks what matters"), Lead: true, Harness: "claude", Model: "sonnet", Instructions: i18n.T("Chooses the five stories worth my time, writes the digest and links every source.")},
-			{ID: "member-reader", Name: i18n.T("Reader"), Title: i18n.T("Reads the feeds"), Harness: "gemini", Model: "gemini-3-flash", Instructions: i18n.T("Reads the news API and the feeds, and hands the curator every story on my topics with its link.")},
+			{ID: "member-curator", Name: i18n.T("Curator"), Title: i18n.T("Picks what matters"), Lead: true, Model: demoPaidID, Instructions: i18n.T("Chooses the five stories worth my time, writes the digest and links every source.")},
+			{ID: "member-reader", Name: i18n.T("Reader"), Title: i18n.T("Reads the feeds"), Model: demoFreeID, Instructions: i18n.T("Reads the news API and the feeds, and hands the curator every story on my topics with its link.")},
 		},
 		Approvals: protocol.ApprovalsAsk, Budget: protocol.TeamBudget{MonthTokens: 1_500_000, WarnPercent: 80, TaskTurns: 20},
 		Notify: protocol.NotifyAll, Created: now.AddDate(0, 0, -20), Updated: now.AddDate(0, 0, -3),
@@ -256,7 +255,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		Purpose: i18n.T("Writes the release notes from the pull requests merged since the last release."),
 		Folder:  paths.TeamsHome() + "/release-notes",
 		Members: []protocol.Member{
-			{ID: "member-scribe", Name: i18n.T("Scribe"), Title: i18n.T("Writes release notes"), Lead: true, Harness: "custom-review", Model: "gpt-5.6", Instructions: i18n.T("Reads the merged pull requests, groups them the way users notice them, and writes plain notes without internal jargon.")},
+			{ID: "member-scribe", Name: i18n.T("Scribe"), Title: i18n.T("Writes release notes"), Lead: true, Model: demoLocalID, Instructions: i18n.T("Reads the merged pull requests, groups them the way users notice them, and writes plain notes without internal jargon.")},
 		},
 		Approvals: protocol.ApprovalsReadOnly, Budget: protocol.TeamBudget{MonthTokens: 1_000_000, WarnPercent: 80, TaskTurns: 25},
 		Notify: protocol.NotifyAll, Paused: true, PauseReason: protocol.PausedByBudget,
@@ -268,7 +267,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		Purpose: i18n.T("Sorts the articles I save to read later by topic and writes one line on each."),
 		Folder:  paths.TeamsHome() + "/reading-list",
 		Members: []protocol.Member{
-			{ID: "member-librarian", Name: i18n.T("Librarian"), Title: i18n.T("Sorts and sums up"), Lead: true, Instructions: i18n.T("Reads each saved article, files it under a topic and writes one plain line on what it says.")},
+			{ID: "member-librarian", Name: i18n.T("Librarian"), Title: i18n.T("Sorts and sums up"), Lead: true, Model: demoLocalID, Instructions: i18n.T("Reads each saved article, files it under a topic and writes one plain line on what it says.")},
 		},
 		Approvals: protocol.ApprovalsReadOnly, Budget: settings.Teams.Defaults.Budget,
 		Notify: protocol.NotifyAll, Created: ago(5 * time.Hour), Updated: ago(5 * time.Hour),
@@ -350,7 +349,7 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 	add(research, protocol.TeamTask{
 		ID: "task-capture-history", Title: i18n.T("Write a short history of Wayland screen capture"),
 		Brief:  i18n.T("How did screen capture on Wayland get to the portal we use today? One page, with dates and links."),
-		Status: protocol.TaskDone, Member: "member-editor", Origin: protocol.TaskFromYou, Read: true, Model: "opus",
+		Status: protocol.TaskDone, Member: "member-editor", Origin: protocol.TaskFromYou, Read: true, Model: demoPaidID,
 		Session: "agent-team-capture-history", Usage: protocol.TokenUsage{Input: 63400, Output: 8800}, Turns: 1,
 		Report: &protocol.TeamReport{
 			Title: i18n.T("A short history of Wayland screen capture"), Body: waylandReport(),
@@ -441,12 +440,12 @@ func demoTeams(now time.Time, settings protocol.Settings, events map[string][]pr
 		did("http-1184", "http_request", protocol.ToolFetch, protocol.ToolRunning, "GET https://api.github.com/repos/Ryoku-dev/ryoku/issues/1184/comments", ""),
 	)
 
-	// a task that never started: Codex is not signed in for Repo watch yet
+	// a task blocked by an unavailable upstream
 	add(repo, protocol.TeamTask{
 		ID: "task-rebase-check", Title: i18n.T("List the pull requests that need a rebase"),
 		Brief:  i18n.T("Find the open pull requests that are behind unstable-dev by more than 20 commits, and say which would still merge cleanly."),
-		Status: protocol.TaskBlocked, Member: "member-reviewer", Origin: protocol.TaskFromYou, SignIn: "codex",
-		Reason:  i18n.T("Codex is not signed in for Repo watch. Sign it in, then run the task again."),
+		Status: protocol.TaskBlocked, Member: "member-reviewer", Origin: protocol.TaskFromYou,
+		Reason:  i18n.T("The pull request service is temporarily unavailable. Run this task again when it returns."),
 		Created: ago(50 * time.Minute), Updated: ago(50 * time.Minute),
 	}, "", "")
 
@@ -583,7 +582,7 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) [
 	at := func(t time.Time) *time.Time { return &t }
 	approval := func(a protocol.Approval) protocol.Approval {
 		// a team stopped at its limit stays paused until you answer, a proposed team waits for you, and a notice waits to be read, so none runs out
-		if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam && a.Kind != protocol.ApprovalRestore {
+		if a.Kind != protocol.ApprovalBudget && a.Kind != protocol.ApprovalTeam {
 			a.Expires = a.Created.Add(time.Duration(hours) * time.Hour)
 		}
 		if a.Status == "" {
@@ -630,12 +629,6 @@ func demoApprovals(clock teamsClock, actions map[string]demoAction, hours int) [
 			Kind: protocol.ApprovalRequest, Title: i18n.T("News digest asks for a credential: MASTODON_TOKEN"),
 			Detail:  i18n.Tf("%s\nWhere it would go: %s", actions["approval-mastodon"].request.Reason, "mastodon.social"),
 			Created: ago(40 * time.Minute), Unwatched: true,
-		}),
-		approval(protocol.Approval{
-			ID: "approval-restore", Team: demoTeamResearch, Kind: protocol.ApprovalRestore, Repeats: 2,
-			Title:   i18n.T("Rashin put Research desk's Claude Code sign-in back"),
-			Detail:  i18n.T("A team task changed what Claude Code was signed in with in Research desk's home. Rashin put back what you signed in with:\n  .claude/.credentials.json\n  .claude.json\n\nWhat the task added there moved to quarantine, out of every team's reach:\n  .claude/settings.local.json"),
-			Created: ago(34 * time.Minute),
 		}),
 		approval(protocol.Approval{
 			ID: "approval-budget", Team: demoTeamRelease, Member: "member-scribe",

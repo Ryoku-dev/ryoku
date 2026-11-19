@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -21,21 +22,29 @@ import (
 const (
 	// past this many a list is searched, not read
 	pickerSearchFrom = 9
-	// the list scrolls past this height
-	pickerHeight = 336
+	// label rows share the kit menu's height and visible-item cap
+	pickerHeight = tokens.SizeMenuVisibleItemsCount*tokens.SizeMenuItem + 2*tokens.SizeMenuPaddingVertical - 16
 )
 
 // the opened list of a select whose options need a second line or are too many for a menu
 type picker struct {
-	search  kit.Search
-	keys    struct{}
-	list    Scroller
-	rows    []pickerRow
-	matches []int
-	query   string
-	cursor  int
-	hovered int
-	fresh   bool
+	search        kit.Search
+	keys          struct{}
+	list          layout.List
+	rows          []pickerRow
+	matches       []int
+	query         string
+	cursor        int
+	hovered       int
+	fresh         bool
+	rail          kit.ScrollRail
+	scrollTag     struct{}
+	viewport      int
+	revealCursor  bool
+	metrics       op.Ops
+	labelHeight   int
+	labelBaseline int
+	rowHeights    []int
 	// what matches was built from, so a list of hundreds is not searched again every frame
 	matched      string
 	matchedCount int
@@ -67,10 +76,11 @@ func (p *picker) match(options []SelectOption) {
 		return
 	}
 	p.matched, p.matchedCount, p.matchedOnce = p.query, len(options), true
+	clear(p.rowHeights)
 	words := strings.Fields(strings.ToLower(p.query))
 	p.matches = p.matches[:0]
 	for index, option := range options {
-		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group)
+		text := strings.ToLower(option.Label + " " + option.Detail + " " + option.Group + " " + strings.Join(option.Chips, " "))
 		found := true
 		for _, word := range words {
 			if !strings.Contains(text, word) {
@@ -97,7 +107,7 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 		for at, index := range p.matches {
 			if index == selected {
 				p.cursor = at
-				p.list.ScrollTo(max(0, at-2))
+				p.revealCursor = true
 			}
 		}
 	}
@@ -107,6 +117,8 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 	filters := []event.Filter{
 		key.Filter{Focus: tag, Name: key.NameUpArrow}, key.Filter{Focus: tag, Name: key.NameDownArrow},
 		key.Filter{Focus: tag, Name: key.NameReturn}, key.Filter{Focus: tag, Name: key.NameEnter},
+		key.Filter{Focus: tag, Name: key.NameHome}, key.Filter{Focus: tag, Name: key.NameEnd},
+		key.Filter{Focus: tag, Name: key.NamePageUp}, key.Filter{Focus: tag, Name: key.NamePageDown},
 	}
 	if !searched {
 		// the field is focusable by itself, a bare tag has to say so
@@ -124,13 +136,33 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 		switch pressed.Name {
 		case key.NameUpArrow:
 			p.cursor = p.usable(options, p.cursor-1, -1)
-			p.reveal()
+			p.revealCursor = true
 		case key.NameDownArrow:
 			p.cursor = p.usable(options, p.cursor+1, 1)
-			p.reveal()
+			p.revealCursor = true
+		case key.NameHome:
+			p.cursor = p.usable(options, 0, 1)
+			p.revealCursor = true
+		case key.NameEnd:
+			p.cursor = p.usable(options, len(p.matches)-1, -1)
+			p.revealCursor = true
+		case key.NamePageUp, key.NamePageDown:
+			step := max(1, p.list.Position.Count-1)
+			direction := 1
+			if pressed.Name == key.NamePageUp {
+				step, direction = -step, -1
+			}
+			target := max(0, min(len(p.matches)-1, p.cursor+step))
+			p.cursor = p.usable(options, target, direction)
+			if direction > 0 && p.cursor < target || direction < 0 && p.cursor > target {
+				p.cursor = p.usable(options, target, -direction)
+			}
+			p.revealCursor = true
 		default:
-			if index := p.matches[p.cursor]; !options[index].Disabled {
-				picked = index
+			if p.cursor >= 0 && p.cursor < len(p.matches) {
+				if index := p.matches[p.cursor]; !options[index].Disabled {
+					picked = index
+				}
 			}
 		}
 	}
@@ -138,7 +170,26 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 	if len(p.rows) < len(options) {
 		p.rows = append(p.rows, make([]pickerRow, len(options)-len(p.rows))...)
 	}
+	if len(p.rowHeights) < len(p.matches) {
+		p.rowHeights = append(p.rowHeights, make([]int, len(p.matches)-len(p.rowHeights))...)
+	}
 	width := gtx.Constraints.Max.X
+	p.metrics.Reset()
+	measure := gtx
+	measure.Ops = &p.metrics
+	measure.Constraints = layout.Constraints{Max: image.Pt(width, gtx.Dp(tokens.SizeMenuItem))}
+	reference := kit.RawText(th.Theme, th.T.Label, th.R.Fg, "H")(measure)
+	p.labelHeight, p.labelBaseline = reference.Size.Y, reference.Size.Y-reference.Baseline
+	gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(pickerHeight))
+	gtx.Constraints.Min.Y = min(gtx.Constraints.Min.Y, gtx.Constraints.Max.Y)
+	for {
+		if _, ok := gtx.Event(pointer.Filter{Target: &p.scrollTag, Kinds: pointer.Scroll, ScrollX: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}}); !ok {
+			break
+		}
+	}
+	scrollArea := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
+	event.Op(gtx.Ops, &p.scrollTag)
+	scrollArea.Pop()
 	children := make([]layout.FlexChild, 0, 3)
 	if searched {
 		p.search.Placeholder = i18n.Tf("Find in %d", len(options))
@@ -160,8 +211,16 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 			return layout.Inset{Top: 8, Bottom: 8, Left: 10}.Layout(gtx, kit.RawText(th.Theme, th.T.Label, th.R.Fg3, i18n.T("Nothing matches")))
 		}
 		gtx.Constraints.Min = image.Pt(width, 0)
-		gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(pickerHeight))
-		return p.list.Layout(gtx, th, len(p.matches), func(gtx layout.Context, at int) layout.Dimensions {
+		if p.viewport != gtx.Constraints.Max.Y {
+			p.revealCursor = true
+		}
+		p.viewport = gtx.Constraints.Max.Y
+		if p.revealCursor && p.list.Position.Count > 0 {
+			p.reveal()
+			p.revealCursor = false
+		}
+		p.list.Axis = layout.Vertical
+		dimensions := p.list.Layout(gtx, len(p.matches), func(gtx layout.Context, at int) layout.Dimensions {
 			index := p.matches[at]
 			row := &p.rows[index]
 			disabled := options[index].Disabled
@@ -175,11 +234,22 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 				return p.layoutRow(gtx, th, row, options[index], index == selected, at == p.cursor && !disabled)
 			}
 			group := options[index].Group
+			var dimensions layout.Dimensions
 			if group == "" || (at > 0 && options[p.matches[at-1]].Group == group) {
-				return option(gtx)
+				dimensions = option(gtx)
+			} else {
+				dimensions = layout.Flex{Axis: layout.Vertical}.Layout(gtx, layout.Rigid(groupHeading(th, group, at == 0)), layout.Rigid(option))
 			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, layout.Rigid(groupHeading(th, group, at == 0)), layout.Rigid(option))
+			p.rowHeights[at] = dimensions.Size.Y
+			return dimensions
 		})
+		railContext := gtx
+		railContext.Constraints = layout.Exact(dimensions.Size)
+		p.rail.Layout(railContext, th.Theme, &p.list, len(p.matches))
+		if p.revealCursor && p.list.Position.Count > 0 {
+			gtx.Execute(op.InvalidateCmd{})
+		}
+		return dimensions
 	}))
 	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	// moving onto a row moves the cursor once, so the arrow keys stay free while the pointer rests
@@ -197,10 +267,26 @@ func (p *picker) Layout(gtx layout.Context, th *Theme, options []SelectOption, s
 
 func (p *picker) reveal() {
 	first := p.list.Position.First
-	if p.cursor < first {
+	if p.cursor < first || p.cursor == first && p.list.Position.Offset > 0 {
 		p.list.ScrollTo(p.cursor)
-	} else if shown := max(1, p.list.Position.Count-1); p.cursor >= first+shown {
-		p.list.ScrollTo(p.cursor - shown + 1)
+		return
+	}
+	if p.cursor >= first+p.list.Position.Count {
+		p.list.ScrollTo(p.cursor)
+		return
+	}
+	top := -p.list.Position.Offset
+	for at := first; at < p.cursor; at++ {
+		top += p.rowHeights[at]
+	}
+	height := p.rowHeights[p.cursor]
+	if height <= 0 {
+		return
+	}
+	if top < 0 || height >= p.viewport {
+		p.list.Position.Offset += top
+	} else if bottom := top + height; bottom > p.viewport {
+		p.list.Position.Offset += bottom - p.viewport
 	}
 }
 
@@ -250,20 +336,30 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 		record := op.Record(gtx.Ops)
 		content := gtx
 		content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*inset-glyph-gap-lead), gtx.Constraints.Max.Y)}
-		said := layout.Flex{Axis: layout.Vertical}.Layout(content,
-			layout.Rigid(kit.Text(th.Theme, th.T.Label, th.R.Fg, option.Label)),
+		children := []layout.FlexChild{
+			layout.Rigid(p.layoutLabel(th, option.Label)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if option.Detail == "" {
 					return layout.Dimensions{}
 				}
-				return layout.Inset{Top: 2}.Layout(gtx, Paragraph(th, th.T.Detail, th.R.Fg2, option.Detail))
+				return layout.Inset{Top: th.Sp.S1}.Layout(gtx, Paragraph(th, th.T.Detail, th.R.Fg2, option.Detail))
 			}),
-		)
+		}
+		if len(option.Chips) > 0 {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return Flow{Gap: th.Sp.S1, LineGap: th.Sp.S1}.Layout(gtx, len(option.Chips), func(gtx layout.Context, i int) layout.Dimensions {
+						return Chip(th, nil, option.Chips[i], palette.Idle)(gtx)
+					})
+				})
+			}))
+		}
+		said := layout.Flex{Axis: layout.Vertical}.Layout(content, children...)
 		call := record.Stop()
-		size := image.Pt(width, max(gtx.Dp(36), said.Size.Y+gtx.Dp(16)))
+		size := image.Pt(width, max(gtx.Dp(tokens.SizeMenuItem), said.Size.Y+gtx.Dp(16)))
 		hover := Transition(gtx, &row.hover, raised, th.Motion.HoverIn, th.Motion.HoverOut)
 		if hover > 0 {
-			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.Mix(th.R.Stone4, th.R.Fg, tokens.AlphaHoverPlane*hover))
+			kit.Fill(gtx, th.Theme, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Hover(), hover))
 		}
 		top := (size.Y - said.Size.Y) / 2
 		if chosen {
@@ -288,4 +384,17 @@ func (p *picker) layoutRow(gtx layout.Context, th *Theme, row *pickerRow, option
 		offset.Pop()
 		return layout.Dimensions{Size: size}
 	})
+}
+
+func (p *picker) layoutLabel(th *Theme, value string) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.Y, gtx.Constraints.Max.Y = p.labelHeight, p.labelHeight
+		record := op.Record(gtx.Ops)
+		dimensions := kit.RawText(th.Theme, th.T.Label, th.R.Fg, value)(gtx)
+		call := record.Stop()
+		offset := op.Offset(image.Pt(0, p.labelBaseline-(dimensions.Size.Y-dimensions.Baseline))).Push(gtx.Ops)
+		call.Add(gtx.Ops)
+		offset.Pop()
+		return layout.Dimensions{Size: image.Pt(dimensions.Size.X, p.labelHeight), Baseline: p.labelHeight - p.labelBaseline}
+	}
 }

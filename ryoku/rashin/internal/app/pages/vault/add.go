@@ -177,7 +177,7 @@ func (d *addDialog) rows(e *env.Env, teams []protocol.Team, params protocol.Vaul
 		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Fg3, missing))
 	}
 	if d.problem != "" {
-		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Amber, d.problem))
+		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Jasper, d.problem))
 	}
 	return rows
 }

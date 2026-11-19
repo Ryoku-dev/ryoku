@@ -79,7 +79,7 @@ func (f *TextField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 		bounds := image.Rectangle{Max: size}
 		cut := gtx.Dp(th.Cut.Mid)
 		focus := previewTransition(gtx, &f.focus, f.Preview, StateFocus, gtx.Focused(&f.Editor), th.Motion.FocusIn, th.Motion.FocusOut)
-		drawFieldSurface(gtx, th, bounds, cut, th.R.Field, focus, f.Error != "")
+		FieldSurface(gtx, th, bounds, cut, th.R.Field, focus, f.Error != "")
 
 		innerWidth := max(0, size.X-2*gtx.Dp(unit.Dp(tokens.SizeTextFieldInset)))
 		if f.Secret {

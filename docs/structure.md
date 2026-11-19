@@ -109,7 +109,10 @@ truth for the live desktop.
   `gamebar` the in-game overlay with its widget cards (see `docs/gamebar.md`),
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
-  its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
+  its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, `ask` the
+  Rashin bar and `kit` Kit's frame and sections (one folder per section under
+  `kit/sections/`), which `kit.qml` beside `shell.qml` runs as its own program on
+  `Super+K` (both in `docs/sidebars.md`), and
   `desktop` the wallpaper clock and enabled third-party widgets); `subshells/`
   holds the two shipped subshells, `orpheus/` and `kairos/`, each an item folder
   (`item.toml`, `README.md`, `LICENSE`, `qml/`) loaded only while it is in use,
@@ -134,14 +137,18 @@ truth for the live desktop.
   (the Qt icon theme, `qt6ct.conf`),
   `scripts/` (the neutral leaf helpers the UI drives by bare name: the
   `ryoku-cmd-*` screen and recorder tools, `ryoku-sysinfo`/`ryoku-profile-stats`,
-  `ryoku-app`, `ryostage`, and the stash `.sh` helpers, shipped with the shell so
-  they resolve on PATH under any compositor),
+  `ryoku-app`, `ryostage`, and the `stash-compress.sh`/`stash-install.sh`
+  helpers the Nautilus menu runs, shipped with the shell so they resolve on PATH
+  under any compositor),
   `systemd/` (the user session target plus profile-account launcher-scope,
   package-change and logout hooks), `ipc/` (`ryoku-shell`, the Go shell daemon
   that supervises the Quickshell components, owns wallpaper/clipboard/lock and
   the GNOME keyring password prompt (it registers as the keyring system
   prompter; see `ipc/prompter.go` and `ipc/secretexchange.go`), and serves the
-  control socket). `deploy.sh` and `dev-*.sh` are the live dev-loop tools.
+  control socket), and `ryoget/` (`ryoget`, the Go download engine behind the
+  bar's Downloads view, and `ryoseek`, the search daemon behind its Web view,
+  shipped with the shell). `deploy.sh` and `dev-*.sh` are the live dev-loop
+  tools.
 - `ui/` `Ryoku.Ui`, the shared QML module the shell, the Hub and the apps all
   import for one look: the design tokens (`Singletons/Tokens.qml`), the shared
   primitives, and the wallpaper palette. It also hosts the desktop spectrum
@@ -180,9 +187,10 @@ truth for the live desktop.
   GitHub-released apps on Arch and CachyOS. Per-command reference, user- vs
   developer-facing, is in `docs/cli.md`.
 - `vault/` the Ryoku-core machine map, read-only wiki, and `ryoku` agent skill.
-  The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, wires its
-  pointer into installed harnesses, and keeps user-owned memory and journal
-  files outside generated fences. See `docs/vault.md`.
+  The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, makes
+  that map available to installed agent tools, and keeps user-owned memory
+  and journal files outside generated fences. Rashin reads this vault as
+  context but keeps its own team credentials separately. See `docs/vault.md`.
 - `hub/` Ryoku Settings, the settings app (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go program the pages call for anything outside the shell
   daemon: it saves the window manager's neutral store
@@ -197,13 +205,16 @@ truth for the live desktop.
   is "Ryoku Settings"; the binary and config keep the internal `hub` name.
   Deployed to `~/.config/quickshell/hub`; built by the shell's `deploy.sh`. How
   it is built and how to extend it is in `docs/hub.md`.
-- `rashin/` the optional Rashin system in one Go module: `cmd/rashind/` is the
-  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio Lithic
-  app. `internal/` holds the socket protocol, session event log, free-model
-  router, the Ask agent, ACP harness adapters and potion-backed code
-  index. `systemd/` ships socket activation and `usage/` the coding-agent usage
-  collectors. Ryoku Settings owns the opt-in switch and the shell's Alt+Space bar is a
-  thin socket client. See `docs/rashin.md` and `docs/rashin-terminal.md`.
+- `rashin/` the optional AI system in one Go module: `cmd/rashind/` is the
+  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio app.
+  `internal/engine/` runs Ask, Agents, Teams, Dreams and Work with native
+  tools; `internal/gateway/` routes to managed local llama.cpp, user local
+  servers and free or pinned paid providers; `internal/localmodels/` handles
+  the catalogue, downloads and on-demand runtime. `internal/index/` handles
+  system and project code search. `systemd/` ships socket activation and
+  `usage/` the separate coding-agent usage collectors. Ryoku Settings owns
+  the opt-in switch; the Alt+Space bar is a thin socket client. See
+  `docs/rashin.md` and `docs/rashin-terminal.md`.
 - `assets/` `brand/` the 力 logo and icons and Rashin's seal (`rashin-mark*.svg`,
   `rashin-lockup.svg`; the app icon and the console favicon link to them),
   `wallpapers/` the shipped wallpaper set (installs to `Wallpapers/` under the
@@ -227,13 +238,6 @@ System-level definition installed into the target.
   `ryoku-power`, the battery charge ceiling and PCIe link power). What actually
   moves power draw and temperature, measured, is in `docs/power.md`.
 - `hardware/drivers/nvidia-xbps.sh` and `hardware/drivers/15-ryoku-nvidia` select Void's generation-correct NVIDIA package and keep nouveau available when DKMS fails.
-- `containers/` the container runtime policy behind the stash Cobalt engine:
-  `ryoku-docker` (the one privileged door, shipped to `/usr/bin`) and its polkit
-  rule. Its own directory rather than a corner of `hardware/`, because a
-  container runtime is not hardware. It provisions `docker.service`, the `docker`
-  group, and the single `ryoku-cobalt` container, and exposes no docker
-  passthrough on purpose: the polkit grant is passwordless, so every action is a
-  fixed argument vector.
 - `extras/` the helpers behind the Hub and Ryostore, shipped to `/usr/bin` by
   `ryoku-desktop`: `ryostore-install` (installs, removes, and reports the
   optional bundles from the `ryostore` catalogue), the `ryoku-pkg-*` routing
@@ -405,9 +409,8 @@ are supported; Atomic and other rpm-ostree systems are refused.
 
 Fedora is installed by the shell installer onto an existing supported Fedora
 system. It leaves NVIDIA on nouveau, keeps GRUB, and provides Ryoku snapshots
-with a snapshot boot submenu in GRUB. Wayfire is unavailable because Fedora ships
-0.10.1 and Ryoku requires 0.11. Package rollback and the boot guard use DNF
-downgrades.
+with a snapshot boot submenu in GRUB. Package rollback and the boot guard use
+DNF downgrades.
 
 ## Tooling
 

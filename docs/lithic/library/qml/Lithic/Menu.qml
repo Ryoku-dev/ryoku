@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Templates as T
+import QtQuick.Effects
 
 T.Control {
     id: root
@@ -14,7 +15,11 @@ T.Control {
 
     implicitWidth: Math.max(LithicTokens.size.menuWidthMin,
                             Math.min(LithicTokens.size.menuWidthMax, menuWidth))
-    implicitHeight: list.implicitHeight + topPadding + bottomPadding
+    readonly property real _itemsHeight: items.reduce((height, entry) =>
+        height + (entry.divider ? LithicTokens.size.hairline : LithicTokens.size.menuItem), 0)
+    implicitHeight: Math.min(_itemsHeight,
+                            LithicTokens.size.menuItem * LithicTokens.size.menuVisibleItemsCount)
+                    + topPadding + bottomPadding
     topPadding: LithicTokens.size.menuPaddingVertical
     bottomPadding: LithicTokens.size.menuPaddingVertical
     leftPadding: 0
@@ -61,11 +66,28 @@ T.Control {
 
     // an item that kept focus from an earlier open is focused already, so its reason is set as well
     function _focusAt(index, reason) {
-        const item = itemRepeater.itemAt(index)
-        if (!item)
-            return
-        item.forceActiveFocus(reason)
-        item.focusReason = reason
+        list.currentIndex = index
+        list.positionViewAtIndex(index, ListView.Contain)
+        list.forceLayout()
+        const item = list.itemAtIndex(index)
+        if (item) {
+            item.forceActiveFocus(reason)
+            item.focusReason = reason
+        }
+    }
+
+    function _pageFocus(direction) {
+        const step = Math.max(1, Math.floor(list.height / LithicTokens.size.menuItem))
+        let next = Math.max(0, Math.min(items.length - 1, focusedIndex + direction * step))
+        while (next >= 0 && next < items.length && !itemEnabled(next))
+            next += direction
+        if (next < 0 || next >= items.length) {
+            next = direction > 0 ? items.length - 1 : 0
+            while (next >= 0 && next < items.length && !itemEnabled(next))
+                next -= direction
+        }
+        if (itemEnabled(next))
+            focusItem(next, true)
     }
 
     Keys.onDownPressed: moveFocus(1)
@@ -83,6 +105,9 @@ T.Control {
             focusedIndex = 0
             moveFocus(-1)
             event.accepted = true
+        } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp) {
+            _pageFocus(event.key === Qt.Key_PageDown ? 1 : -1)
+            event.accepted = true
         }
     }
     // a menu that takes focus itself marks its item only when the keys brought it there
@@ -98,14 +123,56 @@ T.Control {
         cut: LithicTokens.cut.menu
     }
 
-    contentItem: Column {
-        id: list
-        spacing: 0
+    contentItem: Item {
+        layer.enabled: root.visible
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: menuMaskTexture
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1
+        }
 
-        Repeater {
-            id: itemRepeater
-            model: root.items
+        CutRect {
+            id: menuMask
+            width: root.width
+            height: root.height
+            fill: "white"
+            cut: LithicTokens.cut.menu
+        }
 
+        ShaderEffectSource {
+            id: menuMaskTexture
+            sourceItem: menuMask
+            sourceRect: Qt.rect(root.leftPadding, root.topPadding,
+                                root.availableWidth, root.availableHeight)
+            hideSource: true
+            visible: false
+        }
+
+        ListView {
+            id: list
+            anchors.fill: parent
+            clip: true
+            model: root.visible ? root.items : []
+            currentIndex: root.focusedIndex
+            keyNavigationEnabled: false
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            reuseItems: true
+
+            WheelHandler {
+                target: null
+                onWheel: event => {
+                    const delta = event.pixelDelta.y !== 0
+                                  ? event.pixelDelta.y
+                                  : event.angleDelta.y / 120 * LithicTokens.size.menuItem * 3
+                    list.cancelFlick()
+                    list.contentY = Math.max(list.originY,
+                        Math.min(list.originY + Math.max(0, list.contentHeight - list.height),
+                                 list.contentY - delta))
+                    event.accepted = true
+                }
+            }
             delegate: T.MenuItem {
                 id: menuItem
 
@@ -178,6 +245,7 @@ T.Control {
                     }
 
                     Label {
+                        id: itemLabel
                         anchors.left: parent.left
                         anchors.leftMargin: LithicTokens.size.menuInset
                                             + (itemGlyph.visible
@@ -186,7 +254,8 @@ T.Control {
                         anchors.right: menuItem.isChecked ? checkGlyph.left : shortcut.left
                         anchors.rightMargin: menuItem.isChecked || menuItem.shortcutText.length > 0
                                              ? LithicTokens.size.menuShortcutGap : 0
-                        anchors.verticalCenter: parent.verticalCenter
+                        y: (parent.height - capMetrics.boundingRect.height) / 2
+                           - capMetrics.boundingRect.y - baselineOffset
                         text: menuItem.text
                         typeRole: "label"
                         ink: menuItem.enabled
@@ -218,6 +287,12 @@ T.Control {
                     }
                 }
 
+                TextMetrics {
+                    id: capMetrics
+                    font: itemLabel.font
+                    text: "H"
+                }
+
                 CutRect {
                     visible: menuItem.divider
                     x: LithicTokens.size.menuDividerInset
@@ -227,6 +302,12 @@ T.Control {
                     cut: 0
                 }
             }
+        }
+
+        ScrollRail {
+            anchors.right: parent.right
+            height: parent.height
+            flickable: list
         }
     }
 }

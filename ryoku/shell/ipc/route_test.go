@@ -18,11 +18,9 @@ func TestRoute(t *testing.T) {
 		{"menu theme", "theme"},
 		{"menu wallpaper", "wallpaper"},
 		{"menu screenshot", "screenshot"},
-		{"install", "ask#tools/install"},
-		{"compress", "ask#tools/compress"},
 		{"ask", "ask"},
-		{"ask chat", "ask#chat"},
-		{"ask tools", "ask#tools"},
+		{"ask web", "ask#web"},
+		{"ask downloads", "ask#downloads"},
 		{"bar-toggle", "barToggle"},
 		{"visualizer-place", "visualizer-place"},
 		{"quicksettings", "sidebar-left"},
@@ -46,7 +44,7 @@ func TestRoute(t *testing.T) {
 		"toolkit", "utilities", "system", "workspaces", "sysinfo", "peek", "hide",
 		"voice", "lock", "wallpaper", "wallpaper-switcher", "reload", "status",
 		"ping", "quit", "bogus", "", "power", "menu system", "menu recording",
-		"menu clipboard", "menu stash", "stash",
+		"menu clipboard", "menu stash", "stash", "install", "compress", "ask chat", "ask tools",
 		"menu", "menu bogus", "menu clock extra", "bar", "bar left", "bar left toggle",
 	} {
 		if _, ok := route(cmd); ok {
@@ -114,7 +112,7 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	stubShellIpc(t, calls)
 
 	d := &daemon{sup: map[string]bool{"shell": true}, activeMon: "DP-1"}
-	for _, command := range []string{"bar", "bar left", "bar sideways toggle", "menu", "menu bogus", "menu stash", "ask web", "ask chat extra"} {
+	for _, command := range []string{"bar", "bar left", "bar sideways toggle", "menu", "menu bogus", "menu stash", "ask chat", "ask tools", "ask web extra", "install", "compress"} {
 		if got := d.dispatch(command); got == "ok" {
 			t.Errorf("dispatch(%q) = ok, want rejection", command)
 		}
@@ -139,16 +137,14 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	}
 }
 
-// Ask and file-picker verbs land on the requested Ask mode or tool.
+// Ask verbs land on the requested view of the Rashin bar.
 func TestDispatchAskRoutes(t *testing.T) {
 	calls := make(chan string, 4)
 	stubShellIpc(t, calls)
 	d := &daemon{sup: map[string]bool{"shell": true}, activeMon: "DP-1"}
 	for verb, want := range map[string]string{
-		"ask chat":  "openSurface DP-1 ask#chat",
-		"ask tools": "openSurface DP-1 ask#tools",
-		"install":   "openSurface DP-1 ask#tools/install",
-		"compress":  "openSurface DP-1 ask#tools/compress",
+		"ask web":       "openSurface DP-1 ask#web",
+		"ask downloads": "openSurface DP-1 ask#downloads",
 	} {
 		if got := d.dispatch(verb); got != "ok" {
 			t.Fatalf("dispatch(%q) = %q, want ok", verb, got)
@@ -175,8 +171,6 @@ func TestDispatchSurfaceVerbs(t *testing.T) {
 		"clipboard":          "openSurface DP-1 clipboard",
 		"screenshot":         "openSurface DP-1 screenshot",
 		"ask":                "openSurface DP-1 ask",
-		"compress":           "openSurface DP-1 ask#tools/compress",
-		"install":            "openSurface DP-1 ask#tools/install",
 	}
 	calls := make(chan string, 1)
 	stubShellIpc(t, calls)

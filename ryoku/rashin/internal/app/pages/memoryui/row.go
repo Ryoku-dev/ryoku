@@ -14,6 +14,7 @@ import (
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -51,9 +52,8 @@ type Row struct {
 	click  kit.Click
 	source kit.Click
 
-	edit, pin, forget          look.IconAction
-	editTip, pinTip, forgetTip look.Tip
-	keep, dismiss, restore     kit.Plaque
+	edit, pin, forget      kit.IconPlaque
+	keep, dismiss, restore kit.Plaque
 }
 
 // Rows holds a list's rows by memory id.
@@ -222,13 +222,10 @@ func (row *Row) Layout(gtx layout.Context, e *env.Env, memory protocol.Memory, v
 	hovered := row.click.Hovered() || row.edit.Hovered() || row.pin.Hovered() || row.forget.Hovered() ||
 		row.source.Hovered() || gtx.Focused(&row.click.Clickable)
 	showActs := hovered || view.Selected
-	ink, quiet := th.R.Fg, th.R.Fg3
-	if view.Selected {
-		ink, quiet = th.R.OnSel, th.R.OnSel2
-	}
+	ink, quiet := look.RowInk(th, view.Selected)
 	narrow := width < gtx.Dp(520)
 
-	padX, padY := gtx.Dp(16), gtx.Dp(10)
+	padX, padY := gtx.Dp(th.Sp.S4), gtx.Dp(th.Sp.S2)
 	content := gtx
 	content.Constraints = layout.Constraints{Max: image.Pt(max(0, width-2*padX), gtx.Constraints.Max.Y)}
 	record := op.Record(gtx.Ops)
@@ -255,16 +252,14 @@ func (row *Row) Layout(gtx layout.Context, e *env.Env, memory protocol.Memory, v
 	size := image.Pt(width, max(gtx.Dp(56), inner.Size.Y+2*padY))
 	bounds := image.Rectangle{Max: size}
 
-	fill := th.R.Stone2
-	switch {
-	case view.Selected:
-		fill = th.R.Sel
-	case hovered:
-		fill = th.R.Stone3
+	look.RowWash(gtx, th, bounds, 0, 0, view.Selected)
+	if !view.Selected && hovered {
+		look.RowWash(gtx, th, bounds, 1, 0, false)
 	}
-	kit.FillCut(gtx.Ops, bounds, 0, fill)
-	if notch := notchInk(th, memory.Status); notch != (color.NRGBA{}) {
-		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(th.Cut.Notch), notch)
+	if memory.Status == protocol.MemorySuggested {
+		kit.ToneMark(gtx, th.Theme, bounds, palette.Attention)
+	} else if memory.Status == protocol.MemoryReplaced || memory.Status == protocol.MemoryBlocked {
+		kit.ToneMarkInk(gtx, th.Theme, bounds, th.R.Vein)
 	}
 	area := clip.Rect(bounds).Push(gtx.Ops)
 	row.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -278,19 +273,9 @@ func (row *Row) Layout(gtx layout.Context, e *env.Env, memory protocol.Memory, v
 	call.Add(gtx.Ops)
 	offset.Pop()
 	if gtx.Focused(&row.click.Clickable) && !view.Selected {
-		kit.FocusRingAlpha(gtx, th.Theme, bounds, 0, 1)
+		kit.FocusRingAlpha(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), 1)
 	}
 	return layout.Dimensions{Size: size}, act
-}
-
-func notchInk(th *look.Theme, status string) color.NRGBA {
-	switch status {
-	case protocol.MemorySuggested:
-		return th.R.Stone(palette.Attention)
-	case protocol.MemoryReplaced, protocol.MemoryBlocked:
-		return th.R.Vein
-	}
-	return color.NRGBA{}
 }
 
 // the proof sentence with the source's title as a link, then the marks set apart by space
@@ -344,6 +329,9 @@ func (row *Row) layoutProof(gtx layout.Context, e *env.Env, memory protocol.Memo
 	if memory.Sensitive {
 		marks = append(marks, i18n.T("Sensitive"))
 	}
+	if !view.Caps.Pin && memory.Status == protocol.MemoryActive {
+		marks = append(marks, i18n.T("This engine can't pin memories."))
+	}
 	for _, mark := range marks {
 		pieces = append(pieces, layout.Spacer{Width: th.Sp.S2}.Layout, kit.RawText(th.Theme, th.T.Caption, quiet, mark))
 	}
@@ -355,26 +343,44 @@ func (row *Row) layoutProof(gtx layout.Context, e *env.Env, memory protocol.Memo
 // the state's claim, or the row's acts under the pointer, and the answers a state wants
 func (row *Row) layoutTrailing(gtx layout.Context, e *env.Env, memory protocol.Memory, view RowView, showActs, narrow bool) layout.Dimensions {
 	th := e.Theme
-	var children []layout.FlexChild
-	if showActs {
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.layoutActs(gtx, e, memory, view) }))
-	} else if claim, proof := StateWords(gtx.Now, memory, view.Teams); claim != "" {
-		claimInk, proofInk := th.R.Fg2, th.R.Fg3
-		if memory.Status == protocol.MemorySuggested {
-			claimInk = th.R.Stone(palette.Attention)
-		}
-		if view.Selected {
-			claimInk, proofInk = th.R.OnSel, th.R.OnSel2
-		}
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(220))
-			return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
-				layout.Rigid(kit.Text(th.Theme, th.T.Label, claimInk, claim)),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return kit.Label{Style: th.T.Caption, Color: proofInk, MaxLines: 1}.Layout(gtx, th.Theme, proof)
-				}),
-			)
-		}))
+	// the trailing column stays the same width when its claim becomes actions so the row never reflows under the pointer
+	column := gtx.Dp(220)
+	if memory.Status == protocol.MemoryActive {
+		column = 3 * gtx.Dp(unit.Dp(tokens.SizeIconPlaqueSmall))
+	}
+	if narrow {
+		column = min(column, max(3*gtx.Dp(unit.Dp(tokens.SizeIconPlaqueSmall)), gtx.Constraints.Max.X/2))
+	}
+	var claim, proof string
+	if !showActs && memory.Status != protocol.MemoryActive {
+		claim, proof = StateWords(gtx.Now, memory, view.Teams)
+	}
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, column)
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return layout.E.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if showActs {
+					return row.layoutActs(gtx, e, memory, view)
+				}
+				if claim == "" {
+					return layout.Dimensions{}
+				}
+				claimInk, proofInk := th.R.Fg2, th.R.Fg3
+				if memory.Status == protocol.MemorySuggested {
+					claimInk = th.R.Stone(palette.Attention)
+				}
+				if view.Selected {
+					claimInk, proofInk = look.RowInk(th, true)
+				}
+				return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
+					layout.Rigid(kit.Text(th.Theme, th.T.Label, claimInk, claim)),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return kit.Label{Style: th.T.Caption, Color: proofInk, MaxLines: 1}.Layout(gtx, th.Theme, proof)
+					}),
+				)
+			})
+		}),
 	}
 	if !narrow {
 		if answers := row.answers(th, memory); answers != nil {
@@ -406,34 +412,26 @@ func (row *Row) answers(th *look.Theme, memory protocol.Memory) layout.Widget {
 
 func (row *Row) layoutActs(gtx layout.Context, e *env.Env, memory protocol.Memory, view RowView) layout.Dimensions {
 	th := e.Theme
-	ink := th.R.Fg2
-	if view.Selected {
-		ink = th.R.OnSel
-	}
-	row.edit.Icon, row.edit.Description = look.Icon.Rename, i18n.T("Edit")
-	row.forget.Icon, row.forget.Description = look.Icon.Delete, i18n.T("Forget")
-	row.pin.Icon, row.pin.Description = look.Icon.Pin, i18n.T("Pin")
-	pinTip := i18n.T("Pin")
+	row.edit.Kind, row.edit.Small, row.edit.Icon, row.edit.Description = kit.PlaqueQuiet, true, look.Icon.Rename, i18n.T("Edit")
+	row.forget.Kind, row.forget.Small, row.forget.Icon, row.forget.Description = kit.PlaqueQuiet, true, look.Icon.Delete, i18n.T("Forget")
+	row.pin.Kind, row.pin.Small, row.pin.Icon, row.pin.Description = kit.PlaqueQuiet, true, look.Icon.Pin, i18n.T("Pin")
 	if memory.Pinned {
-		row.pin.Icon, row.pin.Description, pinTip = look.Icon.Pinned, i18n.T("Unpin"), i18n.T("Unpin")
-	}
-	row.pin.Disabled = !view.Caps.Pin || memory.Status != protocol.MemoryActive
-	if !view.Caps.Pin {
-		pinTip = i18n.T("This engine can't pin memories.")
+		row.pin.Icon, row.pin.Description = look.Icon.Pinned, i18n.T("Unpin")
 	}
 	children := []layout.FlexChild{}
 	if memory.Status == protocol.MemoryActive {
 		children = append(children,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.edit.Layout(gtx, th.Theme) }),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return row.editTip.Layout(gtx, th, e.Overlays, i18n.T("Edit"), func(gtx layout.Context) layout.Dimensions { return row.edit.Layout(gtx, th, ink) })
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return row.pinTip.Layout(gtx, th, e.Overlays, pinTip, func(gtx layout.Context) layout.Dimensions { return row.pin.Layout(gtx, th, ink) })
+				if !view.Caps.Pin {
+					return layout.Dimensions{}
+				}
+				return row.pin.Layout(gtx, th.Theme)
 			}),
 		)
 	}
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return row.forgetTip.Layout(gtx, th, e.Overlays, i18n.T("Forget"), func(gtx layout.Context) layout.Dimensions { return row.forget.Layout(gtx, th, ink) })
+		return row.forget.Layout(gtx, th.Theme)
 	}))
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }

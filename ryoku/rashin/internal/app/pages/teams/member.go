@@ -40,19 +40,19 @@ func (d *memberDialog) open(team protocol.Team, member protocol.Member, adding b
 	}
 }
 
-// a crew that shares one engine starts from it, a mixed one from the teams default
+// a crew that shares one model starts from it, a mixed one from the teams default
 func (d *memberDialog) openEvery(team protocol.Team) {
 	d.team, d.adding, d.every = team, false, true
 	d.dialog.Open, d.dialog.Width = true, 600
-	d.title = i18n.Tf("Set every member's engine in %s", team.Name)
+	d.title = i18n.Tf("Set every member's model in %s", team.Name)
 	shared := team.Members[0]
 	for _, member := range team.Members[1:] {
-		if member.Harness != shared.Harness || member.Model != shared.Model || !maps.Equal(member.Options, shared.Options) {
+		if member.Model != shared.Model || !maps.Equal(member.Options, shared.Options) {
 			shared = protocol.Member{}
 			break
 		}
 	}
-	d.form.engine.Set(shared.Harness, shared.Model, shared.Options)
+	d.form.engine.Set(shared.Model, shared.Options)
 }
 
 // another member already has the name, and names tell members apart
@@ -119,12 +119,11 @@ func (d *memberDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 }
 
-// who the member is first, then the engine it runs on as a group of its own
+// who the member is first, then the model it runs on as a group of its own
 func (d *memberDialog) rows(e *env.Env) []layout.Widget {
 	th := e.Theme
-	d.form.engine.Team = d.team.ID
 	engine := []layout.Widget{
-		kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Engine")),
+		look.SectionHead(th, look.Head{Title: i18n.T("Model")}),
 		d.form.engineField(e),
 	}
 	if d.every {
@@ -180,10 +179,10 @@ func (d *memberDialog) submitEvery(e *env.Env) {
 	if !ok {
 		return
 	}
-	harness, model, options := d.form.engine.Value()
+	model, options := d.form.engine.Value()
 	members := append([]protocol.Member(nil), team.Members...)
 	for index := range members {
-		members[index].Harness, members[index].Model, members[index].Options = harness, model, maps.Clone(options)
+		members[index].Model, members[index].Options = model, maps.Clone(options)
 	}
 	updateTeam(e, team.ID, map[string]any{"members": members}, func(error) {})
 }

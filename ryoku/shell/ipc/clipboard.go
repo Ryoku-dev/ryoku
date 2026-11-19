@@ -56,6 +56,7 @@ type clipEntry struct {
 }
 
 type clipState struct {
+	primary  primarySelectionState
 	mu       sync.Mutex
 	entries  []*clipEntry // newest at front
 	nextID   uint64

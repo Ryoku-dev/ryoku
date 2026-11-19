@@ -150,12 +150,12 @@ func (w *Work) reviewSend(ctx context.Context, params protocol.ReviewSendParams)
 		}
 	}
 	if selected.ID == "" {
-		harness := p.Settings.Harness
-		if harness == "" {
-			harness = w.settings().Agent.Harness
+		model := p.Settings.Model
+		if model == "" {
+			model = w.settings().Agent.Model
 		}
 		selected, err = sessions.New(ctx, protocol.SessionNewParams{
-			Kind: protocol.KindAgent, Harness: harness, Project: p.ID, Worktree: params.Worktree,
+			Kind: protocol.KindAgent, Model: model, Project: p.ID, Worktree: params.Worktree,
 			Title: i18n.T("Review changes"), Origin: protocol.OriginApp,
 		})
 		if err != nil {
@@ -266,7 +266,7 @@ func (w *Work) taskCreate(params protocol.TaskCreateParams) (result protocol.Tas
 	now := time.Now()
 	task := protocol.TaskInfo{
 		ID: newID("task"), Project: p.ID, Title: strings.TrimSpace(params.Title), Goal: params.Goal,
-		Status: protocol.TaskBacklog, Deps: append([]string(nil), params.Deps...), Harness: params.Harness,
+		Status: protocol.TaskBacklog, Deps: append([]string(nil), params.Deps...), Model: params.Model,
 		Order: len(p.Tasks), Created: now, Updated: now,
 	}
 	p.Tasks = append(p.Tasks, task)
@@ -286,7 +286,7 @@ func (w *Work) taskUpdate(params protocol.TaskUpdateParams) (result protocol.Tas
 	if json.Unmarshal(params.Patch, &fields) != nil {
 		return protocol.TaskInfo{}, badRequest("The task patch is not valid JSON.")
 	}
-	allowed := map[string]bool{"title": true, "goal": true, "status": true, "deps": true, "harness": true, "order": true}
+	allowed := map[string]bool{"title": true, "goal": true, "status": true, "deps": true, "model": true, "order": true}
 	for key := range fields {
 		if !allowed[key] {
 			return protocol.TaskInfo{}, badRequest("Task field %s cannot be changed.", key)
@@ -503,23 +503,23 @@ func (w *Work) taskStart(ctx context.Context, params protocol.TaskStartParams) (
 	if err != nil {
 		return protocol.TaskStartResult{}, err
 	}
-	harness := params.Harness
-	if harness == "" {
-		harness = task.Harness
+	model := params.Model
+	if model == "" {
+		model = task.Model
 	}
-	if harness == "" {
+	if model == "" {
 		w.mu.RLock()
 		current := w.projects[projectID]
 		if current != nil {
-			harness = current.Settings.Harness
+			model = current.Settings.Model
 		}
 		w.mu.RUnlock()
 	}
-	if harness == "" {
-		harness = w.settings().Agent.Harness
+	if model == "" {
+		model = w.settings().Agent.Model
 	}
 	session, err := sessions.New(ctx, protocol.SessionNewParams{
-		Kind: protocol.KindAgent, Harness: harness, Project: projectID, Worktree: worktree.Path,
+		Kind: protocol.KindAgent, Model: model, Project: projectID, Worktree: worktree.Path,
 		Task: task.ID, Title: task.Title, Origin: protocol.OriginApp,
 	})
 	if err != nil {
@@ -532,7 +532,7 @@ func (w *Work) taskStart(ctx context.Context, params protocol.TaskStartParams) (
 		p.Tasks[index].Status = protocol.TaskWorking
 		p.Tasks[index].Worktree = worktree.Path
 		p.Tasks[index].Sessions = append(p.Tasks[index].Sessions, session.ID)
-		p.Tasks[index].Harness = harness
+		p.Tasks[index].Model = model
 		p.Tasks[index].Updated = time.Now()
 		recomputeTaskReadiness(p)
 		task = p.Tasks[index]

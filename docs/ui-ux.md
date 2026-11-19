@@ -291,13 +291,12 @@ library's `Confirm`). Info buttons open a `stone4` popover cut 8. The Hub has no
 tooltips; the tree's peek is its hover explanation. Escape closes the topmost
 thing only.
 
-**Apps shaped around a list of resources.** Rashin, an app with fleets of
-agents, tasks and worktrees, uses parts the Hub does not: the **tablet** (a
-resource row, `ryoku/rashin/internal/app/pages/projects/overview.go`), the
-**notch** and **flake** that carry a row's state beside its word
-(`teamsui/notched.go`, `chat/answer.go`), **tabs** between views
-(`pages/teams/page.go`) and a **skeleton** while loading (`look/states.go`).
-They follow the same roles, cuts, type and motion.
+**Apps shaped around a list of resources.** Rashin uses the Hub's selected
+row wash for its current destination and tablets, `ToneMark` for state on
+a plane, Flake beside a state word, tabs between views and a skeleton
+while loading (`ryoku/rashin/internal/app/look`, `internal/app/chat`).
+Its 十 seal identifies Rashin without using Ryoku's logo as app chrome.
+It follows the desktop's four styles and palette live.
 
 ## Motion
 
@@ -452,22 +451,73 @@ below are what each surface becomes.
   engraved charts with a value and proof, connections as claims with their
   proof, session actions as plaques with the danger tier for power-off
   ([sidebars.md](sidebars.md)).
-- **Ask, clipboard, voice.** A `stone4` cut plane with one field. Rows take the
-  hover plane, never a left accent bar; an answer streams as body text. Nothing
-  breathes or glows while idle.
-- **Notifications and OSD.** A notification is a cut slab (cut 8, hairline),
-  title in `row`, body in `detail`, actions as quiet plaques. The OSD is one cut
-  slab with a blade meter and its value in tabular figures. Both leave on a
-  timer that pauses under the pointer, like the Hub's notice.
+- **Rashin bar** (`Alt+Space`). One field, one ranked list and a footer that
+  names the primary action and `Actions Ctrl K`, drawn in the design in use:
+  Lithic cuts the plane and rules it with hairlines, Material rounds a tonal pill
+  field and tonal rows, Adwaita sets results as boxed lists, Fluent layers planes
+  with thin outlines. One selection plate glides between rows, never a left
+  accent bar; views push and pop with the design's own transition. Downloads
+  draw their live piece maps in lapis while moving, jade when landed, amber when
+  paused and jasper when failed. Nothing breathes or glows while idle
+  ([sidebars.md](sidebars.md)).
+- **Clipboard, voice.** A `stone4` cut plane with one field. Rows take the hover
+  plane, never a left accent bar. Nothing breathes or glows while idle.
+- **Notifications.** Ryoku's own card takes the design in use, switched live
+  from `theme.design` (`modules/notifications/NotificationLook.qml`,
+  `designs/`). Each look sets the column's width, gap and settle
+  (`designs/Stack.js`), arrives from the edge `notification_position` names
+  and holds its slot until its exit ends. Every card has the app and a short
+  time ("now", "3 min"), open, expand and close, the summary, the body clamped
+  to two lines until expanded, actions on expand, the image or app icon when
+  `show_images`, and a mark for critical urgency. Lithic is a 360 slip cut
+  top-left and bottom-right with a hairline, a mono `APP · NOW` header, cut
+  plaque actions, a tick fuse that burns down the lifespan and a jasper URGENT
+  stamp. Material is a 360 M3 card with the app in a tonal circle wrapped by a
+  draining wavy ring. Adwaita is GNOME's 380 banner with no countdown. Fluent
+  is the Windows 11 364 toast with acrylic grain and one reveal light round
+  its outline. Countdowns step on a timer and hold still with reduced motion,
+  and the window exists only while a card is up.
+  `bin/art/notification-previews` records each look for Settings.
+- **Capture** (ryoshot, `Super+Shift+S`). One model, four placements, switched
+  live from `theme.design` (`ryoshot/CaptureBar.qml`, `designs/`, primitives in
+  `look/`). Lithic is a 36-tall ruled strip flush on the bottom edge: mono
+  slugs with their keys, ticks lit over the chosen action, a shine once on
+  entry. Material is a 56-tall floating toolbar 24 up with a connected action
+  group and a FAB for the screen. Adwaita is GNOME's capture panel 36 up with
+  big target toggles and a shutter. Fluent is the Snipping Tool bar 16 under
+  the top bar's zone with sliding indicators. The bar shows only on the output
+  under the pointer and steps aside while dragging, picking or waiting.
+  Beautify (`ryoshot/beautify/`) lifts the selection into a card beside its
+  panel: Lithic's numbered sheet flush on the right edge, Material's side
+  sheet, Adwaita's sidebar card, Fluent's acrylic pane. One `Composition.qml`
+  draws the stage, the look thumbnails and the export, which is rendered on
+  demand at the exact style.
+- **OSD.** The volume, microphone, brightness and keyboard layout pop-up is a
+  glance, not a panel: one small look per design, switched live from
+  `theme.design` (`modules/osd/OsdLook.qml`, `designs/`), each where its
+  platform puts it. Lithic is a 232x30 tab that slides out from under the bar
+  with a tick ruler and a rolling mono figure. Material is Android's 44x184
+  edge slider 12 from the right with a flowing squiggle level. Adwaita is
+  GNOME's 260x44 pill 56 above the bottom. Fluent is the Windows 11 196x48
+  flyout 28 above the bottom with a ringed thumb. There is no caption: past
+  100% reads in jasper beyond a 100 mark and muted greys the level. It animates
+  only while shown, holds still with reduced motion, and its window exists
+  only while it is up. `bin/art/osd-previews` records each look for Settings
+  on the shared harness `bin/art/qmlrecord.py`.
 - **Overview** (`Super+Tab`). Workspace numbers in zero-padded mono, cells as
   cut planes on hairlines, the focused one marked by the accent; no private
   palette.
 - **Session confirm.** The Hub's confirm: title in `sentence`, a plain
   consequence sentence, quiet Cancel, the act in a `danger` plaque.
-- **Kit** (`Super+K`). A Hub-shaped tool window: a sidebar tree of its tools
-  (Keys, Commands, Phone, Dev tools, Typing test) under one search that replaces
-  the tree with results; shortcuts set as keycaps (cut token plates on `field`
-  with an `edge` hairline, as `ChordField` draws them).
+- **Kit** (`Super+K`). A tabbed manual in the four styles: a rail of six tabs
+  (Downloads, Keys, Commands, Phone, Dev tools, Typing test) down the left, each
+  carrying one live figure (the download speed, the shortcut count, the phone's
+  charge) and staying lit until opened when something changed there. The open
+  tab is part of the page's own outline, not a marker beside it. One field on
+  top filters the open section, Ctrl+F searches all of Kit with the results
+  grouped by section, and the foot names what Enter and Ctrl+Enter do beside
+  Actions (Ctrl+K), as the Rashin bar does. Shortcuts are set as keycaps. The
+  desktop dims behind it.
 - **Desktop widgets and the Stage Editor.** A widget plate is a cut plane, or no
   plane with `Ink.legible` ink over the wallpaper. Stage Editor chrome (toolbar,
   drawer, inspectors) is setting rows and Segmented choices on cut slabs.

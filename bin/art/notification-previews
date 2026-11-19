@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Record Ryoku's own notification cards, the base shell's popups, for Settings.
+
+Settings > Notifications & pop-ups plays the shipped notification card in the
+design the desktop wears. These are real frames of the shell's own looks
+(ryoku/shell/quickshell/shell/modules/notifications/NotificationLook.qml and
+designs/), stacked the way NotificationColumn stacks them (designs/Stack.js), on
+a transparent window through qmlrecord. One scripted sequence: a card with the
+app's icon stands at rest while its lifespan runs (time-lapsed), a second one
+arrives on top and the stack makes room, the first is dismissed, the second's
+lifespan runs out and it leaves, then the first arrives again and lands where
+the loop began.
+
+Each recording wears Ryoku's own colours (LITHIC_MODE=dark|light in an empty
+HOME). Output, per design and mode, an animated WebP with true alpha at 2x,
+30 fps, looping, its first frame the card at rest (the still Settings shows
+under reduced motion):
+
+  ryoku/hub/quickshell/art/notifications/<design>-<dark|light>.webp
+
+Requires PySide6 built for the system Qt, Pillow with WebP, and weston.
+
+  bin/art/notification-previews                    # all four designs, dark and light
+  bin/art/notification-previews --design fluent --mode light --out /tmp/notif
+"""
+import argparse
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from qmlrecord import Host, Recorder, save_webp  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[2]
+MODULE = REPO / "ryoku/shell/quickshell/shell/modules/notifications"
+LITHIC = REPO / "docs/lithic/library/qml"
+MARK = REPO / "ryoku/assets/brand/logo-mark-v2.png"
+OUT = REPO / "ryoku/hub/quickshell/art/notifications"
+DESIGNS = ["lithic", "material", "adwaita", "fluent"]
+MODES = ["dark", "light"]
+SCALE = 2
+FPS = 30
+# each recording stays under 400 KB: two cards of text moving at 2x are the
+# bulk of it, and Settings shows them at half size, where this quality is clean
+QUALITY = 45
+ALPHA_QUALITY = 35
+
+# The column as the shell lays it out on the right of the screen: the look's
+# width, gap and inset, its shadow room on the free sides, and the screen edge
+# as a clip on the right. Cards are NotificationLook itself; `step` drives the
+# script so the timeline stays plain data.
+SCENE = """
+import QtQuick
+import Lithic
+import "designs/Stack.js" as Stack
+
+Item {
+    id: scene
+
+    property real u: %(scale)d
+    property string icon: ""
+    property int step: 0
+    readonly property var stack: Stack.of(Lithic.design)
+    readonly property var entries: ({
+        first: {
+            id: 1, appName: "Ryoku", urgency: 1, appIcon: scene.icon, image: "",
+            summary: "Ryoku 2.4 is ready",
+            body: "Downloaded and checked. Restart when it suits you; your windows come back.",
+            actions: [{ identifier: "restart", text: "Restart", invoke: () => {} }]
+        },
+        second: {
+            id: 2, appName: "Ryotunes", urgency: 1, appIcon: "", image: "",
+            summary: "Up next: Night Drive",
+            body: "From your queue, once this track ends.",
+            actions: [{ identifier: "skip", text: "Skip", invoke: () => {} }]
+        }
+    })
+    // the time-lapsed lifespan; 0 until the recording opens, so the first card
+    // stands at rest with its whole lifespan ahead of it
+    property int lifespan: 0
+
+    implicitWidth: Math.ceil((stack.bleed + stack.width + stack.inset) * u)
+    implicitHeight: Math.ceil(330 * u)
+    clip: true
+
+    ListModel { id: cards }
+
+    function post(key) {
+        cards.insert(0, { key: key });
+    }
+    function drop(key) {
+        for (let i = cards.count - 1; i >= 0; i--)
+            if (cards.get(i).key === key)
+                cards.remove(i);
+    }
+    // what each step of the timeline does
+    readonly property var plan: ({
+        1: ["post", "first"], 2: ["post", "second"], 3: ["drop", "first"],
+        4: ["drop", "second"], 5: ["post", "first"]
+    })
+    onStepChanged: {
+        const act = scene.plan[scene.step];
+        if (act)
+            act[0] === "post" ? scene.post(act[1]) : scene.drop(act[1]);
+    }
+
+    ListView {
+        id: list
+        x: scene.stack.bleed * scene.u
+        y: scene.stack.inset * scene.u
+        width: scene.stack.width * scene.u
+        height: scene.height
+        spacing: scene.stack.spacing * scene.u
+        interactive: false
+        model: cards
+        displaced: settle
+        removeDisplaced: settle
+
+        Transition {
+            id: settle
+            NumberAnimation {
+                properties: "y"
+                duration: scene.stack.settleMs
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: scene.stack.settleCurve
+            }
+        }
+
+        delegate: Item {
+            id: slot
+            required property string key
+            readonly property var entry: scene.entries[slot.key]
+
+            width: list.width
+            implicitHeight: Math.max(look.implicitHeight, look.targetImplicitHeight)
+
+            ListView.onRemove: {
+                slot.ListView.delayRemove = true;
+                look.leave();
+            }
+
+            NotificationLook {
+                id: look
+                width: slot.width
+                height: slot.implicitHeight
+                notif: slot.entry
+                us: scene.u
+                compact: true
+                lifespanMs: scene.lifespan
+                position: "Right"
+                timeText: "now"
+                showImages: true
+                appIconSource: slot.entry.appIcon
+                enterDelay: Stack.enterDelay(scene.stack, list.count)
+                onDeparted: slot.ListView.delayRemove = false
+            }
+        }
+    }
+}
+""" % {"scale": SCALE}
+
+# (seconds, property, value): the first card is up and at rest when the
+# recording opens and its lifespan starts; the timeline ends once it has come
+# back and landed
+TIMELINE = [
+    (0.00, "lifespan", 2150),
+    (0.80, "step", 2),
+    (2.00, "step", 3),
+    (2.95, "step", 4),
+    (3.55, "step", 5),
+]
+LENGTH = 4.95
+
+
+def mark(mode, folder):
+    """Ryoku's mark in the mode's ink: cream on dark, the ink of the light page on light."""
+    from PIL import Image
+
+    image = Image.open(MARK).convert("RGBA")
+    if mode == "light":
+        pixels = image.load()
+        for y in range(image.height):
+            for x in range(image.width):
+                r, g, b, a = pixels[x, y]
+                if a and r - b < 60:
+                    pixels[x, y] = (38, 33, 30, a)
+    out = Path(folder) / f"mark-{mode}.png"
+    image.save(out)
+    return out
+
+
+def record(design, mode, out):
+    with tempfile.TemporaryDirectory(prefix="notification-previews-") as folder:
+        rec = Recorder(SCENE, base=MODULE / "NotificationPreviewScene.qml", imports=[LITHIC])
+        rec.scene.setProperty("icon", mark(mode, folder).as_uri())
+        rec.fit()
+        # the first card lands before the recording opens, so it begins at rest
+        rec.scene.setProperty("step", 1)
+        rec.tick(120)
+        frames = rec.play(TIMELINE, LENGTH, fps=FPS)
+        rec.window.close()
+    save_webp(frames, out, fps=FPS, margin=2 * SCALE, quality=QUALITY, alpha_quality=ALPHA_QUALITY)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--design", choices=DESIGNS, action="append")
+    parser.add_argument("--mode", choices=MODES, action="append")
+    parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument("--record", nargs=3, metavar=("DESIGN", "MODE", "FILE"), help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    if args.record:
+        record(args.record[0], args.record[1], Path(args.record[2]))
+        return
+
+    failed = False
+    with Host() as host:
+        for design in args.design or DESIGNS:
+            for mode in args.mode or MODES:
+                target = args.out / f"{design}-{mode}.webp"
+                argv = [sys.executable, __file__, "--record", design, mode, str(target)]
+                env = host.env({"LITHIC_DESIGN": design, "LITHIC_MODE": mode})
+                if subprocess.run(argv, env=env).returncode != 0:
+                    print(f"notification-previews: {design} {mode} failed", file=sys.stderr)
+                    failed = True
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

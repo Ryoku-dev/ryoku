@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
 	"ryoku-rashin/internal/brief"
-	"ryoku-rashin/internal/client"
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
@@ -72,27 +70,16 @@ func (m *recordingMemory) heard() []memoryCall {
 	return append([]memoryCall(nil), m.calls...)
 }
 
-func TestATeamSocketReachesOnlyItsTeamsMemory(t *testing.T) {
+func TestATeamToolHostReachesOnlyItsTeamsMemory(t *testing.T) {
 	isolateDaemon(t)
-	shortRuntime(t)
 	memory := &recordingMemory{}
 	d := New(Deps{Teams: &boundTeams{handled: make(chan string, 8)}, Memory: memory})
 	team, err := d.manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Cwd: filepath.Join(paths.Home(), "Teams", "one"), Team: "team-1", TeamTask: "task-1", Member: "member-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.agentSandbox(team); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(d.closeAgentSockets)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	conn, err := client.Dial(ctx, client.Options{Client: protocol.ClientCLI, Socket: paths.AgentSocket(team.ID)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-
+	ctx := context.Background()
+	host := d.ToolHost(team)
 	allowed := []struct {
 		method string
 		params any
@@ -103,8 +90,8 @@ func TestATeamSocketReachesOnlyItsTeamsMemory(t *testing.T) {
 		{protocol.MMemoryForget, protocol.MemoryForgetParams{IDs: []string{"m0000001"}}},
 	}
 	for _, call := range allowed {
-		if err := conn.Call(ctx, call.method, call.params, nil); err != nil {
-			t.Fatalf("%s on the team's socket: %v", call.method, err)
+		if err := host.Call(ctx, call.method, call.params, nil); err != nil {
+			t.Fatalf("%s in the team's tool host: %v", call.method, err)
 		}
 	}
 	for _, refused := range []struct {
@@ -121,8 +108,8 @@ func TestATeamSocketReachesOnlyItsTeamsMemory(t *testing.T) {
 		{protocol.MMemoryStatus, protocol.Empty{}},
 		{protocol.MMemoryLearn, protocol.MemoryLearnParams{Session: team.ID}},
 	} {
-		if err := conn.Call(ctx, refused.method, refused.params, nil); !forbidden(err) {
-			t.Fatalf("%s on the team's socket: %v, want forbidden", refused.method, err)
+		if err := host.Call(ctx, refused.method, refused.params, nil); !forbidden(err) {
+			t.Fatalf("%s from the team's tools: %v, want forbidden", refused.method, err)
 		}
 	}
 	heard := memory.heard()
@@ -130,7 +117,7 @@ func TestATeamSocketReachesOnlyItsTeamsMemory(t *testing.T) {
 		t.Fatalf("memory heard %d calls, want %d: %+v", len(heard), len(allowed), heard)
 	}
 	for index, call := range heard {
-		// the caller comes from the socket, never from what the call names
+		// the caller comes from the session, never from what the call names
 		if call.method != allowed[index].method || call.from != (core.MemoryCaller{Team: "team-1", Task: "task-1"}) {
 			t.Fatalf("call %d = %+v", index, call)
 		}
@@ -259,6 +246,38 @@ func TestAConversationWaitingForAModelDoesNotHoldTheDaemonUp(t *testing.T) {
 	}
 }
 
+type busyLocal struct {
+	core.Local
+	busy   bool
+	closed bool
+}
+
+func (l *busyLocal) Busy() bool { return l.busy }
+func (l *busyLocal) Close() error {
+	l.closed = true
+	return nil
+}
+
+func TestIdleExitWaitsForLocalModelWorkThenClosesIt(t *testing.T) {
+	isolateDaemon(t)
+	local := &busyLocal{busy: true}
+	d := New(Deps{Local: local})
+	t.Cleanup(d.Shutdown)
+	d.onIdleDeadline()
+	if stopped(d) || local.closed {
+		t.Fatal("the daemon exited during a model download or run")
+	}
+	local.busy = false
+	d.onIdleDeadline()
+	if !stopped(d) {
+		t.Fatal("the daemon remained after model work ended")
+	}
+	d.closeServices()
+	if !local.closed {
+		t.Fatal("shutdown left the local runtime running")
+	}
+}
+
 // snapshotGateway answers what the snapshot reads of the gateway.
 type snapshotGateway struct{ core.Gateway }
 
@@ -272,7 +291,7 @@ func (snapshotGateway) Providers(context.Context) ([]protocol.ProviderInfo, erro
 func TestTheSnapshotCarriesMemorysStatus(t *testing.T) {
 	isolateDaemon(t)
 	memory := &recordingMemory{status: protocol.MemoryStatus{Engine: protocol.MemoryBuiltin, EngineState: protocol.EngineReady, Counts: protocol.MemoryCounts{All: 3, You: 2}}}
-	d := New(Deps{Gateway: snapshotGateway{}, Harnesses: &fakeHarnesses{}, Indexer: &fakeIndexer{}, Memory: memory})
+	d := New(Deps{Gateway: snapshotGateway{}, Agents: &fakeAgents{}, Indexer: &fakeIndexer{}, Memory: memory})
 	snapshot, err := d.snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +299,7 @@ func TestTheSnapshotCarriesMemorysStatus(t *testing.T) {
 	if snapshot.Memory == nil || snapshot.Memory.Counts.All != 3 || snapshot.Memory.EngineState != protocol.EngineReady {
 		t.Fatalf("snapshot memory = %+v", snapshot.Memory)
 	}
-	without := New(Deps{Gateway: snapshotGateway{}, Harnesses: &fakeHarnesses{}, Indexer: &fakeIndexer{}})
+	without := New(Deps{Gateway: snapshotGateway{}, Agents: &fakeAgents{}, Indexer: &fakeIndexer{}})
 	if snapshot, err := without.snapshot(context.Background()); err != nil || snapshot.Memory != nil {
 		t.Fatalf("a daemon without memory: %+v, %v", snapshot.Memory, err)
 	}

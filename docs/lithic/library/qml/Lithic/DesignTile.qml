@@ -9,6 +9,10 @@ T.AbstractButton {
     // "", "light", "standard" or "heavy": what running the look costs
     property string resource: ""
     property url source: ""
+    // the preview moves (an animated WebP or GIF of the look at work): it floats on the
+    // tile's own plane, fitted whole, plays only while the tile is on screen and holds its
+    // first frame under reduced motion
+    property bool animated: false
     property bool current: false
     property bool selected: false
     property string unavailable: ""
@@ -33,7 +37,10 @@ T.AbstractButton {
     readonly property color _baseFill: selected ? Lithic.sel : Lithic.slab
     readonly property color _ink: _onSel ? Lithic.onSel : Lithic.fg
     readonly property color _quietInk: _onSel ? Lithic.onSel2 : Lithic.fg2
-    readonly property bool _showImage: source.toString().length > 0 && image.status === Image.Ready
+    readonly property bool _showImage: source.toString().length > 0
+                                       && (animated ? motion.status === Image.Ready : image.status === Image.Ready)
+    readonly property bool _playing: animated && visible && Window.window !== null && Window.window.visible
+                                     && !Lithic.reduceMotion
 
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
@@ -101,14 +108,18 @@ T.AbstractButton {
             squareBottom: true
             opacity: root.unavailable.length > 0 ? Lithic.disabledOpacity : 1
 
+            // a hatch on field until there is a picture; a moving preview has no ground of
+            // its own, so it lies on the tile's plane, or on the paper inside the bone frame
+            // of a selected tile
             Rectangle {
                 width: root._previewWidth
                 height: root._previewHeight
-                visible: !root._showImage
-                color: Lithic.field
+                visible: !root._showImage || root.animated
+                color: !root._showImage ? Lithic.field : root.selected ? Lithic.slab : "transparent"
 
                 Hatch {
                     anchors.fill: parent
+                    visible: !root._showImage
                 }
             }
 
@@ -116,13 +127,30 @@ T.AbstractButton {
                 id: image
                 width: root._previewWidth
                 height: root._previewHeight
-                visible: root._showImage
-                source: root.source
+                visible: root._showImage && !root.animated
+                source: root.animated ? "" : root.source
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true
                 sourceSize.width: Math.ceil(root._previewWidth * Screen.devicePixelRatio)
                 sourceSize.height: Math.ceil(root._previewHeight * Screen.devicePixelRatio)
+            }
+
+            AnimatedImage {
+                id: motion
+                x: LithicTokens.space.s2
+                y: LithicTokens.space.s2
+                width: root._previewWidth - LithicTokens.space.s2 * 2
+                height: root._previewHeight - LithicTokens.space.s2 * 2
+                visible: root._showImage && root.animated
+                source: root.animated ? root.source : ""
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+                smooth: true
+                mipmap: true
+                playing: root._playing
+                onPlayingChanged: if (!playing && status === Image.Ready) currentFrame = 0
             }
         }
     }

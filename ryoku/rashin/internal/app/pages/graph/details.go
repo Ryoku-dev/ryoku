@@ -72,7 +72,7 @@ func (v *viewState) layoutDetailFrame(gtx layout.Context, e *env.Env, head layou
 				}
 				// fills the pane so the wheel works anywhere in it
 				gtx.Constraints.Min = gtx.Constraints.Max
-				v.diffView.Layout(gtx, th, v.diff, diffview.Options{Overlays: e.Overlays, Collapsed: true, FoldOver: 200})
+				v.diffView.Layout(gtx, th, v.diff, diffview.Options{Collapsed: true, FoldOver: 200})
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			})
 		}),
@@ -121,7 +121,7 @@ func (v *viewState) layoutCommitDetails(gtx layout.Context, e *env.Env) layout.D
 			children = append(children,
 				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return v.layoutRefChips(gtx, e, refs, v.commitColor(commit.Hash), &v.detailRefTip)
+					return v.layoutRefChips(gtx, e, refs, v.commitColor(commit.Hash), true, nil, graphEntry{})
 				}),
 			)
 		}
@@ -148,7 +148,7 @@ func (v *viewState) commitFacts(gtx layout.Context, e *env.Env, commit protocol.
 	if !commit.Time.IsZero() {
 		rows = append(rows, look.FactRow{Label: i18n.T("Date"), Value: commit.Time.Local().Format("2 Jan 2006, 15:04")})
 	}
-	v.copyHash.Icon, v.copyHash.Description = look.Icon.Copy, i18n.T("Copy the full hash")
+	v.copyHash.Kind, v.copyHash.Icon, v.copyHash.Description = kit.PlaqueQuiet, look.Icon.Copy, i18n.T("Copy the full hash")
 	if v.copyHash.Clicked(gtx) {
 		gtx.Execute(clipboard.WriteCmd{Type: "text/plain", Data: io.NopCloser(strings.NewReader(commit.Hash))})
 		e.Notify(i18n.T("Copied the commit hash"))
@@ -158,9 +158,7 @@ func (v *viewState) commitFacts(gtx layout.Context, e *env.Env, commit protocol.
 			layout.Rigid(look.TokenChip(th, shortHash(commit.Hash))),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return v.copyTip.Layout(gtx, th, e.Overlays, v.copyHash.Description, func(gtx layout.Context) layout.Dimensions {
-					return v.copyHash.Layout(gtx, th, th.R.Fg3)
-				})
+				return v.copyHash.Layout(gtx, th.Theme)
 			}),
 		)
 	}})

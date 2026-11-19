@@ -126,8 +126,9 @@ Singleton {
     }
     function issue(fields) {
         root.issuedCode = "";
+        var program = String(fields.program || "").trim();
         root.run("issue", ["ryoku-hub", "badge", "issue", "--issuer", "owner", "--request", String(fields.request).trim(),
-            "--login", String(fields.login).trim(), "--role", String(fields.role)], function(result) {
+            "--login", String(fields.login).trim(), "--role", String(fields.role)].concat(program !== "" ? ["--program", program] : []), function(result) {
             root.issuedCode = result.code || "";
             root.message = result.published ? I18n.tr("Code made and published. Send it to the member.")
                 : I18n.tr("Code made. Send it to the member; activation will try publishing it again.");

@@ -35,7 +35,6 @@ func (t *templateRows) layoutPick(gtx layout.Context, e *env.Env, templates []pr
 	}
 	return teamsui.LayoutGroups(gtx, th, templates, func(gtx layout.Context, template protocol.TeamTemplate) layout.Dimensions {
 		tablet := t.row(template.ID)
-		tablet.Pane = th.R.Stone2
 		if tablet.Clicked(gtx) && template.ID != picked {
 			pick(template)
 		}

@@ -137,6 +137,17 @@ loaded defines `revisited()` on its root: the frame calls it when a kept page is
 shown again, and it re-reads in the background without clearing the rows, unless
 an action or an unsaved edit is under way.
 
+Large schema pages can set `SettingsPage.asynchronousSections`. Rashin uses it
+to paint its first section before building the rest in reading order, spread
+across frames. Completed sections stay in the page cache; unfinished sections
+stop building while hidden. Search and outline jumps wait for the target and
+preceding sections' rows, finish their layout and open More options when needed.
+If the unfinished tail would clamp the scroll too early, enough of it is built
+to reach the landing position before scrolling. Later read results keep the
+landed row in position until the reader scrolls. A status refresh keeps each
+unchanged section's row model, so it does not recreate unrelated controls or
+open editors. Only the shown page's sidebar outline builds section links.
+
 - **The sidebar** (`components/nav/HubSidebar.qml`). Its title line holds the
   Ryoku mark and SETTINGS, quiet, with one action at its end that shuts every
   folder but the open page's. The search field sits under it, then the tree,
@@ -231,6 +242,16 @@ an action or an unsaved edit is under way.
 - **Sizes.** From 880 wide the sidebar stands beside the pane. Narrower, it is
   a drawer the pane's menu button draws out over a shade, and the search on
   Home draws it out too. Compact Home lists the categories under the profile.
+- **Moving design previews.** A `DesignTile` with `animated` plays its picture
+  (an animated WebP or GIF) fitted on the tile's own plane, only while it is on
+  screen, and holds the first frame under reduced motion. Notifications &
+  pop-ups uses it for Ryoku's own notification card and pop-up: each shipped
+  tile and an Example above its gallery (`components/notifications/DesignExample.qml`,
+  one component for both sections) play `art/notifications/` or `art/osd/`
+  `<design>-<dark|light>.webp`, the design and the light or dark in use, recorded
+  from the shell's real looks by `bin/art/notification-previews` and
+  `bin/art/osd-previews` on the shared `bin/art/qmlrecord.py` (deterministic
+  frames, true alpha, 2x, 30 fps). Re-run them after changing a look.
 
 ### Home
 
@@ -481,11 +502,19 @@ sign Tester and Contributor badges, and nero can sign every role, including
 NixOS, Core and Founder. Every badge reads as issued by neur0map; the
 certificate's fine print names the key that signed it (Mika or neur0map), and
 Mika keeps revoking the tester badges it signed when someone leaves the testers.
+A tester badge names the program its tester round tested, such as Ryoku v2
+Hyperion: the issuer signs it into the code (`ryoku-hub badge issue --program`,
+a version 3 code), so it can't be edited afterwards, and the certificate shows it
+beside Issued by and Issued on, the Badge tab under the issue date. Badges from
+the first round carry no program and read Ryoku v2 Hyperion, the version that
+round tested. A program is 1 to 40 letters, digits, spaces, `.`, `+` and `-`,
+starting and ending with a letter or digit, never two spaces in a row.
 Each GitHub login may hold at most eight active badges; revoke an old machine's
 badge before adding a ninth.
 The owner's signing tools appear only when the owner key is available in the
-keyring. **Make a code** takes the member's request, login and role, then returns
-a code to copy. **Revoke** accepts that code or its badge id.
+keyring. **Make a code** takes the member's request, login, role and an optional
+program tested, then returns a code to copy. **Revoke** accepts that code or its
+badge id.
 
 **Your own card design.** Every badge, tester and contributor as well as
 NixOS, Core and Founder, may have its own card design, one per GitHub login. A
@@ -905,6 +934,68 @@ and reads it as `Changes.stores[name]`. `ensureStore` builds the store in
 leave. `components/performance/PerformanceStore.qml` (a JSON file kept key by
 key) and `components/graphics/GraphicsStore.qml` (`ryoku-hub gpu` calls, with
 prompts and a Needs you probe) are the two to read first.
+
+### The Rashin page and Theia
+
+`schema/rashin.js` holds the Rashin page, opened from Apps > Rashin, with the
+Theia hero first. Its sections, in order:
+Rashin (the master switch and app features), Theia, Reading, Writing,
+Translate, Listening, Quiet places, Model, Status and Open Rashin.
+Theia is what Sight used to be called; the row ids that existed keep their
+`sight-` names (`sight-enabled`, `sight-highlight`, `sight-mode`,
+`sight-target`, `sight-languages`, `sight-local-only`, `sight-engine`,
+`sight-model`, `sight-shortcut`, `sight-status`) so deep links and search keep
+working, and the registry's keywords keep "sight". Deep links are
+`rashin/theia-on`, `rashin/theia-f-<id>` and the existing `rashin/sight-*`.
+
+- **The master row** (`theia-on`) is a custom `TheiaHero`: the Theia switch,
+  a sentence saying what is listening ("Listening for Right Alt three times
+  and Left Alt while you highlight."), a keycap for each gesture and how many
+  of the 21 desktop features are on, all live. Gestures and Start with sit under it.
+- **A row per feature**, `theia-f-<id>`. Theia's 21 features (`inplace`,
+  `summarize`, `deepread`, `math`, `learn`, `readaloud`, `proofread`,
+  `rewrite`, `tone`, `fluent`, `humanize`, `aicheck`, `inclusive`, `reactions`,
+  `reply`, `voice`, `translatestyle`, `dictionary`, `overimage`,
+  `quiet`, `save`) bind to `{ store: "sight", key:
+  "features.<id>", fallback: false }`. Each draws with `TheiaFeatureSwitch`:
+  chips for where it shows and a switch, grouped by what it does. All are off
+  by default.
+  `theia-f-save` writes `sight.features.save` and Rashin's `collections`
+  together, inside `SightStore`, so Reset and Undo put both back.
+- **Rashin app features** replaces the app's per-feature switches with a count,
+  "N of 20 on", and Open in Rashin, which runs
+  `rashin open --tab settings --view features`. Rashin's own Settings > Features
+  groups the switches under Ask, Answers, Agents and Teams, and Memory and
+  Index, with links to any further settings while the feature is on.
+- **Options**, `theia-o-<key>`, bind to `{ store: "sight", key: "<key without
+  sight.>", fallback: <default> }` and show `when` their feature is on and
+  Theia is on; a feature with more than two options folds the rest under More
+  options.
+- **Custom editors** in `components/rashin/`: `TheiaBubblePicker` (up to four
+  bubble actions as chips, the core four and the features that are on, with
+  arrows to reorder), `TheiaPinnedPicker` (up to two extra tabs),
+  `TheiaTones` (the 23 tones as chips, which ones show first),
+  `TheiaCategories` (the 14 writing check categories, listing those turned
+  off), `TheiaVoice` (My voice: your samples, Learn, the notes it writes that
+  you can edit, Save and Clear, through `rashin call writing.voice.*`),
+  `TheiaQuietApps` (quiet apps, added from the running windows listed once each
+  by `ryoku wm state`), `TheiaVoices` (the reading voice from `sight.voices`
+  with a Test button, installing `espeak-ng` with the usual package job when it
+  is missing) and `TheiaWords` (Your words, the personal spelling dictionary
+  used by the built-in English checker, through `writing.words`,
+  `writing.words.add` and `writing.words.remove`). Fix writing needs no grammar
+  package; Automatic uses English on this computer, other languages with your
+  model, with US, UK, CA, AU and IN dialects for English.
+- **Two stores.** `SightStore` is `shell.json`'s `sight.*` through the bus.
+  `RashinFeaturesStore` (store name `rashinFeatures`) reads `features` from
+  `rashin status --json`, which shows Rashin's status without starting
+  rashind, so opening the page never wakes it. Its write path remains for
+  Save's paired `collections` switch, through `rashin call settings.set`.
+- **Shortcuts.** The In place gesture has a key menu like the other two there,
+  writing `sight.inplace.key`.
+
+Every "Sight" a person can read is "Theia". The behaviour of each feature is in
+`docs/rashin.md`.
 
 ## Changes
 

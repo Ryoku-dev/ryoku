@@ -35,15 +35,15 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 			Created: started, Updated: now, Dream: &state,
 		}
 	}
-	manager := func(id, harness, model string) protocol.Member {
-		return protocol.Member{ID: id, Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Harness: harness, Model: model}
+	manager := func(id, model string) protocol.Member {
+		return protocol.Member{ID: id, Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Model: model}
 	}
 
 	esp32 := dream(demoDreamESP32, i18n.T("ESP32 Wi-Fi setup page"), ago(4*24*time.Hour), []protocol.Member{
-		manager("member-esp32-manager", "claude", "opus"),
-		{ID: "member-esp32-firmware", Name: i18n.T("Firmware engineer"), Title: i18n.T("Writes the ESP-IDF firmware"), Harness: "claude", Model: "sonnet"},
-		{ID: "member-esp32-page", Name: i18n.T("Page designer"), Title: i18n.T("Builds the setup page"), Harness: "codex", Model: "gpt-5.6"},
-		{ID: "member-esp32-tester", Name: i18n.T("Tester"), Title: i18n.T("Tests it in QEMU"), Harness: "claude", Model: "haiku"},
+		manager("member-esp32-manager", demoPaidID),
+		{ID: "member-esp32-firmware", Name: i18n.T("Firmware engineer"), Title: i18n.T("Writes the ESP-IDF firmware"), Model: demoFreeID},
+		{ID: "member-esp32-page", Name: i18n.T("Page designer"), Title: i18n.T("Builds the setup page"), Model: demoLocalID},
+		{ID: "member-esp32-tester", Name: i18n.T("Tester"), Title: i18n.T("Tests it in QEMU"), Model: demoFreeID},
 	}, protocol.Dream{
 		Statement: i18n.T("Make ESP32 firmware whose Wi-Fi setup page opens when I connect to the board's own network: it lists the networks it can see, I pick one and type the password, and it joins and remembers it. Build it with ESP-IDF and keep the page small enough to live in flash."),
 		Brief:     i18n.T("ESP32-S3, ESP-IDF 5.3. A captive portal on the board's access point; the page under 20 KB; the network saved in NVS; back to the portal after three failed joins."),
@@ -51,8 +51,8 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 		Summary: i18n.T("The portal opens on a phone and lists the networks around it. Saving a network and the page itself are being built."),
 	})
 	receipts := dream(demoDreamReceipts, i18n.T("Receipt renamer"), ago(6*24*time.Hour), []protocol.Member{
-		manager("member-receipts-manager", "claude", "sonnet"),
-		{ID: "member-receipts-developer", Name: i18n.T("Developer"), Title: i18n.T("Writes the tool and its tests"), Harness: "codex", Model: "gpt-5.6"},
+		manager("member-receipts-manager", demoPaidID),
+		{ID: "member-receipts-developer", Name: i18n.T("Developer"), Title: i18n.T("Writes the tool and its tests"), Model: demoLocalID},
 	}, protocol.Dream{
 		Statement: i18n.T("A small tool that renames the receipts I scan into ~/Documents/receipts by the date and the shop on them, so I can find one by its name."),
 		Phase:     protocol.DreamPresenting, Hired: 2, Rounds: 1,
@@ -87,9 +87,9 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 		Created: esp32.Created, Started: at(esp32.Created), Updated: ago(6 * time.Minute),
 	}, i18n.T("Asked you which look the setup page takes."),
 		said(i18n.T("The interview settled the board, the size of the page and what happens when a join fails. Hiring three: firmware, the page, and tests.")),
-		did("hire-firmware", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer"), i18n.T("Hired Firmware engineer on Claude Code, sonnet.")),
-		did("hire-page", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer"), i18n.T("Hired Page designer on Codex, gpt-5.6.")),
-		did("hire-tester", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Tester"), i18n.T("Hired Tester on Claude Code, haiku.")),
+		did("hire-firmware", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer"), i18n.T("Hired Firmware engineer on Qwen3 Coder.")),
+		did("hire-page", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer"), i18n.T("Hired Page designer on LFM3 Omni 2B.")),
+		did("hire-tester", "hire", protocol.ToolOther, protocol.ToolDone, i18n.T("Tester"), i18n.T("Hired Tester on Qwen3 Coder.")),
 		did("delegate-portal", "delegate", protocol.ToolOther, protocol.ToolDone, i18n.T("Firmware engineer: Serve the captive portal and scan for networks"), ""),
 		did("delegate-page", "delegate", protocol.ToolOther, protocol.ToolDone, i18n.T("Page designer: Build the setup page under 20 KB"), ""),
 		did("dream-building", "dream_status", protocol.ToolOther, protocol.ToolDone, i18n.T("building, 45%"), ""),
@@ -163,8 +163,8 @@ func addDemoDreams(result *fixtures, now time.Time, settings protocol.Settings) 
 	}, fx.activity...)
 	fx.spend[esp32.ID] = dreamSpend(now, esp32, 690_000, 1)
 	fx.spend[receipts.ID] = dreamSpend(now, receipts, 409_000, 2)
-	signInDreams(result.snapshot.Harnesses, now, esp32, receipts)
 	sort.SliceStable(fx.tasks, func(i, j int) bool { return fx.tasks[i].Created.After(fx.tasks[j].Created) })
+	addResearchDemo(result, now, settings)
 }
 
 // a dream's month: its tokens spread over the days since it started, its finished tasks on the last of them
@@ -184,22 +184,6 @@ func dreamSpend(now time.Time, dream protocol.Team, tokens int64, finished int) 
 	return spend
 }
 
-// the demo's dreams signed in for every harness their members run on
-func signInDreams(harnesses []protocol.HarnessInfo, now time.Time, dreams ...protocol.Team) {
-	at := now.Add(-4 * 24 * time.Hour)
-	for index := range harnesses {
-		teams := harnesses[index].Teams
-		if teams == nil {
-			continue
-		}
-		for _, dream := range dreams {
-			if slices.ContainsFunc(dream.Members, func(member protocol.Member) bool { return member.Harness == harnesses[index].ID }) {
-				teams.Homes = append(teams.Homes, protocol.TeamHome{Team: dream.ID, Home: demoTeamsHome(harnesses[index].ID, dream.ID), SignedIn: &at})
-			}
-		}
-	}
-}
-
 func receiptsPresentation() string {
 	return i18n.T(`receipt-namer reads each scan in ~/Documents/receipts and renames it by **the date and the shop** on it, so ` + "`scan-0412.pdf`" + ` becomes ` + "`2026-11-03 Lidl.pdf`" + `.
 
@@ -217,6 +201,38 @@ Two faded scans have no readable date. They stay as they are and are listed in `
 // the dream methods the demo answers itself, and what a dream changes in pause and approvals; false leaves the call to callTeams
 func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, error) {
 	switch method {
+	case protocol.MTeamsRoutineRuns:
+		if !s.data.snapshot.Settings.Features["schedules"] {
+			return nil, true, protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Scheduled runs are off in Settings."))
+		}
+		var p protocol.RoutineRunsParams
+		if err := decode(raw, &p); err != nil {
+			return nil, true, err
+		}
+		result := protocol.RoutineRunsResult{Runs: []protocol.RoutineRun{}}
+		for _, run := range s.data.teams.routineRuns {
+			if p.Routine == "" || p.Routine == run.Routine {
+				result.Runs = append(result.Runs, run)
+			}
+		}
+		for _, task := range s.data.teams.tasks {
+			if task.Routine == "" || (p.Routine != "" && p.Routine != task.Routine) {
+				continue
+			}
+			if slices.ContainsFunc(result.Runs, func(run protocol.RoutineRun) bool { return run.Task == task.ID }) {
+				continue
+			}
+			run := protocol.RoutineRun{ID: task.ID, Routine: task.Routine, Kind: protocol.RoutineTask, Team: task.Team, Task: task.ID, Session: task.Session, Started: task.Created, Ended: task.Ended, Status: task.Status}
+			if task.Report != nil {
+				run.Detail = task.Report.Title
+			}
+			result.Runs = append(result.Runs, run)
+		}
+		sort.SliceStable(result.Runs, func(i, j int) bool { return result.Runs[i].Started.After(result.Runs[j].Started) })
+		if p.Limit > 0 {
+			result.Runs = result.Runs[:min(p.Limit, len(result.Runs))]
+		}
+		return result, true, nil
 	case protocol.MTeamsDreamCreate:
 		var p protocol.DreamCreateParams
 		if err := decode(raw, &p); err != nil {
@@ -244,6 +260,10 @@ func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, erro
 			return nil, false, nil
 		}
 		index := s.data.teams.approvalIndex(p.ID)
+		if index >= 0 && s.data.teams.approvals[index].Kind == protocol.ApprovalSetup {
+			approval, err := s.answerSetupDemo(index, p)
+			return approval, true, err
+		}
 		if index < 0 || !s.presentationApproval(s.data.teams.approvals[index]) {
 			return nil, false, nil
 		}
@@ -258,6 +278,28 @@ func (s *server) callDreams(method string, raw json.RawMessage) (any, bool, erro
 		return s.data.teams.approvals[index], true, nil
 	}
 	return nil, false, nil
+}
+
+func (s *server) answerSetupDemo(index int, p protocol.ApprovalDecideParams) (protocol.Approval, error) {
+	approval := &s.data.teams.approvals[index]
+	if approval.Status != protocol.ApprovalPending || (p.Decision != protocol.DecideOnce && p.Decision != protocol.DecideDeny) {
+		return protocol.Approval{}, badRequest(i18n.T("This setup card needs Done or Skip and can be answered only once."))
+	}
+	outcome := i18n.Tf("The user finished setup: %s. Check that it works before carrying on.", approval.Title)
+	if p.Decision == protocol.DecideDeny {
+		outcome = i18n.Tf("The user skipped setup: %s. Do not assume these steps were completed; continue only with work that does not need them.", approval.Title)
+	}
+	approval.Result, approval.Note = outcome, strings.TrimSpace(p.Note)
+	if approval.Note != "" {
+		outcome += "\n" + approval.Note
+	}
+	s.settleApproval(index, p.Decision, approval.Note)
+	if !slices.ContainsFunc(s.data.teams.approvals, func(other protocol.Approval) bool {
+		return other.Task == approval.Task && other.Status == protocol.ApprovalPending
+	}) {
+		s.releaseTeamTask(approval.Task, outcome)
+	}
+	return s.data.teams.approvals[index], nil
 }
 
 func (s *server) dreamIndex(id string) int {
@@ -275,9 +317,12 @@ func (s *server) presentationApproval(approval protocol.Approval) bool {
 		slices.Equal(approval.Options, presentOptions())
 }
 
-// a dream as the daemon starts one: a team of its manager alone, run without confirmations, its standing task started or waiting for a sign-in
+// a dream starts its manager task on the selected model
 func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error) {
 	t := &s.data.teams
+	if p.Preset != "" && (p.Preset != "research" || !s.data.snapshot.Settings.Features["research"]) {
+		return protocol.Team{}, badRequest(i18n.T("Turn on Deep research in Settings to use the research preset."))
+	}
 	statement := strings.TrimSpace(p.Statement)
 	if statement == "" {
 		return protocol.Team{}, badRequest(i18n.T("Say what you dream of first."))
@@ -292,13 +337,19 @@ func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error
 	now := time.Now()
 	manager := protocol.Member{
 		ID: t.newID("member"), Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true,
-		Harness: p.Harness, Model: p.Model, Options: p.Options,
+		Model: p.Model, Options: p.Options,
+	}
+	if manager.Model == "" {
+		manager.Model = s.data.snapshot.Settings.Teams.Defaults.Model
+		if manager.Model == "" {
+			manager.Model = demoLocalID
+		}
 	}
 	team := protocol.Team{
 		ID: t.newID("dream"), Name: name, Purpose: statement, Folder: p.Folder, Members: []protocol.Member{manager},
 		Approvals: protocol.ApprovalsAuto, Budget: protocol.TeamBudget{MonthTokens: p.MonthTokens, WarnPercent: 80},
 		Notify: protocol.NotifyAll, Created: now, Updated: now,
-		Dream: &protocol.Dream{Statement: statement, Phase: protocol.DreamInterviewing, Manager: manager.ID, Started: now},
+		Dream: &protocol.Dream{Statement: statement, Preset: p.Preset, Phase: protocol.DreamInterviewing, Manager: manager.ID, Started: now},
 	}
 	if team.Folder == "" {
 		team.Folder = paths.DreamsHome() + "/" + slugName(name)
@@ -311,7 +362,7 @@ func (s *server) createDream(p protocol.DreamCreateParams) (protocol.Team, error
 	return s.teamWithStats(team), nil
 }
 
-// the manager's standing task: at work at once, or blocked until its harness is signed in for the dream
+// the manager's standing task starts on the native engine
 func (s *server) startDream(team protocol.Team) protocol.TeamTask {
 	t := &s.data.teams
 	manager := team.Members[0]
@@ -320,40 +371,10 @@ func (s *server) startDream(team protocol.Team) protocol.TeamTask {
 		ID: t.newID("task"), Team: team.ID, Title: team.Name, Brief: team.Dream.Statement, Member: manager.ID,
 		Origin: protocol.TaskFromYou, Created: now, Updated: now,
 	}
-	harnessID, _, _ := protocol.ResolveEngine(manager, s.data.snapshot.Settings, s.registryHarness())
-	at := slices.IndexFunc(s.data.snapshot.Harnesses, func(harness protocol.HarnessInfo) bool { return harness.ID == harnessID })
-	if at >= 0 && s.data.snapshot.Harnesses[at].Teams != nil {
-		harness := s.data.snapshot.Harnesses[at]
-		if home, ok := harness.Teams.HomeOf(team.ID); !ok || home.SignedIn == nil {
-			task.Status, task.SignIn, task.Ended = protocol.TaskBlocked, harness.ID, &now
-			task.Reason = i18n.Tf("%s is not signed in for %s. Sign it in, then resume the dream.", harness.Name, team.Name)
-			t.tasks = append([]protocol.TeamTask{task}, t.tasks...)
-			s.emitTask(task)
-			return task
-		}
-	}
 	task = s.beginTeamTask(team, task)
 	t.tasks = append([]protocol.TeamTask{task}, t.tasks...)
 	s.emitTask(task)
 	return task
-}
-
-// a dream blocked only on this sign-in goes on by itself, its blocked attempt taken back as the daemon does
-func (s *server) continueSignedInDream(id, harness string) {
-	t := &s.data.teams
-	index := s.dreamIndex(id)
-	if index < 0 {
-		return
-	}
-	dream := t.teams[index]
-	at := t.taskIndex(dream.Dream.Task)
-	if at < 0 || dream.Paused || t.tasks[at].Status != protocol.TaskBlocked || t.tasks[at].SignIn != harness {
-		return
-	}
-	task := t.tasks[at]
-	task.SignIn, task.Reason, task.Ended = "", "", nil
-	t.tasks[at] = s.beginTeamTask(dream, task)
-	s.emitTask(t.tasks[at])
 }
 
 // a dream resumed starts its manager again when the standing task is not running
@@ -432,4 +453,79 @@ func (s *server) answerDream(id, verdict, note string) (protocol.Team, error) {
 	}
 	s.emitTeam(team.ID)
 	return s.teamWithStats(team), nil
+}
+
+func addResearchDemo(result *fixtures, now time.Time, settings protocol.Settings) {
+	fx := &result.teams
+	if settings.Features["research"] {
+		started, presented := now.Add(-3*time.Hour), now.Add(-15*time.Minute)
+		manager := protocol.Member{ID: "member-research-manager", Name: i18n.T("Manager"), Title: i18n.T("Runs the dream"), Lead: true, Model: demoPaidID}
+		reviewer := protocol.Member{ID: "member-research-reviewer", Name: i18n.T("Reviewer"), Title: i18n.T("Checks the sources"), Model: demoFreeID}
+		dream := protocol.Team{
+			ID: "dream-research", Name: i18n.T("How Linux reports battery health"), Purpose: i18n.T("Compare the Linux battery capacity fields and explain when a health percentage is trustworthy."),
+			Folder: paths.DreamsHome() + "/battery-health-research", Members: []protocol.Member{manager, reviewer}, Approvals: protocol.ApprovalsAuto, Notify: protocol.NotifyAll, Created: started, Updated: presented,
+			Dream: &protocol.Dream{
+				Preset: "research", Statement: i18n.T("Compare the Linux battery capacity fields and explain when a health percentage is trustworthy."),
+				Phase: protocol.DreamPresenting, Manager: manager.ID, Task: "task-research-report", Hired: 1, Rounds: 1, Started: started,
+				Summary: i18n.T("The report separates charge level from health and explains missing design-capacity readings."),
+				Presentation: &protocol.DreamPresentation{
+					Title:   i18n.T("Battery health needs a design-capacity reading"),
+					Body:    i18n.T("## Summary\nBattery charge and battery health are different readings.\n\n## Findings\nThe kernel exposes the fields the hardware supplies. UPower documents capacity as an estimate of how much energy the battery can hold compared with its design capacity.\n\n## Disagreements\nNot every battery supplies every field, so a missing design value cannot be treated as a healthy battery.\n\n## Sources\nThe kernel power-supply documentation and the UPower device reference are linked below."),
+					Sources: []string{"https://docs.kernel.org/power/power_supply_class.html", "https://upower.freedesktop.org/docs/Device.html"}, At: presented,
+				},
+			},
+		}
+		fx.teams = append(fx.teams, dream)
+		fx.addTask(settings, result.events, dream, protocol.TeamTask{ID: dream.Dream.Task, Member: manager.ID, Title: dream.Name, Brief: dream.Purpose, Origin: protocol.TaskFromYou, Status: protocol.TaskNeedsYou, Waiting: protocol.WaitingOnYou, Session: "agent-dream-research", Created: started, Started: &started, Updated: presented}, dream.Dream.Summary, "", said(dream.Dream.Presentation.Body))
+		fx.addTask(settings, result.events, dream, protocol.TeamTask{ID: "task-research-review", Member: reviewer.ID, Parent: dream.Dream.Task, Title: i18n.T("Check the battery-health sources"), Origin: protocol.TaskFromLead, Status: protocol.TaskDone, Created: started, Ended: &presented, Updated: presented, Report: &protocol.TeamReport{Title: i18n.T("Both references distinguish capacity from charge"), Body: i18n.T("Checked the report against the two linked references."), At: presented}}, i18n.T("The references agree on the distinction."), "")
+		fx.approvals = append(fx.approvals, protocol.Approval{ID: "approval-research-present", Team: dream.ID, Task: dream.Dream.Task, Session: "agent-dream-research", Member: manager.ID, Kind: protocol.ApprovalAction, Title: i18n.Tf("%s is ready: %s", dream.Name, dream.Dream.Presentation.Title), Detail: dream.Dream.Presentation.Body, Options: presentOptions(), Status: protocol.ApprovalPending, Created: presented})
+	}
+	if settings.Features["setupcards"] {
+		fx.approvals = append(fx.approvals, protocol.Approval{ID: "approval-esp32-setup", Team: demoDreamESP32, Task: demoDreamESP32 + "-run", Session: "agent-dream-esp32-run", Member: "member-esp32-manager", Kind: protocol.ApprovalSetup, Title: i18n.T("Connect the board for its final check"), Detail: i18n.T("The emulated checks passed. The last check needs the board on your desk."), Steps: []string{i18n.T("Connect the ESP32 board with its USB cable"), i18n.T("Open the serial monitor in your terminal"), i18n.T("Tell the manager which serial port appeared")}, Check: i18n.T("The board prints its setup-network name"), Status: protocol.ApprovalPending, Created: now.Add(-4 * time.Minute)})
+	}
+	if settings.Features["schedules"] {
+		started, ended := now.Add(-time.Hour), now.Add(-time.Hour+42*time.Second)
+		routine := protocol.Routine{ID: "routine-personal-ask", Team: protocol.RoutinePersonal, Kind: protocol.RoutineAsk, Title: i18n.T("Morning plan"), Brief: i18n.T("Give me three ways to plan a focused morning."), Schedule: "0 8 * * 1-5", Enabled: true, Missed: protocol.MissedSkip, Overlap: protocol.OverlapSkip, LastRun: &started, LastTask: "ask-scheduled-morning", LastStatus: protocol.TaskDone, Created: now.Add(-7 * 24 * time.Hour), Updated: now}
+		fx.routines = append(fx.routines, routine)
+		result.snapshot.Sessions = append(result.snapshot.Sessions, protocol.SessionInfo{ID: "ask-scheduled-morning", Kind: protocol.KindAsk, Title: routine.Title, Origin: protocol.OriginTeam, State: protocol.StateIdle, Created: started, Updated: ended, Turns: 1, LastSeq: 4, Preview: i18n.T("Choose one important task, protect a quiet block, and leave room for a break.")})
+		result.snapshot.Status.Sessions.Ask++
+		result.events["ask-scheduled-morning"] = []protocol.SessionEvent{event(1, protocol.EvUser, protocol.UserData{Text: routine.Brief}), event(2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}), event(3, protocol.EvText, protocol.TextData{Message: "morning", Delta: i18n.T("1. Choose one important task.\n2. Protect a quiet block on your calendar.\n3. Leave room for a proper break.")}), event(4, protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1})}
+		fx.routineRuns = append(fx.routineRuns, protocol.RoutineRun{ID: "run-personal-morning", Routine: routine.ID, Kind: protocol.RoutineAsk, Team: protocol.RoutinePersonal, Session: "ask-scheduled-morning", Started: started, Ended: &ended, Status: protocol.TaskDone, Detail: i18n.T("Three ways to plan a focused morning")})
+	}
+}
+
+func (s *server) runScheduledDemo(routine protocol.Routine) (protocol.TeamTask, error) {
+	if !s.data.snapshot.Settings.Features["schedules"] || s.data.snapshot.Settings.Teams.Paused {
+		return protocol.TeamTask{}, badRequest(i18n.T("Scheduled runs are off or paused."))
+	}
+	if index := s.data.teams.teamIndex(routine.Team); index >= 0 && s.data.teams.teams[index].Paused {
+		return protocol.TeamTask{}, badRequest(i18n.T("The routine's team is paused."))
+	}
+	now := time.Now()
+	run := protocol.RoutineRun{ID: s.data.teams.newID("run"), Routine: routine.ID, Kind: routine.Kind, Team: routine.Team, Started: now}
+	var task protocol.TeamTask
+	if routine.Kind == protocol.RoutineDream {
+		dream, err := s.createDream(protocol.DreamCreateParams{Statement: routine.Brief, Name: routine.Title, Preset: routine.Preset})
+		if err != nil {
+			return task, err
+		}
+		index := s.data.teams.taskIndex(dream.Dream.Task)
+		task = s.data.teams.tasks[index]
+		task.Routine = routine.ID
+		s.data.teams.tasks[index] = task
+		run.Task, run.Dream, run.Session, run.Status = task.ID, dream.ID, task.Session, task.Status
+	} else {
+		session := s.newSession(protocol.KindAsk, "", "", "", "", "", "", "")
+		session.Title, session.Preview, session.Turns, session.LastSeq = routine.Title, i18n.T("This is the demo's scheduled answer."), 1, 4
+		s.replaceSession(session)
+		s.data.events[session.ID] = []protocol.SessionEvent{event(1, protocol.EvUser, protocol.UserData{Text: routine.Brief}), event(2, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}), event(3, protocol.EvText, protocol.TextData{Message: "scheduled-demo", Delta: session.Preview}), event(4, protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1})}
+		run.Session, run.Status, run.Ended, run.Detail = session.ID, protocol.TaskDone, &now, session.Preview
+		task = protocol.TeamTask{ID: session.ID, Session: session.ID, Routine: routine.ID, Title: routine.Title, Status: protocol.TaskDone, Created: now, Ended: &now}
+	}
+	s.data.teams.routineRuns = append([]protocol.RoutineRun{run}, s.data.teams.routineRuns...)
+	index := s.data.teams.routineIndex(routine.ID)
+	routine.LastRun, routine.LastTask, routine.LastStatus = &now, task.ID, run.Status
+	s.data.teams.routines[index] = routine
+	s.emitRoutine(routine)
+	return task, nil
 }

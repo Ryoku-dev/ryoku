@@ -56,18 +56,6 @@
 }
 
 @supports (position-area: bottom) and (position-anchor: --lithic-anchor) {
-  .l-popover[data-l-native-anchor] {
-    position: fixed;
-    position-area: bottom span-right;
-    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
-    margin-block-start: var(--lithic-size-popover-anchor-gap);
-  }
-
-  .l-popover[data-l-native-anchor][data-l-prefer="above"] {
-    position-area: top span-right;
-    margin-block: 0 var(--lithic-size-popover-anchor-gap);
-  }
-
   .l-tooltip[data-l-native-anchor] {
     position: fixed;
     position-area: top center;
@@ -81,10 +69,47 @@
   --l-fill: var(--lithic-stone4);
   --l-stroke: var(--lithic-vein);
   --l-stroke-width: var(--lithic-size-hairline);
+  --l-menu-cap: calc(var(--lithic-size-menu-item) * var(--lithic-size-menu-visible-items-count) + 2 * var(--lithic-size-menu-padding-vertical));
   width: max-content;
   min-width: min(var(--lithic-size-menu-width-min), calc(100vw - var(--lithic-space-s4)));
   max-width: min(var(--lithic-size-menu-width-max), calc(100vw - var(--lithic-space-s4)));
   padding-block: var(--lithic-size-menu-padding-vertical);
+  max-block-size: min(var(--l-menu-cap), var(--l-menu-available, var(--l-menu-cap)));
+  box-sizing: border-box;
+  overflow: hidden;
+  clip-path: polygon(
+    var(--l-actual-tl, var(--lithic-cut-menu)) 0,
+    calc(100% - var(--l-actual-tr, var(--lithic-cut-menu))) 0,
+    100% var(--l-actual-tr, var(--lithic-cut-menu)),
+    100% calc(100% - var(--l-actual-br, var(--lithic-cut-menu))),
+    calc(100% - var(--l-actual-br, var(--lithic-cut-menu))) 100%,
+    var(--l-actual-bl, var(--lithic-cut-menu)) 100%,
+    0 calc(100% - var(--l-actual-bl, var(--lithic-cut-menu))),
+    0 var(--l-actual-tl, var(--lithic-cut-menu))
+  );
+}
+
+.l-menu:has(> .l-menu__viewport) {
+  padding-block: 0;
+}
+
+.l-menu__viewport {
+  max-block-size: min(var(--l-menu-cap), var(--l-menu-available, var(--l-menu-cap)));
+  box-sizing: border-box;
+  padding-block: min(var(--lithic-size-menu-padding-vertical), calc(var(--l-menu-available, var(--l-menu-cap)) / 2));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.l-popover:has(> .l-menu) {
+  overflow: hidden;
+}
+
+.l-popover:not(.l-menu):has(> .l-menu) > .l-menu {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .l-menu-item {
@@ -126,6 +151,9 @@
 
 .l-menu-item-label {
   min-width: 0;
+  block-size: var(--lithic-type-label-line);
+  line-height: var(--lithic-type-label-line);
+  transform: translateY(var(--l-menu-label-shift, 0px));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

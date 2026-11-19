@@ -10,17 +10,16 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// stallTurns is how many turns in a row a dream's manager may take without
-// a tool call before the dream stops to ask the user whether to go on.
+// stallTurns bounds a manager that never uses a tool, without asking the
+// CEO for a generic "keep going" confirmation.
 const stallTurns = 6
 
 // noProgress is the reason the session manager pauses a goal with when two
 // turns in a row called no tool.
 func noProgress() string { return i18n.T("Two turns in a row made no progress.") }
 
-// dreamTurn counts the turns in a row the manager of a dream took without a
-// tool call, from its standing task's turns. At stallTurns the dream asks the
-// user whether to go on, with the manager's last words, and waits.
+// dreamTurn stops a manager after six turns without a tool call. A turn
+// with work starts the count again; the CEO can resume the blocked dream.
 func (s *Service) dreamTurn(info protocol.SessionInfo) {
 	t, ok := s.state.task(info.TeamTask)
 	if !ok || !taskIsOpen(t) || t.Session != info.ID {
@@ -43,28 +42,22 @@ func (s *Service) dreamTurn(info protocol.SessionInfo) {
 	}
 	stalled := r.idle >= stallTurns
 	s.mu.Unlock()
-	if !stalled || s.dreamCardOpen(t.ID, cardStall) {
+	if !stalled {
 		return
 	}
-	s.askStall(team, t, info)
-}
-
-// askStall puts the stall guard's question to the user: keep going, or
-// pause the dream.
-func (s *Service) askStall(team protocol.Team, t protocol.TeamTask, info protocol.SessionInfo) {
-	words := strings.TrimSpace(info.Preview)
-	if words == "" {
-		words = i18n.T("The manager said nothing.")
+	reason := i18n.Tf("The manager took %d turns without making progress. Review its last words and resume the dream to try again.", stallTurns)
+	if words := strings.TrimSpace(info.Preview); words != "" {
+		reason += " " + i18n.Tf("Its last words: %s", s.redact(words))
 	}
-	asked := protocol.Approval{
-		Team: team.ID, Kind: protocol.ApprovalAction, Title: i18n.Tf("%s has stalled: keep going?", team.Name),
-		Detail:  i18n.Tf("The manager took %d turns in a row without doing anything. Its last words: %s", stallTurns, words),
-		Options: []string{i18n.T("Keep going"), i18n.T("Pause the dream")},
+	ended, ok := s.endTask(t.ID, func(task *protocol.TeamTask) {
+		task.Status, task.Reason = protocol.TaskBlocked, reason
+	})
+	if !ok {
+		return
 	}
-	c := caller{Team: team.ID, Task: t.ID, Member: t.Member, Session: t.Session}
-	if _, err := s.ask(s.background, c, asked, dreamCard{Dream: cardStall}); err == nil {
-		s.record(protocol.Activity{Actor: "Rashin", Action: "dream.stall", Target: team.Name, OK: true, Team: team.ID, Task: t.ID, Initiator: protocol.InitiatorRashin, Detail: asked.Detail})
-	}
+	s.record(protocol.Activity{Actor: "Rashin", Action: "dream.stall", Target: team.Name, OK: false, Team: team.ID, Task: t.ID, Initiator: protocol.InitiatorRashin, Detail: reason})
+	s.notifyEnd(ended)
+	s.afterEnd(ended)
 }
 
 // resetIdle starts the count of idle turns again: the manager did something
@@ -77,24 +70,21 @@ func (s *Service) resetIdle(task string) {
 	}
 }
 
-// dreamGoalEnded keeps a dream running where a team task would end, and
-// reports whether it did. A dream's task is exempt from the turns per
-// task, so a spent turn budget goes on. Its standing task ends only when
-// the user accepts a presentation: a goal the manager completes is set
-// again, a pause for idle turns goes on until the stall guard asks, and a
-// blocker becomes a question to the user. Anything else, a failed turn or
-// the user's own stop, ends the task as for any team.
+// dreamGoalEnded keeps a dream running where a team task would end. Its
+// standing task ends only when the CEO accepts a presentation; an exhausted
+// turn budget starts another goal, and the no-progress guard keeps trying
+// until dreamTurn reaches its bounded stall limit.
 func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) bool {
 	t, ok := s.state.task(info.TeamTask)
 	if !ok || !taskIsOpen(t) || t.Session != info.ID {
 		return false
 	}
 	team, ok := s.state.team(t.Team)
-	if !ok || !isDream(team) || team.Dream.Done != nil {
+	if !ok || !isDream(team) || !s.dreamAvailable(team) || team.Dream.Done != nil {
 		return false
 	}
 	if goal.Status == protocol.GoalStopped && goal.MaxTurns > 0 && goal.Turns >= goal.MaxTurns {
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	}
 	if !standing(team, t) {
@@ -102,18 +92,15 @@ func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) 
 	}
 	switch {
 	case goal.Status == protocol.GoalDone:
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	case goal.Status == protocol.GoalPaused && goal.Reason == noProgress():
-		if s.dreamCardOpen(t.ID, cardStall) {
-			return true
-		}
-		go s.ensureGoal(t.ID)
+		s.startWorker(func() { s.ensureGoal(t.ID) })
 		return true
 	case goal.Status == protocol.GoalBlocked:
 		reason := strings.TrimSpace(goal.Reason)
 		if reason == "" {
-			reason = i18n.T("The manager needs you to go on.")
+			return false
 		}
 		title, _, _ := strings.Cut(reason, "\n")
 		asked := protocol.Approval{Team: team.ID, Kind: protocol.ApprovalAction, Title: clipRunes(title, 200), Detail: reason}
@@ -130,6 +117,9 @@ func (s *Service) dreamGoalEnded(info protocol.SessionInfo, goal protocol.Goal) 
 func (s *Service) ensureGoal(taskID string) {
 	t, ok := s.state.task(taskID)
 	if !ok || !taskIsOpen(t) || t.Session == "" || s.sessions == nil {
+		return
+	}
+	if team, ok := s.state.team(t.Team); !ok || !s.dreamAvailable(team) {
 		return
 	}
 	info, ok := s.sessions.Info(t.Session)
@@ -186,21 +176,6 @@ func (s *Service) effectAsked(ctx context.Context, rec *approvalRecord, p protoc
 		text, err := s.dreamNotes(rec.Team, note)
 		rec.Result = i18n.T("Sent back with notes.")
 		return text, err
-	case cardStall:
-		if first {
-			s.resetIdle(rec.Task)
-			s.ensureGoal(rec.Task)
-			text := i18n.T("The user says keep going. Take the next concrete step toward the dream now, with a tool.")
-			if note != "" {
-				text += "\n" + i18n.Tf("Their note: %s", note)
-			}
-			return text, nil
-		}
-		if _, err := s.pauseTeam(ctx, protocol.TeamPauseParams{ID: rec.Team, Paused: true}); err != nil {
-			return "", err
-		}
-		rec.Result = i18n.T("The dream is paused.")
-		return "", nil
 	case cardBlocked:
 		s.resetIdle(rec.Task)
 		s.ensureGoal(rec.Task)

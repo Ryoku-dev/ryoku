@@ -5,47 +5,101 @@ import Quickshell.Io
 import Ryoku.Ui.Singletons
 import "lib/screens.js" as Screens
 
-// Screen recording state + control for GPU Screen Recorder. The backend
-// (ryoku-cmd-record) writes recorder-status.json the moment it launches the
-// recorder and removes it on every exit, so that file is the capture's lifetime:
-// watching it shows the island at once for a capture started anywhere (the
-// capture card, ryoshot, the CLI) and carries the launch time, so the clock is
-// right from its first frame and survives a shell reload. GSR's IPC socket is
-// polled as the backstop for a stale file. Control goes through the one command
-// API -- the daemon's `record start|stop|pause|resume` and `record settings`
-// verbs, sent over the bus -- so nothing here builds a recorder invocation of
-// its own.
-// The capture popout and the floating record island share this single source of truth.
+// Screen recording state + control for GPU Screen Recorder. ryoku-cmd-record
+// keeps recorder-status.json while a capture is live and writes
+// recorder-result.json before it removes it, so the state here is read, never
+// guessed, for a capture started anywhere and across a shell reload. Control goes
+// through the daemon's record verbs over the bus. Every recording surface reads
+// this one service.
 Singleton {
     id: root
 
-    property bool active: false
+    readonly property string statePath: Quickshell.env("RYOKU_STATE_PATH") || (Quickshell.env("HOME") + "/.local/state/ryoku")
+
+    // idle | arming | starting | recording | paused | stopping | saved | failed
+    // a binding reading another derived binding flashed recording before paused when I loaded
+    // a paused capture, so every flag here reads the base state through the functions below
+    readonly property string phase: root._phaseOf(root._isLive())
+    // on from the start request until the file goes, stop() alone never clears it
+    readonly property bool active: {
+        const p = root._phaseOf(root._isLive());
+        return p === "starting" || p === "recording" || p === "paused" || p === "stopping";
+    }
+    readonly property bool anyActive: root.active
+    readonly property bool stopping: root._isStopping(root._isLive())
+    readonly property bool paused: root._isPaused(root._isLive())
+
     property bool available: true
-    property int recorderPid: 0
-    property int startedAt: 0
+    // the status file is here and its capture wasn't proven dead
+    readonly property bool live: root._isLive()
+
+    function _isLive() {
+        return root.available && root.statusPresent && root.startedAt > 0 && root.startedAt !== root._deadStartedAt;
+    }
+    function _isStopping(live) {
+        return live ? (root._fileStopping || root._stopSent) : (root._startSentAt > 0 && root._stopPending);
+    }
+    function _isPaused(live) {
+        return live && (root._flipAt > 0 ? root._flipPaused : root._filePaused);
+    }
+    function _phaseOf(live) {
+        if (live)
+            return root._isStopping(true) ? "stopping" : root._isPaused(true) ? "paused" : "recording";
+        if (root.countingDown)
+            return "arming";
+        if (root._startSentAt > 0)
+            return root._stopPending ? "stopping" : "starting";
+        return root._hold !== "" ? root._hold : "idle";
+    }
+
+    // pauses left out, frozen while paused or saving, kept through the saved/failed hold
     property int elapsedSec: 0
     readonly property string elapsedText: fmt(elapsedSec)
 
-    // The record island and capture popout watch anyActive and its changed signal;
-    // with the standalone editor gone it tracks the one live capture directly.
-    readonly property bool anyActive: root.active
-
-    // Pause toggle the daemon relays to GSR's IPC socket. The status file carries
-    // no paused flag, so the poll cannot reconcile it: the flip is optimistic and
-    // reset the moment a capture ends.
-    property bool paused: false
-
-    // live audio mode from the backend's status file: none|system|microphone|both,
-    // and whether a system+mic mix fell back to a single source.
+    // target is GSR's -w value, a monitor, "screen" or a WxH+X+Y box, "" when unknown
+    property bool statusPresent: false
+    property int recorderPid: 0
+    property real startedAt: 0
+    property string target: ""
     property string activeAudioMode: "none"
     property bool audioFallback: false
 
-    // region capture: the box drawn as "WxH+X+Y" (global logical), set when a
-    // region recording starts so RegionOverlay can draw the live boundary; ""
-    // means a full monitor. A remembered box is valid only for the monitor layout
-    // it was drawn in, so it is stamped with a cheap layout signature and dropped
-    // the moment the live layout stops matching -- a stale box would land off-screen
-    // or on an output that no longer exists.
+    // {ok, path, reason, endedAt, cancelled} of the last start attempt
+    property var lastResult: ({ ok: false, path: "", reason: "", endedAt: 0, cancelled: false })
+
+    readonly property int socketWarmupSec: 5
+    // GSR silent this long after a stop with the file still there means the backend died
+    readonly property int stopGraceSec: 15
+    readonly property int resultFreshSec: 10
+    readonly property int savedHoldMs: 2400
+    readonly property int failedHoldMs: 4000
+
+    property bool _filePaused: false
+    property real _pausedAt: 0
+    property real _pausedTotal: 0
+    property bool _fileStopping: false
+    // launch time of a capture the poll proved dead; its file stays until the next start
+    property real _deadStartedAt: 0
+    property real _startSentAt: 0
+    property bool _stopPending: false
+    property bool _stopSent: false
+    property real _stoppingSince: 0
+    property real _frozenAt: 0
+    // optimistic pause flip, held until the file agrees or 2 s pass
+    property bool _flipPaused: false
+    property real _flipAt: 0
+    property string _hold: ""
+    property real _consumedEndedAt: 0
+    property bool _resultUnshown: false
+    // the result already on disk at start-up is never shown
+    property bool _resultsReady: false
+    property real _polledAt: 0
+
+    // region capture: the box drawn as "WxH+X+Y" (global logical), so RegionOverlay
+    // can draw the live boundary; "" means a full monitor. A remembered box is valid
+    // only for the monitor layout it was drawn in, so it is stamped with a cheap
+    // layout signature and dropped the moment the live layout stops matching -- a
+    // stale box would land off-screen or on an output that no longer exists.
     property string regionGeom: ""
     property string regionLayoutSig: ""
     readonly property string layoutSig: {
@@ -64,6 +118,41 @@ Singleton {
     }
     onRegionGeomChanged: if (root.regionGeom === "") root.regionLayoutSig = "";
 
+    // these fire mid-change, so they read base state
+    onLiveChanged: root._refreshClock()
+    onStoppingChanged: {
+        const live = root._isLive();
+        if (live && root._isStopping(live) && root._frozenAt === 0) {
+            root._frozenAt = Date.now() / 1000;
+            root._stoppingSince = Date.now();
+        }
+        root._refreshClock();
+    }
+
+    // its monitor, or the screen holding a region's centre, anything unknown covers every screen
+    function showsOn(screen) {
+        if (!screen)
+            return true;
+        var t = root.target;
+        if (t === "" || t === "screen")
+            return true;
+        var covers = function (s) {
+            var m = /^(\d+)x(\d+)\+(-?\d+)\+(-?\d+)$/.exec(t);
+            if (!m)
+                return s.name === t;
+            var cx = Number(m[3]) + Number(m[1]) / 2;
+            var cy = Number(m[4]) + Number(m[2]) / 2;
+            return cx >= s.x && cx < s.x + s.width && cy >= s.y && cy < s.y + s.height;
+        };
+        if (covers(screen))
+            return true;
+        var outs = Screens.uniqueByName(Quickshell.screens);
+        for (var i = 0; i < outs.length; i++)
+            if (covers(outs[i]))
+                return false;
+        return true;
+    }
+
     // Remembered capture options the record card reads, persisted to record.json:
     // the desktop-audio / mic toggles and the Discord quick-compress flag. Shape
     // mirrors Flags: watch for outside edits, write back on change, seed once. A
@@ -76,7 +165,7 @@ Singleton {
     property alias discordMode: recPrefs.discord
     FileView {
         id: recPrefsFile
-        path: (Quickshell.env("RYOKU_STATE_PATH") || (Quickshell.env("HOME") + "/.local/state/ryoku")) + "/record.json"
+        path: root.statePath + "/record.json"
         blockLoading: true
         watchChanges: true
         printErrors: false
@@ -93,6 +182,8 @@ Singleton {
     Component.onCompleted: {
         if (!recPrefsFile.text())
             recPrefsFile.writeAdapter();
+        root._readResult(true);
+        root._resultsReady = true;
         root.refreshStatus();
     }
 
@@ -142,62 +233,158 @@ Singleton {
         return a;
     }
 
-    // The backend's status file: present exactly while a capture runs. A capture
-    // seen here that the shell did not start adopts its launch time, so the clock
-    // never counts from when the shell first noticed.
-    property bool statusPresent: false
-    function applyStatus() {
-        if (!root.available) {
-            root.statusPresent = false;
-            root.clearStatus();
-            return;
-        }
+    // a new launch time is a new capture, so the last one's shell-side state goes
+    function _applyStatus() {
         var p;
         try {
-            p = JSON.parse(statusView.text() || "{}");
+            p = JSON.parse(statusView.text());
         } catch (e) {
-            p = {};
+            return;
         }
-        root.statusPresent = true;
+        if (!p || typeof p !== "object")
+            return;
+        var launched = Number(p.startedAt ?? 0);
+        if (!(launched > 0))
+            launched = root.statusPresent && root.startedAt > 0 ? root.startedAt : Date.now() / 1000;
+        if (launched !== root.startedAt)
+            root._forgetCapture();
+        root.startedAt = launched;
         root.recorderPid = Number(p.recorderPid ?? 0);
+        root.target = String(p.target ?? "");
         root.activeAudioMode = String(p.activeAudioMode ?? "none");
         root.audioFallback = p.audioFallback === true;
-        const launched = Number(p.startedAt ?? 0);
-        if (launched > 0)
-            root.startedAt = launched;
-        else if (root.startedAt <= 0)
-            root.startedAt = Math.floor(Date.now() / 1000);
-        root.elapsedSec = Math.max(0, Math.floor(Date.now() / 1000) - root.startedAt);
-        if (!root.active) {
-            root.active = true;
-            root.paused = false;
+        root._filePaused = p.paused === true;
+        root._pausedAt = Number(p.pausedAt ?? 0);
+        root._pausedTotal = Number(p.pausedTotal ?? 0);
+        root._fileStopping = p.stopping === true;
+        root.statusPresent = true;
+        if (root._flipAt > 0 && root._filePaused === root._flipPaused) {
+            root._flipAt = 0;
+            flipHold.stop();
         }
-        // The launch stamp just arrived: tick from it, so each second rolls on
-        // the capture's own boundary instead of up to a second late.
-        tick.restart();
+        if (root._startSentAt > 0) {
+            root._startSentAt = 0;
+            startWatch.stop();
+        }
+        if (/^\d+x\d+\+-?\d+\+-?\d+$/.test(root.target) && root.regionGeom !== root.target) {
+            root.regionGeom = root.target;
+            root.regionLayoutSig = root.layoutSig;
+        }
+        // stop was pressed while it was still starting
+        if (root._stopPending) {
+            root._stopPending = false;
+            if (root.live && !root.stopping)
+                root._sendStop();
+        }
+        root._refreshClock();
     }
-    function clearStatus() {
-        root.active = false;
+    // the result was written before the file went, so read it first and go from stopping straight to saved or failed
+    function _statusGone() {
+        if (!root.statusPresent)
+            return;
+        resultView.reload();
+        root._readResult(false);
+        root._takeResult();
+        root.statusPresent = false;
         root.startedAt = 0;
-        root.elapsedSec = 0;
-        root.regionGeom = "";
+        root._deadStartedAt = 0;
+        root._forgetCapture();
+    }
+    function _forgetCapture() {
+        root._stopSent = false;
+        root._stoppingSince = 0;
+        root._frozenAt = 0;
+        root._flipAt = 0;
+        flipHold.stop();
+        root._filePaused = false;
+        root._pausedAt = 0;
+        root._pausedTotal = 0;
+        root._fileStopping = false;
+        root.recorderPid = 0;
+        root.target = "";
         root.activeAudioMode = "none";
         root.audioFallback = false;
-        root.paused = false;
-        root.recorderPid = 0;
+        root.regionGeom = "";
+        if (root._hold === "")
+            root.elapsedSec = 0;
     }
     FileView {
         id: statusView
-        path: (Quickshell.env("RYOKU_STATE_PATH") || (Quickshell.env("HOME") + "/.local/state/ryoku")) + "/recorder-status.json"
+        path: root.statePath + "/recorder-status.json"
         blockLoading: true
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
-        onLoaded: root.applyStatus()
-        onLoadFailed: {
-            root.statusPresent = false;
-            if (root.active)
-                root.clearStatus();
+        onLoaded: root._applyStatus()
+        onLoadFailed: root._statusGone()
+    }
+
+    // only a result new to this instance and fresh is shown, a reload or an old file never replays one
+    function _readResult(initial) {
+        var r;
+        try {
+            r = JSON.parse(resultView.text());
+        } catch (e) {
+            return;
+        }
+        var ended = Number(r && r.endedAt);
+        if (!(ended > root._consumedEndedAt))
+            return;
+        root._consumedEndedAt = ended;
+        root.lastResult = {
+            ok: r.ok === true,
+            path: String(r.path ?? ""),
+            reason: String(r.reason ?? ""),
+            endedAt: ended,
+            cancelled: r.cancelled === true
+        };
+        if (initial || Math.abs(Date.now() / 1000 - ended) > root.resultFreshSec)
+            return;
+        root._resultUnshown = true;
+        if (!root.live)
+            root._takeResult();
+    }
+    // the hold goes up before the start or capture is let go, so the phase never passes through idle
+    function _takeResult() {
+        if (!root._resultUnshown)
+            return;
+        root._resultUnshown = false;
+        if (root.lastResult.cancelled) {
+            root._hold = "";
+            holdTimer.stop();
+        } else {
+            root._hold = root.lastResult.ok ? "saved" : "failed";
+            holdTimer.interval = root.lastResult.ok ? root.savedHoldMs : root.failedHoldMs;
+            holdTimer.restart();
+        }
+        root._endStart();
+    }
+    function _endStart() {
+        startWatch.stop();
+        if (root._startSentAt === 0)
+            return;
+        root._startSentAt = 0;
+        root._stopPending = false;
+        if (!root.live) {
+            root.target = "";
+            root.regionGeom = "";
+        }
+    }
+    FileView {
+        id: resultView
+        path: root.statePath + "/recorder-result.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: if (root._resultsReady) root._readResult(false)
+    }
+    Timer {
+        id: holdTimer
+        onTriggered: {
+            root._hold = "";
+            if (!root.live)
+                root.elapsedSec = 0;
         }
     }
 
@@ -209,7 +396,7 @@ Singleton {
     property bool countingDown: false
     property var pendingArgs: []
     function startAfter(args, secs) {
-        if (!root.available)
+        if (!root.available || root.active || root.countingDown)
             return;
         if (secs <= 0) {
             root.start(args);
@@ -234,80 +421,146 @@ Singleton {
             root.countdownSec--;
             if (root.countdownSec <= 0) {
                 countdown.stop();
-                root.countingDown = false;
                 var a = root.pendingArgs;
                 root.pendingArgs = [];
                 root.start(a);
+                root.countingDown = false;
             }
         }
     }
 
     function start(extraArgs) {
-        if (!root.available)
+        if (!root.available || root.active)
             return;
         var a = (extraArgs || []).slice();
         // Discord quick-compress rides the backend: pass --discord and ryoku-cmd-
         // record writes the <name>.discord.mp4 copy once the capture is finalised.
         if (root.discordMode)
             a.push("--discord");
-        // A region capture carries "--region --geometry WxH+X+Y"; stamp the box so
-        // RegionOverlay draws the live boundary and it drops on a layout change.
-        var isRegion = false, geom = "";
+        // surfaces can place themselves while it starts
+        var isRegion = false, geom = "", monitor = "";
         for (var i = 0; i < a.length; i++) {
             if (a[i] === "--region")
                 isRegion = true;
             else if (a[i] === "--geometry" && i + 1 < a.length)
                 geom = a[i + 1];
+            else if (a[i] === "--monitor" && i + 1 < a.length)
+                monitor = a[i + 1];
         }
         if (isRegion && /^\d+x\d+\+-?\d+\+-?\d+$/.test(geom)) {
             root.regionGeom = geom;
             root.regionLayoutSig = root.layoutSig;
+            root.target = geom;
         } else {
             root.regionGeom = "";
+            root.target = isRegion ? "" : monitor;
         }
         Bus.run(["record", "start"].concat(a).join(" "));
-        // Optimistic, so the island shows at once; the backend's status file then
-        // supplies the launch time and the poll confirms the recorder came up.
-        root.active = true;
-        root.paused = false;
-        root.startedAt = Math.floor(Date.now() / 1000);
+        root._startSentAt = Date.now();
+        root._stopPending = false;
+        startWatch.restart();
+        holdTimer.stop();
+        root._hold = "";
         root.elapsedSec = 0;
     }
-
-    // Pause/resume the live capture through the daemon (which relays to GSR's IPC
-    // socket). Optimistic: flipped here, and the poll resets it when a capture ends.
-    function togglePause() {
-        Bus.run(root.paused ? "record resume" : "record pause");
-        root.paused = !root.paused;
+    // no status file in time and no fresh result either, back to idle
+    Timer {
+        id: startWatch
+        interval: root.socketWarmupSec * 1000
+        onTriggered: root._endStart()
     }
 
+    // ignored while saving
+    function togglePause() {
+        if (!root.live || root.stopping)
+            return;
+        var want = !root.paused;
+        Bus.run(want ? "record pause" : "record resume");
+        root._flipPaused = want;
+        root._flipAt = Date.now();
+        flipHold.restart();
+        root._refreshClock();
+    }
+    Timer {
+        id: flipHold
+        interval: 2000
+        onTriggered: {
+            root._flipAt = 0;
+            root._refreshClock();
+        }
+    }
+
+    // one stop per capture, it cancels a countdown and waits for a capture that is still starting
     function stop() {
-        // a stop during the pre-record countdown just cancels it: nothing launched,
-        // so there is nothing to stop.
         if (root.countingDown) {
             root.cancelCountdown();
             return;
         }
+        if (root.live) {
+            if (!root.stopping)
+                root._sendStop();
+            return;
+        }
+        if (root._startSentAt > 0)
+            root._stopPending = true;
+    }
+    function _sendStop() {
         Bus.run("record stop");
-        root.active = false;
-        root.paused = false;
-        root.regionGeom = "";
+        root._stopSent = true;
     }
 
-    // ── reconcile against the live process. The status file says a capture runs;
-    // GSR's IPC status backs it up so a stale file (the backend killed outright)
-    // can never strand the island. GSR brings its socket up a moment after launch,
-    // so a negative answer inside the first seconds of a capture is the socket
-    // warming up, not a stop; a launch that never produced a file clears once that
-    // window passes.
-    readonly property int socketWarmupSec: 5
+    // ticks on the capture's own second boundary
+    function _recordedSeconds(nowSec) {
+        if (!root._isLive())
+            return 0;
+        var end = nowSec;
+        var pausedTotal = root._pausedTotal;
+        if (root._filePaused && root._pausedAt > 0) {
+            if (root._flipAt > 0 && !root._flipPaused)
+                pausedTotal += Math.max(0, root._flipAt / 1000 - root._pausedAt);
+            else
+                end = root._pausedAt;
+        } else if (root._flipAt > 0 && root._flipPaused) {
+            end = root._flipAt / 1000;
+        }
+        if (root._frozenAt > 0)
+            end = Math.min(end, root._frozenAt);
+        return Math.max(0, end - root.startedAt - pausedTotal);
+    }
+    function _refreshClock() {
+        const live = root._isLive();
+        if (!live) {
+            tick.stop();
+            return;
+        }
+        var rec = root._recordedSeconds(Date.now() / 1000);
+        root.elapsedSec = Math.floor(rec + 0.0005);
+        var moving = !root._isPaused(live) && !root._isStopping(live);
+        var ms = moving ? Math.ceil((root.elapsedSec + 1 - rec) * 1000) + 8 : 1000;
+        tick.interval = Math.max(16, Math.min(1000, ms));
+        tick.restart();
+    }
+    // only while live, it also asks GSR once a second whether the capture still runs
+    Timer {
+        id: tick
+        onTriggered: {
+            var now = Date.now();
+            if (now - root._polledAt >= 900) {
+                root._polledAt = now;
+                root.refreshStatus();
+            }
+            root._refreshClock();
+        }
+    }
+
+    // GSR answers only for the capture this backend launched, so silence with the file still
+    // there is a backend killed outright, unless the socket is still warming up or a save is finishing
     function refreshStatus() {
         if (root.available && !poll.running) {
             poll.launched = false;
             poll.running = true;
         }
     }
-
     Process {
         id: poll
         property bool launched: false
@@ -316,51 +569,24 @@ Singleton {
             "status"]
         onStarted: poll.launched = true
         onRunningChanged: {
-            if (!running && !poll.launched && root.available) {
+            if (!running && !poll.launched && root.available)
                 root.available = false;
-                if (root.active)
-                    root.clearStatus();
-            }
         }
-        onExited: (exitCode) => {
+        onExited: exitCode => {
             if (exitCode === 127) {
                 root.available = false;
-                if (root.active)
-                    root.clearStatus();
                 return;
             }
-            const answering = exitCode === 0;
-            const warming = root.active && root.startedAt > 0
-                && Math.floor(Date.now() / 1000) - root.startedAt < root.socketWarmupSec;
-            if (!answering && !warming) {
-                if (root.active)
-                    root.clearStatus();
+            if (exitCode === 0 || !root.live)
                 return;
-            }
-            if (!root.active) {
-                root.active = true;
-                root.paused = false;
-            }
-            // A capture the shell has not read the file for yet (a reload mid-capture
-            // before the watch delivered): adopt its launch time now.
-            if (!root.statusPresent)
-                statusView.reload();
-        }
-    }
-
-    // The status file is authoritative for starts and orderly exits; the start-up
-    // check above settles whether the backend exists. While a capture is live, IPC
-    // also advances the clock and catches an abrupt backend death. Idle, nothing
-    // polls.
-    Timer {
-        id: tick
-        interval: 1000
-        running: root.available && root.anyActive
-        repeat: true
-        onTriggered: {
-            if (root.anyActive && root.startedAt > 0)
-                root.elapsedSec = Math.max(0, Math.floor(Date.now() / 1000) - root.startedAt);
-            root.refreshStatus();
+            const now = Date.now();
+            if (now / 1000 - root.startedAt < root.socketWarmupSec)
+                return;
+            if (root.stopping && now - root._stoppingSince < root.stopGraceSec * 1000)
+                return;
+            root._takeResult();
+            root._deadStartedAt = root.startedAt;
+            root._forgetCapture();
         }
     }
 

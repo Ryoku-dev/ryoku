@@ -22,6 +22,7 @@ func TestStrictTakesOutEveryFormOfSecret(t *testing.T) {
 		{"fish", `set -gx AWS_SECRET_ACCESS_KEY fish-leak`, "fish-leak"},
 		{"url", `source = imaps://me%40mail.com:URLPASSWORD@imap.mail.com`, "URLPASSWORD"},
 		{"bearer", `Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature`, "eyJhbGciOiJIUzI1NiJ9"},
+		{"bearer word token", `Authorization: Bearer secret-for-tests`, "secret-for-tests"},
 		{"whitespace assignment", `password whitespace-leak`, "whitespace-leak"},
 		{"quoted apostrophe", `password = "it's here"`, "it's here"},
 	}

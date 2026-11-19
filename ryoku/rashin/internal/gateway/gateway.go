@@ -15,14 +15,20 @@ import (
 	"time"
 
 	i18n "ryoku-i18n"
+	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/vault"
 )
 
 const (
-	maxAttempts     = 6
+	maxAttempts = 6
+	// firstByteBudget is how long a hosted model has to start answering.
 	firstByteBudget = 45 * time.Second
+	// localFirstByteBudget is the same for a model on this computer, which
+	// may first have to start its server, load from disk and read a long
+	// prompt on a small GPU.
+	localFirstByteBudget = 5 * time.Minute
 )
 
 // Gateway is Rashin's provider catalogue, credential vault and chat router.
@@ -48,6 +54,11 @@ type Gateway struct {
 	limits limitBook
 	// listings are the providers' own model listings (discover.go)
 	listings listings
+
+	// managedLocal is Rashin's own llama.cpp behind rashin-models; nil
+	// until the daemon hands it over
+	localMu      sync.RWMutex
+	managedLocal core.Local
 }
 
 // Open opens the gateway database and embedded provider catalogue. settings
@@ -96,6 +107,27 @@ func (g *Gateway) notifyChange() {
 	if fn != nil {
 		fn()
 	}
+}
+
+// SetLocal hands the gateway Rashin's own llama.cpp, served as the
+// rashin-models provider; nil leaves that provider without models.
+func (g *Gateway) SetLocal(local core.Local) {
+	g.localMu.Lock()
+	g.managedLocal = local
+	g.localMu.Unlock()
+	if notifier, ok := local.(interface{ OnChange(func()) }); ok {
+		notifier.OnChange(func() {
+			if g.ctx.Err() == nil {
+				g.notifyChange()
+			}
+		})
+	}
+}
+
+func (g *Gateway) managed() core.Local {
+	g.localMu.RLock()
+	defer g.localMu.RUnlock()
+	return g.managedLocal
 }
 
 // providers lists every provider: the local ones first, then the catalogue
@@ -149,7 +181,7 @@ func (g *Gateway) Providers(ctx context.Context) ([]protocol.ProviderInfo, error
 	return infos, nil
 }
 
-func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.ProviderInfo, error) {
+func (g *Gateway) providerInfo(ctx context.Context, p *provider) (protocol.ProviderInfo, error) {
 	enabled, err := g.store.providerEnabled(p.ID)
 	if err != nil {
 		return protocol.ProviderInfo{}, err
@@ -160,7 +192,10 @@ func (g *Gateway) providerInfo(_ context.Context, p *provider) (protocol.Provide
 	}
 	info := protocol.ProviderInfo{ID: p.ID, Name: p.Name, Tier: p.Tier, Keyless: p.Keyless, Enabled: enabled, Configured: p.Keyless || len(records) > 0, Models: len(p.Models), Signup: p.Signup, KeyHint: p.KeyHint, Note: p.Note}
 	if p.Tier == protocol.TierLocal {
-		info.Local, info.Address, info.Running = true, p.BaseURL, p.running
+		info.Local, info.Address, info.Running, info.OnDemand = true, p.BaseURL, p.running, p.onDemand
+		if local := g.managed(); p.ID == protocol.ProviderRashinModels && local != nil {
+			info.Running, info.Address = local.RuntimeState()
+		}
 	} else {
 		for i := range p.Models {
 			if p.tierOf(&p.Models[i]) != protocol.TierPaid {
@@ -271,7 +306,8 @@ func (g *Gateway) EnableProvider(ctx context.Context, params protocol.EnableProv
 }
 
 // Test runs a real one-token completion on the provider's best tool model. A
-// local provider's server is asked for its models first.
+// local provider's server is asked for its models first; Rashin's own starts
+// for it.
 func (g *Gateway) Test(ctx context.Context, providerID string) (protocol.ProviderTestResult, error) {
 	p, err := g.findProvider(ctx, providerID, true)
 	if err != nil {
@@ -279,7 +315,10 @@ func (g *Gateway) Test(ctx context.Context, providerID string) (protocol.Provide
 	}
 	// Check also reads the account's limits, whatever the pacing says
 	defer g.checkAccount(p)
-	if p.Tier == protocol.TierLocal && !p.running {
+	if p.ID == protocol.ProviderRashinModels && !p.onDemand {
+		return protocol.ProviderTestResult{Provider: p.ID, Message: i18n.T("No model is installed yet.")}, nil
+	}
+	if p.Tier == protocol.TierLocal && !p.running && !p.onDemand {
 		return protocol.ProviderTestResult{Provider: p.ID, Message: i18n.Tf("Not running at %s.", p.BaseURL)}, nil
 	}
 	if p.Keyless {
@@ -307,13 +346,26 @@ func (g *Gateway) Test(ctx context.Context, providerID string) (protocol.Provide
 
 func (g *Gateway) testKey(ctx context.Context, p *provider, keyID string) (protocol.ProviderTestResult, error) {
 	defer g.notifyChange()
+	budget := firstByteBudget
+	if p.Tier == protocol.TierLocal {
+		budget = localFirstByteBudget
+	}
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	if p.ID == protocol.ProviderRashinModels {
+		if local := g.managed(); local != nil {
+			if leased, ok := local.(interface{ Acquire() func() }); ok {
+				defer leased.Acquire()()
+			}
+		}
+	}
 	m, ok := bestToolModel(p)
 	if !ok {
 		return protocol.ProviderTestResult{Provider: p.ID, Message: i18n.T("Provider has no tool-capable chat model")}, nil
 	}
 	started := g.now()
 	result := protocol.ProviderTestResult{Provider: p.ID, Model: m.ID}
-	stream, status, body, err := g.startAttempt(ctx, routeCandidate{provider: p, model: m, keyID: keyID}, probeRequest(m.ID))
+	stream, status, body, _, err := g.startAttempt(ctx, routeCandidate{provider: p, model: m, keyID: keyID}, probeRequest(m.ID))
 	if err != nil {
 		if keyID != "" {
 			_ = g.applyHealthQuiet(keyID, status, body, false)
@@ -445,16 +497,21 @@ func (g *Gateway) Scrubber() func(string) string {
 	return vault.ValuesScrubber(g.store.secrets())
 }
 
-// Models returns every chat model with its tier, the local ones a running
-// server serves first, and the three routing choices, which stay free. A
-// provider's listing that is stale is read again in the background; Fresh
-// reads the listings now, each at most once a minute, and waits for them.
+// Models returns every chat model with its tier, the local ones first, and
+// the three routing choices, which stay free. A provider's listing that is
+// stale is read again in the background; Fresh reads the listings now, each
+// at most once a minute, and waits for them.
 func (g *Gateway) Models(ctx context.Context, params protocol.ModelsParams) (protocol.ModelsResult, error) {
 	result := protocol.ModelsResult{Routes: []protocol.Choice{
 		{ID: protocol.RouteAuto, Name: i18n.T("Auto"), Description: i18n.T("Best free model available, one on this computer first")},
-		{ID: protocol.RouteFast, Name: i18n.T("Fast"), Description: i18n.T("Free model with the lowest measured time to first token")},
-		{ID: protocol.RouteSmart, Name: i18n.T("Smart"), Description: i18n.T("Free model with the highest quality rank")},
+		{ID: protocol.RouteFast, Name: i18n.T("Fast"), Description: i18n.T("Quickest free model, one on this computer first")},
+		{ID: protocol.RouteSmart, Name: i18n.T("Smart"), Description: i18n.T("Strongest free model, one on this computer first")},
 	}}
+	if g.settings().Providers.Models.RemoteFirst {
+		result.Routes[0].Description = i18n.T("Best free model available, online ones first")
+		result.Routes[1].Description = i18n.T("Free model with the lowest measured time to first token")
+		result.Routes[2].Description = i18n.T("Free model with the highest quality rank")
+	}
 	var providers []*provider
 	if strings.TrimSpace(params.Provider) == "" {
 		if params.Fresh {
@@ -492,7 +549,12 @@ func (g *Gateway) Models(ctx context.Context, params protocol.ModelsParams) (pro
 		for i := range p.Models {
 			m := &p.Models[i]
 			until, modelCooling := cooling[m.ID]
-			info := protocol.ModelInfo{ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Tier: p.tierOf(m), Context: m.Context, Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank, Available: enabled && usable && !providerCooling && !modelCooling, Listed: m.listed, ToolsKnown: !m.toolsUnknown}
+			info := protocol.ModelInfo{
+				ID: p.ID + "/" + m.ID, Provider: p.ID, Name: m.Name, Tier: p.tierOf(m), Context: m.Context,
+				Tools: m.Tools, Reasoning: m.Reasoning, Vision: m.Vision, Rank: m.QualityRank,
+				Available: enabled && usable && !providerCooling && !modelCooling, Listed: m.listed, ToolsKnown: !m.toolsUnknown,
+				Params: m.Params, Audio: m.Audio, Light: m.Light || (m.Params > 0 && m.Params <= protocol.LightParams),
+			}
 			if modelCooling {
 				info.CooldownUntil = &until
 			}

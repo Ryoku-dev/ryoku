@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,9 +29,10 @@ const applicationID = "dev.ryoku.rashin"
 func init() { gioapp.ID = applicationID }
 
 type Options struct {
-	Demo            bool
-	PNG             string
-	Width, Height   int
+	Demo          bool
+	PNG           string
+	Width, Height int
+	// Mode forces dark, light or follow for this run, as LITHIC_MODE does
 	Mode            string
 	Route           string
 	Session         string
@@ -89,39 +91,13 @@ type runtime struct {
 	store  *state.Store
 	client *conn.Client
 	hub    invalidationHub
-	// stops the palette watcher, set only while the colours follow the wallpaper
-	unwatch  context.CancelFunc
-	themeMu  sync.RWMutex
-	mode     palette.Mode
-	look     palette.Look
-	theme    *look.Theme
-	pending  *look.Theme
+	// one theme for the runtime's life, worn anew in place when the desktop changes
+	theme   *look.Theme
+	themeMu sync.Mutex
+	// a desktop reading the watcher left for the window's goroutine
+	pending  *palette.Desktop
 	tempDir  string
 	serveErr chan error
-}
-
-// the colours words and the palette modes they paint
-var coloursModes = map[string]palette.Mode{
-	state.ColoursRyoku:      palette.Dark,
-	state.ColoursRyokuLight: palette.Light,
-	state.ColoursWallpaper:  palette.Follow,
-}
-
-// an unknown word is the ryoku.dev stock, as the preferences read it
-func coloursMode(word string) palette.Mode {
-	if mode, ok := coloursModes[word]; ok {
-		return mode
-	}
-	return palette.Dark
-}
-
-func modeColours(mode palette.Mode) string {
-	for word, painted := range coloursModes {
-		if painted == mode {
-			return word
-		}
-	}
-	return state.ColoursRyoku
 }
 
 func Run(options Options) error {
@@ -130,15 +106,16 @@ func Run(options Options) error {
 		preferences.ZoomPercent = options.ZoomPercent
 	}
 	options.Preferences = preferences.Normalize()
-	mode := coloursMode(options.Preferences.Colours)
-	// --mode paints this run only, what is stored stays
+	// --mode is LITHIC_MODE for this run, so the first reading and every later one keep it and nothing is stored
 	if options.Mode != "" {
-		var err error
-		if mode, err = palette.ParseMode(options.Mode); err != nil {
+		if _, err := palette.ParseMode(options.Mode); err != nil {
+			return err
+		}
+		if err := os.Setenv("LITHIC_MODE", options.Mode); err != nil {
 			return err
 		}
 	}
-	r, err := startRuntime(options, mode)
+	r, err := startRuntime(options)
 	if err != nil {
 		return err
 	}
@@ -163,11 +140,9 @@ func Run(options Options) error {
 	return r.runWindow(options)
 }
 
-func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
+func startRuntime(options Options) (*runtime, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	preferences := options.Preferences.Normalize()
-	current := palette.ParseLook(preferences.Contrast, preferences.Tint)
-	r := &runtime{ctx: ctx, cancel: cancel, mode: mode, look: current, theme: look.New(mode, current), serveErr: make(chan error, 1)}
+	r := &runtime{ctx: ctx, cancel: cancel, theme: look.NewFor(palette.ReadDesktop(), nil), serveErr: make(chan error, 1)}
 	r.store = state.New(r.hub.Invalidate)
 	clientOptions := client.Options{Client: protocol.ClientApp, Start: true}
 	if options.Demo {
@@ -179,7 +154,7 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 		r.tempDir = directory
 		socket := filepath.Join(directory, "rashin.sock")
 		clientOptions.Socket, clientOptions.Start = socket, false
-		go func() { r.serveErr <- demo.Serve(ctx, socket) }()
+		go func() { r.serveErr <- demo.Serve(ctx, socket, demoFeatures(options)...) }()
 		deadline := time.Now().Add(time.Second)
 		for {
 			if _, err := os.Stat(socket); err == nil {
@@ -201,83 +176,77 @@ func startRuntime(options Options, mode palette.Mode) (*runtime, error) {
 		}
 	}
 	r.client = conn.NewOptions(r.store, clientOptions)
-	r.watch(mode)
+	// a PNG is one look at one moment; a window follows the desktop for its whole life
+	if options.PNG == "" {
+		go func() { _ = palette.WatchDesktop(ctx, r.offerDesktop) }()
+	}
 	return r, nil
 }
 
-func (r *runtime) Theme() *look.Theme {
+func demoFeatures(options Options) []string {
+	switch options.Route {
+	case protocol.TabAsk:
+		switch options.Session {
+		case "ask-compare":
+			return []string{"compare"}
+		case "ask-artifacts":
+			return []string{"artifacts", "mindmap"}
+		case "ask-searchsteps-live", "ask-searchsteps-done":
+			return []string{"searchsteps"}
+		}
+	case protocol.TabIndex:
+		if strings.HasPrefix(options.Session, "collections/") {
+			return []string{"collections"}
+		}
+	case protocol.TabSettings:
+		switch options.SettingsSection {
+		case "ask":
+			return []string{"prompts", "history"}
+		case "agents":
+			return []string{"mcp"}
+		case "teams":
+			return []string{"diskcare"}
+		case "memory":
+			return []string{"profile"}
+		}
+	case protocol.TabLearning:
+		return []string{protocol.FeatureAutolearn, protocol.FeatureDecisions, protocol.FeatureRules}
+	case protocol.TabDreams:
+		if options.Teams.Team == "dream-research" {
+			return []string{"research"}
+		}
+	case protocol.TabRoutines:
+		if options.Teams.Routine == "routine-personal-ask" {
+			return []string{"schedules"}
+		}
+	}
+	return nil
+}
+
+// Theme is the window's theme, the same one for the runtime's life. Read it
+// on the window's goroutine.
+func (r *runtime) Theme() *look.Theme { return r.theme }
+
+// offerDesktop leaves a new reading for the window's goroutine and asks for
+// the frame that wears it; the hub's redrawer asks again when the request
+// lands mid-frame. It runs on the watcher's goroutine.
+func (r *runtime) offerDesktop(desktop palette.Desktop) {
 	r.themeMu.Lock()
-	defer r.themeMu.Unlock()
-	if r.pending != nil {
-		r.theme = r.pending
-		r.pending = nil
-	}
-	return r.theme
-}
-
-func (r *runtime) currentLook() palette.Look {
-	r.themeMu.RLock()
-	defer r.themeMu.RUnlock()
-	return r.look
-}
-
-// the colours word of what the window paints, which --mode may have set for this run
-func (r *runtime) colours() string {
-	r.themeMu.RLock()
-	defer r.themeMu.RUnlock()
-	return modeColours(r.mode)
-}
-
-func (r *runtime) themeChanged(theme *look.Theme) {
-	r.themeMu.Lock()
-	// a palette that resolved as the colours stopped following is not painted over the stock
-	if r.mode != palette.Follow {
-		r.themeMu.Unlock()
-		return
-	}
-	if theme.Look != r.look {
-		// the look moved while this palette resolved, so the palette is taken again with the new look
-		theme = look.New(palette.Follow, r.look)
-	}
-	r.pending = theme
+	r.pending = &desktop
 	r.themeMu.Unlock()
 	r.hub.Invalidate()
 }
 
-func (r *runtime) setLook(contrast, tint string) {
-	r.themeMu.RLock()
-	mode := r.mode
-	r.themeMu.RUnlock()
-	r.restyle(mode, palette.ParseLook(contrast, tint))
-}
-
-func (r *runtime) setColours(word string) {
-	r.restyle(coloursMode(word), r.currentLook())
-}
-
-func (r *runtime) restyle(mode palette.Mode, current palette.Look) {
-	theme := look.New(mode, current)
+// wearDesktop puts on the reading the watcher left, if any. Call it on the
+// window's goroutine as a frame starts, so every part of a frame sees one look.
+func (r *runtime) wearDesktop() {
 	r.themeMu.Lock()
-	r.mode, r.look, r.pending = mode, current, theme
+	pending := r.pending
+	r.pending = nil
 	r.themeMu.Unlock()
-	r.watch(mode)
-	r.hub.Invalidate()
-}
-
-// the palette files are watched only while the colours follow the wallpaper, so the stock costs nothing at rest
-func (r *runtime) watch(mode palette.Mode) {
-	following := mode == palette.Follow
-	if following == (r.unwatch != nil) {
-		return
+	if pending != nil {
+		r.theme.SetDesktop(*pending)
 	}
-	if !following {
-		r.unwatch()
-		r.unwatch = nil
-		return
-	}
-	ctx, cancel := context.WithCancel(r.ctx)
-	r.unwatch = cancel
-	go look.Watch(ctx, r.currentLook, r.themeChanged)
 }
 
 func (r *runtime) Close() {

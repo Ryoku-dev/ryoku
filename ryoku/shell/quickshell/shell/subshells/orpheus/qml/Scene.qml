@@ -10,6 +10,7 @@ import shell.modules.stage.frame
 import "Metrics.js" as M
 import "components" as C
 import "kit" as K
+import "recording" as Rec
 import "settings" as S
 
 Item {
@@ -51,8 +52,32 @@ Item {
             + K.Style.s3 + K.Style.s1,
         K.Style.barH + Math.max(0, Number(prefs.depth) || 0)
             + (prefs.form === "square" ? M.squareSmoothing : M.smoothing)
-            + K.Style.border))
+            + K.Style.border,
+        // a hidden bar keeps the recording bubble docked a whole lift lower in the rail
+        prefs.autoHide !== "off" ? hideLift + K.Style.barH + M.smoothing : 0))
+    // the hidden body clears the top by the melt distance too, or its edge and
+    // the docked bubble's shoulder blend into a sliver along the top
+    readonly property real hideLift: K.Style.barH + 2 + M.smoothing
 
+    readonly property string recPhase: String(Recorder.phase || "idle")
+    readonly property bool recShown: prefs.recordingInBar && recPhase !== "idle"
+        && Recorder.showsOn(scene.screen)
+    // the bubble rides down as far as the rail slides up, so it stays docked
+    readonly property real recDock: -rail.y
+    readonly property real recDockShare: Math.max(0, Math.min(1, recDock / hideLift))
+    readonly property var recordDrop: ({
+        x: recMark.x - (K.Style.barPad - K.Style.hitPad),
+        w: recShown ? win.recBubbleW : 0
+    })
+    readonly property var recordBubble: win.recInline ? ({
+        x: recMark.x - (K.Style.barPad - K.Style.hitPad),
+        w: win.recBubbleW * recInlineGeom.grown * recDockShare,
+        y: recDock
+    }) : ({
+        x: recBubbleGeom.x,
+        w: recBubbleGeom.width,
+        y: recDock
+    })
 
     readonly property var leftDrop: ({ x: leftGeom.x, w: leftGeom.width })
     readonly property var voiceDrop: ({ x: voiceGeom.x, w: voiceGeom.width })
@@ -70,20 +95,15 @@ Item {
         visible: win.leftBubbleVisible,
         key: win.leftBubbleKey
     })
-    readonly property var bubbleRight: ({
-        x: rightBubbleGeom.x,
-        w: rightBubbleGeom.width,
-        visible: win.rightBubbleVisible,
-        key: win.rightBubbleKey
-    })
     // Side content sits against the drop's inner edge, so the extra paper an
     // edge-hugging drop carries stays on the screen side.
     readonly property real leftContentX: leftGeom.x
         + Math.max(K.Style.barPad, leftGeom.width - K.Style.barPad - win.leftW)
     readonly property real centerContentX: voiceGeom.x + K.Style.barPad
-    readonly property real rightContentX: rightGeom.x + K.Style.barPad
+    readonly property real rightContentX: rightGeom.x + K.Style.barPad + win.recInlineExtra
     readonly property var currentOwnerDrop: cardOwner === "left" ? leftDrop
-        : cardOwner === "right" ? rightDrop : voiceDrop
+        : cardOwner === "right" ? rightDrop
+        : cardOwner === "record" ? recordDrop : voiceDrop
     readonly property real anchoredOriginX: currentOwnerDrop.w > 0
         ? currentOwnerDrop.x : fallbackOriginX
     readonly property real anchoredOriginW: currentOwnerDrop.w > 0
@@ -91,7 +111,7 @@ Item {
 
     readonly property bool barHovered: fullBandHover.hovered
         || leftBarHover.hovered || voiceBarHover.hovered || rightBarHover.hovered
-        || leftBubbleHover.hovered || rightBubbleHover.hovered
+        || leftBubbleHover.hovered || recHover.hovered
     readonly property bool bandHovered: bandHover.hovered
     readonly property var activeWorkspace: workspaceForOutput()
     readonly property bool activeWorkspaceOccupied: workspaceOccupied(activeWorkspace)
@@ -196,6 +216,8 @@ Item {
 
     function defaultOwnerForKey(key) {
         const value = normalKey(key);
+        if (value === "recording" && scene.recShown)
+            return "record";
         return ["today", "media", "notifications", "recording"]
             .indexOf(value) >= 0 ? "voice" : "right";
     }
@@ -261,10 +283,11 @@ Item {
     function ownerNameFor(item) {
         let cursor = item;
         while (cursor) {
+            if (cursor === recMark)
+                return "record";
             if (cursor === leftLane)
                 return "left";
-            if (cursor === centerLane || cursor === leftBubbleHost
-                    || cursor === rightBubbleHost)
+            if (cursor === centerLane || cursor === leftBubbleHost)
                 return "voice";
             if (cursor === rightLane)
                 return "right";
@@ -292,7 +315,8 @@ Item {
     function ownerDropFor(item) {
         const name = ownerNameFor(item);
         return name === "left" ? scene.leftDrop
-            : name === "right" ? scene.rightDrop : scene.voiceDrop;
+            : name === "right" ? scene.rightDrop
+            : name === "record" ? scene.recordDrop : scene.voiceDrop;
     }
 
     function isVoiceAnchor(item) {
@@ -647,7 +671,8 @@ Item {
         anchors { top: true; left: true; right: true }
         implicitHeight: frameLayer.extent
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: scene.cardKey !== ""
+            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         WlrLayershell.namespace: "ryoku-bar"
 
         property string layoutSpan: "islands"
@@ -660,14 +685,15 @@ Item {
         readonly property bool fused: layoutSpan === "fused"
         readonly property bool full: layoutSpan === "full"
         readonly property bool needsFullHeight: scene.surfaceOpening
-            || scene.settingsSurfaceHeld || morphAnimation.running
+            || scene.settingsSurfaceHeld || scene.cardSurfaceHeld
+            || morphAnimation.running
 
         readonly property real inset: 8 * K.Style.scale
         readonly property real clearance: 10 * K.Style.scale
         readonly property real pad: K.Style.barPad
         readonly property real leftW: leftLane.contentWidth
         readonly property real centerW: centerLane.contentWidth
-        readonly property real rightW: rightLane.contentWidth
+        readonly property real rightW: rightLane.contentWidth + recInlineExtra
         readonly property real leftDropW: leftW > 0.001 ? leftW + pad * 2 : 0
         readonly property real voiceDropW: centerW > 0.001 ? centerW + pad * 2 : 0
         readonly property real rightDropW: rightW > 0.001 ? rightW + pad * 2 : 0
@@ -675,6 +701,20 @@ Item {
         // of extra paper there so their content keeps its distance from the edge.
         readonly property real edgeLeftW: leftDropW > 0 ? leftDropW + inset : 0
         readonly property real edgeRightW: rightDropW > 0 ? rightDropW + inset : 0
+
+        // room is judged on the lanes alone, measuring with the inline mark in loops
+        readonly property real recMarkW: recMark.implicitWidth
+        readonly property real recBubbleW: recMarkW + 2 * (pad - K.Style.hitPad)
+        readonly property real recInlineExtra: (recMarkW + K.Style.barGap) * recInlineGeom.grown
+        readonly property real rightLaneDropW: rightLane.contentWidth > 0.001
+            ? rightLane.contentWidth + pad * 2 : 0
+        readonly property real recRoomEnd: fused ? width - inset
+            : width - (rightLaneDropW > 0 ? rightLaneDropW + inset + bubbleGap : inset)
+        readonly property real recAnchorEnd: fused
+            ? (width + leftDropW + voiceDropW + rightLaneDropW) / 2
+            : Math.min((width + voiceDropW) / 2, recRoomEnd)
+        readonly property bool recInline: full
+            || recAnchorEnd + bubbleGap + recBubbleW > recRoomEnd
 
         readonly property real leftNeededW: scene.laneNeeded(leftLane)
         readonly property real centerNeededW: scene.laneNeeded(centerLane)
@@ -735,18 +775,13 @@ Item {
             return slot ? slot.moduleItem : null;
         }
         readonly property var voiceBubbles: voiceItem && voiceItem.bubbles
-            ? voiceItem.bubbles : ({ left: [], right: [] })
+            ? voiceItem.bubbles : ({ left: [] })
         readonly property string leftBubbleKey: voiceBubbles.left
             && voiceBubbles.left.length > 0 ? String(voiceBubbles.left[0]) : ""
-        readonly property string rightBubbleKey: voiceBubbles.right
-            && voiceBubbles.right.length > 0 ? String(voiceBubbles.right[0]) : ""
         readonly property real bubbleGap: 8 * K.Style.scale
         readonly property bool leftBubbleVisible: islands && leftBubbleKey !== ""
             && (leftTargetW <= 0.001 || voiceTargetX - bubbleGap - leftBubbleHost.width
                 >= leftTargetX + leftTargetW + bubbleGap)
-        readonly property bool rightBubbleVisible: islands && rightBubbleKey !== ""
-            && (rightTargetW <= 0.001 || voiceTargetX + voiceTargetW + bubbleGap
-                + rightBubbleHost.width <= rightTargetX - bubbleGap)
 
         readonly property rect framedFullBandRect: frameLayer.maskRect(0, 0,
             win.width, K.Style.barH)
@@ -758,8 +793,8 @@ Item {
             rightGeom.width, K.Style.barH)
         readonly property rect framedLeftBubbleRect: frameLayer.maskRect(
             leftBubbleGeom.x, 0, leftBubbleHost.width, K.Style.barH)
-        readonly property rect framedRightBubbleRect: frameLayer.maskRect(
-            rightBubbleGeom.x, 0, rightBubbleHost.width, K.Style.barH)
+        readonly property rect framedRecRect: frameLayer.maskRect(
+            scene.recordBubble.x, 0, scene.recordBubble.w, K.Style.barH)
         readonly property rect framedRevealRect: frameLayer.maskRect(0, 0,
             win.width, 4)
 
@@ -804,13 +839,14 @@ Item {
                     ? Math.round(win.framedLeftBubbleRect.width) : 0
                 height: Math.round(win.framedLeftBubbleRect.height)
             }
+            // the docked bubble stays clickable while the bar is hidden
             Region {
                 intersection: Intersection.Combine
-                x: Math.round(win.framedRightBubbleRect.x)
-                y: Math.round(win.framedRightBubbleRect.y)
-                width: !scene.autoHidden && win.rightBubbleVisible
-                    ? Math.round(win.framedRightBubbleRect.width) : 0
-                height: Math.round(win.framedRightBubbleRect.height)
+                x: Math.round(win.framedRecRect.x)
+                y: Math.round(win.framedRecRect.y)
+                width: scene.recordBubble.w > 0.5
+                    ? Math.round(win.framedRecRect.width) : 0
+                height: Math.round(win.framedRecRect.height)
             }
             Region {
                 intersection: Intersection.Combine
@@ -820,6 +856,17 @@ Item {
                     ? Math.round(win.framedRevealRect.width) : 0
                 height: scene.prefs.autoHide !== "off"
                     ? Math.round(win.framedRevealRect.height) : 0
+            }
+            // While a card is open the whole output below the bar is a dismiss
+            // surface: a click anywhere off the card closes it. The card itself
+            // sits above this region and swallows its own clicks.
+            Region {
+                intersection: Intersection.Combine
+                x: 0
+                y: K.Style.barH
+                width: scene.cardKey !== "" ? win.width : 0
+                height: scene.cardKey !== ""
+                    ? Math.max(0, win.height - K.Style.barH) : 0
             }
         }
 
@@ -845,12 +892,45 @@ Item {
                 onFramedChanged: if (framed) scene.closeCard()
             }
 
+            // The card's dismiss backdrop: a click anywhere off the card closes
+            // it. It sits under the rail and the card content, over the grown
+            // window's full output below the bar.
+            MouseArea {
+                id: cardDismiss
+                z: 0
+                anchors.fill: parent
+                enabled: scene.cardKey !== ""
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                onPressed: mouse => {
+                    mouse.accepted = true;
+                    Qt.callLater(scene.closeCard);
+                }
+            }
+
+            Shortcut {
+                sequences: [StandardKey.Cancel]
+                enabled: scene.cardKey !== ""
+                onActivated: scene.closeCard()
+            }
+
+            // The card content rides the bar's own surface so its blob welds
+            // into the drop it grows from (one window, one blob field). The
+            // liquid paper is drawn by Body's cardShape; this is the content.
+            C.CardHost {
+                id: cards
+                z: 2
+                scene: scene
+                body: liquidBody
+                cardKey: scene.cardKey
+                cardArgs: scene.cardArgs
+            }
+
             Item {
                 id: rail
                 parent: frameLayer.rest
                 z: 1
                 x: 0
-                y: scene.autoHidden ? -(K.Style.barH + 2) : 0
+                y: scene.autoHidden ? -scene.hideLift : 0
                 width: parent.width
                 height: parent.height
                 clip: true
@@ -899,12 +979,21 @@ Item {
                 }
 
                 Item {
-                    id: rightBubbleGeom
-                    property real bud: win.rightBubbleVisible ? 1 : 0
+                    id: recBubbleGeom
+                    property real bud: scene.recShown && !win.recInline ? 1 : 0
                     readonly property real grown: Math.max(0, bud)
-                    x: voiceGeom.x + voiceGeom.width + win.bubbleGap * grown
-                    width: rightBubbleHost.width * grown
+                    readonly property real anchorX: win.fused
+                        ? scene.bandX + scene.bandW : voiceGeom.x + voiceGeom.width
+                    x: anchorX + win.bubbleGap * grown
+                    width: win.recBubbleW * grown
                     height: K.Style.barH
+                    Behavior on bud { enabled: !K.Style.still; C.Morph { duration: K.Style.spatial } }
+                }
+
+                Item {
+                    id: recInlineGeom
+                    property real bud: scene.recShown && win.recInline ? 1 : 0
+                    readonly property real grown: Math.max(0, bud)
                     Behavior on bud { enabled: !K.Style.still; C.Morph { duration: K.Style.spatial } }
                 }
 
@@ -919,7 +1008,7 @@ Item {
                     waveX: scene.waveX
                     waveW: scene.waveW
                     bubbleLeft: scene.bubbleLeft
-                    bubbleRight: scene.bubbleRight
+                    recordBubble: scene.recordBubble
                     cardKey: scene.cardKey
                     originX: scene.anchoredOriginX
                     originW: scene.anchoredOriginW
@@ -1016,7 +1105,8 @@ Item {
                     moduleIds: scene.prefs.lane("right")
                     x: scene.rightContentX
                     y: 0
-                    width: Math.max(0, Math.min(win.rightW, rightGeom.width - K.Style.barPad * 2))
+                    width: Math.max(0, Math.min(contentWidth,
+                        rightGeom.width - K.Style.barPad * 2 - win.recInlineExtra))
                     clip: contentWidth > width
                 }
 
@@ -1033,17 +1123,18 @@ Item {
                     HoverHandler { id: leftBubbleHover }
                 }
 
-                C.BubbleHost {
-                    id: rightBubbleHost
-                    z: 2
+                Rec.RecordMark {
+                    id: recMark
+                    readonly property real grown: win.recInline
+                        ? recInlineGeom.grown : recBubbleGeom.grown
+                    z: 3
                     scene: scene
-                    bubbleKey: win.rightBubbleKey
-                    shown: win.rightBubbleVisible
-                    x: rightBubbleGeom.x
-                    opacity: Math.max(0, Math.min(1, (rightBubbleGeom.width
-                        / Math.max(1, rightBubbleHost.width) - 0.6) / 0.4))
-                    y: 0
-                    HoverHandler { id: rightBubbleHover }
+                    x: win.recInline ? rightGeom.x + K.Style.barPad
+                        : recBubbleGeom.x + (K.Style.barPad - K.Style.hitPad)
+                    y: scene.recDock
+                    opacity: Math.max(0, Math.min(1, (grown - 0.6) / 0.4))
+                    visible: grown > 0.001
+                    HoverHandler { id: recHover }
                 }
 
             }
@@ -1071,111 +1162,18 @@ Item {
                             && point.x <= voiceGeom.x + voiceGeom.width;
                         const inRight = point.x >= rightGeom.x
                             && point.x <= rightGeom.x + rightGeom.width;
-                        return inLeft || inVoice || inRight;
+                        const inRecord = scene.recordBubble.w > 0.5
+                            && point.x >= scene.recordBubble.x
+                            && point.x <= scene.recordBubble.x + scene.recordBubble.w;
+                        return inLeft || inVoice || inRight || inRecord;
                     }
                 }
                 HoverHandler { id: bandHover }
             }
         }
-    }
 
-    // Cards use their own full-output dismiss surface so opening one never
-    // resizes the bar's layer surface and invalidates its visible buffer.
-    PanelWindow {
-        id: cardWindow
-
-        visible: scene.cardSurfaceHeld
-        screen: scene.screen
-        color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
-        exclusiveZone: 0
-        anchors { top: true; bottom: true; left: true; right: true }
-        WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: scene.cardKey !== ""
-            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-        WlrLayershell.namespace: "ryoku-bar-card"
-
-        mask: Region {
-            Region {
-                width: scene.cardKey !== "" ? cardWindow.width : 0
-                height: scene.cardKey !== "" ? cardWindow.height : 0
-            }
-            Region {
-                intersection: Intersection.Subtract
-                width: cardWindow.width
-                height: K.Style.barH
-            }
-        }
-
-        FocusScope {
-            anchors.fill: parent
-            focus: scene.cardKey !== ""
-
-            Shortcut {
-                sequences: [StandardKey.Cancel]
-                enabled: scene.cardKey !== ""
-                onActivated: scene.closeCard()
-            }
-
-            MouseArea {
-                z: 0
-                anchors.fill: parent
-                enabled: scene.cardKey !== ""
-                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                onPressed: mouse => {
-                    mouse.accepted = true;
-                    Qt.callLater(scene.closeCard);
-                }
-            }
-
-            Item {
-                id: cardPaper
-
-                z: 1
-                x: liquidBody.cardX
-                y: liquidBody.cardY
-                width: liquidBody.cardCurW
-                height: liquidBody.cardCurH
-                visible: liquidBody.cardActive
-                opacity: liquidBody.opacity
-
-                BlobGroup {
-                    id: cardLiquid
-                    color: K.Style.base
-                    smoothing: liquidBody.smoothing
-                    borderWidth: scene.prefs.rim ? 1 : 0
-                    borderColor: K.Style.rim
-                    shadowStrength: 0
-                    shadowSize: 0
-                }
-
-                BlobRect {
-                    group: cardLiquid
-                    width: cardPaper.width
-                    height: cardPaper.height
-                    topLeftRadius: liquidBody.leftOverhang ? liquidBody.radius : 0
-                    topRightRadius: liquidBody.rightOverhang ? liquidBody.radius : 0
-                    bottomLeftRadius: liquidBody.edgeRadius(
-                        liquidBody.cardX, liquidBody.cardCurW, "left")
-                    bottomRightRadius: liquidBody.edgeRadius(
-                        liquidBody.cardX, liquidBody.cardCurW, "right")
-                    stiffness: 180
-                    damping: 16
-                    deformScale: 0
-                    sinks: false
-                }
-            }
-
-            C.CardHost {
-                id: cards
-                z: 2
-                scene: scene
-                body: liquidBody
-                cardKey: scene.cardKey
-                cardArgs: scene.cardArgs
-            }
-        }
-
+        // The card surface releases once the melt finishes and no new card is
+        // pending, so the bar window shrinks back to its resting strip.
         Connections {
             target: liquidBody
             function onCardProgressChanged() {

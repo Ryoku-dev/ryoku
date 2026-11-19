@@ -70,7 +70,7 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 		reason = strings.TrimSpace(goal.Reason)
 	}
 	record := op.Record(gtx.Ops)
-	dimensions := layout.Inset{Top: 10, Bottom: 10, Left: 13, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dimensions := layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2, Left: th.Sp.S3, Right: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		head := func(gtx layout.Context) layout.Dimensions {
 			buttons := []layout.FlexChild{}
@@ -102,12 +102,12 @@ func (strip *goalStrip) layout(gtx layout.Context, e *env.Env, info protocol.Ses
 			layout.Rigid(head),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: 27}.Layout(gtx, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, reason))
+				return layout.Inset{Left: th.Sp.S4}.Layout(gtx, kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, reason))
 			}),
 		)
 	})
 	content := record.Stop()
-	kit.SlabSurface(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Slab)
+	kit.SlabSurface(gtx, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.Planes().Card)
 	content.Add(gtx.Ops)
 	return dimensions
 }
@@ -148,11 +148,10 @@ func firstGoalLine(objective string) string {
 	return line
 }
 
-// sessionCommands puts the slash commands Rashin answers itself ahead of the
-// harness's own; a harness command of the same name would never be reached
-func sessionCommands(harness []protocol.Command) []protocol.Command {
+// the native goal command precedes model commands and is listed once
+func sessionCommands(offered []protocol.Command) []protocol.Command {
 	commands := []protocol.Command{{Name: "goal", Description: i18n.T("Keep the agent working until an objective is met"), Hint: i18n.T("objective, or pause, resume, stop")}}
-	for _, command := range harness {
+	for _, command := range offered {
 		if strings.TrimPrefix(command.Name, "/") != "goal" {
 			commands = append(commands, command)
 		}

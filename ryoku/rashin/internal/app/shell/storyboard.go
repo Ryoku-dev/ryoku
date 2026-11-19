@@ -206,9 +206,9 @@ func (s *uiShell) openStoryboardRoute(route string) {
 		}
 		s.navigateWork(project, view, worktree)
 	case protocol.TabIndex:
-		s.navigate(parts[0], "")
-	case protocol.TabSettings:
-		place := Place{Tab: protocol.TabSettings}
+		s.navigate(parts[0], strings.Join(parts[1:], "/"))
+	case protocol.TabSettings, protocol.TabLearning:
+		place := Place{Tab: parts[0]}
 		if len(parts) > 1 {
 			place.SettingsSection = parts[1]
 		}

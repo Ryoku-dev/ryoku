@@ -1,5 +1,7 @@
 package env
 
+import "ryoku-rashin/internal/protocol"
+
 // TeamsPlace is a place in Teams mode: a destination, protocol.TabInbox to
 // protocol.TabActivity, and what is open in it. Draft opens a new thing in the
 // work pane instead: DraftTeam (from Template) or DraftRoutine (for Team).
@@ -12,6 +14,7 @@ type TeamsPlace struct {
 	Credential string
 	Draft      string
 	Template   string
+	DreamDraft *protocol.DreamCreateParams
 }
 
 // Drafts a Teams page opens: a team or a routine in its work pane, a dream

@@ -20,17 +20,19 @@ import (
 
 var iconRestart = Icon(symbols.RestartAlt)
 
-// SettingRow is one setting in a settings slab: a wrapping title and detail
-// with the control at the right. Rows stack directly; each draws the vein
-// line above itself unless First.
+// SettingRow is one setting in a settings slab. Short controls sit beside
+// wrapping text; Stacked groups and lists fill the width below it.
 type SettingRow struct {
 	Title       string
 	Detail      string
 	Changed     bool
+	NoReset     bool
 	Unavailable string
 	Highlight   float32
 	Activatable bool
 	First       bool
+	Stacked     bool
+	TopAligned  bool
 	Reset       Click
 	Row         Click
 	Preview     State
@@ -58,7 +60,7 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	resetGap := gtx.Dp(th.Sp.S2)
 	resetSize := gtx.Dp(tokens.SizeIconPlaqueSmall)
 	reserve := 0
-	if r.Changed {
+	if r.Changed && !r.NoReset {
 		reserve = resetSize + resetGap
 	}
 
@@ -66,7 +68,13 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	if r.Unavailable != "" {
 		controlGTX = controlGTX.Disabled()
 	}
-	controlGTX.Constraints = layout.Constraints{Max: image.Pt(max(0, min(gtx.Dp(tokens.SizeSettingsControlMax), width-textGap-reserve)), gtx.Constraints.Max.Y)}
+	controlWidth := max(0, min(gtx.Dp(tokens.SizeSettingsControlMax), width-textGap-reserve))
+	controlMin := image.Point{}
+	if r.Stacked {
+		controlWidth = width
+		controlMin.X = width
+	}
+	controlGTX.Constraints = layout.Constraints{Min: controlMin, Max: image.Pt(controlWidth, gtx.Constraints.Max.Y)}
 	controlRecord := op.Record(gtx.Ops)
 	controlDims := layout.Dimensions{}
 	if control != nil {
@@ -75,11 +83,16 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	controlCall := controlRecord.Stop()
 
 	textWidth := max(0, width-controlDims.Size.X-textGap-reserve)
+	if r.Stacked {
+		textWidth = width
+	}
 	textRecord := op.Record(gtx.Ops)
 	textDims := r.layoutText(gtx, th, textWidth)
 	textCall := textRecord.Stop()
 
-	height := max(gtx.Dp(tokens.SizeFactsRowHeight), textDims.Size.Y, controlDims.Size.Y, resetSize)
+	positions := r.positions(width, textDims.Size.Y, controlDims.Size, gtx.Dp(tokens.SizeFactsRowHeight),
+		resetSize, resetGap, gtx.Dp(th.Sp.S3))
+	height := positions.height
 	box := image.Rect(0, gap, width, gap+height)
 	bleed := image.Rect(box.Min.X-gtx.Dp(th.Sp.S2), box.Min.Y-gtx.Dp(th.Sp.S1), box.Max.X+gtx.Dp(th.Sp.S2), box.Max.Y+gtx.Dp(th.Sp.S1))
 	cut := gtx.Dp(th.Cut.Small)
@@ -93,10 +106,13 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 	r.hoverArea.Add(gtx.Ops)
 
 	hovered := r.hovered || r.Preview == StateHover
-	hover := previewTransition(gtx, &r.hover, r.Preview, StateHover, r.Activatable && r.hovered, th.Motion.HoverIn, th.Motion.HoverOut)
+	hover := previewTransition(gtx, &r.hover, r.Preview, StateHover, (r.Activatable || r.Stacked) && r.hovered, th.Motion.HoverIn, th.Motion.HoverOut)
 	press := previewTransition(gtx, &r.press, r.Preview, StatePressed, r.Activatable && r.Row.Pressed(), th.Motion.Press, th.Motion.Press)
+	if (!r.Activatable && !r.Stacked) || r.Unavailable != "" {
+		hover = 0
+	}
 	if !r.Activatable || r.Unavailable != "" {
-		hover, press = 0, 0
+		press = 0
 	}
 	plane := max(tokens.AlphaHoverPlane*hover, tokens.AlphaHoverPlane*min(max(r.Highlight, 0), 1))
 	plane = max(plane, tokens.AlphaPressRow*press)
@@ -123,12 +139,11 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 		rowFocused = gtx.Focused(&r.Row.Clickable)
 	}
 
-	offset := op.Offset(image.Pt(0, gap+(height-textDims.Size.Y)/2)).Push(gtx.Ops)
+	offset := op.Offset(image.Pt(positions.text.X, gap+positions.text.Y)).Push(gtx.Ops)
 	textCall.Add(gtx.Ops)
 	offset.Pop()
 
-	controlX := width - controlDims.Size.X
-	if r.Changed {
+	if r.Changed && !r.NoReset {
 		focusWithin := rowFocused || gtx.Focused(&r.Reset.Clickable) || r.Preview == StateFocus
 		show := previewTransition(gtx, &r.resetShow, r.Preview, StateHover, hovered || focusWithin, th.Motion.HoverIn, th.Motion.HoverOut)
 		if focusWithin {
@@ -138,24 +153,49 @@ func (r *SettingRow) Layout(gtx layout.Context, th *theme.Theme, control layout.
 		r.reset.Small = true
 		r.reset.Icon = iconRestart
 		r.reset.Description = "Reset " + r.Title
-		offset := op.Offset(image.Pt(controlX-resetGap-resetSize, gap+(height-resetSize)/2)).Push(gtx.Ops)
+		offset := op.Offset(image.Pt(positions.reset.X, gap+positions.reset.Y)).Push(gtx.Ops)
 		fade := paint.PushOpacity(gtx.Ops, show)
 		r.reset.layoutWith(exactContext(gtx, image.Pt(resetSize, resetSize)), th, &r.Reset)
 		fade.Pop()
 		offset.Pop()
 	}
 
-	offset = op.Offset(image.Pt(controlX, gap+(height-controlDims.Size.Y)/2)).Push(gtx.Ops)
+	offset = op.Offset(image.Pt(positions.control.X, gap+positions.control.Y)).Push(gtx.Ops)
 	controlCall.Add(gtx.Ops)
 	offset.Pop()
 	area.Pop()
 
-	if r.Activatable {
-		focused := rowFocused || r.Preview == StateFocus
+	if r.Activatable || r.Stacked {
+		focused := rowFocused || (!r.NoReset && gtx.Focused(&r.Reset.Clickable)) || r.Preview == StateFocus
 		focus := focusValue(gtx, th, &r.focus, focused)
 		FocusRingAlpha(gtx, th, bleed, cut, focus)
 	}
 	return layout.Dimensions{Size: image.Pt(width, gap+height)}
+}
+
+type settingRowPositions struct {
+	height               int
+	text, control, reset image.Point
+}
+
+func (r *SettingRow) positions(width, textHeight int, control image.Point, minimum, resetSize, resetGap, stackGap int) settingRowPositions {
+	p := settingRowPositions{height: max(minimum, textHeight, control.Y, resetSize)}
+	p.control.X = width - control.X
+	p.reset.X = p.control.X - resetGap - resetSize
+	if r.Stacked {
+		copyHeight := textHeight
+		if r.Changed && !r.NoReset {
+			copyHeight = max(copyHeight, resetSize)
+		}
+		p.height = max(minimum, copyHeight+stackGap+control.Y)
+		p.control = image.Pt(0, copyHeight+stackGap)
+		p.reset.X = width - resetSize
+	} else if !r.TopAligned {
+		p.text.Y = (p.height - textHeight) / 2
+		p.control.Y = (p.height - control.Y) / 2
+		p.reset.Y = (p.height - resetSize) / 2
+	}
+	return p
 }
 
 func (r *SettingRow) detailText() string {
@@ -167,7 +207,20 @@ func (r *SettingRow) detailText() string {
 
 func (r *SettingRow) layoutText(gtx layout.Context, th *theme.Theme, width int) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(width, gtx.Constraints.Max.Y)}
-	titleDims := r.layoutTitle(gtx, th, width)
+	titleGTX := gtx
+	if r.Stacked && r.Changed && !r.NoReset {
+		titleGTX.Constraints.Max.X = max(0, width-gtx.Dp(tokens.SizeIconPlaqueSmall)-gtx.Dp(th.Sp.S2))
+	}
+	if titleGTX.Constraints.Max.Y > 1<<16 {
+		record := op.Record(gtx.Ops)
+		measured := r.layoutTitle(titleGTX, th, titleGTX.Constraints.Max.X)
+		_ = record.Stop()
+		titleGTX.Constraints.Max.Y = min(titleGTX.Constraints.Max.Y, measured.Size.Y)
+	}
+	titleDims := r.layoutTitle(titleGTX, th, titleGTX.Constraints.Max.X)
+	if r.Stacked && r.Changed && !r.NoReset {
+		titleDims.Size.Y = max(titleDims.Size.Y, gtx.Dp(tokens.SizeIconPlaqueSmall))
+	}
 	detail, ink := r.Detail, th.R.Fg2
 	if r.Unavailable != "" {
 		detail, ink = r.Unavailable, th.R.Fg3

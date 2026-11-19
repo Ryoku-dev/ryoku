@@ -91,6 +91,7 @@ T.Control {
             status: modelData.status || ""
             resource: modelData.resource || ""
             source: modelData.source || ""
+            animated: !!modelData.animated
             current: !!modelData.current
             unavailable: modelData.unavailable || ""
             busy: !!modelData.busy

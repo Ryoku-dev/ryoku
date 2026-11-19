@@ -142,7 +142,15 @@ func (s *server) readRoutine(routine protocol.Routine) protocol.Routine {
 	preview := cron.Preview(routine.Schedule, demoRoutineClock(), 1)
 	routine.Sentence, routine.NextRun = preview.Sentence, nil
 	index := s.data.teams.teamIndex(routine.Team)
-	if routine.Enabled && index >= 0 && !s.data.teams.teams[index].Paused && len(preview.Next) > 0 {
+	personal := routine.Team == protocol.RoutinePersonal && s.data.snapshot.Settings.Features["schedules"]
+	active := index >= 0 && !s.data.teams.teams[index].Paused
+	if routine.Kind != "" && routine.Kind != protocol.RoutineTask && !s.data.snapshot.Settings.Features["schedules"] {
+		active = false
+	}
+	if routine.Preset == "research" && !s.data.snapshot.Settings.Features["research"] {
+		active, personal = false, false
+	}
+	if routine.Enabled && (active || personal) && !s.data.snapshot.Settings.Teams.Paused && len(preview.Next) > 0 {
 		next := preview.Next[0]
 		routine.NextRun = &next
 	}

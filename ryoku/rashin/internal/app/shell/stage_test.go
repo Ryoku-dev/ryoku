@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"fmt"
 	"image"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -9,18 +11,22 @@ import (
 	"time"
 
 	"gioui.org/f32"
+	"gioui.org/io/event"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 
 	"ryoku-rashin/internal/app/desktop"
 	"ryoku-rashin/internal/app/env"
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/state"
 )
 
@@ -47,13 +53,15 @@ type stage struct {
 	chooser func(desktop.ChooseRequest) []string
 	// moving is a stage with motion on: flakes over a working session never stop, so it cannot wait for stillness
 	moving bool
+	// a production control mounted over the app for input and window-bound regressions
+	surface layout.Widget
 }
 
-func newStage(t *testing.T, size image.Point) *stage {
+func newStage(t *testing.T, size image.Point, demoOptions ...Options) *stage {
 	t.Helper()
 	anim.SetReduce(true)
 	t.Cleanup(func() { anim.SetReduce(false) })
-	return openStage(t, size, false)
+	return openStage(t, size, false, demoOptions...)
 }
 
 // newMovingStage is the app with its motion on. A frame is 16 ms, so a page
@@ -65,7 +73,7 @@ func newMovingStage(t *testing.T, size image.Point) *stage {
 	return openStage(t, size, true)
 }
 
-func openStage(t *testing.T, size image.Point, moving bool) *stage {
+func openStage(t *testing.T, size image.Point, moving bool, demoOptions ...Options) *stage {
 	t.Helper()
 	root := t.TempDir()
 	for name, directory := range map[string]string{
@@ -73,7 +81,22 @@ func openStage(t *testing.T, size image.Point, moving bool) *stage {
 	} {
 		t.Setenv(name, filepath.Join(root, directory))
 	}
-	r, err := startRuntime(Options{Demo: true}, palette.Dark)
+	options := Options{Demo: true}
+	if len(demoOptions) > 0 {
+		options = demoOptions[0]
+		options.Demo = true
+	}
+	// the stage's own desktop asks for the reduced motion a still stage runs in, as the theme takes it from the desktop; LITHIC_DESIGN still picks the design
+	if !moving {
+		config := filepath.Join(root, "config", "ryoku")
+		if err := os.MkdirAll(config, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(config, "shell.json"), []byte(`{"theme":{"motion":{"reduce":true}}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := startRuntime(options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +141,9 @@ func (s *stage) frame() {
 	}
 	s.shell.posts.Drain()
 	s.shell.Frame(gtx)
+	if s.surface != nil {
+		s.surface(gtx)
+	}
 	s.router.Frame(&s.ops)
 	s.now = s.now.Add(16 * time.Millisecond)
 }
@@ -289,4 +315,165 @@ func nodeName(node input.SemanticNode) string {
 		return node.Desc.Label
 	}
 	return node.Desc.Description
+}
+
+func TestLongMenusOnTheAppStageScrollAndKeepTheirCurrentItemVisible(t *testing.T) {
+	for _, kind := range []string{"kit picker", "app select"} {
+		t.Run(kind, func(t *testing.T) {
+			stage := newStage(t, image.Pt(960, 600))
+			stage.open("ask/new")
+			options := make([]string, 400)
+			for index := range options {
+				options[index] = fmt.Sprintf("Choice %03d", index)
+			}
+			selected := 350
+			var picker kit.Picker
+			var selection look.Select
+			var overlays look.Overlays
+			var pageScrollTag int
+			var pageScroll float32
+			stage.surface = func(gtx layout.Context) layout.Dimensions {
+				for {
+					value, ok := gtx.Event(pointer.Filter{Target: &pageScrollTag, Kinds: pointer.Scroll, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}})
+					if !ok {
+						break
+					}
+					pageScroll += value.(pointer.Event).Scroll.Y
+				}
+				area := clip.Rect(image.Rectangle{Max: stage.size}).Push(gtx.Ops)
+				event.Op(gtx.Ops, &pageScrollTag)
+				area.Pop()
+				th := stage.shell.environment().Theme
+				origin := image.Pt(300, 260)
+				local := gtx
+				local.Constraints = layout.Constraints{Min: image.Pt(240, 0), Max: image.Pt(240, stage.size.Y-origin.Y)}
+				offset := op.Offset(origin).Push(gtx.Ops)
+				if kind == "kit picker" {
+					picker.Viewport = image.Rectangle{Max: stage.size}.Sub(origin)
+					picker.Layout(local, th.Theme, "Long choices", options, selected)
+					if index, ok := picker.Changed(local); ok {
+						selected = index
+					}
+				} else {
+					selection.Label = "Long choices"
+					selection.Layout(local, th, &overlays, options, selected)
+					if index, ok := selection.Changed(); ok {
+						selected = index
+					}
+				}
+				offset.Pop()
+				if kind == "app select" {
+					overlays.Layout(gtx, th)
+				}
+				return layout.Dimensions{Size: stage.size}
+			}
+			stage.frame()
+			stage.settle()
+			anchor, ok := stage.named("Long choices: Choice 350")
+			if !ok {
+				t.Fatal("the long-menu opener was not mounted")
+			}
+			stage.click("Long choices: Choice 350")
+			window := image.Rect(8, 8, stage.size.X-8, stage.size.Y-8)
+			assertVisible := func(index int) input.SemanticNode {
+				t.Helper()
+				var node input.SemanticNode
+				ok := false
+				for _, candidate := range stage.nodes() {
+					if candidate.Desc.Class == semantic.Button && candidate.Desc.Label == options[index] {
+						node, ok = candidate, true
+						break
+					}
+				}
+				if !ok || node.Desc.Bounds.Empty() || !node.Desc.Bounds.In(window) {
+					t.Fatalf("choice %d is not fully inside the window: shown=%v bounds=%v selected=%d kitOpen=%v; on screen: %v", index, ok, node.Desc.Bounds, selected, picker.Open(), stage.names())
+				}
+				if node.Desc.Bounds.Overlaps(anchor.Desc.Bounds) {
+					t.Fatalf("choice %d overlaps its opener: row=%v opener=%v", index, node.Desc.Bounds, anchor.Desc.Bounds)
+				}
+				return node
+			}
+			current := assertVisible(350)
+			labels := func() string {
+				var visible []string
+				seen := make(map[string]bool)
+				for _, node := range stage.nodes() {
+					name := nodeName(node)
+					if node.Desc.Class == semantic.Button && strings.HasPrefix(name, "Choice ") && !seen[name] {
+						seen[name] = true
+						visible = append(visible, name)
+					}
+				}
+				if len(visible) > 14 {
+					t.Fatalf("the 400-option menu laid out %d labels, want only the visible rows", len(visible))
+				}
+				return strings.Join(visible, "|")
+			}
+			before := labels()
+			at := centre(current.Desc.Bounds)
+			stage.queue(pointer.Event{Kind: pointer.Scroll, Position: f32.Pt(float32(at.X), float32(at.Y)), Scroll: f32.Pt(0, 240)})
+			stage.settle()
+			if after := labels(); after == before {
+				t.Fatal("wheel input did not move the long menu")
+			}
+			stage.press(key.NameEnd, 0)
+			assertVisible(399)
+			stage.press(key.NameHome, 0)
+			first := assertVisible(0)
+			at = centre(first.Desc.Bounds)
+			stage.queue(pointer.Event{Kind: pointer.Scroll, Position: f32.Pt(float32(at.X), float32(at.Y)), Scroll: f32.Pt(0, -240)})
+			stage.settle()
+			if pageScroll != 0 {
+				t.Fatalf("the menu chained %v pixels of wheel input into the page", pageScroll)
+			}
+			assertVisible(0)
+			stage.press(key.NamePageDown, 0)
+			stage.press(key.NameEnter, 0)
+			if selected <= 0 || selected >= 20 {
+				t.Fatalf("Page Down, Enter picked %d instead of a choice one viewport below", selected)
+			}
+			if picker.Open() || selection.Opened(&overlays) {
+				t.Fatal("choosing a row left its overlay open")
+			}
+		})
+	}
+}
+
+func TestSettingsSectionPickerKeepsItsLastSectionInsideTheWindow(t *testing.T) {
+	stage := newStage(t, image.Pt(960, 600))
+	stage.open("settings/keys")
+	var anchor image.Rectangle
+	stage.await("the section picker shows Keyboard", func() bool {
+		for _, node := range stage.nodes() {
+			if node.Desc.Class == semantic.Button && node.Desc.Label == "Keyboard" {
+				anchor = node.Desc.Bounds
+				return true
+			}
+		}
+		return false
+	})
+	stage.clickAt(centre(anchor))
+	window := image.Rect(8, 8, stage.size.X-8, stage.size.Y-8)
+	assertRow := func(label string) {
+		t.Helper()
+		for _, node := range stage.nodes() {
+			if node.Desc.Class != semantic.Button || node.Desc.Label != label || node.Desc.Bounds == anchor {
+				continue
+			}
+			if node.Desc.Bounds.Empty() || !node.Desc.Bounds.In(window) || node.Desc.Bounds.Overlaps(anchor) {
+				t.Fatalf("section %q is not contained clear of its opener: row=%v anchor=%v", label, node.Desc.Bounds, anchor)
+			}
+			return
+		}
+		t.Fatalf("section %q is not visible in the open menu", label)
+	}
+	assertRow("Keyboard")
+	stage.press(key.NameHome, 0)
+	assertRow("Rashin")
+	stage.press(key.NameEnd, 0)
+	assertRow("Keyboard")
+	stage.press(key.NameEnter, 0)
+	if _, open := stage.shell.environment().Overlays.Top(); open {
+		t.Fatal("choosing the section left its menu open")
+	}
 }

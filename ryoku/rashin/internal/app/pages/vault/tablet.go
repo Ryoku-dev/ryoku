@@ -14,7 +14,6 @@ import (
 // one credential on the board: its name, what it is for, where it may go,
 // who may use it and how it was used, never its value
 type tablet struct {
-	name                  kit.Click
 	replace, edit, remove kit.Plaque
 }
 
@@ -23,7 +22,7 @@ func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protoco
 	t.replace.Kind, t.replace.Small, t.replace.Label = kit.PlaqueTonal, true, i18n.T("Replace value")
 	t.edit.Kind, t.edit.Small, t.edit.Label = kit.PlaqueTonal, true, i18n.T("Edit")
 	t.remove.Kind, t.remove.Small, t.remove.Label = kit.PlaqueQuiet, true, i18n.T("Remove")
-	if t.name.Clicked(gtx) || t.edit.Clicked(gtx) {
+	if t.edit.Clicked(gtx) {
 		p.openCredential(e, credential.ID)
 	}
 	if t.replace.Clicked(gtx) {
@@ -32,46 +31,38 @@ func (t *tablet) layout(gtx layout.Context, e *env.Env, p *Page, teams []protoco
 	if t.remove.Clicked(gtx) {
 		p.remove.open(credential)
 	}
-	return plane(gtx, th, func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return t.name.Layout(gtx, kit.Text(th.Theme, th.T.Mono, th.R.Fg, credential.Name))
-					}),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-					layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.Tf("fp %s", credential.Fingerprint))),
-				)
-			}),
-		}
-		if credential.Description != "" {
+	return look.SettingsSlab(gtx, th, []look.Setting{{
+		Title:    credential.Name,
+		Detail:   credential.Description,
+		Below:    true,
+		Activate: func() { p.openCredential(e, credential.ID) },
+		Control: func(gtx layout.Context) layout.Dimensions {
+			children := []layout.FlexChild{
+				layout.Rigid(kit.Text(th.Theme, th.T.MonoSm, th.R.Fg3, i18n.Tf("fp %s", credential.Fingerprint))),
+			}
+			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
+			if credential.Use == protocol.CredentialMail {
+				children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Mail account password"))))
+			} else {
+				children = append(children, layout.Rigid(chips(th, credential.Hosts)))
+			}
 			children = append(children,
-				layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, credential.Description)),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+				layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("%s. %s.", teamNames(teams, credential.Teams), usedWords(gtx, credential)))),
+				layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.replace.Layout(gtx, th.Theme) }),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.edit.Layout(gtx, th.Theme) }),
+						layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.remove.Layout(gtx, th.Theme) }),
+					)
+				}),
 			)
-		}
-		children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout))
-		if credential.Use == protocol.CredentialMail {
-			children = append(children, layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, i18n.T("Mail account password"))))
-		} else {
-			children = append(children, layout.Rigid(chips(th, credential.Hosts)))
-		}
-		children = append(children,
-			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-			layout.Rigid(look.Paragraph(th, th.T.Detail, th.R.Fg2, i18n.Tf("%s. %s.", teamNames(teams, credential.Teams), usedWords(gtx, credential)))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.replace.Layout(gtx, th.Theme) }),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.edit.Layout(gtx, th.Theme) }),
-					layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return t.remove.Layout(gtx, th.Theme) }),
-				)
-			}),
-		)
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
-	})
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		},
+	}})
 }
 
 // how often it was used and when last, or that it never was

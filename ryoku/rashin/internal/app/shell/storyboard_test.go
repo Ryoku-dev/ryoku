@@ -3,6 +3,7 @@ package shell
 import (
 	"os"
 	"path/filepath"
+	"ryoku-rashin/internal/protocol"
 	"testing"
 )
 
@@ -47,5 +48,14 @@ func TestStoryboardClickIsAPressThenAReleaseInTheirOwnFrames(t *testing.T) {
 func TestStoryboardRefusesTimeThatRunsBackwards(t *testing.T) {
 	if _, err := readStoryboard(writeStory(t, "200 key ctrl+k\n100 key escape\n")); err == nil {
 		t.Fatal("a story whose time runs backwards was accepted")
+	}
+}
+
+func TestStoryboardLearningRouteKeepsSection(t *testing.T) {
+	s := &uiShell{router: NewRouter(protocol.TabAsk, "", nil)}
+	s.openStoryboardRoute("learning/skills")
+	place := s.router.Current()
+	if place.Tab != protocol.TabLearning || place.SettingsSection != "skills" {
+		t.Fatalf("learning route = %#v", place)
 	}
 }

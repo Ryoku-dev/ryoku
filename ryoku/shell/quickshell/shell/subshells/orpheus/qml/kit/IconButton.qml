@@ -28,17 +28,17 @@ Item {
         }
     }
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: root.inverted ? Style.bone
+        cutSize: Look.cutSm
+        fill: root.inverted ? Style.bone
             : buttonPress.pressed ? Style.tint16
             : buttonPress.hovered ? Style.tint10 : "transparent"
-        border.width: root.plain && !root.inverted ? 0 : Style.border
-        border.color: root.inverted ? Style.bone
+        strokeWidth: (root.plain && !root.inverted) || (Look.material && !root.inverted) ? 0 : Style.border
+        strokeColor: root.inverted ? Style.bone
             : root.activeFocus || buttonPress.hovered ? Style.lineStrong : Style.line
 
-        Behavior on color {
+        Behavior on fill {
             enabled: !Style.still
             ColorAnimation { duration: Style.snap }
         }

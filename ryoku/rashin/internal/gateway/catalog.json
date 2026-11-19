@@ -53,13 +53,13 @@
   {
     "id":"cerebras","name":"Cerebras","tier":"free","baseURL":"https://api.cerebras.ai/v1","auth":"bearer","signup":"https://cloud.cerebras.ai/","note":"$5 of trial credit after adding a payment method, valid 30 days. No ongoing free tier.","models":[
       {"id":"llama3.1-70b","name":"Llama 3.1 70B","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":82,"speedRank":99},
-      {"id":"zai-glm-4.7","name":"GLM 4.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":89,"speedRank":92}
+      {"id":"zai-glm-4.7","name":"GLM 4.7","context":128000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":89,"speedRank":92}
     ]
   },
   {
     "id":"nvidia","name":"NVIDIA NIM","tier":"free","baseURL":"https://integrate.api.nvidia.com/v1","auth":"bearer","signup":"https://build.nvidia.com/settings/api-keys","note":"Phone verification. About 40 requests a minute.","listing":{"public":true},"models":[
-      {"id":"z-ai/glm-5.2","name":"GLM 5.2","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":98,"speedRank":61},
-      {"id":"z-ai/glm-5.1","name":"GLM 5.1","context":202000,"tools":true,"reasoning":true,"vision":false,"qualityRank":95,"speedRank":65}
+      {"id":"z-ai/glm-5.2","name":"GLM 5.2","context":1000000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":98,"speedRank":61},
+      {"id":"z-ai/glm-5.1","name":"GLM 5.1","context":202000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":95,"speedRank":65}
     ]
   },
   {
@@ -97,7 +97,7 @@
   },
   {
     "id":"sambanova","name":"SambaNova","tier":"free","baseURL":"https://api.sambanova.ai/v1","auth":"bearer","signup":"https://cloud.sambanova.ai/apis","note":"No card. 20 requests a minute and 20 a day on the free models.","listing":{"public":true},"models":[
-      {"id":"deepseek-v3-2-preview","name":"DeepSeek V3.2 Preview","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":92,"speedRank":88},
+      {"id":"deepseek-v3-2-preview","name":"DeepSeek V3.2 Preview","context":128000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":92,"speedRank":88},
       {"id":"minimax-m2-7","name":"MiniMax M2.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":84}
     ]
   },
@@ -111,12 +111,12 @@
     "id":"ollama","name":"Ollama Cloud","tier":"free","baseURL":"https://ollama.com/v1","auth":"bearer","signup":"https://ollama.com/settings/keys","note":"Only Beam is free; the other cloud models are billed per token. 3 requests at a time.","listing":{"public":true,"mixed":true},"models":[
       {"id":"beam","name":"Reflection Beam","context":1048576,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":60},
       {"id":"gpt-oss:20b","name":"GPT OSS 20B","tier":"paid","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
-      {"id":"glm-5.3-flash","name":"GLM 5.3 Flash","tier":"paid","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":88}
+      {"id":"glm-5.3-flash","name":"GLM 5.3 Flash","tier":"paid","context":200000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":93,"speedRank":88}
     ]
   },
   {
     "id":"opencode","name":"OpenCode Zen","tier":"free","baseURL":"https://opencode.ai/zen/v1","auth":"bearer","signup":"https://opencode.ai/auth","note":"No card. The models it prices at zero are free; the rest are billed.","listing":{"public":true,"mixed":true},"models":[
-      {"id":"deepseek-v4-flash-free","name":"DeepSeek V4 Flash","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":91},
+      {"id":"deepseek-v4-flash-free","name":"DeepSeek V4 Flash","context":1000000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":93,"speedRank":91},
       {"id":"mimo-v2.5-free","name":"MiMo V2.5","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":86}
     ]
   },
@@ -134,13 +134,13 @@
   },
   {
     "id":"zhipu","name":"Zhipu BigModel","tier":"free","baseURL":"https://open.bigmodel.cn/api/paas/v4","auth":"bearer","signup":"https://open.bigmodel.cn/usercenter/apikeys","note":"Phone verification. The Flash models are free, GLM-4.7-Flash one request at a time.","listing":{"mixed":true},"models":[
-      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
+      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
       {"id":"glm-4.6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
     ]
   },
   {
     "id":"zai","name":"Z.AI","tier":"free","baseURL":"https://api.z.ai/api/paas/v4","auth":"bearer","signup":"https://z.ai/manage-apikey/apikey-list","note":"About 1 request a second and 1,000 a day on the free Flash models.","listing":{"mixed":true},"models":[
-      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
+      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"replayReasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
       {"id":"glm-4.6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
     ]
   },

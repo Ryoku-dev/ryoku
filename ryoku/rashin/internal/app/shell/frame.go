@@ -2,11 +2,9 @@ package shell
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/io/key"
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -38,7 +36,7 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 		bottom -= gtx.Dp(look.BottomNav) + gap
 	}
 	page, listPage := s.page(s.router.Tab), s.page(s.listTab)
-	// settings and memory list their own index, the New plaque still speaks for where they were opened from
+	// standalone pages list their own sections, while New still speaks for the mode they opened from
 	if standaloneTab(s.router.Tab) {
 		listPage = page
 	}
@@ -70,11 +68,14 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 	rects.panel = image.Rect(contentRight+gap, top, contentRight+gap+gtx.Dp(look.Panel), bottom)
 
 	if sidebar > 0 {
-		layoutPane(gtx, th, rects.sidebar, th.R.Stone1, func(gtx layout.Context) layout.Dimensions {
+		// the tree stands directly on the side plane, beside the page rather than inside another pane
+		look.Place(gtx, rects.sidebar, func(gtx layout.Context) layout.Dimensions {
 			return s.sidebar.Layout(gtx, s, e, listPage, fold)
 		})
+	} else {
+		s.sidebar.updatePeek(gtx, s, e, "", "")
 	}
-	layoutPane(gtx, th, rects.content, th.R.Stone2, func(gtx layout.Context) layout.Dimensions {
+	layoutPane(gtx, th, rects.content, kit.PanePage, func(gtx layout.Context) layout.Dimensions {
 		return s.layoutContent(gtx, e, page)
 	})
 	if panelWidth > gap {
@@ -85,10 +86,12 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 	}
 	if s.class != look.Expanded {
 		s.layoutSidebarSheet(gtx, e, listPage, image.Rect(margin, top, size.X-margin, bottom))
+	} else {
+		s.sheetBar.updatePeek(gtx, s, e, "", "")
 	}
 	if s.class == look.Compact {
 		bar := image.Rect(margin, bottom+gap, size.X-margin, size.Y-margin)
-		layoutPane(gtx, th, bar, th.R.Stone1, func(gtx layout.Context) layout.Dimensions {
+		look.Place(gtx, bar, func(gtx layout.Context) layout.Dimensions {
 			return s.bottom.Layout(gtx, s, e)
 		})
 	}
@@ -109,28 +112,52 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 	s.router.Modal = modal
 }
 
-func layoutPane(gtx layout.Context, th *look.Theme, rectangle image.Rectangle, plane color.NRGBA, body layout.Widget) {
+func layoutPane(gtx layout.Context, th *look.Theme, rectangle image.Rectangle, kind kit.PaneKind, body layout.Widget) {
 	if rectangle.Dx() <= 0 || rectangle.Dy() <= 0 {
 		return
 	}
-	offset := op.Offset(rectangle.Min).Push(gtx.Ops)
-	bounds := image.Rectangle{Max: rectangle.Size()}
-	cut := gtx.Dp(th.Cut.Large)
-	area := clip.Outline{Path: kit.CutPath(gtx.Ops, bounds, cut, cut, 0, 0)}.Op().Push(gtx.Ops)
-	paint.Fill(gtx.Ops, plane)
-	// every pane lies on the paper's own tone, so its vein hairline is what draws it
-	kit.StrokeCutCorners(gtx.Ops, bounds, cut, cut, 0, 0, max(1, gtx.Dp(unit.Dp(1))), th.R.Vein)
-	child := gtx
-	child.Constraints = layout.Exact(bounds.Max)
-	body(child)
-	area.Pop()
-	offset.Pop()
+	look.Place(gtx, rectangle, func(gtx layout.Context) layout.Dimensions {
+		return (kit.Pane{Kind: kind}).Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
+			area := clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Push(gtx.Ops)
+			defer area.Pop()
+			return body(gtx)
+		})
+	})
+}
+
+type sheetPage interface {
+	Sheet(*env.Env) look.SheetPage
 }
 
 func (s *uiShell) layoutContent(gtx layout.Context, e *env.Env, page env.Page) layout.Dimensions {
-	dimensions := s.rise.Layout(gtx, e.Theme, s.router.Current().arrival(), 8, func(gtx layout.Context) layout.Dimensions {
-		return page.Content(gtx, e)
-	})
+	place := s.router.Current()
+	head := look.PageFor(place.Tab)
+	if sheet, ok := page.(sheetPage); ok {
+		head = sheet.Sheet(e)
+	} else if place.Tab == protocol.TabProjects && place.Project != "" {
+		view, name, gloss := look.ProjectView(normalizeProjectView(place.ProjectView))
+		head = look.PartPage(place.Tab, view, name, gloss)
+		for _, project := range e.Snapshot().Projects {
+			if project.ID == place.Project {
+				head.Where = look.Where(head.Where, project.Name)
+				break
+			}
+		}
+	}
+	progress := float32(-1)
+	if reader, ok := page.(interface{ SheetProgress() float32 }); ok {
+		progress = reader.SheetProgress()
+	}
+	dimensions := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return s.masthead.Masthead(gtx, e.Theme, head, progress)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return s.rise.Layout(gtx, e.Theme, place.arrival(), 14, func(gtx layout.Context) layout.Dimensions {
+				return page.Content(gtx, e)
+			})
+		}),
+	)
 	s.placards.Layout(gtx, e.Theme)
 	s.runPlacardAction(gtx)
 	return dimensions
@@ -157,7 +184,7 @@ func (s *uiShell) layoutDockedPanel(gtx layout.Context, e *env.Env, page env.Pag
 	}
 	// the panel keeps its full width while the pane unfolds so content is revealed, not reflowed
 	area := clip.Rect(image.Rect(rectangle.Min.X, rectangle.Min.Y, right, rectangle.Max.Y)).Push(gtx.Ops)
-	layoutPane(gtx, e.Theme, rectangle, e.Theme.R.Stone1, func(gtx layout.Context) layout.Dimensions {
+	layoutPane(gtx, e.Theme, rectangle, kit.PanePage, func(gtx layout.Context) layout.Dimensions {
 		return paneled.Panel(gtx, e)
 	})
 	area.Pop()
@@ -167,7 +194,7 @@ func (sheet *sideSheet) layoutScrim(gtx layout.Context, th *look.Theme, region i
 	closed := sheet.scrim.Clicked(gtx)
 	look.Place(gtx, region, func(gtx layout.Context) layout.Dimensions {
 		return sheet.scrim.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			paint.FillShape(gtx.Ops, palette.WithAlpha(th.R.Scrim, progress), clip.Rect(image.Rectangle{Max: gtx.Constraints.Max}).Op())
+			kit.Fill(gtx, th.Theme, image.Rectangle{Max: gtx.Constraints.Max}, 0, palette.WithAlpha(th.R.Scrim, progress))
 			return layout.Dimensions{Size: gtx.Constraints.Max}
 		})
 	})
@@ -178,6 +205,7 @@ func (s *uiShell) layoutSidebarSheet(gtx layout.Context, e *env.Env, listPage en
 	th := e.Theme
 	progress := look.Transition(gtx, &s.sheet.motion, s.sheet.open, th.Motion.DialogIn, th.Motion.DialogOut)
 	if progress <= 0 {
+		s.sheetBar.updatePeek(gtx, s, e, "", "")
 		return
 	}
 	if s.sheet.layoutScrim(gtx, th, region, progress) {
@@ -187,7 +215,7 @@ func (s *uiShell) layoutSidebarSheet(gtx layout.Context, e *env.Env, listPage en
 	travel := int(float32(gtx.Dp(12)) * (1 - progress))
 	rectangle := image.Rect(region.Min.X-travel, region.Min.Y, region.Min.X-travel+width, region.Max.Y)
 	opacity := paint.PushOpacity(gtx.Ops, progress)
-	layoutPane(gtx, th, rectangle, th.R.Stone1, func(gtx layout.Context) layout.Dimensions {
+	layoutPane(gtx, th, rectangle, kit.PanePage, func(gtx layout.Context) layout.Dimensions {
 		if !s.sheet.open {
 			gtx = gtx.Disabled()
 		}
@@ -208,7 +236,7 @@ func (s *uiShell) layoutPanelSheet(gtx layout.Context, e *env.Env, page env.Page
 	}
 	width := min(gtx.Dp(look.Panel), region.Dx()-gtx.Dp(34))
 	rectangle := image.Rect(region.Max.X-width, region.Min.Y, region.Max.X, region.Max.Y)
-	layoutPane(gtx, th, rectangle, th.R.Stone1, func(gtx layout.Context) layout.Dimensions {
+	layoutPane(gtx, th, rectangle, kit.PanePage, func(gtx layout.Context) layout.Dimensions {
 		return paneled.Panel(gtx, e)
 	})
 }
@@ -224,7 +252,7 @@ func (s *uiShell) layoutNotReady(gtx layout.Context, e *env.Env) {
 	if s.retry.Clicked(gtx) {
 		s.runtime.client.Reconnect()
 	}
-	layoutPane(gtx, th, image.Rect(margin, top, size.X-margin, size.Y-margin), th.R.Stone2, func(gtx layout.Context) layout.Dimensions {
+	layoutPane(gtx, th, image.Rect(margin, top, size.X-margin, size.Y-margin), kit.PanePage, func(gtx layout.Context) layout.Dimensions {
 		var empty kit.Empty
 		switch connection {
 		case state.Off:
@@ -276,17 +304,21 @@ func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.
 			s.openDestination(tab.tab)
 		}
 		if tab.tab == s.router.Tab {
-			rectangle, cut := bar.slab.Rect(gtx, tab.tab, rect(index), th.Motion.Select), gtx.Dp(th.Cut.Small)
-			kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
+			rectangle := bar.slab.Rect(gtx, tab.tab, rect(index), th.Motion.Select)
+			look.RowWash(gtx, th, rectangle, 0, 0, true)
 		}
 	}
 	for index, tab := range tabs {
 		tile := &bar.tiles[index]
 		look.Place(gtx, rect(index), func(gtx layout.Context) layout.Dimensions {
-			return tile.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			original := gtx
+			dimensions := tile.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				drawBottomTile(gtx, th, tile, tab, tab.tab == s.router.Tab)
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			})
+			focus := look.Transition(original, &tile.focus, original.Focused(&tile.click.Clickable), th.Motion.FocusIn, th.Motion.FocusOut)
+			kit.FocusRingAlpha(original, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), focus)
+			return dimensions
 		})
 	}
 	return layout.Dimensions{Size: size}
@@ -295,16 +327,19 @@ func (bar *bottomBar) Layout(gtx layout.Context, s *uiShell, e *env.Env) layout.
 func drawBottomTile(gtx layout.Context, th *look.Theme, tile *navRow, tab destination, selected bool) {
 	size := gtx.Constraints.Max
 	hover := look.Transition(gtx, &tile.hover, tile.click.Hovered(), th.Motion.HoverIn, th.Motion.HoverOut)
+	press := look.Transition(gtx, &tile.press, tile.click.Pressed(), th.Motion.Press, th.Motion.Press)
 	ink := palette.Mix(th.R.Fg2, th.R.Fg, hover)
+	glyphInk := ink
 	if selected {
-		ink = th.R.OnSel
-	} else if hover > 0 {
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, hover))
+		ink, _ = look.RowInk(th, true)
+		glyphInk = th.R.Sel
+	} else {
+		look.RowWash(gtx, th, image.Rectangle{Max: size}, hover, press, false)
 	}
 	glyph := gtx.Dp(20)
 	line := gtx.Sp(th.T.Caption.Line)
 	y := (size.Y - glyph - gtx.Dp(2) - line) / 2
-	look.PlaceIcon(gtx, tab.glyph(selected), image.Pt((size.X-glyph)/2, y), unit.Dp(20), ink)
+	look.PlaceIcon(gtx, tab.glyph(selected), image.Pt((size.X-glyph)/2, y), unit.Dp(20), glyphInk)
 	look.Place(gtx, image.Rect(0, y+glyph+gtx.Dp(2), size.X, y+glyph+gtx.Dp(2)+line), func(gtx layout.Context) layout.Dimensions {
 		return layout.Center.Layout(gtx, kit.RawText(th.Theme, th.T.Caption, ink, tab.label))
 	})

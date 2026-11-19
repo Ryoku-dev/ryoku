@@ -58,7 +58,7 @@ empty workspace:
 UI (`qs`), the shell daemon, its helpers (cava, pw-record), the window-manager
 provider, the wallpaper daemon, the compositor, session daemons and Ryoku's
 system units. Optional features are reported apart: phone integration,
-dictation, Rashin, Cobalt.
+dictation, Rashin. Downloads (`ryoget`) run only while a transfer does.
 
 ## Results
 
@@ -289,8 +289,9 @@ In the order to take them:
    rate changes about once a second at idle and redraws the bar each time. The
    shell daemon still wakes about 35 times a second, nearly all of it Go's own
    scheduler: its work at rest is a memory sample every few seconds and a
-   battery read when UPower reports a change. The recorder checks `gsr-cli
-   status` once a minute as a stale-state watchdog.
+   battery read when UPower reports a change. The recorder runs nothing at
+   rest: it watches its state files and asks `gsr-cli status` once a second
+   only while a capture is live.
 5. **Memory.** A fresh shell with Orpheus, the clock and calendar widgets and the overview
    backdrop measured 410 to 416 MB PSS at 2560x1600 on the NVIDIA laptop, and
    318 to 321 MB after five changes: English skips its identity catalog
@@ -310,7 +311,7 @@ In the order to take them:
 
 Optional features carry their own cost and are off unless chosen: phone
 integration (the KDE Connect monitor), dictation, Rashin (nothing at all while
-it is off), Cobalt. QS Bar stays the heaviest style: its ambient stream keeps
+it is off). QS Bar stays the heaviest style: its ambient stream keeps
 it near 11% of a core and a quarter of the GPU at idle on Performance.
 
 ## Measuring it yourself

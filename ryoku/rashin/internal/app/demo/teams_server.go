@@ -149,10 +149,7 @@ func (s *server) normaliseMembers(members []protocol.Member) ([]protocol.Member,
 			return nil, badRequest(i18n.Tf("Two members are called %s.", member.Name))
 		}
 		names[strings.ToLower(member.Name)] = true
-		member.Harness, member.Model = strings.TrimSpace(member.Harness), strings.TrimSpace(member.Model)
-		if member.Harness != "" && !slices.ContainsFunc(s.data.snapshot.Harnesses, func(harness protocol.HarnessInfo) bool { return harness.ID == member.Harness }) {
-			return nil, badRequest(i18n.Tf("No harness %s on this computer.", member.Harness))
-		}
+		member.Model = strings.TrimSpace(member.Model)
 		if !protocol.ValidEngineModel(member.Model) || !protocol.ValidEngineOptions(member.Options) {
 			return nil, badRequest(i18n.T("That model or option cannot be used."))
 		}
@@ -497,6 +494,8 @@ func (s *server) newTeamTask(team protocol.Team, member, title, brief, origin, r
 		ID: t.newID("task"), Team: team.ID, Title: title, Brief: brief, Status: protocol.TaskReady, Member: member,
 		Origin: origin, Routine: routine, MaxTurns: team.Budget.TaskTurns, Model: model, Options: options, Created: now, Updated: now,
 	}
+	assigned, _ := teamMember(team, member)
+	startEngine(&task, assigned, s.data.snapshot.Settings)
 	s.record(protocol.Activity{Action: "task.create", Target: title, OK: true, Team: team.ID, Task: task.ID})
 	if s.mayWork(team) {
 		task = s.beginTeamTask(team, task)
@@ -513,9 +512,10 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	task.Status, task.Waiting, task.Started, task.Updated = protocol.TaskWorking, "", &now, now
 	task.Turns, task.Usage = 0, protocol.TokenUsage{}
 	member, _ := teamMember(team, task.Member)
-	startEngine(&task, member, s.data.snapshot.Settings, s.registryHarness())
+	startEngine(&task, member, s.data.snapshot.Settings)
 	task.Session = fmt.Sprintf("agent-%s-%d", task.ID, len(task.Sessions)+1)
 	task.Sessions = append(append([]string(nil), task.Sessions...), task.Session)
+	s.data.options[task.Session] = task.Options
 	transcript := teamTranscript(task, []line{said(i18n.T("I'm reading the brief and the team's folder before I start."))})
 	for index := range transcript {
 		transcript[index].TS = now
@@ -524,7 +524,7 @@ func (s *server) beginTeamTask(team protocol.Team, task protocol.TeamTask) proto
 	t.sessions = append([]protocol.SessionInfo{teamSession(team, task, transcript, i18n.T("Reading the brief."), i18n.T("Reading the brief"))}, t.sessions...)
 	s.record(protocol.Activity{
 		Actor: "Rashin", Initiator: protocol.InitiatorRashin, Action: "task.start", Target: task.Title, OK: true, Team: team.ID, Task: task.ID,
-		Detail: i18n.Tf("%s started work on it with %s, %s.", member.Name, s.harnessName(task.Harness), engineModel(task.Model)),
+		Detail: i18n.Tf("%s started work on it with %s.", member.Name, engineModel(task.Model)),
 	})
 	return task
 }
@@ -657,8 +657,16 @@ func (s *server) listRoutines(team string) protocol.RoutinesResult {
 func (s *server) checkRoutine(routine protocol.Routine) error {
 	t := &s.data.teams
 	team := t.teamIndex(routine.Team)
-	if team < 0 {
+	if team < 0 && !(routine.Team == protocol.RoutinePersonal && routine.Kind != "" && routine.Kind != protocol.RoutineTask && s.data.snapshot.Settings.Features["schedules"]) {
 		return notFound("team")
+	}
+	if routine.Kind != "" && routine.Kind != protocol.RoutineTask {
+		if !s.data.snapshot.Settings.Features["schedules"] || (routine.Kind != protocol.RoutineAsk && routine.Kind != protocol.RoutineDream) {
+			return badRequest(i18n.T("Choose an enabled routine kind."))
+		}
+	}
+	if routine.Preset != "" && (routine.Kind != protocol.RoutineDream || routine.Preset != "research" || !s.data.snapshot.Settings.Features["research"]) {
+		return badRequest(i18n.T("Choose an enabled dream preset."))
 	}
 	if strings.TrimSpace(routine.Title) == "" {
 		return badRequest(i18n.T("A routine needs a title."))
@@ -667,6 +675,9 @@ func (s *server) checkRoutine(routine protocol.Routine) error {
 		return badRequest(i18n.T("Say what the routine should do."))
 	}
 	if routine.Member != "" {
+		if team < 0 {
+			return badRequest(i18n.T("A personal routine has no team member."))
+		}
 		if _, ok := teamMember(t.teams[team], routine.Member); !ok {
 			return badRequest(i18n.T("That member is not on the team."))
 		}
@@ -698,6 +709,13 @@ func (s *server) createRoutine(p protocol.RoutineCreateParams) (protocol.Routine
 	routine := protocol.Routine{
 		ID: t.newID("routine"), Team: p.Team, Title: strings.TrimSpace(p.Title), Brief: strings.TrimSpace(p.Brief), Member: p.Member,
 		Schedule: strings.TrimSpace(p.Schedule), Enabled: p.Enabled, Missed: p.Missed, Overlap: p.Overlap, Created: now, Updated: now,
+		Kind: p.Kind, Preset: p.Preset,
+	}
+	if routine.Team == "" && (routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream) {
+		routine.Team = protocol.RoutinePersonal
+	}
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		routine.Member = ""
 	}
 	if routine.Missed != protocol.MissedOnce {
 		routine.Missed = protocol.MissedSkip
@@ -734,6 +752,9 @@ func (s *server) updateRoutine(p protocol.RoutineUpdateParams) (protocol.Routine
 	routine.ID, routine.Team, routine.Created, routine.Failures = before.ID, before.Team, before.Created, before.Failures
 	routine.LastRun, routine.LastTask, routine.LastStatus, routine.NextRun, routine.Sentence = before.LastRun, before.LastTask, before.LastStatus, nil, ""
 	routine.Title, routine.Brief, routine.Schedule = strings.TrimSpace(routine.Title), strings.TrimSpace(routine.Brief), strings.TrimSpace(routine.Schedule)
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		routine.Member = ""
+	}
 	if routine.Enabled && !before.Enabled {
 		routine.Failures = 0
 	}
@@ -776,6 +797,9 @@ func (s *server) runRoutine(id string) (protocol.TeamTask, error) {
 		return protocol.TeamTask{}, notFound("routine")
 	}
 	routine := t.routines[index]
+	if routine.Kind == protocol.RoutineAsk || routine.Kind == protocol.RoutineDream {
+		return s.runScheduledDemo(routine)
+	}
 	teamIndex := t.teamIndex(routine.Team)
 	if teamIndex < 0 {
 		return protocol.TeamTask{}, notFound("team")
@@ -956,16 +980,6 @@ func (s *server) holdEveryTeam(paused bool) {
 		s.startQueued(team)
 		s.emitTeam(team.ID)
 	}
-}
-
-// a harness by its name, its id when it is gone
-func (s *server) harnessName(id string) string {
-	for _, harness := range s.data.snapshot.Harnesses {
-		if harness.ID == id {
-			return harness.Name
-		}
-	}
-	return id
 }
 
 func engineModel(model string) string {

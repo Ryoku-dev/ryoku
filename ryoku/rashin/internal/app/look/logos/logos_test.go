@@ -23,7 +23,7 @@ func TestEveryProviderIsListed(t *testing.T) {
 	if err := json.Unmarshal(data, &catalogue); err != nil {
 		t.Fatal(err)
 	}
-	ids := []string{protocol.ProviderOllamaLocal, protocol.ProviderLlamaCpp}
+	ids := []string{protocol.ProviderOllamaLocal, protocol.ProviderLlamaCpp, protocol.ProviderRashinModels}
 	for _, provider := range catalogue {
 		ids = append(ids, provider.ID)
 	}
@@ -57,7 +57,7 @@ func TestEveryMarkHasItsMaskAndNoMaskIsLeftOver(t *testing.T) {
 			t.Errorf("masks/%s is named by no id", entry.Name())
 		}
 	}
-	for _, id := range []string{"openai", "anthropic", "claude", "codex", "gemini", "google"} {
+	for _, id := range []string{"openai", "anthropic", "google"} {
 		if markFor(id) == "" {
 			t.Errorf("%s has no mark", id)
 		}

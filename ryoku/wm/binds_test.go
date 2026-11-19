@@ -18,6 +18,43 @@ func TestShippedBindsIDsUnique(t *testing.T) {
 	}
 }
 
+func TestSightGestureCatalogue(t *testing.T) {
+	tap := find(t, "shell.sight")
+	highlight := find(t, "shell.sightHighlight")
+	inPlace := find(t, "shell.sightInPlace")
+	if tap.Label != "Theia" || tap.Hint != "Tap three times to look at part of the screen with Theia" {
+		t.Errorf("tap labels = %q / %q", tap.Label, tap.Hint)
+	}
+	if highlight.Label != "Theia on highlighted text" || highlight.Hint != "Hold while you highlight text to see Theia's actions" {
+		t.Errorf("highlight labels = %q / %q", highlight.Label, highlight.Hint)
+	}
+	if inPlace.Label != "Theia in place" || inPlace.Hint != "Tap three times with text selected to translate or fix it where it is" {
+		t.Errorf("in place labels = %q / %q", inPlace.Label, inPlace.Hint)
+	}
+	if inPlace.Category != "Shell" || inPlace.Chord != "Control_R" || inPlace.Taps != 3 || inPlace.WhileHighlighting || inPlace.Kind != BindDaemon || inPlace.Needs != "rashind" {
+		t.Errorf("in place gesture = %+v", inPlace)
+	}
+	if tap.Chord != "Alt_R" || tap.Taps != 3 || tap.WhileHighlighting || tap.Kind != BindDaemon || tap.Needs != "rashind" {
+		t.Errorf("tap gesture = %+v", tap)
+	}
+	if highlight.Chord != "Alt_L" || highlight.Taps != 0 || !highlight.WhileHighlighting || highlight.Kind != BindDaemon || highlight.Needs != "rashind" {
+		t.Errorf("highlight gesture = %+v", highlight)
+	}
+	want := []GestureKey{
+		{"Alt_R", "Right Alt", 100}, {"Alt_L", "Left Alt", 56},
+		{"Control_R", "Right Ctrl", 97}, {"Control_L", "Left Ctrl", 29},
+		{"Shift_R", "Right Shift", 54}, {"Shift_L", "Left Shift", 42},
+	}
+	if !reflect.DeepEqual(GestureKeys, want) {
+		t.Errorf("gesture keys = %+v, want %+v", GestureKeys, want)
+	}
+	for _, key := range GestureKeys {
+		if got := DisplayKeys(key.Name); !reflect.DeepEqual(got, []string{key.Label}) {
+			t.Errorf("DisplayKeys(%q) = %v, want %q", key.Name, got, key.Label)
+		}
+	}
+}
+
 // Clash detection compares chords in their normalised form, so a shipped chord
 // that is not already its own normal form would never match a user rebind of the
 // same combo. Every catalogue chord must normalise to itself.
@@ -294,6 +331,12 @@ func TestMissingNamesTheAbsentProgram(t *testing.T) {
 	present := func(string) bool { return true }
 	var needy, plain int
 	for _, b := range ShippedBinds() {
+		if b.Kind == BindDaemon {
+			if got := b.Missing(absent); got != "" {
+				t.Errorf("daemon bind %s must not be compositor-unhonored: %q", b.ID, got)
+			}
+			continue
+		}
 		if b.Needs == "" {
 			plain++
 			if got := b.Missing(absent); got != "" {

@@ -59,6 +59,9 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 		if p.editor.id != "" {
 			if routine, ok := p.editor.sync(e.Snapshot()); ok {
+				if !visible(e.Snapshot(), routine) {
+					return p.board.layout(gtx, e, p)
+				}
 				return p.editor.layout(gtx, e, p, routine)
 			}
 			// a routine deleted while open leaves for the board; one not heard of yet is waited for
@@ -70,6 +73,23 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 		return p.board.layout(gtx, e, p)
 	})
+}
+
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	if p.editor.creating {
+		return look.PartPage(protocol.TabRoutines, 1, i18n.T("New routine"), "")
+	}
+	if routine, ok := routineByID(e.Snapshot(), p.selected); ok {
+		return look.PartPage(protocol.TabRoutines, 1, routine.Title, "")
+	}
+	return look.PageFor(protocol.TabRoutines)
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.editor.active() {
+		return p.editor.scroll.Progress(2)
+	}
+	return p.board.scroll.Progress(p.board.rows)
 }
 
 func (p *Page) New(e *env.Env) {

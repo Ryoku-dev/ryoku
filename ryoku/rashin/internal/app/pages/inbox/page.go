@@ -10,6 +10,7 @@ import (
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/pages/teamsui"
+	"ryoku-rashin/internal/protocol"
 )
 
 type Page struct {
@@ -29,6 +30,14 @@ func (p *Page) Select(e *env.Env, place env.TeamsPlace) {
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return p.board.layout(gtx, e, p.needs(e))
+}
+
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	return look.PageFor(protocol.TabInbox)
+}
+
+func (p *Page) SheetProgress() float32 {
+	return p.board.scroll.Progress(p.board.rows)
 }
 
 // what needs the user, with the memories waiting to be kept or dismissed among them

@@ -45,7 +45,7 @@ func TestASessionSaysHowLongAndHowMuchItWorks(t *testing.T) {
 			mu.Unlock()
 		}
 	}
-	manager = newSessionManager(nil, &fakeHarnesses{runner: runner}, nil, settings, record, func() {}, func(string, ...any) {})
+	manager = newSessionManager(nil, &fakeAgents{runner: runner}, nil, settings, record, func() {}, func(string, ...any) {})
 	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
 	if err != nil {
 		t.Fatal(err)

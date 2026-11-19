@@ -17,7 +17,8 @@ Item {
     property real waveX: 0
     property real waveW: 0
     property var bubbleLeft: ({ x: 0, w: 0, visible: false, key: "" })
-    property var bubbleRight: ({ x: 0, w: 0, visible: false, key: "" })
+    // drawn in every span, `y` docks it under the top edge while the bar is hidden
+    property var recordBubble: ({ x: 0, w: 0, y: 0 })
     property string cardKey: ""
     property real originX: voiceDrop.x
     property real originW: voiceDrop.w
@@ -30,10 +31,14 @@ Item {
     property real heldOriginW: Math.max(12, originW)
     property real cardAnchor: originX + originW / 2
 
-    // Square trades the liquid fillets for crisp corners and a block wave.
+    // Square trades the liquid fillets for crisp corners and a block wave. The
+    // corner and smoothing follow the desktop design (Look): Lithic cuts its
+    // corners, Material swells soft and round, Adwaita rounds moderately, Fluent
+    // keeps small corners. The blob field reads the corner as a cut or a radius.
     readonly property bool square: prefs.form === "square"
-    readonly property real radius: square ? K.Style.squareRadius : K.Style.liquidRadius
-    readonly property real smoothing: square ? M.squareSmoothing : M.smoothing
+    readonly property real radius: square ? K.Look.cornerAt(K.Look.cutSm, 200, 40, K.Style.scale)
+        : K.Look.cornerAt(K.Look.cutXl, 400, K.Style.barH, K.Style.scale)
+    readonly property real smoothing: square ? K.Look.squareSmoothing : K.Look.liquidSmoothing
     // A page that would stop just short of a screen edge snaps flush to it, so it
     // either melts into the edge or stands clear of it, never half-bridging.
     readonly property real edgeSnap: smoothing * 2
@@ -47,17 +52,25 @@ Item {
     readonly property real cardTargetX: cardNaturalX < edgeSnap ? 0
         : width - cardNaturalX - cardTargetW < edgeSnap
             ? Math.max(0, width - cardTargetW) : cardNaturalX
-    readonly property real cardY: K.Style.barH - M.weld
+    // The card buds out of the drop it grows from. Its visible face sits just
+    // below the bar lip; the blob carries a neck up into the band so the
+    // smooth-min welds card and drop into one liquid edge (the frame popout's
+    // neck). On close the neck buries one smoothing deeper so the fillet drains
+    // flush before the shape drops out at zero size, no shrinking nub left.
+    readonly property real cardY: K.Style.barH
     readonly property bool cardActive: cardKey !== "" || cardProgress > 0.001
     readonly property real cardX: restCardX
         + (cardTargetX - restCardX) * cardProgress
     readonly property real cardCurW: cardActive
         ? restCardW + (cardTargetW - restCardW) * cardProgress : 0
-    readonly property real cardCurH: cardActive
-        ? M.weld + cardH * cardProgress : 0
-    readonly property bool leftOverhang: cardX < heldOriginX - 0.5
-    readonly property bool rightOverhang: cardX + cardCurW
-        > heldOriginX + heldOriginW + 0.5
+    readonly property real cardCurH: cardActive ? cardH * cardProgress : 0
+    readonly property real cardNeck: K.Style.barH + smoothing
+    readonly property real cardBurial: (1 - cardProgress) * smoothing
+    readonly property real cardBlobY: cardY - cardNeck + cardBurial
+    readonly property real cardBlobH: cardCurH + cardNeck - cardBurial
+    // The card content rides this matrix so it stretches with the blob while
+    // the page travels, the same liquid deform the frame popout applies.
+    readonly property alias cardDeform: cardShape.deformMatrix
 
     // The body fades to the chosen opacity at rest and firms up while a page is
     // open, so a page is always read on solid paper. Shapes overlap where they
@@ -92,8 +105,12 @@ Item {
         body.cardAnchor = body.originX + body.originW / 2;
     }
 
+    // The music wave is passive eye-candy: it runs only while the desktop has
+    // headroom (Balanced or Performance, never Power Saver) and motion is
+    // allowed. Micro-animations (the card weld, hover, press) are not gated here.
     function syncAudioClaim() {
-        AudioBars.setActive(body, body.waveActive && body.prefs.gain > 0);
+        AudioBars.setActive(body, body.waveActive && body.prefs.gain > 0
+            && K.Look.ambientMotion);
     }
 
     onCardKeyChanged: if (cardKey !== "") syncOrigin()
@@ -106,6 +123,11 @@ Item {
     Connections {
         target: body.prefs
         function onGainChanged() { body.syncAudioClaim(); }
+    }
+
+    Connections {
+        target: K.Look
+        function onAmbientMotionChanged() { body.syncAudioClaim(); }
     }
 
     Behavior on cardAnchor {
@@ -129,7 +151,7 @@ Item {
             enabled: !K.Style.still
             NumberAnimation {
                 property: "cardProgress"
-                duration: K.Style.spatial
+                duration: K.Style.enter
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: K.Style.enterCurve
             }
@@ -139,7 +161,7 @@ Item {
             enabled: !K.Style.still
             NumberAnimation {
                 property: "cardProgress"
-                duration: K.Style.ms(300)
+                duration: K.Style.exit
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: K.Style.exitCurve
             }
@@ -150,6 +172,7 @@ Item {
         id: liquid
         color: K.Style.base
         smoothing: body.smoothing
+        cutCorners: K.Look.lithic
         borderWidth: body.prefs.rim ? 1 : 0
         borderColor: K.Style.rim
         waveColor: K.Style.trace
@@ -188,7 +211,10 @@ Item {
     Shoulder { drop: ({ x: body.waveX, w: body.waveW }) }
     Shoulder { drop: body.rightDrop }
     Shoulder { drop: body.span === "islands" ? body.bubbleLeft : ({ x: 0, w: 0 }) }
-    Shoulder { drop: body.span === "islands" ? body.bubbleRight : ({ x: 0, w: 0 }) }
+    Shoulder {
+        drop: body.recordBubble
+        dock: Number(body.recordBubble.y) || 0
+    }
 
     // The side drops never blend with the voice: where a fused body covers
     // them, blending would square the shared corners and drip at the seams.
@@ -241,10 +267,10 @@ Item {
 
     BlobRect {
         group: liquid
-        visible: body.span === "islands" && body.bubbleRight.w > 0.5
-        x: body.bubbleRight.x
-        y: 0
-        width: body.span === "islands" && body.bubbleRight.w > 0.5 ? body.bubbleRight.w : 0
+        visible: body.recordBubble.w > 0.5
+        x: body.recordBubble.x
+        y: Number(body.recordBubble.y) || 0
+        width: body.recordBubble.w > 0.5 ? body.recordBubble.w : 0
         height: K.Style.barH
         topLeftRadius: 0
         topRightRadius: 0
@@ -272,20 +298,27 @@ Item {
         Behavior on bottomRightRadius { enabled: !K.Style.still; NumberAnimation { duration: K.Style.ms(300) } }
     }
 
+    // The card page, welded into the drop it grows from. It lives in the bar's
+    // own blob field (one window) so the neck smooth-mins into the band and the
+    // page reads as the bar swelling open, not a panel laid on top. The top
+    // corners are flush where the neck meets the band; the bottom corners round
+    // (or melt into a screen edge). Velocity deform stretches it liquidly while
+    // it travels between anchors.
     BlobRect {
+        id: cardShape
         group: liquid
         visible: body.cardActive
         x: body.cardX
-        y: body.cardY
+        y: body.cardBlobY
         width: body.cardCurW
-        height: body.cardCurH
-        topLeftRadius: body.leftOverhang ? body.radius : 0
-        topRightRadius: body.rightOverhang ? body.radius : 0
+        height: body.cardBlobH
+        topLeftRadius: 0
+        topRightRadius: 0
         bottomLeftRadius: body.edgeRadius(body.cardX, body.cardCurW, "left")
         bottomRightRadius: body.edgeRadius(body.cardX, body.cardCurW, "right")
         stiffness: 180
         damping: 16
-        deformScale: 0
+        deformScale: body.cardActive ? 0.000015 : 0
         sinks: false
     }
 
@@ -309,11 +342,12 @@ Item {
 
     component Shoulder: BlobRect {
         required property var drop
+        property real dock: 0
         readonly property bool active: body.shown(drop)
         group: liquid
         visible: active
         x: Number(drop.x) - M.shoulderReach
-        y: -M.shoulder - 2
+        y: dock - M.shoulder - 2
         width: active ? Number(drop.w) + M.shoulderReach * 2 : 0
         height: M.shoulder
         radius: 0

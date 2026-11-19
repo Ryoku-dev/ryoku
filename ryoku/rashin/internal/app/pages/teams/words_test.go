@@ -3,24 +3,38 @@ package teams
 import (
 	"testing"
 
+	"ryoku-rashin/internal/app/pages/teamsui"
 	appstate "ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
 
-func TestTheHeaderNamesTheModelOfATeamOnOneEngine(t *testing.T) {
-	snapshot := appstate.Snapshot{Harnesses: []protocol.HarnessInfo{{
-		ID: "claude", Name: "Claude Code", Installed: true,
-		Capabilities: &protocol.HarnessCapabilities{Models: true, ModelList: []protocol.Choice{
-			{ID: "haiku", Name: "Haiku 4.5"}, {ID: "opus", Name: "Opus 5.5"},
-		}},
-	}}}
-	alone := []protocol.Member{{ID: "lead", Lead: true, Harness: "claude", Model: "haiku"}}
-	if got, want := runsFact(snapshot, alone), "Runs Haiku 4.5 on Claude Code"; got != want {
-		t.Errorf("one engine reads %q, want %q", got, want)
+func TestTheHeaderNamesWhatATeamRunsOn(t *testing.T) {
+	local := teamsui.ModelEngine(appstate.Snapshot{}, protocol.RouteAuto, nil)
+	if got, want := runsFact([]teamsui.Engine{local}), "Runs Auto"; got != want {
+		t.Errorf("one route reads %q, want %q", got, want)
 	}
-	// two models on one harness: the header names the harness and leaves the models to the crew
-	mixed := append(alone, protocol.Member{ID: "second", Harness: "claude", Model: "opus"})
-	if got, want := runsFact(snapshot, mixed), "Runs Claude Code"; got != want {
-		t.Errorf("two engines read %q, want %q", got, want)
+	// the same model thinking harder is one name in the header; the crew tells the two members apart
+	harder := local
+	harder.Extra = "effort high"
+	if got, want := runsFact([]teamsui.Engine{local, harder}), "Runs Auto"; got != want {
+		t.Errorf("one route with two sets of options reads %q, want %q", got, want)
+	}
+	remote := teamsui.Engine{ID: "anthropic/claude-sonnet", Model: "Claude Sonnet"}
+	if got, want := runsFact([]teamsui.Engine{local, remote}), "Runs Auto and Claude Sonnet"; got != want {
+		t.Errorf("two models read %q, want %q", got, want)
+	}
+	if got := runsFact(nil); got != "" {
+		t.Errorf("a team without members reads %q, want nothing", got)
+	}
+}
+
+func TestATileNamesOnlyAModelThatCannotRun(t *testing.T) {
+	ready := teamsui.Engine{Model: "LFM3 2B"}
+	gone := teamsui.Engine{Model: "Claude Sonnet", Missing: true}
+	if got := stalledLine([]teamsui.Engine{ready}); got != "" {
+		t.Errorf("a team whose model runs says %q on its tile, want nothing", got)
+	}
+	if got, want := stalledLine([]teamsui.Engine{ready, gone}), "Claude Sonnet cannot run now"; got != want {
+		t.Errorf("one stalled model reads %q, want %q", got, want)
 	}
 }

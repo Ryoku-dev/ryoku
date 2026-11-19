@@ -21,6 +21,12 @@ func TestEveryCatalogueIdMappedOrReasoned(t *testing.T) {
 	ids := map[string]bool{}
 	for _, cb := range wm.ShippedBinds() {
 		ids[cb.ID] = true
+		if cb.Kind == wm.BindDaemon {
+			if _, ok := defs[cb.ID]; ok {
+				t.Errorf("daemon id %q must not have a compositor mapping", cb.ID)
+			}
+			continue
+		}
 		nb, ok := defs[cb.ID]
 		if !ok {
 			t.Errorf("catalogue id %q has no niri mapping", cb.ID)
@@ -453,6 +459,45 @@ func copyNiriTree(t *testing.T, src, dst string) {
 		}
 		if err := os.WriteFile(filepath.Join(dst, e.Name()), b, 0o644); err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func TestDaemonBindsStayOutsideCompositor(t *testing.T) {
+	old := hasProgram
+	hasProgram = func(string) bool { return false }
+	t.Cleanup(func() { hasProgram = old })
+	s := defaultStore()
+	s.KeybindRebinds = map[string]string{"Alt_R": "SUPER + F12", "Alt_L": "SUPER + F11"}
+	s.KeybindDisabled = []string{"Alt_R", "Alt_L"}
+	rows := bindRows(s)
+	out, report := resolveBinds(defaultStore())
+	for _, cb := range wm.ShippedBinds() {
+		if cb.Kind != wm.BindDaemon {
+			continue
+		}
+		found := false
+		for _, row := range rows {
+			if row.ID == cb.ID {
+				found = true
+				if row.Taps != cb.Taps || row.WhileHighlighting != cb.WhileHighlighting || row.Chord != cb.Chord || row.Unhonored != "" || row.Disabled || !row.Rebindable {
+					t.Errorf("daemon row = %+v, want gesture, available, independently rebindable %s", row, cb.ID)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("daemon row %s missing", cb.ID)
+		}
+		chord, _ := toNiriChord(cb.Chord)
+		for _, bind := range out {
+			if bind.chord == chord {
+				t.Errorf("daemon chord %s emitted", bind.chord)
+			}
+		}
+		for _, refusal := range report {
+			if refusal.Key == "desktop.keybinds (default "+cb.Chord+")" {
+				t.Errorf("daemon bind reported unhonored: %+v", refusal)
+			}
 		}
 	}
 }

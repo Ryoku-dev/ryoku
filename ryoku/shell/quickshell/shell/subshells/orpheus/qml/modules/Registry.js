@@ -9,7 +9,7 @@ var entries = [
     { id: "weather", file: "Weather.qml", label: "Weather", icon: "partly_cloudy_day", card: "weather", desc: "Show current weather" },
     { id: "sysmon", file: "Sysmon.qml", label: "System", icon: "monitoring", card: "system", desc: "Watch system resources" },
     { id: "keyboard", file: "Keyboard.qml", label: "Keyboard", icon: "keyboard", card: "", desc: "Switch keyboard layouts" },
-    { id: "activity", file: "Activity.qml", label: "Activity", icon: "sensors", card: "", desc: "Show recording and microphone use" },
+    { id: "activity", file: "Activity.qml", label: "Activity", icon: "mic", card: "", desc: "Show when an app uses the microphone" },
     { id: "ai", file: "Ai.qml", label: "AI usage", icon: "auto_awesome", card: "", desc: "Watch coding-agent usage limits" },
     { id: "phone", file: "Phone.qml", label: "Phone", icon: "smartphone", card: "", desc: "Open phone tools in Kit" },
     { id: "vpn", file: "Vpn.qml", label: "VPN", icon: "vpn_lock", card: "vpn", desc: "Watch and switch VPN tunnels" },

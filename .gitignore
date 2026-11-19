@@ -5,12 +5,12 @@
 /installation/tests/cache/
 /installation/tui/ryoku-tui
 /ryoku/shell/ipc/ryoku-shell
+/ryoku/shell/ryoget/ryoget
+/ryoku/shell/ryoget/ryoseek
 /ryoku/wm/hyprland/ryoku-wm-hyprland
 /ryoku/wm/hyprland/hyprland
 /ryoku/wm/niri/ryoku-wm-niri
 /ryoku/wm/niri/niri
-/ryoku/wm/wayfire/ryoku-wm-wayfire
-/ryoku/wm/wayfire/wayfire
 /ryoku/hub/backend/ryoku-hub
 /ryoku/rashin/rashin
 /ryoku/rashin/rashind

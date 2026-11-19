@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"ryoku-rashin/internal/protocol"
@@ -23,7 +24,12 @@ const (
 	rowTurnEnd
 	rowGoal
 	rowMemory
+	rowNotice
+	rowCompaction
 )
+
+// the engine marks the line it shows while it makes room in the model's window
+const compactionCall = "compact-"
 
 type transcriptRow struct {
 	kind       rowKind
@@ -41,6 +47,7 @@ type transcriptRow struct {
 	goal       protocol.Goal
 	turn       *turnState
 	memory     *protocol.MemoryEventData
+	notice     protocol.NoticeData
 }
 
 type permissionState struct {
@@ -95,7 +102,8 @@ type modelState struct {
 	options  protocol.OptionsData
 	commands protocol.CommandsData
 	// counts changes to the three above, so a composer rebuilds its lists only then
-	choices uint64
+	choices     uint64
+	comparisons map[int64]protocol.CompareStartResult
 }
 
 func newModelState() *modelState {
@@ -143,6 +151,14 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 		} else {
 			state.messages[key] = len(state.rows)
 			state.rows = append(state.rows, transcriptRow{kind: kind, key: key, seq: event.Seq, text: data.Delta, turn: state.activeTurn})
+		}
+	case protocol.EvCompare:
+		var result protocol.CompareStartResult
+		if decodeEvent(event, &result) {
+			if state.comparisons == nil {
+				state.comparisons = make(map[int64]protocol.CompareStartResult)
+			}
+			state.comparisons[result.Seq] = result
 		}
 	case protocol.EvTool:
 		state.applyTool(event)
@@ -203,7 +219,7 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 			state.choices++
 		}
 	case protocol.EvOptions:
-		// a fresh value each time: decoding into the old one would keep an option the harness dropped
+		// a fresh value each time: decoding into the old one would keep an option the model dropped
 		var options protocol.OptionsData
 		if decodeEvent(event, &options) {
 			state.options = options
@@ -228,6 +244,11 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 		}
 	case protocol.EvMemory:
 		state.applyMemory(event, model.info.Kind)
+	case protocol.EvNotice:
+		var data protocol.NoticeData
+		if decodeEvent(event, &data) && strings.TrimSpace(data.Text) != "" {
+			state.rows = append(state.rows, transcriptRow{kind: rowNotice, key: strconv.FormatInt(event.Seq, 10), seq: event.Seq, notice: data, turn: state.activeTurn})
+		}
 	}
 }
 
@@ -280,11 +301,17 @@ func (state *modelState) applyTool(event protocol.SessionEvent) {
 	}
 	tool := incoming
 	index := len(state.rows)
-	if index > 0 && state.rows[index-1].kind == rowTool {
+	switch {
+	// making room is told on a line of its own, never counted among the steps of the work
+	case strings.HasPrefix(incoming.Call, compactionCall):
+		state.rows = append(state.rows, transcriptRow{kind: rowCompaction, key: incoming.Call, seq: event.Seq, tool: &tool, turn: state.activeTurn})
+		state.tools[incoming.Call] = index
+		return
+	case index > 0 && state.rows[index-1].kind == rowTool:
 		index--
 		row := &state.rows[index]
 		row.tools = append(row.tools, &tool)
-	} else {
+	default:
 		state.rows = append(state.rows, transcriptRow{kind: rowTool, key: incoming.Call, seq: event.Seq, tool: &tool, tools: []*protocol.ToolData{&tool}})
 	}
 	state.tools[incoming.Call] = index

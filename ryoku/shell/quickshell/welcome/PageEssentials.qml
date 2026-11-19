@@ -10,7 +10,7 @@ Item {
 
     readonly property var essentials: [
         { chord: I18n.tr("Super + Space"), title: I18n.tr("Launcher"), description: I18n.tr("Find apps and files."), command: ["ryoku-shell", "launcher"] },
-        { chord: I18n.tr("Alt + Space"), title: I18n.tr("AI bar"), description: I18n.tr("Ask a quick question."), command: ["ryoku-shell", "ask"] },
+        { chord: I18n.tr("Alt + Space"), title: I18n.tr("Rashin bar"), description: I18n.tr("Ask, search the web, grab downloads."), command: ["ryoku-shell", "ask"] },
         { chord: I18n.tr("Super + comma"), title: I18n.tr("Ryoku Settings"), description: I18n.tr("Change system and desktop settings."), command: ["ryoku-shell", "hub", "open"] },
         { chord: I18n.tr("Super + Escape"), title: I18n.tr("Quick settings"), description: I18n.tr("Open controls and session actions."), command: ["ryoku-shell", "quicksettings"] },
         { chord: I18n.tr("Super + K"), title: I18n.tr("Kit"), description: I18n.tr("Shortcuts, commands, your phone and quick tools."), command: ["ryoku-kit"] },

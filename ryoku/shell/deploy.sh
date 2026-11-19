@@ -649,9 +649,9 @@ mv -Tf "$qylock_installer_root/lockscreen.next" \
   "$qylock_installer_root/lockscreen"
 # ryostage: the wallpaper engine's launcher, not a ryoku-* name.
 install -m755 "$here/scripts/ryostage" "$bindir/ryostage"
-# The .sh helpers the shell drives by bare name: the Stash sidebar's cobalt queue
-# and its compress/install/download backends, the LocalSend LAN transfer, the
-# clipboard-thumbnail generator. Shell scripts, so they ride the shell to PATH.
+# The .sh helpers the shell drives by bare name: the compress/install backends,
+# the LocalSend LAN transfer, the clipboard-thumbnail generator. Shell scripts,
+# so they ride the shell to PATH.
 for s in "$here/scripts"/*.sh; do
   [[ -f $s ]] || continue
   install -m755 "$s" "$bindir/${s##*/}"
@@ -659,6 +659,8 @@ done
 # Depth and Parallax merged into ryostage; a checkout box that installed the old
 # helpers keeps them on PATH forever otherwise (pacman drops them on packaged boxes).
 rm -f "$bindir"/ryoku-{depth,parallax-engine}
+# The retired download engine scripts and container helper, for the same reason.
+rm -f "$bindir"/stash-{cobalt,cobalt-server,download}.sh "$bindir"/ryoku-docker
 
 # Build ryogami-live, the software-decode video-wallpaper daemon the shell drives
 # for live wallpapers. Needs wayland-scanner + a C toolchain + ffmpeg/wayland dev
@@ -709,6 +711,37 @@ piece_end
 install -m755 "$here/../apps/ryostore/backend/ryostore" "$bindir/ryostore"
 say "installed $bindir/ryostore"
 
+piece ryoget "ryoget, downloads"
+CGO_ENABLED=0 build_go "$here/ryoget" ryoget . -trimpath -mod=vendor \
+  -tags nosqlite,purego_utp
+piece_end
+install -m755 "$here/ryoget/ryoget" "$bindir/ryoget"
+say "installed $bindir/ryoget"
+if [ -d /run/systemd/system ]; then
+  mkdir -p "$cfg/systemd/user"
+  unit_tmp="$cfg/systemd/user/.ryoget.service.new.$$"
+  sed "s|/usr/bin/ryoget|$bindir/ryoget|g" \
+    "$here/ryoget/packaging/systemd/ryoget.service" > "$unit_tmp"
+  chmod 644 "$unit_tmp"
+  mv -f "$unit_tmp" "$cfg/systemd/user/ryoget.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+fi
+
+piece ryoseek "ryoseek, search"
+CGO_ENABLED=0 build_go "$here/ryoget" ryoseek ./cmd/ryoseek -trimpath -mod=vendor
+piece_end
+install -m755 "$here/ryoget/ryoseek" "$bindir/ryoseek"
+say "installed $bindir/ryoseek"
+if [ -d /run/systemd/system ]; then
+  mkdir -p "$cfg/systemd/user"
+  unit_tmp="$cfg/systemd/user/.ryoseek.service.new.$$"
+  sed "s|/usr/bin/ryoseek|$bindir/ryoseek|g" \
+    "$here/ryoget/packaging/systemd/ryoseek.service" > "$unit_tmp"
+  chmod 644 "$unit_tmp"
+  mv -f "$unit_tmp" "$cfg/systemd/user/ryoseek.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+fi
+
 # Build beside the destination so a failed build keeps the working copy.
 piece rashin "Rashin, the optional AI system"
 rashin_module="$here/../rashin"
@@ -741,6 +774,7 @@ rm -f "$bindir/ryoku-rashin"
 if [[ -L $bindir/rashin && $(readlink "$bindir/rashin") == ryoku-rashin ]]; then
   rm -f "$bindir/rashin"
 fi
+rm -f "$datadir/applications/rashin-app.desktop" "$datadir/icons/hicolor/scalable/apps/rashin-app.svg"
 for binary in rashind rashin rashin-app; do
   rashin_build_install "$binary"
 done
@@ -772,8 +806,8 @@ piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 install -m755 "$here/../cli/ryoku-host" "$bindir/ryoku-host"
 # every system helper the package ships to /usr/bin, by the same globs, so a new
-# hardware or container helper reaches a checkout the moment it lands.
-for s in "$here/../../system/hardware"/*/ryoku-* "$here/../../system/containers"/ryoku-*; do
+# hardware helper reaches a checkout the moment it lands.
+for s in "$here/../../system/hardware"/*/ryoku-*; do
   [[ -f $s && -x $s ]] || continue
   install -m755 "$s" "$bindir/${s##*/}"
 done
@@ -888,36 +922,6 @@ if command -v sudo >/dev/null 2>&1; then
     _priv_install "$here/../lockscreen/sddm/ryoku-greeter-guard.service" \
       /usr/lib/systemd/system/ryoku-greeter-guard.service 644
     sudo systemctl enable --quiet ryoku-greeter-guard.service || true
-  fi
-  # Wayfire composes its whole config from the shipped baseline, so every later
-  # apply (a Hub save, materialize) reads it from the config base the variant
-  # package installs. A checkout box has no variant package: lay the baseline
-  # and the portal routing the doctor reads where the package would.
-  _priv_install "$here/../wayfire/wayfire.ini" \
-    /usr/share/ryoku/config/wayfire/wayfire.ini 644
-  _priv_install "$here/../wayfire/wayfire-portals.conf" \
-    /usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf 644
-  # Wayfire's rounded corners, borders and shadows come from Ryoku's own window
-  # decor plugin, which the variant package builds. A checkout box builds it
-  # here; a failed build leaves square corners, never a stopped deploy.
-  decor_src="$here/../wm/wayfire/decor"
-  decor_build="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/build/wayfire-decor"
-  if command -v meson >/dev/null 2>&1 && pkg-config --exists wayfire 2>/dev/null; then
-    mkdir -p "$(dirname "$decor_build")"
-    decor_setup=(meson setup --buildtype=release)
-    [[ -d $decor_build/meson-private ]] && decor_setup+=(--reconfigure)
-    if "${decor_setup[@]}" "$decor_build" "$decor_src" >"$decor_build.log" 2>&1 &&
-      meson compile -C "$decor_build" >>"$decor_build.log" 2>&1; then
-      _priv_install "$decor_build/libryoku-decor.so" \
-        /usr/lib/wayfire/libryoku-decor.so 755
-      _priv_install "$decor_src/metadata/ryoku-decor.xml" \
-        /usr/share/wayfire/metadata/ryoku-decor.xml 644
-      say "installed the Wayfire window decor plugin"
-    else
-      say "the Wayfire window decor plugin did not build (see $decor_build.log)" >&2
-    fi
-  else
-    say "skipped the Wayfire window decor plugin (meson or Wayfire's development files missing)"
   fi
   _priv_install "$netdir/ryoku-dns" /usr/bin/ryoku-dns 755
   _priv_install "$netdir/50-ryoku-dns.rules" /usr/share/polkit-1/rules.d/50-ryoku-dns.rules 644
@@ -1247,7 +1251,7 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   # the boot configs); once ryoku-desktop packages them an unowned copy otherwise
   # aborts the whole -Syu with "exists in filesystem" and nothing upgrades.
   # Mirrors updater.RyokuOverwriteGlob / the doctor's ryokuSystemGlobs.
-  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/lib/wayfire/libryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/usr/share/ryoku/config/wayfire/*,/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf,/usr/share/wayfire/metadata/ryoku-*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*,/usr/share/ryoku/brand/*,/usr/share/ryoku/npmrc,/usr/local/share/applications/mimeapps.list'
+  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*,/usr/share/ryoku/brand/*,/usr/share/ryoku/npmrc,/usr/local/share/applications/mimeapps.list'
   # LC_ALL=C: the stray parse below reads pacman's English "exists in filesystem"
   _pac_ryotunes() { sudo env LC_ALL=C pacman -Syu --needed --noconfirm --overwrite "$_rovw" ryotunes; }
   # shellcheck disable=SC2024
@@ -1309,7 +1313,6 @@ piece config "configuration files"
 # portal reads the one named for the running desktop.
 install -Dm644 "$here/../hyprland/hyprland-portals.conf" "$cfg/xdg-desktop-portal/hyprland-portals.conf"
 install -Dm644 "$here/../niri/niri-portals.conf" "$cfg/xdg-desktop-portal/niri-portals.conf"
-install -Dm644 "$here/../wayfire/wayfire-portals.conf" "$cfg/xdg-desktop-portal/wayfire-portals.conf"
 
 # Seed the decor art beside wallpapers and livewalls. Missing-only keeps local
 # replacements and additions intact across deploys.

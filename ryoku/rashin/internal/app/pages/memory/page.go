@@ -12,6 +12,7 @@ import (
 	"gioui.org/unit"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -21,7 +22,15 @@ import (
 )
 
 // the column every part of the page stands in
-const columnWidth = 760
+const columnWidth unit.Dp = tokens.SizeSettingsMediumMax
+
+// the page's groups in the order they rise when it opens
+const (
+	riseLead = iota
+	riseTrend
+	riseTools
+	riseList
+)
 
 type Page struct {
 	place  env.MemoryPlace
@@ -30,12 +39,17 @@ type Page struct {
 	header look.PaneHeader
 	scroll look.Scroller
 	index  look.SideList
+	// the registration sheet and folio under the column, and its colophon
+	paper look.Sheet
+	rise  look.Reveal
+	visit visit
 
 	search  kit.Search
 	filters kit.Filters
 	sort    look.Select
 	scopes  look.Select
 	sorting string
+	counted [3]look.CountUp
 
 	list     list
 	rows     memoryui.Rows
@@ -65,10 +79,26 @@ type Page struct {
 
 func New() *Page { return &Page{} }
 
+// a page is drawn only while it is shown but asked for its dialogs every frame, which tells a visit from a redraw
+type visit struct {
+	drawn, shown bool
+}
+
+func (v *visit) arrive() bool {
+	arrived := !v.shown
+	v.drawn = true
+	return arrived
+}
+
+func (v *visit) frame() { v.shown, v.drawn = v.drawn, false }
+
 // Open shows place, unfolding its memory's editor when it names one.
 func (p *Page) Open(e *env.Env, place env.MemoryPlace) {
 	if !env.ValidMemoryFilter(place.Filter) {
 		place.Filter = env.MemoryAll
+	}
+	if p.place != place {
+		p.scroll.Position = layout.Position{}
 	}
 	p.place = place
 	p.filters.Selected = filterIndex(place.Filter)
@@ -112,11 +142,38 @@ func (p *Page) NewLabel() string { return "" }
 func (p *Page) New(*env.Env) {}
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
+	p.visit.frame()
 	open := p.forgetAll.Layout(gtx, e)
 	return p.importing.Layout(gtx, e) || open
 }
 
-// the filters and the scopes stand in the sidebar while it is open
+// Sheet tells the frame's masthead what the page shows, what keeps it, and
+// how far it is read.
+func (p *Page) Sheet(e *env.Env) (where string, facts []string, read float32) {
+	status := memoryStatus(e)
+	switch {
+	case p.place.Scope != "":
+		where = scopeName(status.Scopes, p.place.Scope)
+	case p.place.Filter != env.MemoryAll:
+		where = filterLabel(p.place.Filter)
+	}
+	facts = []string{memoryui.EngineName(status.Engine)}
+	if !memoryOn(e.Snapshot().Settings.Memory) {
+		facts = append(facts, i18n.T("Off"))
+	}
+	return where, facts, p.scroll.Progress(p.laidOut)
+}
+
+func scopeName(scopes []protocol.MemoryScope, id string) string {
+	for _, scope := range memoryui.ScopeOptions(scopes, id) {
+		if scope.ID == id {
+			return scope.Name
+		}
+	}
+	return id
+}
+
+// the filters and the scopes hang under the page's line in the tree while it is open
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	status := memoryStatus(e)
 	groups := []look.SideGroup{{Rows: make([]look.SideRow, 0, len(env.MemoryFilters))}}
@@ -149,6 +206,9 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	snapshot := e.Snapshot()
 	status := memoryStatus(e)
 	p.teams = snapshot.Teams
+	if p.visit.arrive() {
+		p.rise.Reset()
+	}
 	p.handle(gtx, e)
 	p.list.ensure(e, p.params(), snapshot.MemoryRevision)
 	items := p.items(e, status)
@@ -171,15 +231,17 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 			return p.header.Layout(gtx, th, e.Overlays, content)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			p.margin = gtx.Dp(th.Sp.S4)
-			dimensions := p.scroll.Layout(gtx, th, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-				return look.Centred(gtx, e.Class, columnWidth, items[index])
+			return p.paper.Layout(gtx, th, look.PageFor(protocol.TabMemory), func(gtx layout.Context) layout.Dimensions {
+				p.margin = gtx.Dp(th.Sp.S4)
+				dimensions := p.scroll.Layout(gtx, th, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Centred(gtx, e.Class, columnWidth, items[index])
+				})
+				p.laidOut = len(items)
+				if p.reveal {
+					gtx.Execute(op.InvalidateCmd{})
+				}
+				return dimensions
 			})
-			p.laidOut = len(items)
-			if p.reveal {
-				gtx.Execute(op.InvalidateCmd{})
-			}
-			return dimensions
 		}),
 	)
 }
@@ -258,23 +320,32 @@ func (p *Page) items(e *env.Env, status protocol.MemoryStatus) []layout.Widget {
 			return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, gtx.Dp(height))}
 		}
 	}
-	empty, isEmpty := p.pageEmpty(e, status)
-	items := []layout.Widget{
-		gap(th.Sp.S5),
-		// an empty page's acts stand in its empty state, which holds the gold
-		func(gtx layout.Context) layout.Dimensions { return p.layoutLead(gtx, e, status, !isEmpty) },
-		gap(th.Sp.S5),
+	risen := func(order int, widget layout.Widget) layout.Widget {
+		return func(gtx layout.Context) layout.Dimensions { return p.rise.Group(gtx, th, order, widget) }
 	}
+	colophon := func(gtx layout.Context) layout.Dimensions {
+		return p.paper.Colophon(gtx, th, look.PageFor(protocol.TabMemory))
+	}
+	empty, isEmpty := p.pageEmpty(e, status)
+	items := []layout.Widget{gap(th.Sp.S5)}
+	editorAt := -1
+	if p.place.ID != "" && p.editor.IsOpen() && p.editor.ID() == p.place.ID {
+		editorAt = len(items)
+		items = append(items, func(gtx layout.Context) layout.Dimensions {
+			return p.editor.Layout(gtx, e, status.Scopes, status.Caps)
+		}, gap(th.Sp.S4))
+	}
+	items = append(items, risen(riseLead, func(gtx layout.Context) layout.Dimensions { return p.layoutLead(gtx, e, status, !isEmpty) }), gap(th.Sp.S5))
 	if isEmpty {
-		return append(items, empty)
+		return append(items, risen(riseTrend, empty), gap(th.Sp.S6), colophon)
+	}
+	if p.showTrend() {
+		items = append(items, risen(riseTrend, func(gtx layout.Context) layout.Dimensions { return p.layoutTrend(gtx, e, status) }))
 	}
 	items = append(items,
-		func(gtx layout.Context) layout.Dimensions { return p.layoutTrend(gtx, e, status) },
-		gap(th.Sp.S5),
-		func(gtx layout.Context) layout.Dimensions { return p.layoutTools(gtx, e, status) },
+		risen(riseTools, func(gtx layout.Context) layout.Dimensions { return p.layoutTools(gtx, e, status) }),
 		gap(th.Sp.S3),
 	)
-	editorAt := -1
 	if p.editor.IsOpen() && p.editor.ID() == "" {
 		editorAt = len(items)
 		items = append(items,
@@ -286,11 +357,18 @@ func (p *Page) items(e *env.Env, status protocol.MemoryStatus) []layout.Widget {
 	if editing >= 0 {
 		editorAt = len(items) + editing
 	}
-	items = append(items, rows...)
+	for _, row := range rows {
+		items = append(items, risen(riseList, row))
+	}
+	items = append(items, gap(th.Sp.S6), colophon)
 	// the scroller measures a list it has laid out, so a list that just grew waits a frame before it is anchored
-	if p.reveal && editorAt >= 0 && p.laidOut == len(items)+1 {
+	if p.reveal && editorAt >= 0 && p.laidOut == len(items) {
 		p.reveal = false
 		p.scroll.AnchorTo(editorAt, p.margin)
 	}
-	return append(items, gap(th.Sp.S6))
+	return items
+}
+
+func (p *Page) showTrend() bool {
+	return p.place.Filter == env.MemoryAll && p.place.Scope == ""
 }

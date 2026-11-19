@@ -20,6 +20,7 @@ const routineSkipped = "skipped"
 var routineEditable = map[string]bool{
 	"title": true, "brief": true, "member": true, "schedule": true,
 	"enabled": true, "missed": true, "overlap": true,
+	"kind": true, "preset": true,
 }
 
 // listRoutines lists a team's routines, or every team's when team is empty,
@@ -44,7 +45,7 @@ func (s *Service) fillRoutine(r protocol.Routine, now time.Time) protocol.Routin
 		return r
 	}
 	r.Sentence = schedule.Sentence()
-	if team, ok := s.state.team(r.Team); !r.Enabled || !ok || team.Paused || s.settings().Teams.Paused {
+	if !r.Enabled || !s.routineAvailable(r) {
 		return r
 	}
 	next := s.clock.due(r.ID)
@@ -64,6 +65,7 @@ func (s *Service) createRoutine(ctx context.Context, p protocol.RoutineCreatePar
 	r := protocol.Routine{
 		ID: newID("routine"), Team: p.Team, Title: p.Title, Brief: p.Brief, Member: p.Member,
 		Schedule: p.Schedule, Enabled: p.Enabled, Missed: p.Missed, Overlap: p.Overlap,
+		Kind: p.Kind, Preset: p.Preset,
 		Created: now, Updated: now,
 	}
 	s.clock.edit.Lock()
@@ -81,7 +83,7 @@ func (s *Service) createRoutine(ctx context.Context, p protocol.RoutineCreatePar
 	})
 	s.clock.rearm()
 	if p.RunNow {
-		if team, ok := s.state.team(r.Team); ok && !team.Paused && !s.settings().Teams.Paused {
+		if s.routineAvailable(r) {
 			_, _ = s.fireRoutine(ctx, r, protocol.InitiatorYou)
 		}
 	}
@@ -170,6 +172,24 @@ func (s *Service) patchRoutine(id string, patch map[string]any) (protocol.Routin
 // exists and routineFits accepts it with the routines already on. The
 // caller holds the edit lock.
 func (s *Service) validRoutine(r *protocol.Routine) error {
+	if routineKind(*r) != protocol.RoutineTask {
+		if !s.feature("schedules") {
+			return protocol.Errorf(protocol.CodeForbidden, "%s", i18n.T("Scheduled runs are off in Settings."))
+		}
+		if r.Kind != protocol.RoutineAsk && r.Kind != protocol.RoutineDream {
+			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Choose a task, dream or question for the routine."))
+		}
+		if r.Preset != "" && (r.Kind != protocol.RoutineDream || r.Preset != "research" || !s.feature("research")) {
+			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Choose an enabled dream preset."))
+		}
+		r.Member = ""
+		if r.Team == "" {
+			r.Team = protocol.RoutinePersonal
+		}
+		if r.Team == protocol.RoutinePersonal {
+			return s.routineFits(protocol.Team{}, r, 0)
+		}
+	}
 	team, ok := s.state.team(r.Team)
 	if !ok {
 		return protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", r.Team))
@@ -276,12 +296,12 @@ func (s *Service) runRoutine(ctx context.Context, id, initiator string) (protoco
 	if !ok {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No routine %s.", id))
 	}
-	team, ok := s.state.team(r.Team)
-	if !ok {
+	_, ok = s.state.team(r.Team)
+	if r.Team != protocol.RoutinePersonal && !ok {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeNotFound, "%s", i18n.Tf("No team %s.", r.Team))
 	}
-	if team.Paused {
-		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.Tf("%s is paused, so its routines do not run.", team.Name))
+	if !s.routineAvailable(r) {
+		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.Tf("%s cannot run while its team is paused or its feature is off.", r.Title))
 	}
 	if s.settings().Teams.Paused {
 		return protocol.TeamTask{}, protocol.Errorf(protocol.CodeConflict, "%s", i18n.T("Every team is paused, so no routine runs."))
@@ -292,6 +312,16 @@ func (s *Service) runRoutine(ctx context.Context, id, initiator string) (protoco
 // fireRoutine gives the routine's team the routine's task and records the
 // run on the routine.
 func (s *Service) fireRoutine(ctx context.Context, r protocol.Routine, initiator string) (protocol.TeamTask, error) {
+	if r.Kind != "" && r.Kind != protocol.RoutineTask {
+		return s.fireScheduled(ctx, r, initiator)
+	}
+	var record protocol.RoutineRun
+	if s.feature("schedules") {
+		record = protocol.RoutineRun{ID: newID("run"), Routine: r.ID, Kind: protocol.RoutineTask, Team: r.Team, Started: s.now(), Status: "starting"}
+		if err := s.saveRoutineRun(record); err != nil {
+			return protocol.TeamTask{}, err
+		}
+	}
 	actor := r.Title
 	if initiator == protocol.InitiatorYou {
 		actor = protocol.InitiatorYou
@@ -299,11 +329,24 @@ func (s *Service) fireRoutine(ctx context.Context, r protocol.Routine, initiator
 	brief := r.Brief + i18n.Tf("\n\nThis run is from the routine \"%s\"; when nothing changed since the last run, report that in one line with quiet set.", r.Title)
 	task, err := s.newTask(ctx, r.Team, r.Member, r.Title, brief, protocol.TaskFromRoutine, r.ID, "", "", nil)
 	if err != nil {
+		if record.ID != "" {
+			s.finishRoutineRun(&record, protocol.TaskBlocked, err.Error())
+			_ = s.saveRoutineRun(record)
+		}
 		s.record(protocol.Activity{
 			Actor: actor, Action: "routine.fire", Target: r.Title, OK: false,
 			Team: r.Team, Initiator: initiator, Detail: err.Error(),
 		})
 		return protocol.TeamTask{}, err
+	}
+	if record.ID != "" {
+		record.Task, record.Session, record.Status = task.ID, task.Session, task.Status
+		if err := s.saveRoutineRun(record); err != nil {
+			return task, err
+		}
+		if current, ok := s.state.task(task.ID); ok {
+			s.finishTaskRun(current)
+		}
 	}
 	now := s.now()
 	updated, ok := s.clock.change(r.ID, func(r *protocol.Routine) bool {
@@ -328,7 +371,7 @@ func (s *Service) checkRoutine(id string, due, now time.Time) {
 	if !ok || !r.Enabled {
 		return
 	}
-	if team, ok := s.state.team(r.Team); !ok || team.Paused || s.settings().Teams.Paused {
+	if !s.routineAvailable(r) {
 		return
 	}
 	if now.Sub(due) > routineLate && r.Missed != protocol.MissedOnce {
@@ -344,6 +387,9 @@ func (s *Service) checkRoutine(id string, due, now time.Time) {
 
 // routineOpen reports a routine whose last run has not ended.
 func (s *Service) routineOpen(r protocol.Routine) bool {
+	if r.Kind == protocol.RoutineAsk {
+		return s.scheduledOpen(r.ID)
+	}
 	if r.LastTask == "" {
 		return false
 	}
@@ -371,6 +417,11 @@ func (s *Service) lastReport(task protocol.TeamTask) (protocol.TeamReport, bool)
 
 // skipRoutine records a run the routine did not start.
 func (s *Service) skipRoutine(r protocol.Routine, reason string, now time.Time) {
+	if s.feature("schedules") {
+		record := protocol.RoutineRun{ID: newID("run"), Routine: r.ID, Kind: routineKind(r), Team: r.Team, Started: now}
+		s.finishRoutineRun(&record, routineSkipped, reason)
+		_ = s.saveRoutineRun(record)
+	}
 	updated, ok := s.clock.change(r.ID, func(r *protocol.Routine) bool {
 		r.LastRun, r.LastStatus = &now, routineSkipped
 		return true
@@ -389,6 +440,7 @@ func (s *Service) skipRoutine(r protocol.Routine, reason string, now time.Time) 
 // the routine off and tell the user. A quiet report adds to its quiet
 // streak; any other ending sets the streak back to 0.
 func (s *Service) routineTaskEnded(task protocol.TeamTask) {
+	s.finishTaskRun(task)
 	off := false
 	r, ok := s.clock.change(task.Routine, func(r *protocol.Routine) bool {
 		switch task.Status {

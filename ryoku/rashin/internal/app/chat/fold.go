@@ -17,6 +17,7 @@ type foldInfo struct {
 	turn     *turnState
 	steps    int
 	thoughts int
+	search   searchWork
 }
 
 func isWorkRow(model *modelState, row *transcriptRow) bool {
@@ -57,7 +58,7 @@ func (state *viewState) foldTurns(model *modelState) map[int]*foldInfo {
 	var current *foldInfo
 	lines := 0
 	flush := func(end *turnState) {
-		if current != nil && end != nil && end.end != nil && lines > 1 {
+		if current != nil && end != nil && end.end != nil && (lines > 1 || (state.feature("searchsteps") && current.search.text() != "")) {
 			current.turn = end
 			folds[anchor] = current
 		}
@@ -80,6 +81,9 @@ func (state *viewState) foldTurns(model *modelState) map[int]*foldInfo {
 				lines++
 			case rowTool:
 				current.steps += len(row.tools)
+				if state.feature("searchsteps") {
+					current.search.add(row.tools)
+				}
 				lines += shownLines(row.tools)
 			default:
 				current.steps++
@@ -119,6 +123,11 @@ func (state *viewState) layoutFold(gtx layout.Context, th *look.Theme, anchor in
 	prose := steps + thoughts
 	if steps != "" && thoughts != "" {
 		prose = i18n.Tf("%s and %s", steps, thoughts)
+	}
+	if state.feature("searchsteps") {
+		if summary := fold.search.text(); summary != "" {
+			prose = summary
+		}
 	}
 	line := workLine{icon: look.Icon.Steps, label: label, prose: prose, expandable: true}
 	head := func(gtx layout.Context) layout.Dimensions { return state.layoutLine(gtx, th, visual, line) }

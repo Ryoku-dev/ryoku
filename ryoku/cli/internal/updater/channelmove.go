@@ -110,29 +110,16 @@ func moveRyokuSetToChannel() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf(i18n.T("cannot read the [ryoku] repository, so there is nothing safe to move: %w"), err)
 	}
-	retired := wm.RetiredCompositor()
-	if splitMetaInstalled(retired.VariantPackage) {
-		name := detectCompositorForMove()
-		supported := false
-		for _, candidate := range wm.Providers() {
-			if candidate == name {
-				supported = true
-				break
-			}
+	for _, retired := range wm.RetiredCompositors() {
+		if !splitMetaInstalled(retired.VariantPackage) {
+			continue
 		}
-		if !supported {
-			name = ""
-			for _, candidate := range wm.Providers() {
-				if pkgInstalledForMove(ryokuDesktopPkg + "-" + candidate) {
-					name = candidate
-					break
-				}
-			}
+		if wm.RetiredCompositorLive(retired) {
+			return nil, fmt.Errorf(i18n.T("the retired %s desktop is still running; log into Hyprland or niri, or rerun `ryoku update` from a TTY after logging out"), retired.ConfigDir)
 		}
-		if name == "" {
-			name = wm.Providers()[0]
-		}
+		name := supportedCompositorForMove()
 		set = prependMissingMoveTargets(set, ryokuTarget(ryokuDesktopPkg+"-"+name))
+		break
 	}
 	// A box migrating onto packages (a checkout retired by `ryoku track`) has
 	// no ryoku-desktop installed, and the set above is installed-only: without
@@ -169,6 +156,21 @@ func moveRyokuSetToChannel() ([]string, error) {
 		return set, err
 	}
 	return set, nil
+}
+
+func supportedCompositorForMove() string {
+	name := detectCompositorForMove()
+	for _, provider := range wm.Providers() {
+		if name == provider {
+			return name
+		}
+	}
+	for _, provider := range wm.Providers() {
+		if pkgInstalledForMove(ryokuDesktopPkg + "-" + provider) {
+			return provider
+		}
+	}
+	return wm.Providers()[0]
 }
 
 // The read-only queries the move makes, as seams: they hit the live database

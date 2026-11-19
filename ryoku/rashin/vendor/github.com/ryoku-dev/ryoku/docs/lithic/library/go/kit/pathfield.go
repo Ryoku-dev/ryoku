@@ -121,7 +121,7 @@ func (f *PathField) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 		size := gtx.Constraints.Constrain(image.Pt(width, gtx.Dp(unit.Dp(tokens.SizeTextFieldHeight))))
 		cut := gtx.Dp(th.Cut.Mid)
 		focus := previewTransition(gtx, &f.focus, f.Preview, StateFocus, gtx.Focused(&f.editor), th.Motion.FocusIn, th.Motion.FocusOut)
-		drawFieldSurface(gtx, th, image.Rectangle{Max: size}, cut, th.R.Field, focus, f.Error != "")
+		FieldSurface(gtx, th, image.Rectangle{Max: size}, cut, th.R.Field, focus, f.Error != "")
 
 		inset := gtx.Dp(unit.Dp(tokens.SizeTextFieldInset))
 		action := gtx.Dp(unit.Dp(tokens.SizeTextFieldSecretAction))

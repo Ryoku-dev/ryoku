@@ -31,6 +31,7 @@ var (
 type fixtures struct {
 	snapshot  protocol.Snapshot
 	events    map[string][]protocol.SessionEvent
+	options   map[string]map[string]string
 	models    protocol.ModelsResult
 	worktrees map[string]protocol.WorktreesResult
 	tasks     map[string]protocol.TasksResult
@@ -44,6 +45,7 @@ type fixtures struct {
 	activity  map[string]protocol.ActivityResult
 	teams     teamsFixtures
 	memory    memoryFixtures
+	learning  learningFixtures
 	// how often the demo's API key was replaced
 	apiKeys int
 }
@@ -51,7 +53,7 @@ type fixtures struct {
 // the moment the demo data is told from, a headless render starts its clock here so pictures don't depend on the time
 var Epoch = time.Date(2026, 11, 10, 10, 45, 0, 0, time.UTC)
 
-func makeFixtures() fixtures {
+func makeFixtures(features ...string) fixtures {
 	now := Epoch
 	ask := protocol.SessionInfo{
 		ID:      "ask-20261110-094200-a17c",
@@ -93,9 +95,8 @@ func makeFixtures() fixtures {
 		ID:          "agent-20261110-101500-b82d",
 		Kind:        protocol.KindAgent,
 		Title:       i18n.T("Add the settings panel"),
-		Harness:     "codex",
-		Model:       "gpt-5.6",
-		Mode:        "default",
+		Model:       demoLocalID,
+		Mode:        protocol.ApprovalsAsk,
 		Cwd:         demoDirtyWorktree,
 		Origin:      protocol.OriginApp,
 		State:       protocol.StateWaiting,
@@ -118,9 +119,8 @@ func makeFixtures() fixtures {
 		ID:          "agent-working",
 		Kind:        protocol.KindAgent,
 		Title:       i18n.T("Build the commit graph"),
-		Harness:     "claude",
-		Model:       "sonnet",
-		Mode:        "plan",
+		Model:       demoFreeID,
+		Mode:        protocol.ApprovalsReadOnly,
 		Cwd:         demoHyperionRoot,
 		Origin:      protocol.OriginApp,
 		State:       protocol.StateWorking,
@@ -142,9 +142,8 @@ func makeFixtures() fixtures {
 		ID:       "agent-done",
 		Kind:     protocol.KindAgent,
 		Title:    i18n.T("Polish provider cards"),
-		Harness:  "codex",
-		Model:    "gpt-5.6",
-		Mode:     "default",
+		Model:    demoPaidID,
+		Mode:     protocol.ApprovalsAsk,
 		Cwd:      demoRyotunesRoot,
 		Origin:   protocol.OriginApp,
 		State:    protocol.StateIdle,
@@ -162,9 +161,8 @@ func makeFixtures() fixtures {
 		ID:       "agent-idle",
 		Kind:     protocol.KindAgent,
 		Title:    i18n.T("Explore index cleanup"),
-		Harness:  "custom-review",
-		Model:    "default",
-		Mode:     "default",
+		Model:    demoLocalID,
+		Mode:     protocol.ApprovalsReadOnly,
 		Cwd:      demoLockedWorktree,
 		Origin:   protocol.OriginApp,
 		State:    protocol.StateStopped,
@@ -181,9 +179,8 @@ func makeFixtures() fixtures {
 		ID:       "agent-conflict",
 		Kind:     protocol.KindAgent,
 		Title:    i18n.T("Resolve navigation conflict"),
-		Harness:  "codex",
-		Model:    "gpt-5.6",
-		Mode:     "default",
+		Model:    demoFreeID,
+		Mode:     protocol.ApprovalsAsk,
 		Cwd:      demoConflictWorktree,
 		Origin:   protocol.OriginApp,
 		State:    protocol.StateFailed,
@@ -203,27 +200,29 @@ func makeFixtures() fixtures {
 		Enabled: true,
 		Ask:     protocol.AskSettings{Model: protocol.RouteAuto, Habits: true},
 		Agent: protocol.AgentSettings{
-			Harness:         "codex",
+			Model:           demoLocalID,
 			Approvals:       protocol.ApprovalsReadOnly,
 			IdleStopMinutes: 10,
-			Instances: []protocol.HarnessInstance{
-				{
-					ID:      "custom-review",
-					Name:    i18n.T("Review account"),
-					Command: []string{"codex-acp", "--profile", "review"},
-					Env:     map[string]string{"CODEX_HOME": demoHome + "/.config/codex-review"},
-				},
-			},
 		},
 		Daemon:    protocol.DaemonSettings{IdleExitMinutes: 5},
 		Index:     protocol.IndexSettings{System: true, Semantic: true},
 		API:       protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
 		Teams:     demoTeamsSettings(),
-		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses()},
+		Providers: protocol.ProvidersSettings{Local: protocol.DefaultLocalAddresses(), Models: protocol.LocalModelsSettings{IdleMinutes: 5}},
 		Memory: protocol.MemorySettings{
 			Asked: true, Use: true, Learn: true, Sessions: true, Agents: true,
 			TeamSuggestions: protocol.TeamSuggestAsk, Model: protocol.LearnLocalFirst, QuietMinutes: 10, Engine: protocol.MemoryBuiltin,
+			Profile: protocol.MemoryProfile{
+				Name:   "Rae",
+				Work:   "Product designer",
+				Traits: []string{"brief", "with examples"},
+				About:  "Use metric units and tell me when something is uncertain",
+			},
 		},
+	}
+	settings.Features = make(map[string]bool, len(protocol.FeatureIDs))
+	for _, id := range features {
+		settings.Features[id] = true
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
@@ -290,6 +289,7 @@ func makeFixtures() fixtures {
 				BaseRef:      "origin/hyperion",
 				WorktreeRoot: demoWorktrees + "/hyperion",
 				BranchPrefix: "rashin/",
+				Model:        demoLocalID,
 				Setup:        "go mod download",
 				CopyIgnored:  []string{".env"},
 				Cleanup:      protocol.CleanupPolicy{Protect: protocol.ProtectAny},
@@ -310,6 +310,7 @@ func makeFixtures() fixtures {
 			Settings: protocol.ProjectSettings{
 				BaseRef:      "origin/hyperion",
 				BranchPrefix: "rashin/",
+				Model:        demoLocalID,
 				Cleanup:      protocol.CleanupPolicy{Protect: protocol.ProtectUncommitted},
 			},
 			Created:  now.AddDate(0, -2, 0),
@@ -480,25 +481,25 @@ func makeFixtures() fixtures {
 	result := fixtures{
 		snapshot: protocol.Snapshot{
 			Status: protocol.Status{
-				Version:   "2.0.0-demo",
-				Enabled:   true,
-				Running:   true,
-				Clients:   1,
-				Sessions:  protocol.SessionCounts{Ask: 1, Agent: 5, Working: 2, Alive: 2},
-				Gateway:   protocol.GatewayStatus{Providers: 4, Models: 16, Keyless: 2},
-				API:       demoAPI(settings.API),
-				Harnesses: 3,
-				Indexes:   2,
+				Version:  "2.0.0-demo",
+				Enabled:  true,
+				Running:  true,
+				Clients:  1,
+				Sessions: protocol.SessionCounts{Ask: 1, Agent: 5, Working: 2, Alive: 2},
+				Gateway:  protocol.GatewayStatus{Providers: 4, Models: 16, Keyless: 2},
+				API:      demoAPI(settings.API),
+				Indexes:  2,
 			},
 			Sessions:  []protocol.SessionInfo{working, needs, failed, done, idle, ask},
 			Settings:  settings,
 			Providers: append(demoLocalProviders(settings.Providers), provider, keyless, demoAnthropic(), demoOpenAI()),
-			Harnesses: demoHarnesses(now),
+			Local:     demoLocalResult(),
 			Indexes:   indexes,
 			Projects:  projects,
 			Tasks:     append(append([]protocol.TaskInfo(nil), tasks[demoProjectHyperion].Tasks...), tasks[demoProjectRyotunes].Tasks...),
 		},
-		events: make(map[string][]protocol.SessionEvent),
+		events:  make(map[string][]protocol.SessionEvent),
+		options: make(map[string]map[string]string),
 		models: protocol.ModelsResult{
 			Routes: []protocol.Choice{
 				{ID: protocol.RouteAuto, Name: i18n.T("Auto")},
@@ -585,9 +586,10 @@ func makeFixtures() fixtures {
 			},
 		},
 	}
-	askHarness, askHarnessEvents := harnessAsk(now)
-	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askHarness, askYesterday, askWeek, askEarlier)
-	result.snapshot.Status.Sessions.Ask = 6
+	result.options[working.ID] = map[string]string{protocol.OptionPlan: protocol.OptionOn}
+	result.learning = demoLearning(now)
+	result.snapshot.Sessions = append(result.snapshot.Sessions, askRunning, askYesterday, askWeek, askEarlier)
+	result.snapshot.Status.Sessions.Ask = 5
 	result.snapshot.Status.Sessions.Working = 3
 	result.snapshot.Status.Sessions.Alive = 3
 	result.snapshot.Providers = withDemoListings(withDemoLimits(append(result.snapshot.Providers, demoProviderCatalogue()...), now), result.models.Models, now)
@@ -617,16 +619,56 @@ func makeFixtures() fixtures {
 	result.events[askYesterday.ID] = cardTranscript(askEvents(askYesterday))
 	result.events[askWeek.ID] = askEvents(askWeek)
 	result.events[askEarlier.ID] = askEvents(askEarlier)
-	result.events[askHarness.ID] = askHarnessEvents
-	result.events[needs.ID] = agentMemoryTranscript(agentEvents(needs, true))
-	result.events[working.ID] = agentEvents(working, false)
+	result.events[needs.ID] = agentMemoryTranscript(agentEvents(needs, nil, true))
+	result.events[working.ID] = agentEvents(working, result.options[working.ID], false)
 	result.events[working.ID] = append(result.events[working.ID], subagentEvents(int64(len(result.events[working.ID])), now)...)
-	result.events[done.ID] = agentEvents(done, false)
+	result.events[done.ID] = agentEvents(done, nil, false)
+	result.events[done.ID] = append(result.events[done.ID],
+		event(int64(len(result.events[done.ID])+1), protocol.EvTool, protocol.ToolData{
+			Call: "ask-provider", Title: "ask", Kind: protocol.ToolOther, Status: protocol.ToolDone,
+			Input: i18n.T("Which provider should the default card use?"),
+		}),
+		event(int64(len(result.events[done.ID])+2), protocol.EvPermission, protocol.PermissionData{
+			Request: "ask-provider", Call: "ask-provider", Title: i18n.T("Which provider should the default card use?"),
+			Kind: protocol.PermissionQuestion,
+			Options: []protocol.PermissionOption{
+				{ID: "local", Label: i18n.T("Use the local model"), Kind: protocol.OptAllowOnce},
+				{ID: "free", Label: i18n.T("Use a free remote model"), Kind: protocol.OptAllowOnce},
+			},
+		}),
+		event(int64(len(result.events[done.ID])+3), protocol.EvPermissionResolved, protocol.PermissionResolvedData{
+			Request: "ask-provider", Option: "local", Outcome: "selected", By: "user",
+		}),
+		event(int64(len(result.events[done.ID])+4), protocol.EvNotice, protocol.NoticeData{
+			Text: i18n.T("Earlier tool output was compacted to keep room for the rest of this work."),
+		}),
+	)
 	result.events[done.ID] = append(result.events[done.ID], event(int64(len(result.events[done.ID])+1), protocol.EvTurnEnd, protocol.TurnEndData{Turn: 1, Stop: protocol.StopEnd}))
-	result.events[idle.ID] = agentEvents(idle, false)
-	result.events[failed.ID] = agentEvents(failed, false)
+	result.events[idle.ID] = agentEvents(idle, nil, false)
+	result.events[failed.ID] = agentEvents(failed, nil, false)
 	result.teams = demoTeams(now, settings, result.events)
 	addDemoDreams(&result, now, settings)
+	for _, task := range result.teams.tasks {
+		if task.Session != "" {
+			result.options[task.Session] = task.Options
+		}
+	}
+	for index := range result.snapshot.Sessions {
+		info := &result.snapshot.Sessions[index]
+		if info.Kind == protocol.KindAgent {
+			events := result.events[info.ID]
+			if len(events) > 0 {
+				info.LastSeq = events[len(events)-1].Seq
+			}
+		}
+	}
+	addFlagFixtures(&result)
+	if settings.Features["compare"] {
+		addCompareFixtures(&result)
+	}
+	if settings.Features["artifacts"] || settings.Features["mindmap"] {
+		addArtifactFixtures(&result)
+	}
 	return result
 }
 
@@ -688,6 +730,7 @@ func demoTasks(now time.Time) map[string]protocol.TasksResult {
 			ID:      id,
 			Project: demoProjectHyperion,
 			Title:   title,
+			Model:   demoLocalID,
 			Goal:    title,
 			Status:  status,
 			Order:   order,
@@ -699,19 +742,21 @@ func demoTasks(now time.Time) map[string]protocol.TasksResult {
 	ready := makeTask("task-ready", i18n.T("Add project search"), protocol.TaskReady, 1)
 	ready.Deps = []string{backlog.ID}
 	working := makeTask("task-graph", i18n.T("Build the commit graph"), protocol.TaskWorking, 2)
-	working.Worktree, working.Sessions, working.Harness = demoHyperionRoot, []string{"agent-working"}, "claude"
+	working.Worktree, working.Sessions, working.Model = demoHyperionRoot, []string{"agent-working"}, demoFreeID
 	needs := makeTask("task-settings", i18n.T("Add the settings panel"), protocol.TaskNeedsYou, 3)
 	needs.Worktree, needs.Sessions, needs.Gates = demoDirtyWorktree, []string{"agent-20261110-101500-b82d"}, []protocol.Gate{gate}
 	review := makeTask("task-review", i18n.T("Review provider cards"), protocol.TaskReview, 4)
+	review.Model = demoPaidID
 	review.Products = protocol.TaskProducts{Branch: "rashin/providers", Commits: 2, Files: 8, Added: 210, Removed: 42}
 	done := makeTask("task-done", i18n.T("Seed demo sessions"), protocol.TaskDone, 5)
 	blocked := makeTask("task-conflict", i18n.T("Resolve navigation conflict"), protocol.TaskBlocked, 6)
 	blocked.Deps = []string{needs.ID}
-	blocked.Worktree, blocked.Sessions = demoConflictWorktree, []string{"agent-conflict"}
+	blocked.Worktree, blocked.Sessions, blocked.Model = demoConflictWorktree, []string{"agent-conflict"}, demoFreeID
 	music := protocol.TaskInfo{
 		ID:      "task-music",
 		Project: demoProjectRyotunes,
 		Title:   i18n.T("Tune compact player"),
+		Model:   demoLocalID,
 		Goal:    i18n.T("Keep the player precise at compact sizes."),
 		Status:  protocol.TaskReady,
 		Created: now.Add(-8 * time.Hour),
@@ -937,20 +982,14 @@ The **semantic index** is rebuilding after the palette update. The cache remains
 	}
 }
 
-func agentEvents(info protocol.SessionInfo, permission bool) []protocol.SessionEvent {
+func agentEvents(info protocol.SessionInfo, options map[string]string, permission bool) []protocol.SessionEvent {
 	events := []protocol.SessionEvent{
 		event(1, protocol.EvUser, protocol.UserData{
 			Text:   i18n.T("Complete this work and keep the app Lithic."),
 			Images: []protocol.Attachment{{Path: "/tmp/frame-reference.png", Mime: "image/png"}},
 		}),
-		event(2, protocol.EvModel, protocol.ChoiceData{
-			Current: info.Model,
-			Options: []protocol.Choice{{ID: info.Model, Name: info.Model}, {ID: "small", Name: i18n.T("Small")}},
-		}),
-		event(3, protocol.EvMode, protocol.ChoiceData{
-			Current: info.Mode,
-			Options: []protocol.Choice{{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan")}},
-		}),
+		event(2, protocol.EvModel, protocol.ChoiceData{Current: info.Model}),
+		event(3, protocol.EvMode, protocol.ChoiceData{Current: info.Mode}),
 		event(4, protocol.EvTurnStart, protocol.TurnStartData{Turn: 1}),
 		event(5, protocol.EvPlan, protocol.PlanData{Entries: []protocol.PlanEntry{
 			{Content: i18n.T("Read the frame contract"), Status: "completed"},
@@ -1004,36 +1043,32 @@ func agentEvents(info protocol.SessionInfo, permission bool) []protocol.SessionE
 			},
 		}))
 	}
-	// last, so every seq above stays what the tests and the stories know it as
-	return append(events, event(int64(len(events)+1), protocol.EvOptions, protocol.OptionsData{Options: demoOptions("auto")}))
+	return append(events, event(int64(len(events)+1), protocol.EvOptions, protocol.OptionsData{Options: demoOptions(options, info.Model == demoPaidID)}))
 }
 
-// what a demo harness offers beside its model and mode
-func demoOptions(thinking string) []protocol.SessionOption {
-	return []protocol.SessionOption{{
-		ID: "thinking", Name: i18n.T("Thinking"), Category: "thought_level", Current: thinking,
-		Choices: []protocol.Choice{
-			{ID: "off", Name: i18n.T("Off")}, {ID: "auto", Name: i18n.T("Auto"), Description: i18n.T("Decides for each prompt")},
-			{ID: "high", Name: i18n.T("High")},
-		},
-	}}
-}
-
-// more models than fit a menu, as a real harness has, so the list has to be searched
-func demoModels() []protocol.Choice {
-	names := []string{"Opus", "Sonnet", "Haiku", "Sol", "Luna", "Terra", "Flash", "Pro", "Ultra", "Mini", "Nano", "Max"}
-	models := make([]protocol.Choice, len(names))
-	for index, name := range names {
-		provider := "anthropic"
-		if index >= 3 {
-			provider = "openai"
-		}
-		if index >= 6 {
-			provider = "google"
-		}
-		models[index] = protocol.Choice{ID: provider + "/" + strings.ToLower(name), Name: name}
+func demoOptions(values map[string]string, reasoning bool) []protocol.SessionOption {
+	plan := values[protocol.OptionPlan]
+	if plan == "" {
+		plan = protocol.OptionOff
 	}
-	return models
+	options := []protocol.SessionOption{{
+		ID: protocol.OptionPlan, Name: i18n.T("Plan first"), Current: plan,
+		Choices: []protocol.Choice{{ID: protocol.OptionOff, Name: i18n.T("Off")}, {ID: protocol.OptionOn, Name: i18n.T("On")}},
+	}}
+	if reasoning {
+		effort := values[protocol.OptionEffort]
+		if effort == "" {
+			effort = "off"
+		}
+		options = append(options, protocol.SessionOption{
+			ID: protocol.OptionEffort, Name: i18n.T("Reasoning effort"), Category: "thought_level", Current: effort,
+			Choices: []protocol.Choice{
+				{ID: "off", Name: i18n.T("Off")}, {ID: "low", Name: i18n.T("Low")},
+				{ID: "medium", Name: i18n.T("Medium")}, {ID: "high", Name: i18n.T("High")},
+			},
+		})
+	}
+	return options
 }
 func event(seq int64, kind string, data any) protocol.SessionEvent {
 	raw, _ := json.Marshal(data)

@@ -17,12 +17,18 @@ func TestHindsightLearnsWithTheSharedPolicy(t *testing.T) {
 		Models: func(context.Context) []protocol.ProviderInfo {
 			return []protocol.ProviderInfo{
 				{ID: protocol.ProviderOllamaLocal, Enabled: true, Running: localUp, Models: 1, Local: true},
-				{ID: "openrouter", Enabled: true, Configured: true},
+				{ID: "openrouter", Enabled: true, Configured: true, Tier: protocol.TierFree},
+				{ID: "anthropic", Enabled: true, Configured: true, Tier: protocol.TierPaid},
 			}
 		},
 		ProviderModels: func(_ context.Context, provider string) []protocol.ModelInfo {
-			if provider == protocol.ProviderOllamaLocal {
-				return []protocol.ModelInfo{{ID: protocol.ProviderOllamaLocal + "/qwen3", Available: true}}
+			switch provider {
+			case protocol.ProviderOllamaLocal:
+				return []protocol.ModelInfo{{ID: protocol.ProviderOllamaLocal + "/qwen3", Available: true, Tools: true}}
+			case "openrouter":
+				return []protocol.ModelInfo{{ID: "openrouter/some-model", Available: true, Tier: protocol.TierFree, Tools: true}}
+			case "anthropic":
+				return []protocol.ModelInfo{{ID: "anthropic/claude", Available: true, Tier: protocol.TierPaid, Tools: true}}
 			}
 			return nil
 		},
@@ -34,15 +40,97 @@ func TestHindsightLearnsWithTheSharedPolicy(t *testing.T) {
 		{protocol.LearnLocalFirst, "", "", false},
 		{protocol.LearnLocalFirst, "anthropic/claude", "", false},
 		{protocol.LearnLocalFirst, "openrouter/some-model", "openrouter/some-model", false},
+		{protocol.LearnLocalFirst, "openrouter/some-model", protocol.RouteAuto, true},
+		{protocol.LearnLocalFirst, protocol.ProviderOllamaLocal + "/qwen3", protocol.ProviderOllamaLocal + "/qwen3", false},
+		{protocol.LearnLocalFirst, "", protocol.RouteAuto, true},
 		{protocol.LearnLocal, "openrouter/some-model", "", false},
+		{protocol.LearnLocal, "openrouter/some-model", protocol.ProviderOllamaLocal + "/qwen3", true},
 		{protocol.LearnAny, "", protocol.RouteAuto, false},
-		{protocol.LearnLocalFirst, "openrouter/some-model", protocol.ProviderOllamaLocal + "/qwen3", true},
+		{protocol.LearnAny, "anthropic/claude", protocol.RouteAuto, false},
 	} {
 		localUp = c.local
 		e.settings.Model = c.choice
 		if got := e.learnModel(context.Background(), c.answered); got != c.want {
 			t.Errorf("%s, answered %q, local %v: learns with %q, want %q", c.choice, c.answered, c.local, got, c.want)
 		}
+	}
+}
+
+func TestLearningRouteNeverBillsOrChangesRemoteProvider(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, choice, answered, providerTier, modelTier, want string
+		local, available, waiting, wantLocal                  bool
+	}{
+		{name: "free fallback", choice: protocol.LearnLocalFirst, answered: "openrouter/free", providerTier: protocol.TierFree, modelTier: protocol.TierFree, available: true, want: "openrouter/free"},
+		{name: "credits fallback", choice: protocol.LearnLocalFirst, answered: "openrouter/credits", providerTier: protocol.TierFree, modelTier: protocol.TierCredits, available: true, want: "openrouter/credits"},
+		{name: "available local first", choice: protocol.LearnLocalFirst, answered: "openrouter/free", local: true, want: protocol.RouteAuto, wantLocal: true},
+		{name: "unanswered waits", choice: protocol.LearnLocalFirst, waiting: true},
+		{name: "unanswered stays local", choice: protocol.LearnLocalFirst, local: true, want: protocol.RouteAuto, wantLocal: true},
+		{name: "answered local stays local", choice: protocol.LearnLocalFirst, answered: protocol.ProviderOllamaLocal + "/qwen3", want: protocol.ProviderOllamaLocal + "/qwen3", wantLocal: true},
+		{name: "local waits", choice: protocol.LearnLocal, answered: "openrouter/free", providerTier: protocol.TierFree, modelTier: protocol.TierFree, available: true, waiting: true},
+		{name: "local uses local", choice: protocol.LearnLocal, local: true, want: protocol.RouteAuto, wantLocal: true},
+		{name: "any follows auto", choice: protocol.LearnAny, answered: "openrouter/free", local: true, want: protocol.RouteAuto},
+		{name: "paid provider waits", choice: protocol.LearnLocalFirst, answered: "openai/paid", providerTier: protocol.TierPaid, available: true, waiting: true},
+		{name: "paid model at free provider waits", choice: protocol.LearnLocalFirst, answered: "openrouter/paid", providerTier: protocol.TierFree, modelTier: protocol.TierPaid, available: true, waiting: true},
+		{name: "unknown tier waits", choice: protocol.LearnLocalFirst, answered: "openrouter/unknown", available: true, waiting: true},
+		{name: "unavailable model waits", choice: protocol.LearnLocalFirst, answered: "openrouter/free", providerTier: protocol.TierFree, modelTier: protocol.TierFree, waiting: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model, why := pickModel(ctx, tc.choice, tc.answered, func(context.Context) []protocol.ProviderInfo {
+				return []protocol.ProviderInfo{
+					{ID: protocol.ProviderOllamaLocal, Enabled: true, Running: tc.local, Models: 1},
+					{ID: "openrouter", Enabled: true, Tier: tc.providerTier},
+					{ID: "openai", Enabled: true, Tier: tc.providerTier},
+				}
+			}, func(_ context.Context, provider string) []protocol.ModelInfo {
+				if provider == protocol.ProviderOllamaLocal {
+					return []protocol.ModelInfo{{ID: provider + "/qwen3", Available: true}}
+				}
+				return []protocol.ModelInfo{{ID: tc.answered, Tier: tc.modelTier, Available: tc.available, Context: 32768}}
+			})
+			if model.Model != tc.want || model.Local != tc.wantLocal || (why != "") != tc.waiting {
+				t.Fatalf("route=%+v, waiting=%q; want model %q, local %v, waiting %v", model, why, tc.want, tc.wantLocal, tc.waiting)
+			}
+			if tc.want == "openrouter/free" && model.Context != 32768 {
+				t.Fatalf("fallback lost model context: %+v", model)
+			}
+		})
+	}
+}
+
+func TestLocalLearningCanWakeAnInstalledRashinModel(t *testing.T) {
+	model, why := pickModel(context.Background(), protocol.LearnLocal, "", func(context.Context) []protocol.ProviderInfo {
+		return []protocol.ProviderInfo{{ID: protocol.ProviderRashinModels, Enabled: true, Running: false, OnDemand: true, Models: 1}}
+	}, func(_ context.Context, provider string) []protocol.ModelInfo {
+		if provider != protocol.ProviderRashinModels {
+			t.Fatalf("queried %s instead of Rashin models", provider)
+		}
+		return []protocol.ModelInfo{{ID: provider + "/lfm3", Available: true}}
+	})
+	if why != "" || model.Model != protocol.RouteAuto || !model.Local {
+		t.Fatalf("route=%+v, waiting=%q", model, why)
+	}
+}
+
+func TestHindsightLocalOnlyChoosesSmallestToolModel(t *testing.T) {
+	model, why := hindsightModel(context.Background(), protocol.LearnLocal, "", func(context.Context) []protocol.ProviderInfo {
+		return []protocol.ProviderInfo{
+			{ID: protocol.ProviderRashinModels, Enabled: true, OnDemand: true, Models: 3},
+			{ID: protocol.ProviderOllamaLocal, Enabled: true, Running: true, Models: 1},
+		}
+	}, func(_ context.Context, provider string) []protocol.ModelInfo {
+		if provider == protocol.ProviderRashinModels {
+			return []protocol.ModelInfo{
+				{ID: provider + "/large", Available: true, Tools: true, Params: 8_000_000_000},
+				{ID: provider + "/notools", Available: true, Params: 1_000_000_000},
+				{ID: provider + "/small", Available: true, Tools: true, Light: true, Params: 2_000_000_000, Context: 32768},
+			}
+		}
+		return []protocol.ModelInfo{{ID: provider + "/medium", Available: true, Tools: true, Params: 3_000_000_000}}
+	})
+	if why != "" || model.Model != protocol.ProviderRashinModels+"/small" || !model.Local || model.Context != 32768 {
+		t.Fatalf("route=%+v, waiting=%q", model, why)
 	}
 }
 

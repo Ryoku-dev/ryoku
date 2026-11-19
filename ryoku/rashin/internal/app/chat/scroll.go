@@ -4,7 +4,6 @@ import (
 	"image"
 	"math"
 	"os"
-	"time"
 
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -15,8 +14,6 @@ import (
 
 var transcriptScrollOnX11 = os.Getenv("WAYLAND_DISPLAY") == ""
 
-const thumbIdle = 600 * time.Millisecond
-
 type transcriptScroller struct {
 	layout.List
 	tag           struct{}
@@ -24,17 +21,22 @@ type transcriptScroller struct {
 	userScrolled  bool
 	follow        bool
 	overflowKnown bool
-	lastScroll    time.Time
+	// the room it was last given, for how far through it the reader is
+	room int
 }
 
-// asks for one more frame when the moment ends so the thumb can leave
-func (scroller *transcriptScroller) Active(gtx layout.Context) bool {
-	until := scroller.lastScroll.Add(thumbIdle)
-	if scroller.lastScroll.IsZero() || !gtx.Now.Before(until) {
-		return false
+// how far through the transcript the reader is, below zero while all of it fits
+func (scroller *transcriptScroller) progress(count int) float32 {
+	position := scroller.Position
+	travel := position.Length - scroller.room
+	if !scroller.overflowKnown || count <= 0 || travel <= 0 {
+		return -1
 	}
-	gtx.Execute(op.InvalidateCmd{At: until})
-	return true
+	if !position.BeforeEnd {
+		return 1
+	}
+	read := float32(position.First)*float32(position.Length)/float32(count) + float32(position.Offset)
+	return min(max(read/float32(travel), 0), 1)
 }
 
 func transcriptScrollDelta(delta, pixelsPerDP float32) float32 {
@@ -75,13 +77,14 @@ func (scroller *transcriptScroller) updateInput(gtx layout.Context) {
 		}
 		delta := transcriptScrollDelta(scroll.Scroll.Y, gtx.Metric.PxPerDp)
 		addTranscriptOffset(&scroller.Position, &scroller.fraction, delta)
-		scroller.userScrolled, scroller.lastScroll = true, gtx.Now
+		scroller.userScrolled = true
 	}
 }
 
 func (scroller *transcriptScroller) Layout(gtx layout.Context, count int, element layout.ListElement) layout.Dimensions {
 	scroller.Axis = layout.Vertical
 	scroller.ScrollToEnd = scroller.follow && scroller.overflowKnown
+	scroller.room = gtx.Constraints.Max.Y
 	scroller.updateInput(gtx)
 
 	source := gtx.Source

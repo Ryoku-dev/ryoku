@@ -27,10 +27,9 @@ func (r *runtime) renderPNG(options Options) error {
 		return fmt.Errorf("create headless renderer: %w", err)
 	}
 	defer window.Release()
-	if options.Script == "" {
-		anim.SetReduce(true)
-		defer anim.SetReduce(false)
-	}
+	// a still is reduced and a storyboard moves, over whatever the desktop reading set: renders prove the look and the motion, not the reader's switch
+	anim.SetReduce(options.Script == "")
+	defer anim.SetReduce(r.Theme().Desktop.ReduceMotion)
 
 	shell := newShell(r, options)
 	var dirty atomic.Bool

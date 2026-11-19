@@ -20,9 +20,9 @@ type handoffDialog struct {
 	move     kit.Plaque
 	cancel   kit.Plaque
 
-	project, worktree, harness  look.Select
+	project, worktree           look.Select
 	projectIndex, worktreeIndex int
-	pick                        env.HarnessPick
+	model                       env.ModelForm
 	folder                      env.PathField
 	name, base, branch          kit.TextField
 }
@@ -30,6 +30,10 @@ type handoffDialog struct {
 func (d *handoffDialog) open(e *env.Env, id, text string) {
 	d.id, d.text, d.dialog.Open = id, text, true
 	d.projectIndex, d.worktreeIndex = 0, 0
+	d.model.Parts, d.model.Agents = env.ModelOptions|env.ModelPlan|env.ModelCheck, true
+	settings := e.Snapshot().Settings.Agent
+	d.model.Set(settings.Model, settings.Options)
+	d.model.SetPlan(settings.Plan)
 	for _, project := range e.Snapshot().Projects {
 		e.LoadWorktrees(project.ID, nil)
 	}
@@ -40,23 +44,22 @@ func (d *handoffDialog) layout(gtx layout.Context, e *env.Env) {
 		return
 	}
 	snapshot := e.Snapshot()
-	harnesses := env.InstalledHarnesses(snapshot)
 	d.projectIndex = min(d.projectIndex, len(snapshot.Projects))
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
-	d.move.Kind, d.move.Label = kit.PlaqueGold, i18n.T("Move to Agent")
+	d.move.Kind, d.move.Label = kit.PlaqueGold, i18n.T("Move to agent")
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
-	if d.move.Clicked(gtx) && len(harnesses) > 0 {
-		d.submit(e, snapshot.Projects, harnesses)
+	if d.move.Clicked(gtx) && d.model.Ready(e) {
+		d.submit(e, snapshot.Projects)
 		d.dialog.Dismiss(gtx)
 	}
 	th := e.Theme
 	d.dialog.Layout(gtx, th.Theme, i18n.T("Move this ask to an agent"),
-		func(gtx layout.Context) layout.Dimensions { return d.body(gtx, e, snapshot.Projects, harnesses) },
+		func(gtx layout.Context) layout.Dimensions { return d.body(gtx, e, snapshot.Projects) },
 		func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) },
 		func(gtx layout.Context) layout.Dimensions {
-			if len(harnesses) == 0 {
+			if !d.model.Ready(e) {
 				gtx = gtx.Disabled()
 			}
 			return d.move.Layout(gtx, th.Theme)
@@ -67,9 +70,9 @@ func (d *handoffDialog) layout(gtx layout.Context, e *env.Env) {
 	}
 }
 
-func (d *handoffDialog) submit(e *env.Env, projects []protocol.ProjectInfo, harnesses []protocol.HarnessInfo) {
-	harness := harnesses[d.pick.Index(e.Snapshot(), harnesses)].ID
-	params := protocol.HandoffParams{ID: d.id, Harness: harness, Run: true, Text: d.text}
+func (d *handoffDialog) submit(e *env.Env, projects []protocol.ProjectInfo) {
+	model, _ := d.model.Effective()
+	params := protocol.HandoffParams{ID: d.id, Model: model, Options: d.model.SessionOptions(), Run: true, Text: d.text}
 	if d.projectIndex == 0 {
 		params.Cwd = d.folder.Path()
 	} else {
@@ -95,23 +98,11 @@ func (d *handoffDialog) submit(e *env.Env, projects []protocol.ProjectInfo, harn
 	})
 }
 
-func (d *handoffDialog) body(
-	gtx layout.Context,
-	e *env.Env,
-	projects []protocol.ProjectInfo,
-	harnesses []protocol.HarnessInfo,
-) layout.Dimensions {
+func (d *handoffDialog) body(gtx layout.Context, e *env.Env, projects []protocol.ProjectInfo) layout.Dimensions {
 	th := e.Theme
 	projectLabels := []string{i18n.T("No project")}
 	for _, project := range projects {
 		projectLabels = append(projectLabels, project.Name)
-	}
-	harnessLabels := make([]string, len(harnesses))
-	for index, harness := range harnesses {
-		harnessLabels[index] = harness.Name
-	}
-	if len(harnessLabels) == 0 {
-		harnessLabels = []string{i18n.T("No harness is installed")}
 	}
 	field := func(selection *look.Select, label string, options []string, selected int) layout.FlexChild {
 		selection.Label = label
@@ -161,9 +152,8 @@ func (d *handoffDialog) body(
 			)
 		}
 	}
-	children = append(children, field(&d.harness, i18n.T("Harness"), harnessLabels, d.pick.Index(e.Snapshot(), harnesses)))
-	if index, changed := d.harness.Changed(); changed {
-		d.pick.Use(e, harnesses, index)
-	}
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return d.model.Layout(gtx, e)
+	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }

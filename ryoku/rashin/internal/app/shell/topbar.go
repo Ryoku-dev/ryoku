@@ -22,7 +22,6 @@ type topBar struct {
 	search                kit.IconPlaque
 	mode                  kit.Segmented
 	maximize, close       kit.IconPlaque
-	tips                  [7]look.Tip
 	searchAnchor          image.Rectangle
 	searchShown           bool
 	searchFocused         bool
@@ -47,14 +46,12 @@ func (bar *topBar) Layout(gtx layout.Context, s *uiShell, e *env.Env, state barS
 	bar.handle(gtx, s)
 
 	plaque, top := gtx.Dp(32), (size.Y-gtx.Dp(32))/2
-	place := func(x int, button *kit.IconPlaque, tip *look.Tip, enabled bool) {
+	place := func(x int, button *kit.IconPlaque, enabled bool) {
 		look.Place(gtx, image.Rect(x, top, x+plaque, top+plaque), func(gtx layout.Context) layout.Dimensions {
 			if !enabled {
 				gtx = gtx.Disabled()
 			}
-			return tip.Layout(gtx, th, e.Overlays, button.Description, func(gtx layout.Context) layout.Dimensions {
-				return button.Layout(gtx, th.Theme)
-			})
+			return button.Layout(gtx, th.Theme)
 		})
 	}
 	set := func(button *kit.IconPlaque, description string) {
@@ -72,8 +69,8 @@ func (bar *topBar) Layout(gtx layout.Context, s *uiShell, e *env.Env, state barS
 		set(&bar.close, i18n.T("Close"))
 		bar.close.Icon = look.Icon.Close
 		controls -= 2*plaque + gtx.Dp(4)
-		place(controls, &bar.maximize, &bar.tips[4], true)
-		place(controls+plaque+gtx.Dp(4), &bar.close, &bar.tips[5], true)
+		place(controls, &bar.maximize, true)
+		place(controls+plaque+gtx.Dp(4), &bar.close, true)
 	}
 
 	leading, searchEnd := mark, mark
@@ -94,7 +91,7 @@ func (bar *topBar) layoutMark(gtx layout.Context, th *look.Theme, state barState
 	} else if state.class == look.Compact {
 		x = gtx.Dp(13)
 	}
-	look.Place(gtx, image.Rect(x, (size.Y-glyph)/2, x+glyph, (size.Y+glyph)/2), look.RyokuMark(24, th.R.Fg))
+	look.Place(gtx, image.Rect(x, (size.Y-glyph)/2, x+glyph, (size.Y+glyph)/2), look.RashinSeal(th, 24))
 	end := x + glyph
 	// once Rashin answers the mode switch names it, beside the mark or at the end of the bar
 	if !state.ready {
@@ -110,7 +107,7 @@ func (bar *topBar) layoutControls(
 	s *uiShell,
 	e *env.Env,
 	state barState,
-	place func(int, *kit.IconPlaque, *look.Tip, bool),
+	place func(int, *kit.IconPlaque, bool),
 	set func(*kit.IconPlaque, string),
 	mark, controls int,
 ) (int, int) {
@@ -123,13 +120,13 @@ func (bar *topBar) layoutControls(
 		set(&bar.toggle, i18n.T("Open the list")+"  Ctrl B")
 		bar.toggle.Icon = look.Icon.SidebarToggle
 		toggle := gtx.Dp(13) + gtx.Dp(24) + gtx.Dp(13)
-		place(toggle, &bar.toggle, &bar.tips[0], true)
+		place(toggle, &bar.toggle, true)
 		set(&bar.search, i18n.T("Search"))
 		bar.search.Icon = look.Icon.Search
 		x = controls - gtx.Dp(8) - plaque
 		if !bar.searchShown {
 			bar.searchFocused = false
-			place(x, &bar.search, &bar.tips[3], true)
+			place(x, &bar.search, true)
 			// beside search, and gone while the open field takes the bar
 			low := toggle + plaque + gtx.Dp(8)
 			call, mode := bar.recordMode(gtx, s, e, state.teams, x-gtx.Dp(8)-low)
@@ -139,7 +136,7 @@ func (bar *topBar) layoutControls(
 			bar.moveRegion(gtx, image.Rect(toggle+plaque, 0, left, size.Y))
 			return toggle, x + plaque
 		}
-		field := image.Rect(toggle+plaque+gtx.Dp(8), (size.Y-gtx.Dp(44))/2, controls-gtx.Dp(8), (size.Y+gtx.Dp(44))/2)
+		field := image.Rect(toggle+plaque+gtx.Dp(8), (size.Y-gtx.Dp(36))/2, controls-gtx.Dp(8), (size.Y+gtx.Dp(36))/2)
 		bar.layoutSearch(gtx, s, e, field)
 		return toggle, field.Max.X
 	}
@@ -163,12 +160,12 @@ func (bar *topBar) layoutControls(
 	bar.back.Icon = look.Icon.Back
 	set(&bar.forward, i18n.T("Forward")+"  Alt Right")
 	bar.forward.Icon = look.Icon.Forward
-	place(x, &bar.toggle, &bar.tips[0], true)
-	place(x+step, &bar.back, &bar.tips[1], s.router.CanBack())
-	place(x+2*step, &bar.forward, &bar.tips[2], s.router.CanForward())
+	place(x, &bar.toggle, true)
+	place(x+step, &bar.back, s.router.CanBack())
+	place(x+2*step, &bar.forward, s.router.CanForward())
 	x += 2*step + plaque + gtx.Dp(13)
 	if beside {
-		field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), controls-gtx.Dp(21)), (size.Y+gtx.Dp(44))/2)
+		field := image.Rect(x, (size.Y-gtx.Dp(36))/2, min(x+gtx.Dp(520), controls-gtx.Dp(21)), (size.Y+gtx.Dp(36))/2)
 		if field.Dx() >= gtx.Dp(160) {
 			bar.layoutSearch(gtx, s, e, field)
 			x = field.Max.X
@@ -178,7 +175,7 @@ func (bar *topBar) layoutControls(
 	// the field gives up room for the mode switch 13 dp to its right
 	call, mode := bar.recordMode(gtx, s, e, state.teams, controls-gtx.Dp(21)-x)
 	room := controls - gtx.Dp(21) - gtx.Dp(13) - mode.X
-	field := image.Rect(x, (size.Y-gtx.Dp(44))/2, min(x+gtx.Dp(520), room), (size.Y+gtx.Dp(44))/2)
+	field := image.Rect(x, (size.Y-gtx.Dp(36))/2, min(x+gtx.Dp(520), room), (size.Y+gtx.Dp(36))/2)
 	if field.Dx() >= gtx.Dp(160) {
 		bar.layoutSearch(gtx, s, e, field)
 		x = field.Max.X + gtx.Dp(13)
@@ -192,17 +189,13 @@ func (bar *topBar) recordMode(gtx layout.Context, s *uiShell, e *env.Env, teams 
 	th := e.Theme
 	bar.mode.Labels = append(bar.mode.Labels[:0], i18n.T("Rashin"), i18n.T("Teams"))
 	bar.mode.Selected = 0
-	// the description says where Ctrl T goes from here
-	description := i18n.T("Teams") + "  Ctrl T"
 	if teams {
-		bar.mode.Selected, description = 1, i18n.T("Back to Rashin")+"  Ctrl T"
+		bar.mode.Selected = 1
 	}
 	record := op.Record(gtx.Ops)
 	child := gtx
 	child.Constraints = layout.Constraints{Max: image.Pt(max(0, room), gtx.Constraints.Max.Y)}
-	dimensions := bar.tips[6].Layout(child, th, e.Overlays, description, func(gtx layout.Context) layout.Dimensions {
-		return bar.mode.Layout(gtx, th.Theme)
-	})
+	dimensions := bar.mode.Layout(child, th.Theme)
 	call := record.Stop()
 	if _, ok := bar.mode.Changed(); ok {
 		s.router.SwitchMode()
@@ -219,8 +212,8 @@ func placeCall(gtx layout.Context, call op.CallOp, at image.Point) {
 func (bar *topBar) layoutSearch(gtx layout.Context, s *uiShell, e *env.Env, field image.Rectangle) {
 	bar.searchAnchor = field
 	look.Place(gtx, field, func(gtx layout.Context) layout.Dimensions {
-		s.palette.search.Placeholder = i18n.T("Search sessions, projects and commands")
-		s.palette.search.Hint = "Ctrl K"
+		s.palette.search.Placeholder = i18n.T("Search pages, sessions, projects and commands")
+		s.palette.search.Hint = i18n.T("/  Ctrl K")
 		return s.palette.search.Layout(gtx, e.Theme.Theme)
 	})
 	// focus arriving opens the results, focus that's just still there after they closed doesn't

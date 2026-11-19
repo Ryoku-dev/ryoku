@@ -95,8 +95,8 @@ func TestChoosingInTheComposerRowLeavesTheKeyboardInTheText(t *testing.T) {
 	withAndWithoutMotion(t, func(t *testing.T, open func() *stage) {
 		for route, picks := range map[string][2]string{
 			"ask/new":          {"Model: Auto", "Smart"},
-			"agent/new":        {"Harness: Codex", "Claude Code"},
-			"agent/agent-done": {"Mode: Default", "Plan"},
+			"agent/new":        {"Model: LFM3 Omni 2B", "Smart"},
+			"agent/agent-done": {"Asking: Ask before changes", "Ask every time"},
 		} {
 			stage := open()
 			stage.open(route)
@@ -149,17 +149,17 @@ func TestAClosedDialogGivesTheKeyboardBack(t *testing.T) {
 	})
 }
 
-func TestTheHarnessChosenForASessionIsTheOneSettingsShows(t *testing.T) {
+func TestTheModelChosenForASessionIsTheOneSettingsShows(t *testing.T) {
 	stage := newStage(t, image.Pt(1440, 900))
 	stage.open("agent/new")
-	stage.click("Harness: Codex")
-	stage.click("Claude Code")
-	stage.await("the choice becomes the setting", func() bool {
-		return stage.runtime.store.Snapshot().Settings.Agent.Harness == "claude"
+	stage.await("the model list loads", func() bool { return stage.anyNamed("Model: LFM3 Omni 2B") != "" })
+	stage.choose("Model: LFM3 Omni 2B", "Smart")
+	stage.await("the model becomes the setting", func() bool {
+		return stage.runtime.store.Snapshot().Settings.Agent.Model == "auto:smart"
 	})
 	stage.open("settings/agents")
-	if _, shown := stage.named("Claude Code"); !shown {
-		t.Fatalf("Settings does not show the harness that was chosen; on screen: %v", stage.names())
+	if _, shown := stage.named("Smart"); !shown {
+		t.Fatalf("Settings does not show the model that was chosen; on screen: %v", stage.names())
 	}
 }
 

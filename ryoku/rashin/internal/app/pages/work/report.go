@@ -20,6 +20,8 @@ import (
 // the report reads first, then what it made, then how it went for whoever wants to know
 func (t *taskView) reportItems(e *env.Env, snapshot state.Snapshot, task protocol.TeamTask, session string, height int) []layout.Widget {
 	th := e.Theme
+	t.view.SetFeatures(e.Feature)
+	t.view.SetArtifactActions(e.Call, e.Open, e.Notify)
 	found := task.Report
 	title := look.Paragraph(th, th.T.Title, th.R.Fg, found.Title)
 	// a quiet run found nothing new since the last one, as its routine says of it
@@ -42,7 +44,7 @@ func (t *taskView) reportItems(e *env.Env, snapshot state.Snapshot, task protoco
 		},
 	}
 	if len(found.Files) > 0 {
-		items = append(items, func(gtx layout.Context) layout.Dimensions { return t.layoutFiles(gtx, e, found.Files) })
+		items = append(items, func(gtx layout.Context) layout.Dimensions { return t.layoutFiles(gtx, e, session, found.Files) })
 	}
 	if session == "" {
 		return items
@@ -57,11 +59,11 @@ func (t *taskView) reportItems(e *env.Env, snapshot state.Snapshot, task protoco
 	)
 }
 
-func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, files []string) layout.Dimensions {
+func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, session string, files []string) layout.Dimensions {
 	if t.files == nil {
 		t.files = make(map[string]*kit.Plaque)
 	}
-	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(files), func(gtx layout.Context, index int) layout.Dimensions {
+	return look.Flow{Gap: e.Theme.Sp.S2, LineGap: e.Theme.Sp.S2}.Layout(gtx, len(files), func(gtx layout.Context, index int) layout.Dimensions {
 		path := files[index]
 		plaque := t.files[path]
 		if plaque == nil {
@@ -72,11 +74,16 @@ func (t *taskView) layoutFiles(gtx layout.Context, e *env.Env, files []string) l
 		if plaque.Clicked(gtx) {
 			e.OpenPath(path)
 		}
-		return plaque.Layout(gtx, e.Theme.Theme)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return plaque.Layout(gtx, e.Theme.Theme) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return t.view.LayoutArtifactFile(gtx, e.Theme, session, path)
+			}),
+		)
 	})
 }
 
-// how long it worked and in how many steps opens its transcript; a notch says a step failed or waited on the user
+// how long it worked and in how many steps opens its transcript; a tone mark says a step failed or waited
 func (t *taskView) layoutHow(gtx layout.Context, e *env.Env, snapshot state.Snapshot, task protocol.TeamTask) layout.Dimensions {
 	th := e.Theme
 	title, tone := teamsui.Worked(snapshot, task)
@@ -87,7 +94,7 @@ func (t *taskView) layoutHow(gtx layout.Context, e *env.Env, snapshot state.Snap
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			size := gtx.Dp(th.Cut.Notch)
-			kit.Notch(gtx.Ops, image.Point{}, size, th.R.Stone(tone))
+			kit.ToneMark(gtx, th.Theme, image.Rectangle{Max: image.Pt(size, size)}, tone)
 			return layout.Dimensions{Size: image.Pt(size, size)}
 		}),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),

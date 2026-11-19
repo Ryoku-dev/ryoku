@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 // escape isn't one of these, the frame only asks for it while it has something to close so pages still hear it
 var shortcutKeys = []event.Filter{
 	key.Filter{Name: "K", Required: key.ModShortcut},
+	key.Filter{Name: "/"},
 	key.Filter{Name: "N", Required: key.ModShortcut},
 	key.Filter{Name: "B", Required: key.ModShortcut},
 	key.Filter{Name: "1", Required: key.ModShortcut},
@@ -42,15 +44,17 @@ var escapeKey = key.Filter{Name: key.NameEscape}
 var (
 	rashinTabs = []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex}
 	teamsTabs  = []string{protocol.TabInbox, protocol.TabTeams, protocol.TabDreams, protocol.TabWork, protocol.TabRoutines, protocol.TabVault, protocol.TabActivity}
+	// full pages that belong to neither mode, in the order the tree's foot lists them
+	standaloneTabs = []string{protocol.TabMemory, protocol.TabLearning, protocol.TabSettings}
 )
 
 func teamsTab(tab string) bool { return slices.Contains(teamsTabs, tab) }
 
 // every page, each draws the dialogs it owns whichever one is shown
-var pageTabs = slices.Concat(rashinTabs, []string{protocol.TabSettings, protocol.TabMemory}, teamsTabs)
+var pageTabs = slices.Concat(rashinTabs, standaloneTabs, teamsTabs)
 
-// full pages that belong to neither mode, they keep the mode and the list they were opened from
-func standaloneTab(tab string) bool { return tab == protocol.TabSettings || tab == protocol.TabMemory }
+// they keep the mode they were opened from, and the New plaque goes on speaking for it
+func standaloneTab(tab string) bool { return slices.Contains(standaloneTabs, tab) }
 
 type Place struct {
 	Tab             string
@@ -72,19 +76,34 @@ type Place struct {
 	Credential string
 	Draft      string
 	Template   string
+	DreamDraft *protocol.DreamCreateParams
 }
 
 // a project's tabs share one key, and so do a team's
 func (place Place) key() string {
+	draft := ""
+	if place.DreamDraft != nil {
+		d := place.DreamDraft
+		parts := []string{d.Statement, d.Preset, d.Name, d.Folder, d.Model, strconv.FormatInt(d.MonthTokens, 10)}
+		for _, option := range slices.Sorted(maps.Keys(d.Options)) {
+			parts = append(parts, option+"="+d.Options[option])
+		}
+		draft = strings.Join(parts, "\x00")
+	}
 	return strings.Join([]string{
 		place.Tab, place.Session, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft, place.Template,
 		place.MemoryFilter, place.MemoryScope, place.Memory, strconv.FormatBool(place.MemoryCard),
+		draft,
 	}, "\x00")
 }
 
 // sessions of one destination share it, their page moves between them itself and a first question must not blink the pane
 func (place Place) arrival() string {
-	return strings.Join([]string{place.Tab, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft}, "\x00")
+	part := ""
+	if place.Tab == protocol.TabSettings || place.Tab == protocol.TabLearning {
+		part = place.SettingsSection
+	}
+	return strings.Join([]string{place.Tab, place.Project, place.Team, place.TeamTask, place.Routine, place.Credential, place.Draft, part}, "\x00")
 }
 
 type Router struct {
@@ -111,6 +130,8 @@ type Router struct {
 	OnToggleFold  func()
 	OnTogglePanel func()
 	OnZoom        func(int)
+	// CanSearch permits slash in an empty composer; other focused controls keep their keys
+	CanSearch func(layout.Context) bool
 	// CanEscape says whether OnEscape would close anything
 	CanEscape func() bool
 	OnEscape  func() bool
@@ -301,6 +322,9 @@ func (r *Router) HandleKeys(gtx layout.Context, overlays *look.Overlays) {
 		shortcut := e.Modifiers.Contain(key.ModShortcut)
 		switch {
 		case e.Name == "K" && shortcut:
+			r.OpenPalette()
+		case e.Name == "/" && e.Modifiers == 0 && (gtx.Focused(nil) || r.CanSearch != nil && r.CanSearch(gtx)):
+			// keep typed slashes in an editor that holds a draft
 			r.OpenPalette()
 		case e.Name == "N" && shortcut && r.OnNew != nil:
 			r.OnNew()

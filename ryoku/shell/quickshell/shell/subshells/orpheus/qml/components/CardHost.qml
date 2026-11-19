@@ -39,6 +39,10 @@ Item {
     clip: true
     visible: retainedKey !== "" && body.cardProgress > 0.001
 
+    // The content stretches with the welded blob while the page travels, so a
+    // move reads as liquid, not a rigid slide (the frame popout's deform).
+    transform: Matrix4x4 { matrix: host.body.cardDeform }
+
     function sourceFor(key) {
         switch (key) {
         case "media": return Qt.resolvedUrl("../cards/MediaCard.qml");

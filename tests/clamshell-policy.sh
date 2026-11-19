@@ -7,7 +7,6 @@ tmp="$(mktemp -d)"
 holder=""
 legacy_pid=""
 policy_pid=""
-lid_changer_pid=""
 session_probe_pid=""
 daemon_test_pid=""
 monitor_pids_file="$tmp/monitor-pids"
@@ -15,7 +14,6 @@ cleanup() {
   [[ -z $holder ]] || kill "$holder" 2>/dev/null || true
   [[ -z $legacy_pid ]] || kill "$legacy_pid" 2>/dev/null || true
   [[ -z $policy_pid ]] || kill "$policy_pid" 2>/dev/null || true
-  [[ -z $lid_changer_pid ]] || kill "$lid_changer_pid" 2>/dev/null || true
   [[ -z $session_probe_pid ]] || kill "$session_probe_pid" 2>/dev/null || true
   [[ -z $daemon_test_pid ]] || kill "$daemon_test_pid" 2>/dev/null || true
   if [[ -r $monitor_pids_file ]]; then
@@ -72,13 +70,6 @@ printf 'shell %s\n' "$*" >>"$CLAMSHELL_EVENTS"
 EOF
 cat >"$bin/ryoku" <<'EOF'
 #!/usr/bin/env bash
-if [[ $* == "wm caps" ]]; then
-  case "${RYOKU_LID_EDGE_SOURCE:-}" in
-    system) printf '{"supports":["systemLidEdgeSource"]}\n' ;;
-    *) printf '{"supports":[]}\n' ;;
-  esac
-  exit 0
-fi
 [[ -n ${RYOKU_WM_CALL_TIMEOUT:-} ]] || exit 97
 printf 'ryoku %s\n' "$*" >>"$CLAMSHELL_EVENTS"
 if [[ $* == "wm state" ]]; then
@@ -180,7 +171,6 @@ reset_case() {
   unset SESSION_ACTIVE_VALUE || true
   unset UPOWER_LID_STATE || true
   unset RYOKU_SHELL_BLOCK_DIR || true
-  unset RYOKU_LID_EDGE_SOURCE || true
   unset INHIBIT_ACCEPT_STATE || true
 }
 run_helper() { "$helper" "$@" >"$tmp/helper.out" 2>&1; }
@@ -286,52 +276,6 @@ UPOWER_LID_STATE=closed bash -c '
   evaluate
 ' _ "$helper"
 expect_events 'shell suspend'
-
-# The provider seam, not a compositor name, decides whether the daemon supplies
-# physical edges. An older caps payload keeps compositor callbacks as the
-# backwards-compatible default.
-RYOKU_LID_EDGE_SOURCE=system bash -c '
-  source "$1"
-  [[ $(provider_lid_edge_source) == system ]]
-' _ "$helper"
-bash -c '
-  source "$1"
-  [[ $(provider_lid_edge_source) == compositor ]]
-' _ "$helper"
-
-# The system source is live and edge-triggered. Stubbed ACPI state changes emit
-# one initial state and then exactly one event for each transition.
-reset_case
-set_lid open
-lid_watch_events="$tmp/lid-watch-events"
-(
-  sleep 0.05
-  set_lid closed
-  sleep 0.05
-  set_lid open
-) &
-lid_changer_pid=$!
-if WATCH_EVENTS="$lid_watch_events" RYOKU_CLAMSHELL_LID_POLL=0.01 \
-  bash -c '
-    source "$1"
-    send_event() {
-      printf "%s\n" "$1" >>"$WATCH_EVENTS"
-      [[ $(wc -l <"$WATCH_EVENTS") -lt 3 ]]
-    }
-    monitor_system_lid_edges
-  ' _ "$helper"; then
-  printf 'system lid monitor did not stop after the stub captured its edges\n' >&2
-  exit 1
-fi
-wait "$lid_changer_pid"
-lid_changer_pid=""
-want_edges=$'RYOKU_LID_EDGE open\nRYOKU_LID_EDGE closed\nRYOKU_LID_EDGE open'
-got_edges="$(cat "$lid_watch_events")"
-if [[ $got_edges != "$want_edges" ]]; then
-  printf 'lid watcher edge mismatch\nwant:\n%s\ngot:\n%s\n' \
-    "$want_edges" "$got_edges" >&2
-  exit 1
-fi
 
 # A new daemon generation discards any persisted compositor edge before using
 # UPower as its physical startup seed.

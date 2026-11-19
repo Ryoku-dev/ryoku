@@ -1,6 +1,9 @@
 # Changelog: system/
 
 ## Unreleased
+- **The container helper and its polkit rule are gone.** `ryoku-docker` and
+  `46-ryoku-docker.rules` only served the retired Cobalt download engine
+  (`containers/`).
 - **App installs have their own narrow administrator authorization.**
   `pkexec` selects `dev.ryoku.apps.manage` only when `/usr/bin/ryoku-host`
   receives `apps` as its first argument and keeps a successful

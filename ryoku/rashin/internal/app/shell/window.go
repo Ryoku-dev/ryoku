@@ -26,6 +26,7 @@ import (
 	dreamspage "ryoku-rashin/internal/app/pages/dreams"
 	inboxpage "ryoku-rashin/internal/app/pages/inbox"
 	indexpage "ryoku-rashin/internal/app/pages/index"
+	learningpage "ryoku-rashin/internal/app/pages/learning"
 	memorypage "ryoku-rashin/internal/app/pages/memory"
 	projectspage "ryoku-rashin/internal/app/pages/projects"
 	routinespage "ryoku-rashin/internal/app/pages/routines"
@@ -76,6 +77,7 @@ type uiShell struct {
 	index    *indexpage.Page
 	settings *settingspage.Page
 	memory   *memorypage.Page
+	learning *learningpage.Page
 	inbox    *inboxpage.Page
 	teams    *teamspage.Page
 	dreams   *dreamspage.Page
@@ -94,6 +96,7 @@ type uiShell struct {
 	fold       anim.Tween
 	panel      anim.Tween
 	rise       look.Rise
+	masthead   look.Sheet
 	placards   look.Placards
 	// what each placard's action does, by the placard's id
 	placardActs map[int]func()
@@ -135,7 +138,7 @@ func newShell(r *runtime, options Options) *uiShell {
 	s := &uiShell{
 		runtime: r, router: NewRouter(route, options.Session, r.hub.Invalidate), preferences: preferences,
 		ask: askpage.New(), agent: agentpage.New(), projects: projectspage.New(),
-		index: indexpage.New(), settings: settingspage.New(), memory: memorypage.New(), listTab: listTab,
+		index: indexpage.New(), settings: settingspage.New(), memory: memorypage.New(), learning: learningpage.New(), listTab: listTab,
 		inbox: inboxpage.New(), teams: teamspage.New(), dreams: dreamspage.New(), work: workpage.New(),
 		routines: routinespage.New(), vault: vaultpage.New(), activity: activitypage.New(),
 	}
@@ -145,10 +148,18 @@ func newShell(r *runtime, options Options) *uiShell {
 	s.router.OnTogglePanel = s.togglePanel
 	s.router.OnZoom = s.changeZoom
 	s.router.CanEscape = s.canEscape
+	s.router.CanSearch = func(gtx layout.Context) bool {
+		page := s.page(s.router.Tab)
+		homed, ok := page.(env.Homed)
+		if !ok || !gtx.Focused(homed.FocusHome()) {
+			return false
+		}
+		resting, ok := page.(interface{ SearchAtRest() bool })
+		return ok && resting.SearchAtRest()
+	}
 	s.router.OnEscape = s.escape
 	s.router.OnPlace = s.applyPlace
 	s.posts.invalidate = r.hub.Invalidate
-	s.settings.OpenSection(options.SettingsSection)
 	if route == protocol.TabMemory {
 		s.router.Replace(memoryPlace(options.Memory))
 	}
@@ -157,6 +168,8 @@ func newShell(r *runtime, options Options) *uiShell {
 		s.navigateWork(options.Project, options.WorkTab, options.Worktree)
 	case options.Teams.Tab != "":
 		s.router.Replace(teamsPlace(options.Teams))
+	case route == protocol.TabSettings || route == protocol.TabLearning:
+		s.router.Replace(Place{Tab: route, SettingsSection: options.SettingsSection})
 	}
 	// the mode the window did not open in still goes back to where it stood
 	if s.router.lastRashin.Tab == "" {
@@ -174,7 +187,6 @@ func (r *runtime) runWindow(options Options) error {
 	defer done()
 	shell.desktop = windowDesktop(work, &shell.posts)
 	shell.attention = r.watchAttention(work, shell)
-	anim.SetReduce(shell.preferences.ReduceMotion)
 	window := new(gioapp.Window)
 	creation := []gioapp.Option{
 		gioapp.Title(i18n.T("Rashin")), gioapp.Decorated(false),
@@ -210,6 +222,8 @@ func (r *runtime) runWindow(options Options) error {
 			shell.decorated = event.Config.Decorated
 			shell.maximized = event.Config.Mode == gioapp.Maximized
 			shell.attention.focused.Store(event.Config.Focused)
+			// the sheet's small life at rest (the masthead clock's seconds) runs only in the focused window
+			kit.SetFocused(event.Config.Focused)
 			// the compositor may ignore options sent before the first configure so they go out once more after it
 			if !reissued {
 				reissued = true
@@ -227,6 +241,11 @@ func (r *runtime) runWindow(options Options) error {
 			shell.Frame(gtx)
 			event.Frame(&operations)
 		case gioapp.DestroyEvent:
+			if request := shell.ask.WritingRequest(); request != "" && r.client != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				_ = r.client.Call(ctx, protocol.MWritingCancel, protocol.WritingCancelParams{Request: request}, new(protocol.Empty))
+				cancel()
+			}
 			_ = state.SaveAppPreferences(shell.persistedPreferences(preferences))
 			return event.Err
 		}
@@ -244,12 +263,8 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.ZoomPercent = s.preferences.ZoomPercent
 	preferences.SidebarFolded = s.preferences.SidebarFolded
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
-	preferences.ReduceMotion = s.preferences.ReduceMotion
-	preferences.Colours = s.preferences.Colours
-	preferences.Contrast, preferences.Tint = s.preferences.Contrast, s.preferences.Tint
 	preferences.MuteNotices = s.preferences.MuteNotices
 	preferences.HiddenSteps = s.preferences.HiddenSteps
-	preferences.AgentModels = s.preferences.AgentModels
 	preferences.Last = lastPlace(s.router.lastRashin)
 	preferences.Teams = lastPlace(s.router.lastTeams)
 	preferences.InTeams = s.router.TeamsMode()
@@ -265,14 +280,10 @@ func (s *uiShell) environment() *env.Env {
 		Notify:       func(text string) { s.placards.Push(s.now, text, "") },
 		NotifyAction: s.notifyAction,
 		Zoom:         s.preferences.ZoomPercent, SetZoom: s.setZoom,
-		ReduceMotion: s.preferences.ReduceMotion, SetReduceMotion: s.setReduceMotion,
 		Notices: !s.preferences.MuteNotices, SetNotices: s.setNotices,
 		Desktop: s.desktop,
 	}
 	e.HiddenSteps, e.HideStep = s.preferences.HiddenSteps, s.hideStep
-	e.AgentModels, e.SetAgentModel = s.preferences.AgentModels, s.setAgentModel
-	e.Contrast, e.Tint, e.SetLook = s.preferences.Contrast, s.preferences.Tint, s.setLook
-	e.Colours, e.SetColours = s.runtime.colours(), s.setColours
 	// the work page owns the dialog, any page may open it
 	e.NewTeamTask = func(team string) { s.work.Ask(e, team) }
 	return e
@@ -293,6 +304,8 @@ func (s *uiShell) page(tab string) env.Page {
 		return s.settings
 	case protocol.TabMemory:
 		return s.memory
+	case protocol.TabLearning:
+		return s.learning
 	default:
 		return s.ask
 	}
@@ -319,6 +332,10 @@ func (s *uiShell) openMemory(place env.MemoryPlace) {
 
 func memoryPlace(place env.MemoryPlace) Place {
 	return Place{Tab: protocol.TabMemory, MemoryFilter: place.Filter, MemoryScope: place.Scope, Memory: place.ID, MemoryCard: place.Card}
+}
+
+func (s *uiShell) openLearning(section string) {
+	s.router.Push(Place{Tab: protocol.TabLearning, SettingsSection: section})
 }
 
 // a placard's action runs only while its placard stands, and the stack never holds more than a few
@@ -357,6 +374,9 @@ func (s *uiShell) applyPlace(place Place) {
 	if place.Tab != protocol.TabProjects {
 		s.projects.Hidden(e)
 	}
+	if place.Tab != protocol.TabAsk {
+		s.ask.Hidden(e)
+	}
 	switch place.Tab {
 	case protocol.TabAgent:
 		s.agent.Select(e, place.Session)
@@ -367,6 +387,10 @@ func (s *uiShell) applyPlace(place Place) {
 		s.projects.Open(e, place.Project, normalizeProjectView(place.ProjectView), place.Worktree)
 	case protocol.TabMemory:
 		s.memory.Open(e, env.MemoryPlace{Filter: place.MemoryFilter, Scope: place.MemoryScope, ID: place.Memory, Card: place.MemoryCard})
+	case protocol.TabLearning:
+		s.learning.Open(e, place.SettingsSection)
+	case protocol.TabIndex:
+		s.index.Open(e, place.Session)
 	case protocol.TabSettings:
 		section := place.SettingsSection
 		// from teams mode settings opens on what every team shares, the rest of settings is a scroll away
@@ -478,26 +502,6 @@ func (s *uiShell) hideStep(team, step string) {
 	s.runtime.hub.Invalidate()
 }
 
-func (s *uiShell) setReduceMotion(reduce bool) {
-	s.preferences.ReduceMotion = reduce
-	anim.SetReduce(reduce)
-	s.runtime.hub.Invalidate()
-}
-
-// unknown words fall back to Rashin's own look, and the window restyles on the next frame
-func (s *uiShell) setLook(contrast, tint string) {
-	s.preferences.Contrast, s.preferences.Tint = contrast, tint
-	s.preferences = s.preferences.Normalize()
-	s.runtime.setLook(s.preferences.Contrast, s.preferences.Tint)
-}
-
-// the window shows the pick at once and it is what the next start opens in, whatever --mode painted this run
-func (s *uiShell) setColours(word string) {
-	s.preferences.Colours = word
-	s.preferences = s.preferences.Normalize()
-	s.runtime.setColours(s.preferences.Colours)
-}
-
 // ui.open from the daemon, a second launch, the bar or the command line asking the running app to show something
 func (s *uiShell) applyFocus(e *env.Env) {
 	focus := e.Snapshot().Focus
@@ -517,6 +521,14 @@ func (s *uiShell) applyFocus(e *env.Env) {
 		s.navigateTeams(place)
 		return
 	}
+	if focus.Tab == protocol.TabSettings {
+		s.openSettings(focus.View)
+		return
+	}
+	if focus.Tab == protocol.TabLearning {
+		s.openLearning(focus.View)
+		return
+	}
 	if focus.Tab == "" && focus.Session == "" {
 		return
 	}
@@ -532,9 +544,11 @@ func (s *uiShell) applyFocus(e *env.Env) {
 }
 
 func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
+	s.runtime.wearDesktop()
 	s.now, s.widthDp = gtx.Now, float32(gtx.Metric.PxToDp(gtx.Constraints.Max.X))
 	s.class = look.ClassFor(s.widthDp)
 	e := s.environment()
+	env.Models(e)
 	s.router.NeedsYou = s.agent.NeedsYou(e)
 	s.router.Inbox = 0
 	if s.router.TeamsMode() {
@@ -547,7 +561,8 @@ func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
 		}
 	}
 	s.applyFocus(e)
-	paint.Fill(gtx.Ops, e.Theme.R.Ground)
+	// the window's ground is the design's side plane: Adwaita sets the sidebar apart, the others lay it on the ground
+	paint.Fill(gtx.Ops, e.Theme.Planes().Side)
 	s.router.HandleKeys(gtx, &s.overlay)
 	s.syncPalette(gtx, e)
 
@@ -555,6 +570,8 @@ func (s *uiShell) Frame(gtx layout.Context) layout.Dimensions {
 	if ready {
 		s.layoutFrame(gtx, e)
 	} else {
+		s.sidebar.updatePeek(gtx, s, e, "", "")
+		s.sheetBar.updatePeek(gtx, s, e, "", "")
 		s.layoutNotReady(gtx, e)
 	}
 	s.overlay.Layout(gtx, e.Theme)

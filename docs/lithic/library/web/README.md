@@ -378,6 +378,12 @@ AppFrame:
 
 ### Settings rows, galleries, and value fields
 
+Setting rows opt into `data-l-stacked` for groups and lists: full-width text,
+then a full-width control `s3` below it. The reset stays at the title's far end.
+`data-l-top-aligned` keeps a taller single control beside top-aligned text.
+These explicit attributes never change in response to measured geometry.
+
+
 | Component | Classes and elements | Attributes and ARIA | Events | `data-l-state` |
 |---|---|---|---|---|
 | SettingRow | `div.l-setting-row` contains `l-setting-row__text` (an `l-setting-row__title` in the row type, an optional `l-setting-row__mark` reading "Changed", and an optional `l-setting-row__detail` in the detail type and `fg2`, `settingsDetailGap` below), an optional `l-setting-row__reset`, and `l-setting-row__control`. The reset is a small quiet IconPlaque with the `restart_alt` glyph; put the class on its `l-focus-ring` wrapper so keyboard focus draws the cut ring. Title and detail wrap and never elide. The control sits at the right, at most `settingsControlMax` wide and `s4` from the text. Rows are siblings in a Slab, `settingsRowGap` apart, at least `factsRowHeight` high; every row after the first draws a `vein` line centred in the gap above it. The hover, press, and spotlight plane bleeds `s2` sideways and `s1` up and down, cut small. | `data-l-changed` shows the mark and reserves the reset's slot; the reset shows while the row is hovered or holds focus. The library names a reset without `aria-label` "Reset <title>". `aria-disabled="true"` marks the row unavailable: the control drops to `disabledOpacity` and becomes `inert`, and the detail turns `fg3`; write the reason into `l-setting-row__detail`. `data-l-highlight` runs the search spotlight once: the hover plane fades to clear over `motion.highlight` on the chisel curve; remove the attribute after the row's `animationend`. `data-l-activatable` makes the whole row a target: the library manages `tabindex`, the row hovers with the hover-plane recipe and presses with the row recipe, and a click outside an interactive child, Enter, or Space activates it. Give an activatable row its role, such as `button` for a hand-off row. | `lithic:reset` on the row from the reset with `detail.row`. `lithic:activate` on an activatable row with `detail.row`. | `hover`, `pressed`, and `focus` on the row; `highlight` holds the first frame of the spotlight. |

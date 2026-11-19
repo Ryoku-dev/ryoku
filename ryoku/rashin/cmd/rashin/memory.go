@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -138,7 +137,7 @@ func runMemory(args []string) int {
 // memoryOutput calls a memory method and prints its answer, human through
 // human
 func memoryOutput(method string, params, result any, format string, human func(io.Writer)) int {
-	if err := daemonCall(context.Background(), method, params, result); err != nil {
+	if err := callIndex(method, params, result); err != nil {
 		return report(err)
 	}
 	if format == "human" {

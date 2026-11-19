@@ -147,7 +147,7 @@ func (d *Daemon) retire() {
 	d.mu.RLock()
 	program := d.program
 	d.mu.RUnlock()
-	if !program.isReplaced() || d.manager.busy() ||
+	if !program.isReplaced() || d.manager.busy() || artifactPreviews.Busy() ||
 		d.deps.Indexer != nil && d.deps.Indexer.Busy() || d.deps.Work != nil && d.deps.Work.Busy() {
 		return
 	}

@@ -81,7 +81,6 @@ type Status struct {
 	Sessions  SessionCounts `json:"sessions"`
 	Gateway   GatewayStatus `json:"gateway"`
 	API       APIInfo       `json:"api"`
-	Harnesses int           `json:"harnesses"`
 	Indexes   int           `json:"indexes"`
 	// Unscoped says this kernel cannot keep sandboxed programs from abstract
 	// Unix sockets and from signalling what runs outside them (Landlock ABI
@@ -95,10 +94,12 @@ type Snapshot struct {
 	Sessions  []SessionInfo  `json:"sessions"`
 	Settings  Settings       `json:"settings"`
 	Providers []ProviderInfo `json:"providers"`
-	Harnesses []HarnessInfo  `json:"harnesses"`
-	Indexes   []IndexInfo    `json:"indexes"`
-	Projects  []ProjectInfo  `json:"projects"`
-	Tasks     []TaskInfo     `json:"tasks"`
+	// Local is the Rashin-managed model store and llama.cpp runtime, so the
+	// app renders them at start without a local.models call.
+	Local    LocalResult   `json:"local"`
+	Indexes  []IndexInfo   `json:"indexes"`
+	Projects []ProjectInfo `json:"projects"`
+	Tasks    []TaskInfo    `json:"tasks"`
 	// Screens are the agent screens that are up.
 	Screens []ScreenState `json:"screens,omitempty"`
 	// Teams, their open and recent tasks, pending and recent approvals,
@@ -127,10 +128,14 @@ type SessionListResult struct {
 
 // SessionNewParams creates a session.
 type SessionNewParams struct {
-	Kind    SessionKind `json:"kind"`
-	Harness string      `json:"harness,omitempty"`
-	Cwd     string      `json:"cwd,omitempty"`
-	Model   string      `json:"model,omitempty"`
+	Kind SessionKind `json:"kind"`
+	Cwd  string      `json:"cwd,omitempty"`
+	// Model is a route or provider/model; empty follows the settings (Ask's
+	// model, else agent.model). Options are that model's knobs by
+	// SessionOption ID, such as how hard to think; empty keeps the settings'
+	// (agent.options for an Agent).
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
 	// Mode is what a new Ask session may do: an Approvals value. Empty is
 	// read-only.
 	Mode   string `json:"mode,omitempty"`
@@ -213,14 +218,16 @@ type SetModelParams struct {
 	Model string `json:"model"`
 }
 
-// SetModeParams picks a mode for a session: one the harness offers, or for
-// Ask an Approvals value.
+// SetModeParams picks a mode for a session: its approvals value
+// (Approvals*), for Ask and Agent sessions alike.
 type SetModeParams struct {
 	ID   string `json:"id"`
 	Mode string `json:"mode"`
 }
 
-// SetOptionParams sets one option an agent session's harness offers.
+// SetOptionParams sets one option the session's model offers, one of the
+// choices its SessionOption lists. For an Agent, OptionPlan turns Plan first
+// on or off.
 type SetOptionParams struct {
 	ID     string `json:"id"`
 	Option string `json:"option"`
@@ -236,11 +243,15 @@ type RenameParams struct {
 // HandoffParams moves an Ask session's work to a new Agent session. With Run
 // the new session is prompted at once; Text adds the user's own words.
 type HandoffParams struct {
-	ID      string `json:"id"`
-	Harness string `json:"harness,omitempty"`
-	Cwd     string `json:"cwd,omitempty"`
-	Run     bool   `json:"run,omitempty"`
-	Text    string `json:"text,omitempty"`
+	ID string `json:"id"`
+	// Model is the new Agent session's model; empty follows agent.model.
+	// Options are its options as in SessionNewParams.Options (OptionPlan,
+	// OptionEffort); empty keeps agent.options and agent.plan.
+	Model   string            `json:"model,omitempty"`
+	Options map[string]string `json:"options,omitempty"`
+	Cwd     string            `json:"cwd,omitempty"`
+	Run     bool              `json:"run,omitempty"`
+	Text    string            `json:"text,omitempty"`
 	// Project, Worktree, Base, Branch and Name place the new Agent session as
 	// in SessionNewParams.
 	Project  string `json:"project,omitempty"`
@@ -259,6 +270,24 @@ type AskParams struct {
 	Model    string           `json:"model,omitempty"`
 	Images   []Attachment     `json:"images,omitempty"`
 	Terminal *TerminalContext `json:"terminal,omitempty"`
+}
+
+// GlanceParams asks about a capture without tools or system context. Model
+// is a route or provider/model, empty for light work on the smallest local
+// model that fits; Local keeps it to models on this computer. Options are
+// the capture mode's style choices.
+type GlanceParams struct {
+	Session  string            `json:"session,omitempty"`
+	Mode     string            `json:"mode"`
+	Question string            `json:"question,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Images   []Attachment      `json:"images,omitempty"`
+	Language string            `json:"language,omitempty"`
+	Source   string            `json:"source,omitempty"`
+	Target   string            `json:"target,omitempty"`
+	Model    string            `json:"model,omitempty"`
+	Local    bool              `json:"local,omitempty"`
+	Options  map[string]string `json:"options,omitempty"`
 }
 
 // AskResult names the session and turn; session.event frames with a seq above
@@ -316,6 +345,10 @@ type ProviderInfo struct {
 	Local   bool   `json:"local,omitempty"`
 	Address string `json:"address,omitempty"`
 	Running bool   `json:"running,omitempty"`
+	// OnDemand marks a local provider Rashin starts when a request needs it
+	// (rashin-models while it has installed models): not Running is then
+	// resting, not down.
+	OnDemand bool `json:"onDemand,omitempty"`
 	// Limits is what Rashin knows of the provider's allowance and what it
 	// sent there; nil for a local provider.
 	Limits *ProviderLimits `json:"limits,omitempty"`
@@ -391,6 +424,16 @@ type ModelInfo struct {
 	// still answers when it is picked by name.
 	Listed     bool `json:"listed,omitempty"`
 	ToolsKnown bool `json:"toolsKnown,omitempty"`
+	// Params is the model's parameter count, 0 when unknown. Local routing
+	// sorts on it: Auto and Smart take the most, Fast and light work the
+	// fewest.
+	Params int64 `json:"params,omitempty"`
+	Audio  bool  `json:"audio,omitempty"`
+	// Light marks a model small enough for light work (titles, memory
+	// learning, compaction summaries, judges): Params at most LightParams,
+	// a catalogue model of class light, or a local model of unknown size.
+	// The engine gives such a model the compact tool profile.
+	Light bool `json:"light,omitempty"`
 }
 
 // ModelsParams filters models.list by provider. Fresh reads the providers'
@@ -437,191 +480,24 @@ type GatewayUsage struct {
 	Rows []UsageRow `json:"rows"`
 }
 
-// HarnessInfo describes one external harness.
-type HarnessInfo struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Installed bool     `json:"installed"`
-	Command   []string `json:"command,omitempty"`
-	Path      string   `json:"path,omitempty"`
-	Version   string   `json:"version,omitempty"`
-	Default   bool     `json:"default,omitempty"`
-	Install   string   `json:"install,omitempty"`
-	// Custom marks a harness instance the user added in settings.
-	Custom bool `json:"custom,omitempty"`
-	// Capabilities are learned from the agent's initialize answer each time
-	// it runs in the user's own home, and kept per binary. A team's runs keep
-	// their own in TeamHome.Capabilities and never change these.
-	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
-	// Setup is what the harness's own settings say it will use, read from
-	// its files and never written.
-	Setup []HarnessFact `json:"setup,omitempty"`
-	// State are the paths under HOME the harness keeps its own state in,
-	// written "~/.omp". Every team sandbox hides them, for every harness.
-	State []string `json:"state,omitempty"`
-	// Teams is how teams run the harness, nil for one that is not installed.
-	Teams *HarnessTeams `json:"teams,omitempty"`
-}
-
-// HarnessTeams is how teams run a harness. Each team has a home of its own
-// for each harness it uses: team sessions and Check run the harness with HOME
-// there, so every team signs in apart from the user's own setup, which every
-// team sandbox hides, and apart from every other team.
-type HarnessTeams struct {
-	// Login is the command a sign-in runs in a team's home; empty when Rashin
-	// knows none, which leaves the setup.
-	Login []string `json:"login,omitempty"`
-	// Guarded are the paths under a team home, relative to it, that Rashin
-	// puts back as they were signed in before every team task and shows
-	// read-only while one runs.
-	Guarded []string `json:"guarded,omitempty"`
-	// Homes are the team homes that exist, by team. A team without one is
-	// not signed in.
-	Homes []TeamHome `json:"homes,omitempty"`
-}
-
-// TeamHome is one team's home for one harness.
-type TeamHome struct {
-	Team string `json:"team"`
-	Home string `json:"home"`
-	// SignedIn is when the user last finished a sign-in or the setup there;
-	// nil until then and while one is open. A team task on a harness its
-	// team is not signed in to ends blocked.
-	SignedIn *time.Time `json:"signedIn,omitempty"`
-	// Opening is set while a sign-in or setup terminal is open.
-	Opening bool `json:"opening,omitempty"`
-	// Capabilities are what the harness reported when it last ran in this
-	// home, kept per binary; nil until a task or Check ran it there.
-	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
-}
-
-// TeamCapabilities is what a harness reported in team's home, nil until it
-// ran there. It never falls back to the user's own: a team's account may
-// offer other models.
-func (h HarnessInfo) TeamCapabilities(team string) *HarnessCapabilities {
-	home, _ := h.Teams.HomeOf(team)
-	return home.Capabilities
-}
-
-// HomeOf is team's home for the harness, false when it has none.
-func (t *HarnessTeams) HomeOf(team string) (TeamHome, bool) {
-	if t == nil {
-		return TeamHome{}, false
-	}
-	for _, home := range t.Homes {
-		if home.Team == team {
-			return home, true
-		}
-	}
-	return TeamHome{}, false
-}
-
-// HarnessTeamsOpenParams opens a terminal in a team's home for a harness:
-// its sign-in, or with Setup a shell there.
-type HarnessTeamsOpenParams struct {
-	// ID is a HarnessInfo ID; Team the team whose home it is.
-	ID    string `json:"id"`
-	Team  string `json:"team"`
-	Setup bool   `json:"setup,omitempty"`
-	// CopyFrom, with Setup, names another team signed in to the same
-	// harness: the guarded config it signed in with (never its login) is
-	// copied into this team's home first, for setups that keep a key in
-	// config.
-	CopyFrom string `json:"copyFrom,omitempty"`
-}
-
-// HarnessTeamsOpenResult is what the app runs in a terminal: Argv ends by
-// calling harnesses.teams_done with the token it carries.
-type HarnessTeamsOpenResult struct {
-	Argv []string `json:"argv"`
-	Home string   `json:"home"`
-}
-
-// HarnessTeamsDoneParams finishes a sign-in or setup: the token its terminal
-// was given and the exit status of what ran there.
-type HarnessTeamsDoneParams struct {
-	Token  string `json:"token"`
-	Status int    `json:"status"`
-}
-
-// HarnessTeamsDoneResult says whether the harness is signed in for teams now.
-type HarnessTeamsDoneResult struct {
-	SignedIn bool   `json:"signedIn"`
-	Text     string `json:"text"`
-}
-
-// HarnessFact is one line of a harness's own setup: a label and its value.
-type HarnessFact struct {
-	Label string `json:"label"`
-	Value string `json:"value"`
-}
-
-// HarnessCapabilities is what an agent advertised at initialize.
-type HarnessCapabilities struct {
-	LoadSession bool     `json:"loadSession,omitempty"`
-	Images      bool     `json:"images,omitempty"`
-	Audio       bool     `json:"audio,omitempty"`
-	Context     bool     `json:"context,omitempty"`
-	Modes       []Choice `json:"modes,omitempty"`
-	Models      bool     `json:"models,omitempty"`
-	// Started is the model and the option values the agent came up with the
-	// last time it ran.
-	Started []HarnessFact `json:"started,omitempty"`
-	// ModelList is every model the agent offered at its last start, in its
-	// own order.
-	ModelList []Choice `json:"modelList,omitempty"`
-	// DefaultModel is the model id a new session of the agent starts on. It
-	// is learned only from a new session, never from a resumed one, which
-	// reports the model it was left on; empty until then.
-	DefaultModel string `json:"defaultModel,omitempty"`
-	// Options are the settings the agent offers beside its model and mode,
-	// each with its choices and the value a new session starts with.
-	Options []SessionOption `json:"options,omitempty"`
-	// Learned is when these capabilities were recorded.
-	Learned time.Time `json:"learned,omitzero"`
-}
-
-// HarnessInstance is a user-defined harness: any ACP agent command with its own
-// environment (a second account, a different config dir, a wrapper).
-type HarnessInstance struct {
-	ID      string            `json:"id"`
-	Name    string            `json:"name"`
-	Command []string          `json:"command"`
-	Env     map[string]string `json:"env,omitempty"`
-}
-
-// HarnessesListParams asks for a fresh PATH scan with Refresh.
-type HarnessesListParams struct {
-	Refresh bool `json:"refresh,omitempty"`
-}
-
-// HarnessesResult lists harnesses in table order.
-type HarnessesResult struct {
-	Harnesses []HarnessInfo `json:"harnesses"`
-}
-
-// HarnessProbeParams starts a harness once in a team's sandbox, without a
-// prompt, to read its models and check that Model and Options are taken.
-type HarnessProbeParams struct {
-	// ID is a HarnessInfo ID.
-	ID string `json:"id"`
-	// Team is the team whose home the harness runs in; a Check without one
-	// says the team has to be saved and signed in first.
-	Team string `json:"team,omitempty"`
-	// Model and Options, when set, are picked as a team task would pick
-	// them.
-	Model   string            `json:"model,omitempty"`
+// ModelProbeParams checks a model and its options before a team, a member
+// or the Agents settings keep them: Model is a route or provider/model,
+// Options are values by SessionOption ID.
+type ModelProbeParams struct {
+	Model   string            `json:"model"`
 	Options map[string]string `json:"options,omitempty"`
 }
 
-// HarnessProbeResult is the harness as the probe left it, with the
-// capabilities it just reported. OK is false when it did not start or
-// refused the model or an option; Message then says why in the harness's
-// own words.
-type HarnessProbeResult struct {
-	Harness HarnessInfo `json:"harness"`
-	OK      bool        `json:"ok"`
-	Message string      `json:"message,omitempty"`
+// ModelProbeResult is one small streamed request with a no-op tool through
+// the gateway, so it proves the route answers and calls tools. OK is false
+// when it did not answer or refused an option; Message then says why. Model
+// is the model that answered (a route resolves to one) and Options are the
+// knobs that model offers, each with its current value.
+type ModelProbeResult struct {
+	OK      bool            `json:"ok"`
+	Message string          `json:"message,omitempty"`
+	Model   Choice          `json:"model"`
+	Options []SessionOption `json:"options,omitempty"`
 }
 
 // Index kinds and states.
@@ -870,23 +746,27 @@ func KnownApprovals(value string) bool {
 }
 
 // AskSettings configures Ask. Approvals is what a new Ask in the app may do;
-// asks from the bar and the terminal stay read-only. Harness is the harness
-// or instance id that answers a new Ask in the app over ACP, "" for Rashin's
-// own providers; the app passes it when it creates the session, so asks from
-// the bar and the terminal stay on the providers.
+// asks from the bar and the terminal stay read-only.
 type AskSettings struct {
-	Model     string `json:"model"`
-	Habits    bool   `json:"habits"`
-	Approvals string `json:"approvals"`
-	Harness   string `json:"harness,omitempty"`
+	Model         string `json:"model"`
+	Habits        bool   `json:"habits"`
+	Approvals     string `json:"approvals"`
+	ResumeMinutes int    `json:"resumeMinutes,omitempty"`
 }
 
-// AgentSettings configures Agent sessions.
+// AgentSettings configures Agent sessions. Model is the route or
+// provider/model a new Agent session runs on (RouteAuto by default; local
+// models first, see LocalModelsSettings.RemoteFirst) and Options are its
+// knobs by SessionOption ID. Plan starts a new Agent session in Plan first:
+// read-only tools and a todo list until the user approves the plan.
+// Approvals is the session's mode. IdleStopMinutes stops an idle session's
+// tool host and background terminals.
 type AgentSettings struct {
-	Harness         string            `json:"harness"`
+	Model           string            `json:"model"`
+	Options         map[string]string `json:"options,omitempty"`
+	Plan            bool              `json:"plan,omitempty"`
 	Approvals       string            `json:"approvals"`
 	IdleStopMinutes int               `json:"idleStopMinutes"`
-	Instances       []HarnessInstance `json:"instances,omitempty"`
 }
 
 // DaemonSettings configures the daemon's lifetime.
@@ -925,8 +805,8 @@ type TeamsSettings struct {
 	// on. It is true unless the user turned it off, so it is always written.
 	RoutinesWake bool `json:"routinesWake"`
 	// Defaults are what a new team starts with when it names nothing else.
-	// A member left on the default harness keeps following Defaults.Harness,
-	// Model and Options.
+	// A member that names no model keeps following Defaults.Model and
+	// Options.
 	Defaults TeamDefaults `json:"defaults"`
 	// ApprovalHours is how long a question waits for the user before it
 	// counts as no, 1 to TeamsApprovalHoursMax.
@@ -936,7 +816,7 @@ type TeamsSettings struct {
 	QuietHours *QuietHours `json:"quietHours,omitempty"`
 	// Hidden are the user's own paths every team agent sees as empty, written
 	// as given ("~/Private" or absolute), beside what Rashin always hides:
-	// TeamsAlwaysHidden and every harness's own state.
+	// TeamsAlwaysHidden.
 	Hidden []string `json:"hidden"`
 	// KeepDays is how long finished tasks and their sessions are kept: one
 	// of TeamsKeepDays, 0 keeping them forever.
@@ -944,13 +824,11 @@ type TeamsSettings struct {
 }
 
 // TeamDefaults are what a new team starts with, and the engine of every
-// member left on the default harness.
+// member that names no model.
 type TeamDefaults struct {
-	// Harness is a HarnessInfo ID; empty runs the Agents harness
-	// (AgentSettings.Harness), else the registry's default.
-	Harness string `json:"harness,omitempty"`
-	// Model and Options belong to the harness Harness resolves to; empty
-	// takes that harness's own defaults.
+	// Model is a route or provider/model; empty follows the Agents model
+	// (AgentSettings.Model), else RouteAuto. Options are that model's knobs;
+	// empty follows the Agents options. See ResolveEngine.
 	Model   string            `json:"model,omitempty"`
 	Options map[string]string `json:"options,omitempty"`
 	// Approvals is an Approvals value.
@@ -1032,6 +910,10 @@ const (
 	HiddenChat      = "chat"
 	HiddenHistories = "histories"
 	HiddenRyoku     = "ryoku"
+	// HiddenAgents are other coding agents' logins and state under HOME
+	// (Claude Code, Codex, OpenCode, Gemini, Qwen, Hermes, omp, Goose): the
+	// user's own credentials, which no team agent may read.
+	HiddenAgents = "agents"
 	// HiddenHost are host daemons' sockets that reach root or the machine:
 	// all of /run, which every sandbox replaces with an empty one, and those
 	// that live elsewhere.
@@ -1045,10 +927,9 @@ type HiddenGroup struct {
 }
 
 // TeamsAlwaysHidden are the places credentials and private state live, hidden
-// from every team agent and every harness Check whatever the settings say,
-// as each sandbox shares the network and anything it reads can leave. Paths
-// are under the user's home, written "~/", or absolute for host daemons.
-// Every harness's own state is hidden as well (HarnessInfo.State).
+// from every team agent whatever the settings say, as each sandbox shares the
+// network and anything it reads can leave. Paths are under the user's home,
+// written "~/", or absolute for host daemons.
 func TeamsAlwaysHidden() []HiddenGroup {
 	return []HiddenGroup{
 		{Kind: HiddenKeys, Paths: []string{
@@ -1097,6 +978,11 @@ func TeamsAlwaysHidden() []HiddenGroup {
 			"~/.local/state/ryoku", "~/.local/share/ryoku/rashin", "~/.local/share/ryoku/vault", "~/.cache/ryoku/rashin",
 			"~/Teams", "~/Dreams", "~/.config/dev.ryoku.ryotunes", "~/.local/share/dev.ryoku.ryotunes", "~/.local/state/ryotunes",
 		}},
+		{Kind: HiddenAgents, Paths: []string{
+			"~/.claude", "~/.claude.json", "~/.config/claude", "~/.codex", "~/.config/opencode",
+			"~/.local/share/opencode", "~/.local/state/opencode", "~/.gemini", "~/.qwen", "~/.hermes", "~/.omp",
+			"~/.config/goose", "~/.local/share/goose", "~/.local/state/goose",
+		}},
 		{Kind: HiddenHost, Paths: []string{
 			"/run", "/nix/var/nix/daemon-socket", "/var/lib/incus", "/var/lib/lxd/unix.socket", "/var/snap/lxd/common/lxd/unix.socket",
 		}},
@@ -1124,13 +1010,40 @@ type Settings struct {
 	Providers ProvidersSettings `json:"providers"`
 	Memory    MemorySettings    `json:"memory"`
 	Skills    SkillsSettings    `json:"skills"`
+	Features  map[string]bool   `json:"features,omitempty"`
 }
 
 // ProvidersSettings are the providers' settings that are not keys. Local maps
-// a local provider's id to the address of its OpenAI-compatible API; only the
-// Rashin app may change one, since the gateway sends requests there.
+// an addressed local provider's id (AddressedLocalProviders) to the address
+// of its OpenAI-compatible API; only the Rashin app may change one, since the
+// gateway sends requests there. Models configures Rashin's own llama.cpp
+// (rashin-models) and local-first routing.
 type ProvidersSettings struct {
-	Local map[string]string `json:"local,omitempty"`
+	Local  map[string]string   `json:"local,omitempty"`
+	Models LocalModelsSettings `json:"models"`
+}
+
+// LocalModelsSettings configures the Rashin-managed llama.cpp router and how
+// the routes rank models on this computer.
+type LocalModelsSettings struct {
+	// Binary is an absolute llama-server path; "" uses Rashin's managed
+	// runtime, then llama-server on PATH.
+	Binary string `json:"binary,omitempty"`
+	// IdleMinutes stops the router this long after its last request, so it
+	// holds no memory at rest: DefaultLocalIdleMinutes, 1 to
+	// LocalIdleMinutesMax.
+	IdleMinutes int `json:"idleMinutes"`
+	// Device is "" for automatic, "cpu", or an id from llama-server
+	// --list-devices such as "Vulkan0".
+	Device string `json:"device,omitempty"`
+	// Overrides replaces only the named model's automatic hardware choices.
+	Overrides map[string]LocalModelOverride `json:"overrides,omitempty"`
+	// Light is the provider/model light work runs on; "" picks the smallest
+	// local model with tools.
+	Light string `json:"light,omitempty"`
+	// RemoteFirst puts free remote models ahead of the ones on this computer
+	// in Auto, Fast and Smart; false (the default) keeps local first.
+	RemoteFirst bool `json:"remoteFirst,omitempty"`
 }
 
 // SettingsSetParams carries a JSON merge patch (RFC 7396) over Settings.
@@ -1148,6 +1061,9 @@ const (
 	// TabMemory is the Memory page, reached from Settings, a conversation's
 	// memory line and the palette rather than the sidebar.
 	TabMemory = "memory"
+	// TabLearning is the Learning page: managed skills, decisions, rules and
+	// grievances, each shown while its feature is on.
+	TabLearning = "learning"
 
 	// Teams mode
 	TabInbox    = "inbox"
@@ -1171,10 +1087,11 @@ type UIOpenParams struct {
 	Worktree string `json:"worktree,omitempty"`
 	// Team, TeamTask, Routine and Credential open Teams mode on one of them;
 	// View then names a team page tab.
-	Team       string `json:"team,omitempty"`
-	TeamTask   string `json:"teamTask,omitempty"`
-	Routine    string `json:"routine,omitempty"`
-	Credential string `json:"credential,omitempty"`
+	Team       string             `json:"team,omitempty"`
+	TeamTask   string             `json:"teamTask,omitempty"`
+	Routine    string             `json:"routine,omitempty"`
+	Credential string             `json:"credential,omitempty"`
+	DreamDraft *DreamCreateParams `json:"dreamDraft,omitempty"`
 }
 
 // UIOpenResult reports whether a running app received the request.

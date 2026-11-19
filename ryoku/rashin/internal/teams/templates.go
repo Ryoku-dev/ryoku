@@ -8,7 +8,7 @@ import (
 
 // templates are the ready-made teams a new one can start from, in the order
 // they are offered: light, medium and advanced ones, then the blank team.
-// Members leave harness and model empty, so they follow the teams defaults,
+// Members leave the model empty, so they follow the teams defaults,
 // except where a template shows a member on another model; a budget names
 // only the turns per task, the rest comes from the teams defaults too.
 // Routines are offered off. Credentials are asked for when the team is made,
@@ -114,7 +114,7 @@ func templates() []protocol.TeamTemplate {
 					Instructions: i18n.T("You hand the reading to the reader and each story you pick to the fact checker, then write the digest: the stories worth the user's time, each in two sentences with its link."),
 				},
 				{
-					Name: reader, Title: i18n.T("News reader"), Harness: "claude", Model: "haiku",
+					Name: reader, Title: i18n.T("News reader"), Model: protocol.RouteFast,
 					Instructions: i18n.T("You read the news through NewsAPI with http_request and the NEWS_API_KEY credential, and hand back every story on the user's topics with its link. When the credential is missing, ask for it with request_credential."),
 				},
 				{

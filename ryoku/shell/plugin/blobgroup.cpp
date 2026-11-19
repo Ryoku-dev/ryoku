@@ -76,6 +76,14 @@ void BlobGroup::setWaveColor(const QColor& c) {
     markDirty();
 }
 
+void BlobGroup::setCutCorners(bool v) {
+    if (m_cutCorners == v)
+        return;
+    m_cutCorners = v;
+    emit cutCornersChanged();
+    markDirty();
+}
+
 void BlobGroup::addShape(BlobShape* shape) {
     if (!shape || m_shapes.contains(shape))
         return;

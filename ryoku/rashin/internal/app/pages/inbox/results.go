@@ -26,7 +26,7 @@ func (b *board) layoutResults(gtx layout.Context, e *env.Env, snapshot state.Sna
 	reports := append(append([]protocol.TeamTask(nil), unread...), readOnes(snapshot)...)
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, i18n.T("Reports"), len(unread)))
+			return layout.Inset{Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("Reports"), Number: 2, Of: 5, Count: len(unread)}))
 		}),
 	}
 	if len(reports) == 0 {
@@ -41,7 +41,7 @@ func (b *board) layoutResults(gtx layout.Context, e *env.Env, snapshot state.Sna
 	}
 	if working := teamsui.Working(snapshot); len(working) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, i18n.T("Working now"), len(working)))
+			return layout.Inset{Top: th.Sp.S4, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: i18n.T("Working now"), Number: 3, Of: 5, Count: len(working)}))
 		}))
 		for _, task := range working {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

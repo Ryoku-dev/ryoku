@@ -64,7 +64,7 @@ BASE_GROUPS = [
 # Root-owned services the base system ships; everything else outside the user's
 # own processes is the machine's business, not the desktop's.
 SYSTEM_UNITS = ("limine-snapper-sync.service",)
-OPTIN_GROUPS = ["dictation", "phone", "rashind", "rashin-app", "rashin-agent", "cobalt", "hub"]
+OPTIN_GROUPS = ["dictation", "phone", "rashind", "rashin-app", "rashin-agent", "hub"]
 PLATFORM = {
     "pipewire", "wireplumber", "pipewire-pulse", "xdg-desktop-portal",
     "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk", "xdg-document-portal",
@@ -167,17 +167,6 @@ def drm_of(pid):
     return clients
 
 
-def docker_names():
-    if not shutil.which("docker"):
-        return {}
-    try:
-        out = subprocess.run(["docker", "ps", "--no-trunc", "--format", "{{.ID}} {{.Names}}"],
-                             capture_output=True, text=True, timeout=5).stdout
-    except (OSError, subprocess.SubprocessError):
-        return {}
-    return dict(line.split(" ", 1) for line in out.splitlines() if " " in line)
-
-
 def classify(procs):
     """Assign every process a group; tooling (herdr/omp/this script) is excluded."""
     me = os.getpid()
@@ -190,7 +179,6 @@ def classify(procs):
         elif "ryoku-dev-perf-baseline" in p["cmd"]:
             roots.add(pid)  # another run of this script, e.g. inside a container
     roots.add(me)
-    docker = docker_names()
 
     def under(pid, targets):
         seen = 0
@@ -210,9 +198,6 @@ def classify(procs):
         g = None
         if under(pid, roots):
             g = "tooling"
-        elif unit.startswith("docker-") and unit.endswith(".scope"):
-            name = docker.get(unit[len("docker-"):-len(".scope")], "")
-            g = "cobalt" if name == "ryoku-cobalt" else "other"
         elif cmd.startswith("ryoku-wm-") or "/ryoku-wm-" in cmd.split(" ")[0]:
             g = "wm-provider"
         elif "wavecap.py" in cmd or comm == "pw-record":
@@ -267,10 +252,9 @@ def snapshot():
             mine.append((pid, False))
             continue
         unit = unit_of(pid)
-        # docker runs containers as other users but ryoku-cobalt and the base
-        # root services are still the desktop's
+        # root services the base system ships are still the desktop's
         system = unit.startswith("ryoku-") or unit in SYSTEM_UNITS
-        if unit.startswith("docker-") or system:
+        if system:
             foreign.append((pid, system))
     # a host run with --uid must not count the host's own services, or the reverse
     scopes = {scope_of(pid) for pid, _ in mine}

@@ -158,62 +158,6 @@ func (morph *Morph) Layout(
 	return drawMorphIcon(gtx, morph.current, ink, pixels, .85+.15*progress, progress)
 }
 
-type Unfold struct {
-	Preview kit.State
-
-	open  bool
-	ready bool
-	tween anim.Tween
-}
-
-func (unfold *Unfold) Layout(
-	gtx layout.Context,
-	th *Theme,
-	open bool,
-	child layout.Widget,
-) layout.Dimensions {
-	unfold.tween.Duration = th.Motion.Unfold
-	unfold.tween.Ease = anim.EaseChisel
-	if !unfold.ready {
-		initial := float32(0)
-		if open {
-			initial = 1
-		}
-		unfold.tween.Set(gtx, initial)
-		unfold.open, unfold.ready = open, true
-	} else if unfold.open != open {
-		unfold.open = open
-		if open {
-			unfold.tween.Set(gtx, 1)
-		} else {
-			unfold.tween.Set(gtx, 0)
-		}
-	}
-	progress := unfold.tween.Value(gtx)
-	if unfold.Preview != kit.StateRest {
-		progress = 1
-	}
-	if progress <= 0 {
-		return layout.Dimensions{}
-	}
-	record := op.Record(gtx.Ops)
-	contentGTX := gtx
-	contentGTX.Constraints.Min.Y = 0
-	if !open && progress < 1 {
-		contentGTX = contentGTX.Disabled()
-	}
-	content := child(contentGTX)
-	call := record.Stop()
-	height := int(math.Round(float64(float32(content.Size.Y) * progress)))
-	height = max(0, min(content.Size.Y, height))
-	area := clip.Rect(image.Rect(0, 0, content.Size.X, height)).Push(gtx.Ops)
-	opacity := paint.PushOpacity(gtx.Ops, progress)
-	call.Add(gtx.Ops)
-	opacity.Pop()
-	area.Pop()
-	return layout.Dimensions{Size: image.Pt(content.Size.X, height)}
-}
-
 type Rise struct {
 	key    string
 	ready  bool

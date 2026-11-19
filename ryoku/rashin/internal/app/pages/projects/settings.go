@@ -21,6 +21,8 @@ type settingsDialog struct {
 	base, prefix, setup, copyIgnored kit.TextField
 	root                             env.PathField
 	auto                             kit.Toggle
+	model                            env.ModelForm
+	inherit                          env.ModelInherit
 	mergeDays, inactiveDays          kit.Stepper
 	protect                          look.Select
 	protectSelected                  int
@@ -37,6 +39,7 @@ func (d *settingsDialog) open(info protocol.ProjectInfo) {
 	d.prefix.SetText(settings.BranchPrefix)
 	d.setup.SetText(settings.Setup)
 	d.copyIgnored.SetText(strings.Join(settings.CopyIgnored, ", "))
+	d.model.Set(settings.Model, nil)
 	d.auto.Value = settings.Cleanup.Auto
 	d.mergeDays.Value, d.inactiveDays.Value = settings.Cleanup.AfterMergeDays, settings.Cleanup.InactiveDays
 	d.protectSelected = 0
@@ -79,6 +82,9 @@ func (d *settingsDialog) layout(gtx layout.Context, e *env.Env, page *pageState)
 
 func (d *settingsDialog) rows(e *env.Env) []layout.Widget {
 	th := e.Theme
+	d.model.Parts, d.model.Agents = 0, true
+	d.inherit.Label, d.inherit.Model = i18n.T("Agent default"), e.Snapshot().Settings.Agent.Model
+	d.model.Inherit = &d.inherit
 	field := func(input *kit.TextField, label, help string, mono bool) layout.Widget {
 		input.Label, input.Help, input.Mono = label, help, mono
 		return func(gtx layout.Context) layout.Dimensions { return input.Layout(gtx, th.Theme) }
@@ -89,6 +95,10 @@ func (d *settingsDialog) rows(e *env.Env) []layout.Widget {
 	d.protect.Label = i18n.T("Never remove a worktree that has")
 	protect := []string{i18n.T("Uncommitted changes"), i18n.T("Any file Git does not track")}
 	return []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = gtx.Constraints.Max.X
+			return d.model.Layout(gtx, e)
+		},
 		field(&d.base, i18n.T("Base"), i18n.T("New worktrees start from this ref."), true),
 		func(gtx layout.Context) layout.Dimensions {
 			d.root.Title, d.root.Label = i18n.T("Worktree folder"), i18n.T("Worktree folder")
@@ -128,9 +138,10 @@ func (d *settingsDialog) submit(e *env.Env, page *pageState) {
 	if d.protectSelected == 1 {
 		protect = protocol.ProtectAny
 	}
+	model, _ := d.model.Value()
 	patch := protocol.ProjectSettings{
 		BaseRef: d.base.Text(), WorktreeRoot: d.root.Path(), BranchPrefix: d.prefix.Text(),
-		Setup: d.setup.Text(), CopyIgnored: splitList(d.copyIgnored.Text()),
+		Setup: d.setup.Text(), CopyIgnored: splitList(d.copyIgnored.Text()), Model: model,
 		Cleanup: protocol.CleanupPolicy{
 			Auto: d.auto.Value, AfterMergeDays: d.mergeDays.Value, InactiveDays: d.inactiveDays.Value, Protect: protect,
 		},

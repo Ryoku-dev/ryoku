@@ -11,17 +11,17 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// agentSession keys the session whose own socket a call arrived on.
+// agentSession keys the session whose own team tools made a call.
 type agentSession struct{}
 
-// WithAgentSession marks ctx as a call that arrived on session id's own agent
-// socket, so the call may act only as that session's run.
+// WithAgentSession marks ctx as a call that session id's own team tools
+// made, so the call may act only as that session's run.
 func WithAgentSession(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, agentSession{}, id)
 }
 
-// caller finds the live run a call from an agent's MCP server belongs to. It
-// refuses a call that names another session than the socket it came on, a
+// caller finds the live run a call from a session's team tools belongs to.
+// It refuses a call that names another session than the one that made it, a
 // session it does not know, a token that is not the run's, and a run whose
 // task has ended.
 func (s *Service) caller(ctx context.Context, ref protocol.AgentRef) (caller, error) {

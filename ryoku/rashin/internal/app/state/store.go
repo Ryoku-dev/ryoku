@@ -2,8 +2,10 @@ package state
 
 import (
 	"encoding/json"
+	"maps"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"ryoku-rashin/internal/app/chat"
 	"ryoku-rashin/internal/protocol"
@@ -37,7 +39,6 @@ type Snapshot struct {
 	Order      []string
 	Settings   protocol.Settings
 	Providers  []protocol.ProviderInfo
-	Harnesses  []protocol.HarnessInfo
 	Indexes    []protocol.IndexInfo
 	Projects   []protocol.ProjectInfo
 	Worktrees  map[string][]protocol.WorktreeInfo
@@ -66,6 +67,11 @@ type Snapshot struct {
 	// MemorySetup is the latest memory.setup progress, kept after its last
 	// step until the next setup starts or a snapshot replaces it.
 	MemorySetup *protocol.MemorySetupProgress
+	// Local is Rashin's own models and the llama.cpp runtime that serves
+	// them; LocalProgress is the latest local.progress of each download
+	// still on its way, by model id or protocol.LocalRuntimeID.
+	Local         protocol.LocalResult
+	LocalProgress map[string]protocol.LocalProgress
 }
 
 // Store reduces daemon snapshots and events into one app state.
@@ -78,9 +84,9 @@ type Store struct {
 	sessions   map[string]protocol.SessionInfo
 	order      []string
 	settings   protocol.Settings
+	features   atomic.Pointer[map[string]bool]
 	providers  []protocol.ProviderInfo
 	indexes    []protocol.IndexInfo
-	harnesses  []protocol.HarnessInfo
 	projects   []protocol.ProjectInfo
 	worktrees  map[string][]protocol.WorktreeInfo
 	tasks      map[string][]protocol.TaskInfo
@@ -88,15 +94,17 @@ type Store struct {
 	progress   map[string]protocol.IndexProgress
 	attached   map[string]*chat.Model
 	// what a session streamed while the replay that opens it was still on its way
-	arriving    map[string]*arrival
-	focus       protocol.UIOpenParams
-	notices     []protocol.Notice
-	screens     map[string]protocol.ScreenState
-	teamsState  teamsState
-	memoryState memoryState
-	gitNext     uint64
-	gitChanged  map[string]map[uint64]func()
-	invalidate  func()
+	arriving      map[string]*arrival
+	focus         protocol.UIOpenParams
+	notices       []protocol.Notice
+	screens       map[string]protocol.ScreenState
+	teamsState    teamsState
+	memoryState   memoryState
+	localState    localState
+	learningState learningState
+	gitNext       uint64
+	gitChanged    map[string]map[uint64]func()
+	invalidate    func()
 	// the last snapshot handed out and the revision it shows
 	published   *Snapshot
 	publishedAt uint64
@@ -114,8 +122,21 @@ func New(invalidate func()) *Store {
 		gitChanged:  make(map[string]map[uint64]func()),
 		teamsState:  newTeamsState(),
 		memoryState: newMemoryState(),
+		localState:  newLocalState(),
 		invalidate:  invalidate,
 	}
+}
+
+// Feature reads outside the store lock because transcript layout holds its model lock.
+func (s *Store) Feature(id string) bool {
+	features := s.features.Load()
+	return features != nil && (*features)[id]
+}
+
+func (s *Store) setSettingsLocked(settings protocol.Settings) {
+	s.settings = settings
+	features := maps.Clone(settings.Features)
+	s.features.Store(&features)
 }
 
 func (s *Store) changedLocked() func() {
@@ -151,14 +172,14 @@ func (s *Store) SetConnection(connection Connection) {
 func (s *Store) ApplySnapshot(snapshot protocol.Snapshot) {
 	s.mu.Lock()
 	s.status = snapshot.Status
-	s.settings = snapshot.Settings
+	s.setSettingsLocked(snapshot.Settings)
 	s.providers = cloneProviders(snapshot.Providers)
-	s.harnesses = cloneHarnesses(snapshot.Harnesses)
 	s.indexes = cloneIndexes(snapshot.Indexes)
 	s.projects = cloneProjects(snapshot.Projects)
 	s.tasks = groupTasks(snapshot.Tasks)
 	s.teamsState.applySnapshotLocked(snapshot)
 	s.memoryState.applySnapshotLocked(snapshot)
+	s.localState.applySnapshotLocked(snapshot)
 	s.screens = make(map[string]protocol.ScreenState, len(snapshot.Screens))
 	for _, screen := range snapshot.Screens {
 		s.screens[screen.Session] = screen
@@ -308,6 +329,12 @@ func (s *Store) Apply(event protocol.Event) error {
 	if handled, memoryErr := s.memoryState.applyLocked(event); handled {
 		err = memoryErr
 	}
+	if handled, learnErr := s.learningState.applyLocked(event); handled {
+		err = learnErr
+	}
+	if handled, localErr := s.localState.applyLocked(event); handled {
+		err = localErr
+	}
 	switch event.Event {
 	case protocol.EvtSessionEvent:
 		var data protocol.SessionEventData
@@ -338,18 +365,16 @@ func (s *Store) Apply(event protocol.Event) error {
 			s.rebuildOrderLocked()
 		}
 	case protocol.EvtSettingsChanged:
-		err = json.Unmarshal(event.Data, &s.settings)
+		var settings protocol.Settings
+		if err = json.Unmarshal(event.Data, &settings); err == nil {
+			s.setSettingsLocked(settings)
+		}
 	case protocol.EvtAPIChanged:
 		err = json.Unmarshal(event.Data, &s.status.API)
 	case protocol.EvtProvidersChanged:
 		var result protocol.ProvidersResult
 		if err = json.Unmarshal(event.Data, &result); err == nil {
 			s.providers = cloneProviders(result.Providers)
-		}
-	case protocol.EvtHarnessesChanged:
-		var result protocol.HarnessesResult
-		if err = json.Unmarshal(event.Data, &result); err == nil {
-			s.harnesses = cloneHarnesses(result.Harnesses)
 		}
 	case protocol.EvtIndexProgress:
 		var progress protocol.IndexProgress
@@ -463,7 +488,6 @@ func (s *Store) Snapshot() Snapshot {
 		Order:      append([]string(nil), s.order...),
 		Settings:   s.settings,
 		Providers:  cloneProviders(s.providers),
-		Harnesses:  cloneHarnesses(s.harnesses),
 		Indexes:    cloneIndexes(s.indexes),
 		Projects:   cloneProjects(s.projects),
 		Worktrees:  cloneWorktreeMap(s.worktrees),
@@ -483,6 +507,7 @@ func (s *Store) Snapshot() Snapshot {
 	}
 	s.teamsState.snapshotLocked(&result)
 	s.memoryState.snapshotLocked(&result)
+	s.localState.snapshotLocked(&result)
 	for id, progress := range s.progress {
 		result.Progress[id] = progress
 	}
@@ -580,19 +605,6 @@ func cloneIndexes(input []protocol.IndexInfo) []protocol.IndexInfo {
 	result := append([]protocol.IndexInfo(nil), input...)
 	for index := range result {
 		result[index].Roots = append([]string(nil), input[index].Roots...)
-	}
-	return result
-}
-
-func cloneHarnesses(input []protocol.HarnessInfo) []protocol.HarnessInfo {
-	result := append([]protocol.HarnessInfo(nil), input...)
-	for index := range result {
-		result[index].Command = append([]string(nil), input[index].Command...)
-		if input[index].Capabilities != nil {
-			capabilities := *input[index].Capabilities
-			capabilities.Modes = append([]protocol.Choice(nil), input[index].Capabilities.Modes...)
-			result[index].Capabilities = &capabilities
-		}
 	}
 	return result
 }

@@ -221,7 +221,7 @@ func (panel *screenPanel) layoutFrame(gtx layout.Context, e *env.Env, state prot
 	width := min(gtx.Constraints.Max.X, gtx.Constraints.Max.Y*screenW/screenH)
 	size := image.Pt(width, width*screenH/screenW)
 	bounds := image.Rectangle{Max: size}
-	kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), th.R.Stone2)
+	kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), th.Planes().Card)
 	if panel.framed {
 		inner := bounds.Inset(gtx.Dp(2))
 		frameSize := panel.frame.Size()
@@ -244,7 +244,7 @@ func (panel *screenPanel) layoutFrame(gtx layout.Context, e *env.Env, state prot
 		offset.Pop()
 	}
 	if yours {
-		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), gtx.Dp(2), th.R.Amber)
+		kit.Stroke(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), gtx.Dp(th.Sp.S1), th.R.Stone(palette.Attention))
 		panel.input(gtx, e, state, size)
 	}
 	return layout.Dimensions{Size: size}

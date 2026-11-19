@@ -15,14 +15,14 @@ import (
 )
 
 type createTask struct {
-	shown        bool
-	dialog       kit.Dialog
-	scroll       look.Scroller
-	title, goal  kit.TextField
-	waits        map[string]*kit.Toggle
-	add, cancel  kit.Plaque
-	harness      look.Select
-	harnessIndex int
+	shown       bool
+	dialog      kit.Dialog
+	scroll      look.Scroller
+	title, goal kit.TextField
+	waits       map[string]*kit.Toggle
+	add, cancel kit.Plaque
+	model       env.ModelForm
+	inherit     env.ModelInherit
 }
 
 func (d *createTask) open() {
@@ -30,7 +30,7 @@ func (d *createTask) open() {
 	d.title.SetText("")
 	d.goal.SetText("")
 	d.waits = make(map[string]*kit.Toggle)
-	d.harnessIndex = 0
+	d.model.Set("", nil)
 }
 
 func (d *createTask) layout(gtx layout.Context, e *env.Env, page *pageState, tasks *tasksState, existing []protocol.TaskInfo) {
@@ -38,28 +38,32 @@ func (d *createTask) layout(gtx layout.Context, e *env.Env, page *pageState, tas
 		return
 	}
 	th := e.Theme
-	harnessLabels, harnessIDs := []string{i18n.T("The default harness")}, []string{""}
-	for _, harness := range e.Snapshot().Harnesses {
-		if harness.Installed {
-			harnessLabels, harnessIDs = append(harnessLabels, harness.Name), append(harnessIDs, harness.ID)
-		}
+	d.model.Parts = 0
+	d.model.Agents = true
+	project, _ := page.projectInfo(e)
+	inherit := project.Settings.Model
+	if inherit == "" {
+		inherit = e.Snapshot().Settings.Agent.Model
 	}
+	d.inherit.Label, d.inherit.Model = i18n.T("Project default"), inherit
+	d.model.Inherit = &d.inherit
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.add.Kind, d.add.Label = kit.PlaqueGold, i18n.T("Create task")
 	title := strings.TrimSpace(d.title.Text())
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
-	if d.add.Clicked(gtx) && title != "" {
+	if d.add.Clicked(gtx) && title != "" && d.model.Ready(e) {
 		waits := make([]string, 0, len(d.waits))
 		for _, task := range existing {
 			if toggle := d.waits[task.ID]; toggle != nil && toggle.Value {
 				waits = append(waits, task.ID)
 			}
 		}
+		model, _ := d.model.Value()
 		params := protocol.TaskCreateParams{
 			Project: page.project, Title: title, Goal: strings.TrimSpace(d.goal.Text()),
-			Deps: waits, Harness: harnessIDs[min(d.harnessIndex, len(harnessIDs)-1)],
+			Deps: waits, Model: model,
 		}
 		var created protocol.TaskInfo
 		e.Call(protocol.MTasksCreate, params, &created, func(err error) {
@@ -82,13 +86,8 @@ func (d *createTask) layout(gtx layout.Context, e *env.Env, page *pageState, tas
 			return d.goal.Layout(gtx, th.Theme)
 		},
 		func(gtx layout.Context) layout.Dimensions {
-			d.harness.Label = i18n.T("Run by")
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			dimensions := d.harness.Layout(gtx, th, e.Overlays, harnessLabels, d.harnessIndex)
-			if index, changed := d.harness.Changed(); changed {
-				d.harnessIndex = index
-			}
-			return dimensions
+			return d.model.Layout(gtx, e)
 		},
 	}
 	if len(existing) > 0 {
@@ -116,7 +115,7 @@ func (d *createTask) layout(gtx layout.Context, e *env.Env, page *pageState, tas
 		},
 		func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) },
 		func(gtx layout.Context) layout.Dimensions {
-			if title == "" {
+			if title == "" || !d.model.Ready(e) {
 				gtx = gtx.Disabled()
 			}
 			return d.add.Layout(gtx, th.Theme)

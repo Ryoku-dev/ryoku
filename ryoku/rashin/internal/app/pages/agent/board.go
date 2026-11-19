@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"image"
 	"time"
 
 	"gioui.org/layout"
@@ -23,13 +22,17 @@ const recentLimit = 5
 type board struct {
 	header    look.PaneHeader
 	scroll    look.Scroller
+	sheet     look.Sheet
+	rows      int
+	reveal    look.Reveal
+	figures   [3]look.CountUp
 	composer  chat.Composer
 	place     placement
-	approvals env.Approvals
 	more      kit.Plaque
 	temporary env.Temporary
 	starting  bool
 	tablets   map[string]*boardTablet
+	ready     env.AgentReady
 	first     boardStart
 }
 
@@ -47,13 +50,15 @@ type boardItem struct {
 
 const (
 	itemLead = iota
-	itemInstall
+	itemReady
 	itemPlaces
 	itemSection
 	itemSession
+	itemFolio
 )
 
 func (b *board) focus(e *env.Env) {
+	b.reveal.Reset()
 	b.place.prime(e)
 	b.composer.Focus()
 }
@@ -61,7 +66,8 @@ func (b *board) focus(e *env.Env) {
 func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimensions {
 	snapshot := e.Snapshot()
 	sessions := groupSessions(snapshot)
-	items := b.items(snapshot, sessions)
+	items := b.items(sessions, b.ready.Ready(e))
+	b.rows = len(items)
 	running := len(sessions[groupWorking]) > 0
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -86,21 +92,25 @@ func (b *board) layout(gtx layout.Context, e *env.Env, page *Page) layout.Dimens
 			return dimensions
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
-				return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-					return b.layoutItem(gtx, e, page, snapshot, sessions, items[index], index == len(items)-1)
+			return b.sheet.Layout(gtx, e.Theme, look.PageFor(protocol.TabAgent), func(gtx layout.Context) layout.Dimensions {
+				return b.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
+						return b.reveal.Group(gtx, e.Theme, index, func(gtx layout.Context) layout.Dimensions {
+							return b.layoutItem(gtx, e, page, snapshot, sessions, items[index], index == len(items)-1)
+						})
+					})
 				})
 			})
 		}),
 	)
 }
 
-func (b *board) items(snapshot state.Snapshot, sessions [groupCount][]protocol.SessionInfo) []boardItem {
+func (b *board) items(sessions [groupCount][]protocol.SessionInfo, ready bool) []boardItem {
 	items := []boardItem{{kind: itemLead}}
-	if len(env.InstalledHarnesses(snapshot)) == 0 {
-		// goes first: without a harness nothing below it can be continued either
-		items = append(items, boardItem{kind: itemInstall})
+	if !ready {
+		items = append(items, boardItem{kind: itemReady})
 	}
+	items = append(items, boardItem{kind: itemPlaces})
 	add := func(title string, list []protocol.SessionInfo) {
 		if len(list) == 0 {
 			return
@@ -114,11 +124,7 @@ func (b *board) items(snapshot state.Snapshot, sessions [groupCount][]protocol.S
 	add(groupWorking.label(), sessions[groupWorking])
 	recent := append(append([]protocol.SessionInfo(nil), sessions[groupDone]...), sessions[groupIdle]...)
 	add(i18n.T("Recently finished"), recent[:min(len(recent), recentLimit)])
-	// a board with nothing to report says where an agent could start instead of standing empty
-	if len(items) == 1 && len(env.InstalledHarnesses(snapshot)) > 0 {
-		items = append(items, boardItem{kind: itemPlaces})
-	}
-	return items
+	return append(items, boardItem{kind: itemFolio})
 }
 
 func (b *board) layoutItem(
@@ -136,16 +142,20 @@ func (b *board) layoutItem(
 		return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.layoutLead(gtx, e, page, snapshot, sessions)
 		})
-	case itemInstall:
+	case itemReady:
 		return layout.Inset{Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return b.first.layoutInstall(gtx, e, snapshot)
+			return b.ready.Layout(gtx, e)
 		})
 	case itemPlaces:
 		return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return b.first.layoutPlaces(gtx, e, snapshot, b)
 		})
+	case itemFolio:
+		return layout.Inset{Top: th.Sp.S5, Bottom: th.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return b.sheet.Colophon(gtx, th, look.PageFor(protocol.TabAgent))
+		})
 	case itemSection:
-		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionTitle(th, item.title, item.count))
+		return layout.Inset{Top: th.Sp.S3, Bottom: th.Sp.S2}.Layout(gtx, look.SectionHead(th, look.Head{Title: item.title, Count: item.count}))
 	default:
 		bottom := th.Sp.S1
 		if last {
@@ -165,9 +175,8 @@ func (b *board) layoutLead(
 	sessions [groupCount][]protocol.SessionInfo,
 ) layout.Dimensions {
 	th := e.Theme
-	// with no harness there is nothing to tell an agent yet, so the composer waits for one
-	if len(env.InstalledHarnesses(snapshot)) == 0 {
-		return look.Monument(gtx, th, i18n.T("Agents need a harness."), i18n.T("Install one and you can start agents from here."))
+	if !b.ready.Ready(e) {
+		return look.Monument(gtx, th, env.NoAgentModel(), i18n.T("Get a local model in Settings, under Providers, to start an agent here."))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -176,6 +185,14 @@ func (b *board) layoutLead(
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(kit.Text(th.Theme, th.T.Proof, th.R.Fg2, boardProof(gtx.Now, sessions))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return look.SpecStrip(gtx, th, []look.Spec{
+				{Label: i18n.T("Sessions"), Value: kit.Pad2(b.figures[0].Value(gtx, th, len(sessions[groupNeeds])+len(sessions[groupWorking])+len(sessions[groupDone])+len(sessions[groupIdle])))},
+				{Label: i18n.T("Need you"), Value: kit.Pad2(b.figures[1].Value(gtx, th, len(sessions[groupNeeds]))), Lit: len(sessions[groupNeeds]) != 0},
+				{Label: i18n.T("Working"), Value: kit.Pad2(b.figures[2].Value(gtx, th, len(sessions[groupWorking])))},
+			})
+		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.layoutComposer(gtx, e, page, snapshot) }),
 	)
@@ -188,15 +205,12 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 		page.create.open(e, &b.place)
 	}
 	home := b.composer.FocusTag()
-	may := b.approvals.Value("", snapshot.Settings.Agent.Approvals)
+	b.place.model.Parts, b.place.model.Agents = env.ModelOptions|env.ModelPlan|env.ModelAsking, true
+	b.place.model.FollowAgent(e)
+	may := b.place.model.Approvals()
 	options := chat.ComposerOptions{
-		Placeholder: i18n.T("Tell an agent what to do"), CanAttach: true, Disabled: b.starting,
-		Controls: append(b.place.controls(e, home), func(gtx layout.Context) layout.Dimensions {
-			return b.approvals.Layout(gtx, e, env.AgentApprovals, "", snapshot.Settings.Agent.Approvals, home)
-		}),
-	}
-	if value, changed := b.approvals.Changed(); changed {
-		e.SetApprovals(env.AgentApprovals, value)
+		Placeholder: i18n.T("Tell an agent what to do"), CanAttach: true, Disabled: b.starting || !b.place.model.Ready(e),
+		Controls: b.place.controls(e, home),
 	}
 	// the field itself says what a temporary session is, where it always fits
 	if b.temporary.On {
@@ -204,8 +218,7 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 	}
 	e.ComposerDesktop(&b.composer, &options)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	harnesses := env.InstalledHarnesses(snapshot)
-	picked := b.place.picked(snapshot, harnesses)
+	model, _ := b.place.model.Effective()
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions := b.composer.Layout(gtx, th, options)
@@ -224,19 +237,15 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 			)
 		}),
 	}
-	// what the session will run with, the model picked here over the harness's own, so the choice is made knowing it
-	if facts := env.StartFacts(b.place.model.reader.Info(snapshot, picked.ID), e.AgentModels[picked.ID]); len(facts) > 0 {
-		children = append(children,
-			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return env.LayoutFacts(gtx, th, facts) }),
-		)
-	}
-	children = append(children, b.place.model.noteRows(th)...)
+	children = append(children,
+		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return env.ModelLine(gtx, e, model) }),
+	)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submission) {
-	params, ok := b.place.params(snapshot, e.AgentModels, details{name: worktreeName(submission.Text)})
+	params, ok := b.place.params(e, details{name: worktreeName(submission.Text)})
 	if !ok {
 		return
 	}
@@ -267,7 +276,6 @@ func (b *board) layoutSession(gtx layout.Context, e *env.Env, snapshot state.Sna
 		item = new(boardTablet)
 		b.tablets[info.ID] = item
 	}
-	item.tablet.Pane = th.R.Stone2
 	item.open.Kind, item.open.Small, item.open.Label = kit.PlaqueTonal, true, i18n.T("Open")
 	if item.tablet.Clicked(gtx) || item.tablet.DoubleClicked(gtx) || item.open.Clicked(gtx) {
 		open(e, info.ID)
@@ -275,7 +283,7 @@ func (b *board) layoutSession(gtx layout.Context, e *env.Env, snapshot state.Sna
 	at := groupOf(snapshot, info)
 	content := kit.TabletContent{
 		Title: sessionTitle(info), Facts: sessionMatter(snapshot, info), Proof: sessionPlace(snapshot, info),
-		Tone: sessionTone(snapshot, info), Action: &item.open, Mark: harnessMark(th, harnessName(snapshot, info.Harness)),
+		Tone: sessionTone(snapshot, info), Action: &item.open,
 	}
 	switch at {
 	case groupNeeds, groupWorking:
@@ -287,21 +295,9 @@ func (b *board) layoutSession(gtx layout.Context, e *env.Env, snapshot state.Sna
 		}
 	}
 	if content.Facts == "" {
-		content.Facts, content.Proof = content.Proof, harnessName(snapshot, info.Harness)
+		content.Facts, content.Proof = content.Proof, env.ModelWords(e, info.Model)
 	}
 	return item.tablet.Layout(gtx, th.Theme, content, false, false)
-}
-
-func harnessMark(th *look.Theme, name string) layout.Widget {
-	letters := []rune(name)
-	if len(letters) > 2 {
-		letters = letters[:2]
-	}
-	return func(gtx layout.Context) layout.Dimensions {
-		size := gtx.Constraints.Min
-		kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), th.R.Field)
-		return layout.Center.Layout(gtx, kit.RawText(th.Theme, th.T.Label, th.R.Fg2, string(letters)))
-	}
 }
 
 func boardSentence(sessions [groupCount][]protocol.SessionInfo) string {
@@ -338,11 +334,4 @@ func boardProof(now time.Time, sessions [groupCount][]protocol.SessionInfo) stri
 		return i18n.Tf("The last one finished %s.", look.Ago(now, info.Updated))
 	}
 	return i18n.T("Pick where it should work and say what to do.")
-}
-
-func approvalsNote(snapshot state.Snapshot, noHarness bool) string {
-	if noHarness {
-		return i18n.T("No harness is installed, so nothing can start yet.")
-	}
-	return env.ApprovalsNote(env.AgentApprovals, snapshot.Settings.Agent.Approvals)
 }

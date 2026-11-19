@@ -10,6 +10,8 @@ T.AbstractButton {
     property string unavailable: ""
     property bool highlighted: false
     property bool activatable: false
+    property bool stacked: false
+    property bool topAligned: false
     property bool first: false
     property color plane: Lithic.slab
     property string previewState: ""
@@ -20,10 +22,14 @@ T.AbstractButton {
 
     readonly property bool _available: unavailable.length === 0
     readonly property real _gap: first ? 0 : LithicTokens.size.settingsRowGap
-    readonly property bool _hoverActive: activatable && _available && (hovered || previewState === "hover")
+    readonly property bool _hoverActive: (activatable || stacked) && _available && (hovered || previewState === "hover")
     readonly property bool _pressActive: activatable && _available && (down || previewState === "pressed")
-    // the ring follows focus on any row that takes it: activatable rows, and rows a page makes focusable
-    readonly property bool _focusActive: focusPolicy !== Qt.NoFocus && (visualFocus || previewState === "focus")
+    // A stacked group's keyboard ring encloses its child controls too.
+    readonly property bool _focusActive: (focusPolicy !== Qt.NoFocus && (visualFocus || previewState === "focus"))
+        || (stacked && _focusWithin && Window.activeFocusItem
+            && (Window.activeFocusItem.focusReason === Qt.TabFocusReason
+                || Window.activeFocusItem.focusReason === Qt.BacktabFocusReason))
+        || (stacked && previewState === "focus")
     readonly property bool _focusWithin: {
         let item = Window.activeFocusItem;
         while (item) {
@@ -36,11 +42,14 @@ T.AbstractButton {
     readonly property bool _resetShown: hovered || _focusWithin
                                         || previewState === "hover" || previewState === "focus"
     readonly property real _resetSlot: changed ? LithicTokens.size.iconPlaqueSmall + LithicTokens.space.s2 : 0
-    readonly property real _textWidth: Math.max(0, width - controlHost.width - _resetSlot
-                                                - (controlHost.width > 0 ? LithicTokens.space.s4 : 0))
-    readonly property real _boxHeight: Math.max(LithicTokens.size.factsRowHeight,
-                                                copy.implicitHeight, controlHost.height,
-                                                changed ? LithicTokens.size.iconPlaqueSmall : 0)
+    readonly property real _textWidth: Math.max(0, width - (stacked ? 0
+        : _resetSlot + controlHost.width + (controlHost.width > 0 ? LithicTokens.space.s4 : 0)))
+    readonly property real _copyHeight: Math.max(copy.implicitHeight,
+        changed && stacked ? LithicTokens.size.iconPlaqueSmall : 0)
+    readonly property real _boxHeight: stacked
+        ? Math.max(LithicTokens.size.factsRowHeight, _copyHeight + LithicTokens.space.s3 + controlHost.height)
+        : Math.max(LithicTokens.size.factsRowHeight, copy.implicitHeight, controlHost.height,
+                   changed ? LithicTokens.size.iconPlaqueSmall : 0)
     // ink over whatever the row lies on: the same tone as mixing it into `plane`, and still
     // right on a dialog or a toned slab
     readonly property color _hoverFill: Lithic.alpha(Lithic.fg, LithicTokens.alpha.hoverPlane)
@@ -162,7 +171,7 @@ T.AbstractButton {
         Column {
             id: copy
             x: 0
-            anchors.verticalCenter: parent.verticalCenter
+            y: root.stacked || root.topAligned ? 0 : (parent.height - implicitHeight) / 2
             width: root._textWidth
             spacing: LithicTokens.size.settingsDetailGap
 
@@ -170,8 +179,9 @@ T.AbstractButton {
             Item {
                 readonly property bool _tagInline: titleLabel.implicitWidth + LithicTokens.space.s3
                                                    + changedMark.implicitWidth <= width
-                width: parent.width
-                height: titleLabel.height + (root.changed && !_tagInline ? changedMark.height : 0)
+                width: Math.max(0, parent.width - (root.stacked ? root._resetSlot : 0))
+                height: Math.max(titleLabel.height + (root.changed && !_tagInline ? changedMark.height : 0),
+                                 root.stacked && root.changed ? LithicTokens.size.iconPlaqueSmall : 0)
 
                 Label {
                     id: titleLabel
@@ -208,9 +218,9 @@ T.AbstractButton {
         IconPlaque {
             id: resetPlaque
             visible: root.changed
-            anchors.right: controlHost.left
-            anchors.rightMargin: controlHost.width > 0 ? LithicTokens.space.s2 : 0
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: root.stacked ? parent.right : controlHost.left
+            anchors.rightMargin: !root.stacked && controlHost.width > 0 ? LithicTokens.space.s2 : 0
+            y: root.stacked || root.topAligned ? 0 : (parent.height - height) / 2
             small: true
             kind: "quiet"
             glyph: "restart_alt"
@@ -226,8 +236,11 @@ T.AbstractButton {
 
         Row {
             id: controlHost
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: root.stacked ? undefined : parent.right
+            anchors.left: root.stacked ? parent.left : undefined
+            width: root.stacked ? parent.width : implicitWidth
+            y: root.stacked ? root._copyHeight + LithicTokens.space.s3
+                : root.topAligned ? 0 : (parent.height - height) / 2
             spacing: LithicTokens.space.s2
             enabled: root._available
         }

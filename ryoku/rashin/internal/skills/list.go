@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/protocol"
 )
 
@@ -32,6 +33,18 @@ func (l *Library) List(off []string) (protocol.SkillsResult, error) {
 			}
 		}
 		result.Sets = append(result.Sets, info)
+	}
+	if m := l.Managed(); m != nil {
+		managed := protocol.SkillSet{
+			ID: protocol.ManagedSkillSet, Name: i18n.T("Learned skills"),
+			On: on(protocol.ManagedSkillSet, off), Skills: []protocol.Skill{},
+		}
+		if managed.On {
+			for _, skill := range m.Visible(off) {
+				managed.Skills = append(managed.Skills, managedSkill(skill))
+			}
+		}
+		result.Sets = append(result.Sets, managed)
 	}
 	return result, nil
 }

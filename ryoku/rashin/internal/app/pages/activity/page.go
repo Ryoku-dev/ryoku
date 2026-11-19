@@ -26,6 +26,9 @@ type Page struct {
 	list    look.SideList
 	header  look.PaneHeader
 	scroll  look.Scroller
+	sheet   look.Sheet
+	rows    int
+	days    int
 	filters kit.Filters
 	teams   look.Select
 	team    string
@@ -55,34 +58,56 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 	filter := filters[min(max(p.filters.Selected, 0), len(filters)-1)]
 	p.ledger.ensure(e, filter, p.team, pulse(snapshot))
 	items := p.items(gtx)
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			content := look.PaneHeaderContent{Title: i18n.T("Activity"), Scrolled: p.scroll.Position.First > 0 || p.scroll.Position.Offset > 0}
-			return p.header.Layout(gtx, e.Theme, e.Overlays, content)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Top: e.Theme.Sp.S5, Bottom: e.Theme.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					claim, proof := ledgerLead(gtx.Now, p.ledger.entries)
-					return look.Monument(gtx, e.Theme, claim, proof)
-				})
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions { return p.layoutFilters(gtx, e, snapshot.Teams) })
-		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			if len(items) == 0 {
-				return p.layoutEmpty(gtx, e)
-			}
-			return p.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+	p.rows = len(items)
+	return p.sheet.Layout(gtx, e.Theme, p.Sheet(e), func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				content := look.PaneHeaderContent{Title: i18n.T("Activity"), Scrolled: p.scroll.Position.First > 0 || p.scroll.Position.Offset > 0}
+				return p.header.Layout(gtx, e.Theme, e.Overlays, content)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions {
-					return p.layoutItem(gtx, e, filter, items[index])
+					return layout.Inset{Top: e.Theme.Sp.S5, Bottom: e.Theme.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						claim, proof := ledgerLead(gtx.Now, p.ledger.entries)
+						return look.Monument(gtx, e.Theme, claim, proof)
+					})
 				})
-			})
-		}),
-	)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions { return p.layoutFilters(gtx, e, snapshot.Teams) })
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				if len(items) == 0 {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.layoutEmpty(gtx, e) }),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Bottom: e.Theme.Sp.S5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return p.sheet.Colophon(gtx, e.Theme, p.Sheet(e))
+								})
+							})
+						}),
+					)
+				}
+				return p.scroll.Layout(gtx, e.Theme, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+					return look.Centred(gtx, e.Class, columnWidth, func(gtx layout.Context) layout.Dimensions {
+						return p.layoutItem(gtx, e, filter, items[index])
+					})
+				})
+			}),
+		)
+	})
 }
+
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	page := look.PageFor(protocol.TabActivity)
+	if index, ok := teamIndex(e.Snapshot().Teams, p.team); ok && index > 0 {
+		return look.PartPage(protocol.TabActivity, 1, e.Snapshot().Teams[index-1].Name, "")
+	}
+	return page
+}
+
+func (p *Page) SheetProgress() float32 { return p.scroll.Progress(p.rows) }
 
 func (p *Page) layoutFilters(gtx layout.Context, e *env.Env, teams []protocol.Team) layout.Dimensions {
 	th := e.Theme

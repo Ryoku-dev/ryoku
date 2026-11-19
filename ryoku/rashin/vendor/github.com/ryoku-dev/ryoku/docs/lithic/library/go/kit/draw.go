@@ -143,7 +143,8 @@ func Slab(gtx layout.Context, ink color.NRGBA, cut unit.Dp, widget layout.Widget
 	return dimensions
 }
 
-// Notch draws a right-triangle state mark from at.
+// Notch draws a right-triangle state mark from at. It is Lithic's mark and
+// stays angular in every design; ToneMark draws the mark the design wears.
 func Notch(ops *op.Ops, at image.Point, size int, ink color.NRGBA) {
 	if size <= 0 || ink.A == 0 {
 		return
@@ -156,7 +157,8 @@ func Notch(ops *op.Ops, at image.Point, size int, ink color.NRGBA) {
 	paint.FillShape(ops, ink, clip.Outline{Path: pathFromPoints(ops, points[:])}.Op())
 }
 
-// Blade draws a bar with a 45 degree leading edge.
+// Blade draws a bar with a 45 degree leading edge. It is Lithic's bar and
+// stays angular in every design; FillBlade draws the bar the design wears.
 func Blade(ops *op.Ops, bounds image.Rectangle, ink color.NRGBA) {
 	if bounds.Empty() || ink.A == 0 {
 		return

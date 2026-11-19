@@ -15,7 +15,6 @@ import (
 
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/config"
-	"ryoku-rashin/internal/harness"
 	"ryoku-rashin/internal/protocol"
 	"ryoku-rashin/internal/sandbox"
 	"ryoku-rashin/internal/teams"
@@ -42,8 +41,9 @@ type connection struct {
 	// the daemon accepted it.
 	app bool
 	// session is the team session whose own socket this connection came in
-	// on; such a connection calls only that session's agent tools. Empty on
-	// the main socket.
+	// on; such a connection only reads the indexes its team may read. For
+	// the in-process connection of the tool host (toolhost.go) it is the
+	// session whose tools call. Empty on the main socket.
 	session string
 }
 
@@ -110,20 +110,9 @@ func (c *connection) serve() {
 func (c *connection) handle(frame protocol.Frame) {
 	ctx := context.Background()
 	var refused error
-	// a connection on a session's own socket is a team task's agent, or the
-	// harness of an Ask that is read-only
-	ask := false
 	if c.session != "" {
-		info, ok := c.daemon.manager.Info(c.session)
-		ask = ok && info.Kind == protocol.KindAsk && info.Team == ""
-	}
-	switch {
-	case ask:
-		refused = askGate(frame.Method)
-	case c.session != "":
-		refused = agentGate(c.session, frame.Method, frame.Params)
-		ctx = teams.WithAgentSession(ctx, c.session)
-	default:
+		refused = agentGate(frame.Method)
+	} else {
 		refused = c.daemon.mainGate(c, frame.Method, frame.Params)
 	}
 	if refused != nil {
@@ -143,7 +132,7 @@ func (c *connection) handle(frame protocol.Frame) {
 	}
 	var result any
 	var err error
-	if c.session != "" && !ask && agentIndex[frame.Method] {
+	if c.session != "" {
 		result, err = c.daemon.agentIndexCall(ctx, c, frame.Method, frame.Params)
 	} else {
 		result, err = c.daemon.dispatch(ctx, c, frame.Method, frame.Params)
@@ -379,12 +368,6 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return protocol.Empty{}, d.manager.setOption(ctx, p)
-	case protocol.MSessionStart:
-		p, err := unmarshal[protocol.SessionRef](raw)
-		if err != nil {
-			return nil, err
-		}
-		return protocol.Empty{}, d.manager.start(ctx, p.ID)
 	case protocol.MSessionRename:
 		p, err := unmarshal[protocol.RenameParams](raw)
 		if err != nil {
@@ -480,6 +463,12 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.ask(ctx, c, p)
+	case protocol.MGlance:
+		p, err := unmarshal[protocol.GlanceParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.glance(ctx, c, p)
 	case protocol.MProvidersList:
 		providers, err := d.deps.Gateway.Providers(ctx)
 		return protocol.ProvidersResult{Providers: providers}, err
@@ -550,23 +539,30 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.deps.Gateway.Usage(ctx, p.Days)
-	case protocol.MHarnessesList:
-		p, err := unmarshal[protocol.HarnessesListParams](raw)
+	case protocol.MModelsProbe:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.ModelProbeParams](raw)
 		if err != nil {
 			return nil, err
 		}
-		list, err := d.deps.Harnesses.List(ctx, p.Refresh)
-		out := protocol.HarnessesResult{Harnesses: list}
-		if err == nil && p.Refresh {
-			d.Broadcast(protocol.EvtHarnessesChanged, out)
+		return d.deps.Gateway.Probe(ctx, p)
+	case protocol.MLocalDevices:
+		if err := requireApp(c); err != nil {
+			return nil, err
 		}
-		return out, err
-	case protocol.MHarnessesProbe:
-		return d.probeHarness(ctx, c, raw)
-	case protocol.MHarnessesTeamsOpen:
-		return d.openTeamsHome(c, raw)
-	case protocol.MHarnessesTeamsDone:
-		return d.finishTeamsHome(raw)
+		if d.deps.Local == nil {
+			return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Rashin's own models are not available."))
+		}
+		return protocol.LocalDevicesResult{Devices: d.deps.Local.Devices(ctx)}, nil
+	case protocol.MLocalModels, protocol.MLocalDownload, protocol.MLocalCancel, protocol.MLocalRemove,
+		protocol.MLocalSearch, protocol.MLocalAdd, protocol.MLocalRuntimeInstall, protocol.MLocalStart, protocol.MLocalStop:
+		return d.localCall(ctx, c, method, raw)
+	case protocol.MLearningSkills, protocol.MLearningSkillDelete, protocol.MLearningDecisions, protocol.MLearningDecisionDelete,
+		protocol.MLearningRules, protocol.MLearningRuleSave, protocol.MLearningRuleDelete, protocol.MLearningRuleForge,
+		protocol.MLearningGrievances, protocol.MLearningGrievancesClear:
+		return d.learningCall(ctx, c, method, raw)
 	case protocol.MIndexList:
 		list, err := d.deps.Indexer.List(ctx)
 		return protocol.IndexesResult{Indexes: list}, err
@@ -715,6 +711,227 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		}
 		c.setWatch(p.Project, p.Watch)
 		return protocol.Empty{}, nil
+	case protocol.MWritingCancel:
+		p, err := unmarshal[protocol.WritingCancelParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingCancel(ctx, c, p)
+	case protocol.MWritingCheck:
+		p, err := unmarshal[protocol.WritingCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingCheck(ctx, c, p)
+	case protocol.MWritingTransform:
+		p, err := unmarshal[protocol.WritingTransformParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingTransform(ctx, c, p)
+	case protocol.MWritingWords:
+		p, err := unmarshal[protocol.WritingWordsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWords(ctx, c, p)
+	case protocol.MWritingWordsAdd:
+		p, err := unmarshal[protocol.WritingWordParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWordsAdd(ctx, c, p)
+	case protocol.MWritingWordsRemove:
+		p, err := unmarshal[protocol.WritingWordParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingWordsRemove(ctx, c, p)
+	case protocol.MWritingVoiceGet:
+		p, err := unmarshal[protocol.WritingVoiceGetParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceGet(ctx, c, p)
+	case protocol.MWritingVoiceSet:
+		p, err := unmarshal[protocol.WritingVoiceSetParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceSet(ctx, c, p)
+	case protocol.MWritingVoiceLearn:
+		p, err := unmarshal[protocol.WritingVoiceLearnParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.writingVoiceLearn(ctx, c, p)
+	case protocol.MPromptsList:
+		p, err := unmarshal[protocol.PromptsListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsList(ctx, c, p)
+	case protocol.MPromptsSave:
+		p, err := unmarshal[protocol.PromptSaveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsSave(ctx, c, p)
+	case protocol.MPromptsDelete:
+		p, err := unmarshal[protocol.PromptDeleteParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsDelete(ctx, c, p)
+	case protocol.MPromptsExpand:
+		p, err := unmarshal[protocol.PromptExpandParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.promptsExpand(ctx, c, p)
+	case protocol.MCompareStart:
+		p, err := unmarshal[protocol.CompareStartParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.compareStart(ctx, c, p)
+	case protocol.MCompareKeep:
+		p, err := unmarshal[protocol.CompareKeepParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.compareKeep(ctx, c, p)
+	case protocol.MSessionSetFlags:
+		p, err := unmarshal[protocol.SessionFlagsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.sessionSetFlags(ctx, c, p)
+	case protocol.MMCPList:
+		p, err := unmarshal[protocol.MCPListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpList(ctx, c, p)
+	case protocol.MMCPSave:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPServer](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpSave(ctx, c, p)
+	case protocol.MMCPDelete:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPDeleteParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpDelete(ctx, c, p)
+	case protocol.MMCPCheck:
+		p, err := unmarshal[protocol.MCPCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpCheck(ctx, c, p)
+	case protocol.MMCPSignIn:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.MCPSignInParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.mcpSignIn(ctx, c, p)
+	case protocol.MDiskUsage:
+		p, err := unmarshal[protocol.DiskUsageParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.diskUsage(ctx, c, p)
+	case protocol.MDiskClean:
+		if err := requireApp(c); err != nil {
+			return nil, err
+		}
+		p, err := unmarshal[protocol.DiskCleanParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.diskClean(ctx, c, p)
+	case protocol.MArtifactOpen:
+		p, err := unmarshal[protocol.ArtifactOpenParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactOpen(ctx, c, p)
+	case protocol.MArtifactErrors:
+		p, err := unmarshal[protocol.ArtifactErrorsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactErrors(ctx, c, p)
+	case protocol.MArtifactRepair:
+		p, err := unmarshal[protocol.ArtifactRepairParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactRepair(ctx, c, p)
+	case protocol.MArtifactClose:
+		p, err := unmarshal[protocol.ArtifactCloseParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.artifactClose(ctx, c, p)
+	case protocol.MCollectionsList:
+		p, err := unmarshal[protocol.CollectionsListParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsList(ctx, c, p)
+	case protocol.MCollectionsSave:
+		p, err := unmarshal[protocol.CollectionSaveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsSave(ctx, c, p)
+	case protocol.MCollectionsAdd:
+		p, err := unmarshal[protocol.CollectionAddParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsAdd(ctx, c, p)
+	case protocol.MCollectionsItems:
+		p, err := unmarshal[protocol.CollectionItemsParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsItems(ctx, c, p)
+	case protocol.MCollectionsRemove:
+		p, err := unmarshal[protocol.CollectionRemoveParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsRemove(ctx, c, p)
+	case protocol.MCollectionsCheck:
+		p, err := unmarshal[protocol.CollectionCheckParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsCheck(ctx, c, p)
+	case protocol.MCollectionsChat:
+		p, err := unmarshal[protocol.CollectionChatParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return d.collectionsChat(ctx, c, p)
+	case protocol.MTeamsRoutineRuns, protocol.MTeamsAgentSetup:
+		if d.deps.Teams == nil {
+			return nil, protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.T("Teams are not available."))
+		}
+		return d.deps.Teams.Handle(ctx, method, raw)
 	default:
 		if isWorkMethod(method) {
 			if d.deps.Work == nil {
@@ -746,21 +963,24 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 	}
 }
 
+func (d *Daemon) feature(id string) bool { return d.Settings().Features[id] }
+
 // applySettings merges patch into the settings, saves them and tells every
 // part that follows them. The caller has already checked who may change
 // what the patch reaches.
 func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (protocol.Settings, error) {
 	d.settingsMu.Lock()
-	defer d.settingsMu.Unlock()
+	stopSignIns := false
+	defer func() {
+		d.settingsMu.Unlock()
+		if stopSignIns {
+			d.cancelMCPSignIns()
+		}
+	}()
 	current := d.Settings()
 	next, err := config.Merge(current, patch)
 	if err != nil {
 		return protocol.Settings{}, err
-	}
-	// an instance removed later leaves the default unknown; only a new
-	// choice is checked, so unrelated changes still save
-	if chosen := next.Teams.Defaults.Harness; chosen != "" && chosen != current.Teams.Defaults.Harness && !harness.Known(chosen, next) {
-		return protocol.Settings{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("No harness %s on this computer.", chosen))
 	}
 	next, err = config.SaveMerged(next)
 	if err != nil {
@@ -769,15 +989,25 @@ func (d *Daemon) applySettings(ctx context.Context, patch json.RawMessage) (prot
 	d.mu.Lock()
 	d.settings = next
 	d.mu.Unlock()
+	if current.Features["artifacts"] && !next.Features["artifacts"] {
+		artifactPreviews.CloseAll()
+	}
+	if current.Features["compare"] && !next.Features["compare"] {
+		d.closeComparisons("")
+	}
+	stopSignIns = current.Features["mcp"] && !next.Features["mcp"]
 	d.Broadcast(protocol.EvtSettingsChanged, next)
 	if d.deps.Teams != nil {
 		d.deps.Teams.SettingsChanged(next)
 	}
 	d.applyAPI()
 	d.stateChanged()
-	// a new address is a different server: its running state and models follow it
-	if d.deps.Gateway != nil && !maps.Equal(next.Providers.Local, current.Providers.Local) {
+	// A changed address or runtime setting may change the provider catalogue.
+	if d.deps.Gateway != nil && (!maps.Equal(next.Providers.Local, current.Providers.Local) || !next.Providers.Models.Equal(current.Providers.Models)) {
 		d.broadcastProviders(ctx)
+	}
+	if d.deps.Local != nil && !next.Providers.Models.Equal(current.Providers.Models) {
+		d.Broadcast(protocol.EvtLocalChanged, d.deps.Local.Models(ctx))
 	}
 	return next, nil
 }
@@ -915,13 +1145,6 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
 		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(), Unscoped: !sandbox.Scoped(),
 	}
-	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
-		for _, h := range list {
-			if h.Installed {
-				status.Harnesses++
-			}
-		}
-	}
 	if list, err := d.deps.Indexer.List(ctx); err == nil {
 		status.Indexes = len(list)
 	}
@@ -937,15 +1160,11 @@ func (d *Daemon) snapshot(ctx context.Context) (protocol.Snapshot, error) {
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	harnesses, err := d.deps.Harnesses.List(ctx, false)
-	if err != nil {
-		return protocol.Snapshot{}, err
-	}
 	indexes, err := d.deps.Indexer.List(ctx)
 	if err != nil {
 		return protocol.Snapshot{}, err
 	}
-	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions, Settings: d.Settings(), Providers: providers, Harnesses: harnesses, Indexes: indexes, Screens: d.screens.list().Screens}
+	snapshot := protocol.Snapshot{Status: d.status(ctx), Sessions: sessions, Settings: d.Settings(), Providers: providers, Indexes: indexes, Screens: d.screens.list().Screens, Local: d.localResult(ctx)}
 	if d.deps.Work != nil {
 		snapshot.Projects = d.deps.Work.Projects(ctx)
 		snapshot.Tasks = d.deps.Work.Tasks(ctx)

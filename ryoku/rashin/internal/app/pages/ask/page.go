@@ -3,6 +3,8 @@
 package ask
 
 import (
+	"time"
+
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
@@ -17,7 +19,9 @@ import (
 
 // a new conversation has no session, the first message makes it
 type Page struct {
-	selected string
+	selected     string
+	archivedOpen bool
+	newAsk       bool
 	// held from sending the first message until its session is listed, the answer can arrive before the list does
 	starting bool
 	// route picked before a session exists; a model picked here is held to, never swapped for another
@@ -38,11 +42,8 @@ type Page struct {
 	ready       readiness
 	usage       env.Usage
 
-	menu env.ModelMenu
 	// the open model menu asks for the providers' allowances
 	limits env.LimitsWatch
-	// what answers when Settings picked a harness over Rashin's providers
-	engine engine
 
 	temporary env.Temporary
 	memory    memoryChoice
@@ -58,8 +59,36 @@ type Page struct {
 }
 
 func New() *Page { return &Page{} }
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	head := look.PageFor(protocol.TabAsk)
+	if info, ok := e.Snapshot().Sessions[p.selected]; ok {
+		head.Where = look.Where(head.Where, sessionTitle(info))
+		if info.Model != "" {
+			head.Facts = []string{env.ModelWords(e, info.Model)}
+		}
+	}
+	return head
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.selected == "" {
+		return -1
+	}
+	return p.view.Progress()
+}
 
 func (p *Page) Select(e *env.Env, id string) {
+	p.composer.RefreshAskTools()
+	if id == "" && !p.newAsk && e.Feature("history") && p.composer.Draft().Text == "" {
+		snapshot := e.Snapshot()
+		if minutes := snapshot.Settings.Ask.ResumeMinutes; minutes > 0 {
+			id = resumeSession(snapshot.Order, snapshot.Sessions, time.Now(), time.Duration(minutes)*time.Minute)
+			if id != "" {
+				e.Navigate(protocol.TabAsk, id)
+			}
+		}
+	}
+	p.newAsk = false
 	p.composer.Focus()
 	if p.selected == id {
 		return
@@ -77,7 +106,12 @@ func (p *Page) Select(e *env.Env, id string) {
 	})
 }
 
-func (p *Page) FocusHome() any { return p.composer.FocusTag() }
+func (p *Page) FocusHome() any     { return p.composer.FocusTag() }
+func (p *Page) SearchAtRest() bool { return p.composer.Draft().Text == "" }
+
+func (p *Page) Hidden(e *env.Env) { p.composer.CancelAskTools() }
+
+func (p *Page) WritingRequest() string { return p.composer.WritingRequest() }
 
 func (p *Page) keepDraft(next string) {
 	if p.drafts == nil {
@@ -89,6 +123,7 @@ func (p *Page) keepDraft(next string) {
 }
 
 func (p *Page) New(e *env.Env) {
+	p.newAsk = true
 	e.Navigate(protocol.TabAsk, "")
 	p.composer.Focus()
 }
@@ -104,10 +139,6 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 		Mode:      p.approvals.Value("", settings.Approvals),
 		Temporary: p.temporary.On, Memory: memoryValue(p.memory.draft, p.temporary.On),
 	}
-	// a harness starts on the model picked for it, which the daemon puts it on as it comes up
-	if settings.Harness != "" {
-		params.Harness, params.Model = settings.Harness, p.engine.draft
-	}
 	// the next new conversation is an ordinary one again
 	p.temporary.On = false
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
@@ -120,7 +151,7 @@ func (p *Page) start(e *env.Env, submission chat.Submission) {
 		p.selected = info.ID
 		e.Attach(info.ID, func(error) {})
 		e.Navigate(protocol.TabAsk, info.ID)
-		if params.Harness != "" || !pinned(params.Model) {
+		if !pinned(params.Model) {
 			e.Submit(info.ID, false, submission)
 			return
 		}
@@ -143,6 +174,28 @@ func (p *Page) leave(e *env.Env) {
 		return
 	}
 	e.EndTemporary(info.ID, info.ID != p.kept)
+}
+
+func resumeSession(order []string, sessions map[string]protocol.SessionInfo, now time.Time, window time.Duration) string {
+	var newest string
+	var newestAt time.Time
+	for _, id := range order {
+		info := sessions[id]
+		if info.Kind != protocol.KindAsk || info.Temporary || info.Archived || info.Turns == 0 {
+			continue
+		}
+		at := info.LastMessageAt
+		if at.IsZero() {
+			continue
+		}
+		if elapsed := now.Sub(at); elapsed < 0 || elapsed > window {
+			continue
+		}
+		if newest == "" || at.After(newestAt) {
+			newest, newestAt = info.ID, at
+		}
+	}
+	return newest
 }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {

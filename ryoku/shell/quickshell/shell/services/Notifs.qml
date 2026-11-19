@@ -180,6 +180,41 @@ Singleton {
         return TimeFormat.format(new Date(ts));
     }
 
+    // A popup's time, short: "now" for its first minute, then minutes, then the
+    // clock time once it is an hour old. `nowMs` is the caller's clock tick.
+    function shortTimeLabel(n, nowMs) {
+        if (!n)
+            return "";
+        var ts = root.arrivalMs[n.id];
+        if (!ts)
+            return "";
+        var minutes = Math.floor(Math.max(0, nowMs - ts) / 60000);
+        if (minutes < 1)
+            return I18n.tr("now");
+        if (minutes < 60)
+            return I18n.tr("%1 min").arg(minutes);
+        return TimeFormat.format(new Date(ts));
+    }
+
+    // A notification's image or app icon as a URL an Image can load: a path, a
+    // file or image URL as given, or a themed icon name through the icon theme.
+    function imageUrl(value, themed) {
+        var raw = String(value || "");
+        if (raw.length === 0)
+            return "";
+        if (raw.indexOf("image://icon/") === 0) {
+            raw = decodeURIComponent(raw.substring(13));
+            themed = true;
+        }
+        if (raw.charAt(0) === "/" || raw.indexOf("file:") === 0)
+            return raw.indexOf("file:") === 0 ? raw : "file://" + raw;
+        if (raw.indexOf("image://icon/") === 0)
+            return Icons.path(raw, true);
+        if (raw.indexOf(":") > 0)
+            return raw;
+        return themed ? Icons.path(raw, true) : raw;
+    }
+
     // Popup reaper: remove popups past their deadline. A transient popup is
     // released entirely (expire) since it never entered history; a normal popup
     // just leaves the popup list and stays in history.

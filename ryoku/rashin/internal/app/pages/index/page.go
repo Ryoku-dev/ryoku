@@ -29,6 +29,7 @@ import (
 
 type Page struct {
 	selected string
+	sheet    look.Sheet
 
 	list    look.SideList
 	rowMenu kit.Menu
@@ -47,30 +48,69 @@ type Page struct {
 	open    int
 	focus   bool
 
-	add    addDialog
-	remove removeDialog
-	start  kit.Plaque
+	add         addDialog
+	remove      removeDialog
+	start       kit.Plaque
+	near        [2]kit.Plaque
+	collections collectionsPanel
 }
 
 type hitRow struct {
 	click  kit.Click
 	hover  look.Hover
-	unfold look.Unfold
+	unfold kit.Disclosure
 	file   kit.Plaque
 }
 
 var searchModes = [...]string{protocol.SearchHybrid, protocol.SearchLexical, protocol.SearchSemantic}
 
 func New() *Page { return &Page{open: -1} }
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	head := look.PageFor(protocol.TabIndex)
+	if p.collections.selected != "" {
+		head.Where = look.Where(head.Where, i18n.T("Collections"))
+	} else if info, ok := p.selectedIndex(e); ok {
+		head.Where = look.Where(head.Where, info.Name)
+		head.Facts = []string{i18n.Tf("%s files", grouped(info.Files))}
+	}
+	return head
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.asked == "" || p.collections.selected != "" {
+		return -1
+	}
+	return p.scroll.Progress(len(p.hits) + 1)
+}
 
 func (p *Page) New(e *env.Env) { p.add.ask(e, p) }
+
+func (p *Page) Open(e *env.Env, route string) {
+	if !e.Feature("collections") {
+		return
+	}
+	if route == "" {
+		p.collections.selected = ""
+		return
+	}
+	if route == "collections" || strings.HasPrefix(route, "collections/") {
+		p.collections.selected = strings.TrimPrefix(route, "collections/")
+		if p.collections.selected == "collections" {
+			p.collections.selected = "saved"
+		}
+		p.collections.load(e)
+	}
+}
 
 func (p *Page) NewLabel() string { return i18n.T("Add folder") }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 	p.add.layout(gtx, e, p)
 	p.remove.layout(gtx, e, p)
-	return look.AnyOpen(&p.add.dialog, &p.remove.confirm.Dialog)
+	if e.Feature("collections") {
+		p.collections.overlay(gtx, e)
+	}
+	return look.AnyOpen(&p.add.dialog, &p.remove.confirm.Dialog) || e.Feature("collections") && p.collections.dialog.Open
 }
 
 func (p *Page) selectedIndex(e *env.Env) (protocol.IndexInfo, bool) {
@@ -89,6 +129,9 @@ func (p *Page) selectedIndex(e *env.Env) (protocol.IndexInfo, bool) {
 
 func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	snapshot := e.Snapshot()
+	if e.Feature("collections") {
+		p.collections.ensure(e)
+	}
 	selected, _ := p.selectedIndex(e)
 	rows := make([]look.SideRow, 0, len(snapshot.Indexes))
 	for _, info := range snapshot.Indexes {
@@ -105,10 +148,38 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		rows = append(rows, row)
 	}
 	p.list.Empty = i18n.T("Folders Rashin has read are listed here.")
-	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}, selected.ID)
+	groups := []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}
+	selectedID := selected.ID
+	if e.Feature("collections") {
+		saved := []look.SideRow{{ID: "collection:new", Title: i18n.T("New collection")}}
+		for _, collection := range p.collections.list {
+			updated := collection.Updated
+			if date, err := time.Parse(time.RFC3339, updated); err == nil {
+				updated = look.Ago(gtx.Now, date)
+			}
+			saved = append(saved, look.SideRow{ID: "collection:" + collection.ID, Title: collection.Name, Facts: i18n.Tf("%d items · %s", collection.Items, updated)})
+		}
+		groups = append(groups, look.SideGroup{Title: i18n.T("Collections"), Rows: saved})
+		if p.collections.selected != "" {
+			selectedID = "collection:" + p.collections.selected
+		}
+	}
+	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, groups, selectedID)
 	for _, event := range p.list.Events() {
 		switch event.Kind {
 		case look.SideOpen:
+			if e.Feature("collections") && strings.HasPrefix(event.ID, "collection:") {
+				id := strings.TrimPrefix(event.ID, "collection:")
+				if id == "new" {
+					p.collections.edit("", "")
+				} else {
+					p.collections.selected = id
+					p.collections.load(e)
+					e.Navigate(protocol.TabIndex, "collections/"+id)
+				}
+				continue
+			}
+			p.collections.selected = ""
 			if p.selected != event.ID {
 				p.selected, p.hits, p.asked, p.open = event.ID, nil, "", -1
 				p.runSearch(e)
@@ -163,24 +234,50 @@ func refresh(e *env.Env, id string) {
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
+	if e.Feature("collections") {
+		p.collections.ensure(e)
+		if p.collections.selected != "" {
+			return p.sheet.Layout(gtx, e.Theme, p.Sheet(e), func(gtx layout.Context) layout.Dimensions {
+				return p.collections.layout(gtx, e)
+			})
+		}
+	}
 	info, ok := p.selectedIndex(e)
 	if !ok {
-		return p.layoutEmpty(gtx, e)
+		return p.sheet.Layout(gtx, e.Theme, p.Sheet(e), func(gtx layout.Context) layout.Dimensions {
+			return p.layoutEmpty(gtx, e)
+		})
 	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info) }),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return p.rise.Layout(gtx, e.Theme, info.ID, 8, func(gtx layout.Context) layout.Dimensions {
-				return p.layoutBody(gtx, e, info)
-			})
-		}),
-	)
+	body := func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.layoutHeader(gtx, e, info) }),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return p.rise.Layout(gtx, e.Theme, info.ID, 8, func(gtx layout.Context) layout.Dimensions {
+					return p.layoutBody(gtx, e, info)
+				})
+			}),
+		)
+	}
+	if p.asked == "" {
+		return p.sheet.Layout(gtx, e.Theme, p.Sheet(e), body)
+	}
+	return body(gtx)
 }
 
 func (p *Page) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.header.Layout(gtx, e.Theme, e.Overlays, look.PaneHeaderContent{Title: i18n.T("Index")})
+			content := look.PaneHeaderContent{Title: i18n.T("Index")}
+			if e.Feature("collections") {
+				content.Actions = []look.HeaderAction{{Icon: look.Icon.Quote, Description: i18n.T("Collections")}}
+			}
+			d := p.header.Layout(gtx, e.Theme, e.Overlays, content)
+			if _, clicked := p.header.ActionClicked(); clicked && e.Feature("collections") {
+				p.collections.selected = "saved"
+				p.collections.load(e)
+				e.Navigate(protocol.TabIndex, "collections/saved")
+			}
+			return d
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			p.start.Kind, p.start.Label = kit.PlaqueGold, i18n.T("Add folder")
@@ -192,6 +289,9 @@ func (p *Page) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
 				Body:    i18n.T("Add a folder and Rashin reads its files, so you and the agents can search it by words or by meaning."),
 				Actions: []*kit.Plaque{&p.start},
 			}.Layout(gtx, e.Theme.Theme)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.sheet.Colophon(gtx, e.Theme, p.Sheet(e))
 		}),
 	)
 }
@@ -213,9 +313,18 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexI
 	case protocol.IndexError:
 		content.Claim, content.ClaimTone = i18n.T("Failed"), palette.Failed
 	}
+	if e.Feature("collections") {
+		content.Actions = append(content.Actions, look.HeaderAction{Icon: look.Icon.Quote, Description: i18n.T("Collections")})
+	}
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
-	if _, ok := p.header.ActionClicked(); ok {
-		refresh(e, info.ID)
+	if action, ok := p.header.ActionClicked(); ok {
+		if action == 1 && e.Feature("collections") {
+			p.collections.selected = "saved"
+			p.collections.load(e)
+			e.Navigate(protocol.TabIndex, "collections/saved")
+		} else {
+			refresh(e, info.ID)
+		}
 	}
 	if item, ok := p.header.MenuClicked(); ok {
 		if item == 0 {
@@ -262,8 +371,8 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env, info protocol.IndexInf
 	search := p.layoutSearch(block, e, info)
 	searchCall := record.Stop()
 
-	top := gtx.Dp(21)
-	lead := gtx.Sp(th.T.Sentence.Line) + gtx.Dp(8) + gtx.Sp(th.T.Proof.Line) + gtx.Dp(21)
+	top := gtx.Dp(th.Sp.S4)
+	lead := gtx.Sp(th.T.Sentence.Line) + gtx.Dp(th.Sp.S2) + gtx.Sp(th.T.Proof.Line) + gtx.Dp(th.Sp.S4) + gtx.Sp(th.T.MonoSm.Line) + gtx.Dp(th.Sp.S4)
 	centre := min(max(size.Y*42/100, lead+top), max(lead, size.Y-search.Size.Y-top))
 	y := centre + int(float32(top-centre)*lift+.5)
 	x := (size.X - width) / 2
@@ -272,25 +381,37 @@ func (p *Page) layoutBody(gtx layout.Context, e *env.Env, info protocol.IndexInf
 		p.layoutResults(gtx, e, info, image.Rect(0, y+search.Size.Y, size.X, size.Y), lift)
 	}
 	if lift < 1 {
-		p.layoutHome(gtx, e, image.Rect(x, y, x+width, y+search.Size.Y), 1-lift)
+		p.layoutHome(gtx, e, info, image.Rect(x, y, x+width, y+search.Size.Y), 1-lift)
 	}
 	offset := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 	searchCall.Add(gtx.Ops)
 	offset.Pop()
+	if p.asked == "" && size.Y > gtx.Dp(600) {
+		look.Place(gtx, image.Rect(0, size.Y-gtx.Dp(look.ColophonHeight), size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
+			return p.sheet.Colophon(gtx, th, p.Sheet(e))
+		})
+	}
 	return layout.Dimensions{Size: size}
 }
 
-func (p *Page) layoutHome(gtx layout.Context, e *env.Env, field image.Rectangle, alpha float32) {
+func (p *Page) layoutHome(gtx layout.Context, e *env.Env, info protocol.IndexInfo, field image.Rectangle, alpha float32) {
 	th := e.Theme
 	opacity := paint.PushOpacity(gtx.Ops, alpha)
 	defer opacity.Pop()
 	proof, sentence := gtx.Sp(th.T.Proof.Line), gtx.Sp(th.T.Sentence.Line)
-	proofTop := field.Min.Y - gtx.Dp(21) - proof
-	sentenceTop := proofTop - gtx.Dp(8) - sentence
+	proofTop := field.Min.Y - gtx.Dp(th.Sp.S4) - gtx.Sp(th.T.MonoSm.Line) - gtx.Dp(th.Sp.S4) - proof
+	sentenceTop := proofTop - gtx.Dp(th.Sp.S2) - sentence
 	look.Place(gtx, image.Rect(field.Min.X, sentenceTop, field.Max.X, sentenceTop+sentence),
 		kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Search what Rashin has read")))
 	look.Place(gtx, image.Rect(field.Min.X, proofTop, field.Max.X, proofTop+proof),
 		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, i18n.T("By a name, by the words in a file, or by what the code does.")))
+	look.Place(gtx, image.Rect(field.Min.X, proofTop+proof+gtx.Dp(th.Sp.S4), field.Max.X, field.Min.Y-gtx.Dp(th.Sp.S4)), func(gtx layout.Context) layout.Dimensions {
+		return look.SpecStrip(gtx, th, []look.Spec{
+			{Label: i18n.T("Folders"), Value: kit.Pad2(len(e.Snapshot().Indexes))},
+			{Label: i18n.T("Files"), Value: grouped(info.Files)},
+			{Label: i18n.T("Symbols"), Value: grouped(info.Symbols)},
+		})
+	})
 }
 
 func (p *Page) layoutResults(gtx layout.Context, e *env.Env, info protocol.IndexInfo, area image.Rectangle, alpha float32) {
@@ -300,16 +421,18 @@ func (p *Page) layoutResults(gtx layout.Context, e *env.Env, info protocol.Index
 	look.Place(gtx, area, func(gtx layout.Context) layout.Dimensions {
 		if len(p.hits) == 0 {
 			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-				return p.layoutNoHits(gtx, e, info)
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return p.layoutNoHits(gtx, e, info) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.sheet.Colophon(gtx, th, p.Sheet(e)) }),
+				)
 			})
 		}
-		return p.scroll.Layout(gtx, th, len(p.hits), func(gtx layout.Context, index int) layout.Dimensions {
+		return p.scroll.Layout(gtx, th, len(p.hits)+1, func(gtx layout.Context, index int) layout.Dimensions {
 			return look.ReadingColumn(gtx, e.Class, func(gtx layout.Context) layout.Dimensions {
-				bottom := th.Sp.S1
-				if index == len(p.hits)-1 {
-					bottom = th.Sp.S5
+				if index == len(p.hits) {
+					return p.sheet.Colophon(gtx, th, p.Sheet(e))
 				}
-				return layout.Inset{Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: th.Sp.S1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return p.layoutHit(gtx, e, info, index)
 				})
 			})
@@ -319,7 +442,7 @@ func (p *Page) layoutResults(gtx layout.Context, e *env.Env, info protocol.Index
 
 func (p *Page) layoutSearch(gtx layout.Context, e *env.Env, info protocol.IndexInfo) layout.Dimensions {
 	th := e.Theme
-	p.search.Placeholder, p.search.Hint = i18n.Tf("Search %s", info.Name), "Enter"
+	p.search.Placeholder, p.search.Hint = i18n.Tf("Search %s", info.Name), i18n.T("Enter")
 	p.search.Editor.Submit = true
 	if p.focus {
 		p.focus = false
@@ -382,11 +505,41 @@ func (p *Page) layoutNoHits(gtx layout.Context, e *env.Env, info protocol.IndexI
 	}
 	body := i18n.Tf("Nothing in %s matches “%s”.", info.Name, p.asked)
 	if p.modes.Selected != 0 {
-		body += " " + i18n.T("Words and meaning looks wider.")
+		body += " " + i18n.T("Try words and meaning for a wider search.")
 	}
-	gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(260))
-	gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
-	return kit.Empty{Icon: look.Icon.Search, Title: i18n.T("No results"), Body: body}.Layout(gtx, th.Theme)
+	var nearby []protocol.IndexInfo
+	for _, index := range e.Snapshot().Indexes {
+		if index.ID != info.ID {
+			nearby = append(nearby, index)
+			if len(nearby) == len(p.near) {
+				break
+			}
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(260))
+			gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
+			return kit.Empty{Icon: look.Icon.Search, Title: i18n.T("No results"), Body: body}.Layout(gtx, th.Theme)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if len(nearby) == 0 {
+				return layout.Dimensions{}
+			}
+			return look.Section(gtx, th, look.Head{Title: i18n.T("Search another folder"), Number: 1, Of: 1}, func(gtx layout.Context) layout.Dimensions {
+				return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, len(nearby), func(gtx layout.Context, i int) layout.Dimensions {
+					plaque := &p.near[i]
+					plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueTonal, true, nearby[i].Name
+					if plaque.Clicked(gtx) {
+						p.selected, p.hits, p.asked, p.open = nearby[i].ID, nil, "", -1
+						p.runSearch(e)
+						e.Navigate(protocol.TabIndex, "")
+					}
+					return plaque.Layout(gtx, th.Theme)
+				})
+			})
+		}),
+	)
 }
 
 func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo, index int) layout.Dimensions {
@@ -415,22 +568,21 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 		dimensions, hover := row.hover.Layout(gtx, th, func(gtx layout.Context) layout.Dimensions {
 			return row.click.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{Size: size} })
 		})
-		if fill := max(hover, boolFloat(p.open == index)); fill > 0 {
-			kit.FillCut(gtx.Ops, image.Rectangle{Max: size}, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Stone3, fill))
-		}
-		inset := gtx.Dp(13)
+		look.RowWash(gtx, th, image.Rectangle{Max: size}, hover, 0, p.open == index)
+		title, quiet := look.RowInk(th, p.open == index)
+		inset := gtx.Dp(th.Sp.S3)
 		text := gtx
 		text.Constraints = layout.Constraints{Max: image.Pt(size.X-2*inset, size.Y)}
 		look.MiddleLeft(text, inset, size.Y, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
-						layout.Rigid(kit.RawText(th.Theme, th.T.Mono, th.R.Fg, fmt.Sprintf("%s:%d", hit.Path, hit.Start))),
+						layout.Rigid(kit.RawText(th.Theme, th.T.Mono, title, fmt.Sprintf("%s:%d", hit.Path, hit.Start))),
 						layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-						layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, th.R.Fg2, hit.Symbol)),
+						layout.Flexed(1, kit.RawText(th.Theme, th.T.Label, quiet, hit.Symbol)),
 					)
 				}),
-				layout.Rigid(kit.RawText(th.Theme, th.T.Detail, th.R.Fg2, firstLine(hit.Snippet))),
+				layout.Rigid(kit.RawText(th.Theme, th.T.Detail, quiet, firstLine(hit.Snippet))),
 			)
 		})
 		return dimensions
@@ -438,7 +590,8 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(head),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return row.unfold.Layout(gtx, th, p.open == index, func(gtx layout.Context) layout.Dimensions {
+			row.unfold.Open = p.open == index
+			return row.unfold.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: th.Sp.S1, Bottom: th.Sp.S2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return kit.SlabContent(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -452,13 +605,6 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 			})
 		}),
 	)
-}
-
-func boolFloat(value bool) float32 {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func firstLine(text string) string {

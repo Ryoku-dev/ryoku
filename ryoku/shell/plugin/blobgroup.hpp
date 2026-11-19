@@ -21,6 +21,9 @@ class BlobGroup : public QObject {
     Q_PROPERTY(QColor borderColor READ borderColor WRITE setBorderColor NOTIFY borderColorChanged)
     Q_PROPERTY(qreal borderWidth READ borderWidth WRITE setBorderWidth NOTIFY borderWidthChanged)
     Q_PROPERTY(QColor waveColor READ waveColor WRITE setWaveColor NOTIFY waveColorChanged)
+    // When true, every rect's corner radii are read as 45-degree chamfer cuts
+    // (Lithic) instead of round radii. The smooth-min weld still applies.
+    Q_PROPERTY(bool cutCorners READ cutCorners WRITE setCutCorners NOTIFY cutCornersChanged)
 
 public:
     explicit BlobGroup(QObject* parent = nullptr);
@@ -50,6 +53,9 @@ public:
     QColor waveColor() const { return m_waveColor; }
     void setWaveColor(const QColor& c);
 
+    bool cutCorners() const { return m_cutCorners; }
+    void setCutCorners(bool v);
+
     void addShape(BlobShape* shape);
     void removeShape(BlobShape* shape);
 
@@ -75,6 +81,7 @@ signals:
     void borderColorChanged();
     void borderWidthChanged();
     void waveColorChanged();
+    void cutCornersChanged();
 
 private:
     void flushWaveUpdates();
@@ -87,6 +94,7 @@ private:
     QColor m_borderColor{ 0, 0, 0, 0 };
     qreal m_borderWidth = 0.0;
     QColor m_waveColor{ 0, 0, 0, 0 };
+    bool m_cutCorners = false;
     QList<BlobShape*> m_shapes;
     BlobInvertedRect* m_invertedRect = nullptr;
     QList<BlobWave*> m_waves;

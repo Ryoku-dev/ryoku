@@ -47,7 +47,7 @@ func validateTeams(t *protocol.TeamsSettings, d protocol.TeamsSettings) {
 		t.Hidden = hidden
 	}
 	defaults := &t.Defaults
-	defaults.Harness = strings.TrimSpace(defaults.Harness)
+	// a model left from an external harness (no provider, not a route) is cleared, so the chain falls through
 	defaults.Model = strings.TrimSpace(defaults.Model)
 	if !protocol.ValidEngineModel(defaults.Model) {
 		defaults.Model = ""
@@ -95,10 +95,10 @@ func checkTeams(t protocol.TeamsSettings) error {
 	}
 	defaults := t.Defaults
 	if !protocol.ValidEngineModel(strings.TrimSpace(defaults.Model)) {
-		return badRequest(i18n.Tf("A model id has at most %d characters and no spaces.", protocol.EngineModelMax))
+		return badRequest(i18n.Tf("Choose Auto, Fast, Smart or a provider's model, in at most %d characters without spaces.", protocol.EngineModelMax))
 	}
 	if !protocol.ValidEngineOptions(defaults.Options) {
-		return badRequest(i18n.Tf("A harness takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
+		return badRequest(i18n.Tf("A model takes at most %d options, each with an id and a value.", protocol.EngineOptionsMax))
 	}
 	if !protocol.KnownApprovals(defaults.Approvals) {
 		return badRequest(i18n.Tf("%s is not a permission setting.", defaults.Approvals))

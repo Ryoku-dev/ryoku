@@ -159,7 +159,7 @@ never by an edit to the routing.
 | packages | `install`/`remove`/`search` | GPK across every package manager |
 | mpris | (default, media words) | now-playing + transport for any player |
 | script | per-script keyword | run rofi-script / dmenu scripts |
-| rashin ask | `\` | ask Rashin a read-only question about this machine through its free-model router. The answer renders as selectable text with actions for files, folders, URLs and proposed commands. Work that needs changes can move to an Agent session in the Rashin app. Needs Rashin on; see `rashin.md` |
+| rashin ask | `\` | ask Rashin a read-only question about this machine through its free-model router. The answer renders as selectable text with actions for files, folders, URLs and proposed commands. Open in Rashin continues the conversation in the Rashin app. Needs Rashin on; see `rashin.md` |
 
 Ranking and protocol logic live as testable JavaScript in `shared/lib/` and each
 provider's folder (`fuzzy.js`, `dispatch.js`, `rofiscript.js`, `wave.js`,

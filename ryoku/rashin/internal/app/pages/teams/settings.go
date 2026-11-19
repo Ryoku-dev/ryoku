@@ -20,41 +20,31 @@ import (
 	"ryoku-rashin/internal/protocol"
 )
 
-// the groups of the Settings tab in the order they stand
 const (
 	sectionIdentity = iota
 	sectionCrew
-	sectionSignIn
 	sectionAccess
 	sectionPermissions
 	sectionBudget
 	sectionNotifications
 	sectionMemory
 	sectionSkills
-	sectionExport
-	sectionDanger
 	sectionCount
 )
 
 // how many of its tasks a team may run at once: 0 follows Settings, Teams
 var runningValues = [...]int{0, 1, 2, 3, protocol.TeamsPerTeamMax}
 
-// the team's definition as one column of groups with an index beside it; toggles and selects save at once,
-// text and numbers wait for their group's save bar
+// eight settings groups; export and removal stay at the foot, outside the index
 type settingsTab struct {
-	scroll  look.Scroller
-	index   kit.SectionIndex
-	current int
-	// the group just picked, until the list has moved to it
-	jumped bool
+	scroll look.Scroller
 	// the team and its last change the fields were filled from
 	filledFrom, filledTeam string
-
-	name         kit.TextField
-	purpose      look.MultiLine
-	folder       env.PathField
-	identityBase identity
-	identityBar  saveBar
+	name                   kit.TextField
+	purpose                look.MultiLine
+	folder                 env.PathField
+	identityBase           identity
+	identityBar            saveBar
 
 	members map[string]*memberRow
 	add     kit.Plaque
@@ -89,14 +79,10 @@ type settingsTab struct {
 	skills skillsSection
 
 	export, pause, clear, remove kit.Plaque
-
-	// by team and harness, as one tab shows every team in turn
-	signIns map[string]*teamsui.SignInActions
 }
 
 type memberRow struct {
-	edit, drop       kit.IconPlaque
-	editTip, dropTip look.Tip
+	edit, drop kit.IconPlaque
 }
 
 type credentialRow struct {
@@ -114,31 +100,9 @@ type saveBar struct {
 	shown         bool
 }
 
-func settingsLabels() []string {
-	return []string{
-		i18n.T("Identity"), i18n.T("Crew and engines"), i18n.T("Sign-in for Teams"), i18n.T("Tools and access"), i18n.T("Permissions"),
-		i18n.T("Budget and limits"), i18n.T("Notifications"), i18n.T("Memory"), i18n.T("Skills"), i18n.T("Export"), i18n.T("Danger zone"),
-	}
-}
-
 func (s *settingsTab) jump(section int) {
-	s.current, s.jumped = section, true
-	s.scroll.ScrollTo(section)
-}
-
-// follows the group at the top of the column, unless one was just picked and the list is still on its way
-func (s *settingsTab) follow() {
-	first := s.scroll.Position.First
-	if s.jumped {
-		s.jumped = first != s.current
-		return
-	}
-	s.current = min(max(first, 0), sectionCount-1)
-}
-
-func (s *settingsTab) choose() {
-	if selected, ok := s.index.Selected(); ok && selected < sectionCount {
-		s.jump(selected)
+	if section >= 0 && section < sectionCount {
+		s.scroll.ScrollTo(section)
 	}
 }
 
@@ -181,40 +145,12 @@ func (s *settingsTab) fill(team protocol.Team) {
 }
 
 func (s *settingsTab) layout(gtx layout.Context, e *env.Env, p *Page, team protocol.Team) layout.Dimensions {
-	th := e.Theme
 	s.fill(team)
 	groups := s.groups(gtx, e, p, team)
-	labels := settingsLabels()
-	size := gtx.Constraints.Max
-	side, column, rail, gap := gtx.Dp(look.ContentInset(e.Class)), gtx.Dp(look.SettingsColumn), gtx.Dp(200), gtx.Dp(34)
-	s.follow()
-	if size.X >= column+rail+gap+2*side {
-		// index and column are centred together so the column stays in the middle of what's left
-		left := (size.X - column - rail - gap) / 2
-		look.Place(gtx, image.Rect(left, gtx.Dp(34), left+rail, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return s.index.Layout(gtx, th.Theme, labels, s.current, kit.FrameExpanded)
-		})
-		s.choose()
-		look.Place(gtx, image.Rect(left+rail+gap, 0, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
-			return s.layoutGroups(gtx, e, groups, 0, column)
-		})
-		return layout.Dimensions{Size: size}
-	}
-	width := min(column, size.X-2*side)
-	left := (size.X - width) / 2
-	picker := 0
-	if size.X >= gtx.Dp(520) {
-		picker = look.Place(gtx, image.Rect(left, gtx.Dp(13), left+width, size.Y), func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min = image.Point{}
-			return s.index.Layout(gtx, th.Theme, labels, s.current, kit.FrameMedium)
-		}).Size.Y + gtx.Dp(13)
-		s.choose()
-	}
-	look.Place(gtx, image.Rect(0, picker, size.X, size.Y), func(gtx layout.Context) layout.Dimensions {
-		return s.layoutGroups(gtx, e, groups, left, width)
-	})
-	return layout.Dimensions{Size: size}
+	side := gtx.Dp(look.ContentInset(e.Class))
+	column := min(gtx.Dp(look.SettingsColumn), max(0, gtx.Constraints.Max.X-2*side))
+	left := (gtx.Constraints.Max.X - column) / 2
+	return s.layoutGroups(gtx, e, groups, left, column)
 }
 
 // the list takes the pane out to its edge so the wheel works beside the column and the thumb stands at the edge
@@ -239,7 +175,6 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 	return []layout.Widget{
 		s.identitySection(gtx, e, p, team),
 		s.crewSection(gtx, e, p, snapshot, team),
-		s.signInSection(gtx, e, snapshot, team),
 		s.accessSection(gtx, e, snapshot, team),
 		s.permissionsSection(e, snapshot, team),
 		s.budgetSection(gtx, e, snapshot, team),
@@ -248,6 +183,7 @@ func (s *settingsTab) groups(gtx layout.Context, e *env.Env, p *Page, team proto
 		s.skills.layout(e, snapshot, team),
 		s.exportSection(gtx, e, team),
 		s.dangerSection(gtx, e, p, snapshot, team),
+		func(gtx layout.Context) layout.Dimensions { return p.colophon(gtx, e) },
 	}
 }
 
@@ -290,11 +226,15 @@ func (s *settingsTab) identitySection(gtx layout.Context, e *env.Env, p *Page, t
 	s.purpose.Lines = 3
 	s.folder.Title = i18n.T("The team's folder")
 	rows := []look.Setting{
-		{Title: i18n.T("Name"), Below: true, Control: func(gtx layout.Context) layout.Dimensions { return s.name.Layout(gtx, th.Theme) }},
-		{Title: i18n.T("Purpose"), Detail: i18n.T("Every member reads it with every task, so say what the team is for."), Below: true,
+		{Title: i18n.T("Name"), Below: true, Changed: now.name != saved.name,
+			Reset:   func() { s.name.SetText(team.Name) },
+			Control: func(gtx layout.Context) layout.Dimensions { return s.name.Layout(gtx, th.Theme) }},
+		{Title: i18n.T("Purpose"), Detail: i18n.T("Every member reads it with every task, so say what the team is for."),
+			Below: true, Changed: now.purpose != saved.purpose, Reset: func() { s.purpose.SetText(team.Purpose) },
 			Control: func(gtx layout.Context) layout.Dimensions { return s.purpose.Layout(gtx, th) }},
 		// the field's own plaque chooses a folder; the header's folder link opens it
-		{Title: i18n.T("Folder"), Below: true,
+		{Title: i18n.T("Folder"), Below: true, Changed: now.folder != saved.folder,
+			Reset:   func() { s.folder.SetText(saved.folder) },
 			Detail:  i18n.T("Where the team works and keeps what it makes. Choosing another folder does not move the files."),
 			Control: func(gtx layout.Context) layout.Dimensions { return s.folder.Layout(gtx, e) }},
 	}
@@ -322,8 +262,27 @@ func (s *settingsTab) identitySection(gtx layout.Context, e *env.Env, p *Page, t
 	} else {
 		rows = append(rows, look.Setting{Title: made})
 	}
+	changed := 0
+	if s.identityBar.shown {
+		changed++
+	}
+	if s.budget() != team.Budget {
+		changed++
+	}
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Identity"), rows)
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.SpecStrip(gtx, th, []look.Spec{
+					{Label: i18n.T("Members"), Value: kit.Pad2(len(team.Members))},
+					{Label: i18n.T("Settings"), Value: kit.Pad2(sectionCount)},
+					{Label: i18n.T("Changed"), Value: kit.Pad2(changed), Lit: changed > 0},
+				})
+			}),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S5}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Identity"), Number: 1, Of: sectionCount}, rows)
+			}),
+		)
 	}
 }
 
@@ -341,7 +300,7 @@ func (s *settingsTab) memberRow(id string) *memberRow {
 
 func (s *settingsTab) crewSection(gtx layout.Context, e *env.Env, p *Page, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
 	th := e.Theme
-	rows := make([]layout.Widget, 0, len(team.Members)+2)
+	rows := make([]look.Setting, 0, len(team.Members)+2)
 	for _, member := range team.Members {
 		row := s.memberRow(member.ID)
 		row.edit.Kind, row.edit.Small, row.edit.Icon = kit.PlaqueQuiet, true, look.Icon.Rename
@@ -354,117 +313,56 @@ func (s *settingsTab) crewSection(gtx layout.Context, e *env.Env, p *Page, snaps
 		if row.drop.Clicked(gtx) && len(team.Members) > 1 {
 			p.removeMember(team, member)
 		}
-		rows = append(rows, s.layoutMember(e, snapshot, team, member, row))
+		engine := teamsui.MemberEngine(snapshot, member)
+		detail := engine.Line()
+		if engine.Missing {
+			detail = i18n.Tf("%s cannot run now", engine.Short())
+		}
+		rows = append(rows, look.Setting{
+			Title: member.Name, Detail: detail,
+			Control: s.memberActions(e, team, member, row),
+		})
 	}
 	s.add.Kind, s.add.Small, s.add.Icon, s.add.Label = kit.PlaqueTonal, true, look.Icon.Add, i18n.T("Add member")
 	full := len(team.Members) >= membersMax
 	if s.add.Clicked(gtx) && !full {
 		p.addMember(team)
 	}
-	s.every.Kind, s.every.Small, s.every.Icon, s.every.Label = kit.PlaqueTonal, true, look.Icon.Agents, i18n.T("Set every member's engine")
+	s.every.Kind, s.every.Small, s.every.Icon, s.every.Label = kit.PlaqueTonal, true, look.Icon.Agents, i18n.T("Set every member's model")
 	if s.every.Clicked(gtx) && len(team.Members) > 0 {
 		p.setEveryEngine(team)
 	}
 	rows = append(rows,
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if full {
-						gtx = gtx.Disabled()
-					}
-					return s.add.Layout(gtx, th.Theme)
-				}),
-				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Flexed(1, quiet(th, i18n.Tf("A team has one to %d members, its lead included.", membersMax))),
-			)
-		},
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return s.every.Layout(gtx, th.Theme) }),
-				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-				layout.Flexed(1, quiet(th, i18n.Tf("Members on the teams default run %s, as Settings, Teams says.", teamsui.DefaultHarnessName(snapshot)))),
-			)
-		},
+		look.Setting{Title: i18n.T("Add member"), Detail: i18n.Tf("A team has one to %d members, its lead included.", membersMax),
+			Control: func(gtx layout.Context) layout.Dimensions {
+				if full {
+					gtx = gtx.Disabled()
+				}
+				return s.add.Layout(gtx, th.Theme)
+			}},
+		look.Setting{Title: i18n.T("Member models"), Detail: i18n.Tf("Members on the teams default run %s.", teamsui.DefaultEngine(snapshot).Place()),
+			Control: func(gtx layout.Context) layout.Dimensions { return s.every.Layout(gtx, th.Theme) }},
 	)
 	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Crew and engines"))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabRows(gtx, th.Theme, rows...) }),
-		)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Crew and models"), Number: 2, Of: sectionCount}, rows)
 	}
 }
 
-// the team's own home for each harness its members start on, signed in apart from the other teams and from the user
-func (s *settingsTab) signInSection(gtx layout.Context, e *env.Env, snapshot appstate.Snapshot, team protocol.Team) layout.Widget {
+func (s *settingsTab) memberActions(e *env.Env, team protocol.Team, member protocol.Member, row *memberRow) layout.Widget {
 	th := e.Theme
-	harnesses := teamsui.TeamHarnesses(snapshot, team)
-	if s.signIns == nil {
-		s.signIns = make(map[string]*teamsui.SignInActions)
-	}
-	rows := make([]layout.Widget, 0, len(harnesses)+1)
-	for _, harness := range harnesses {
-		key := team.ID + "\x00" + harness.ID
-		actions := s.signIns[key]
-		if actions == nil {
-			actions = new(teamsui.SignInActions)
-			s.signIns[key] = actions
-		}
-		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-			return actions.Row(gtx, e, harness, team, harness.Name, gtx.Now)
-		})
-	}
-	if len(harnesses) == 0 {
-		rows = append(rows, quiet(th, i18n.T("None of its members runs on an installed harness.")))
-	}
-	rows = append(rows, quiet(th, i18n.T("This team runs each harness in a home of its own, signed in apart from the other teams and from you. Your own harness folders stay hidden from it.")))
-	return func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Sign-in for Teams"))),
-			layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return kit.SlabRows(gtx, th.Theme, rows...) }),
-		)
-	}
-}
-
-// the engine line wraps rather than cuts, so a long model id reads whole
-func (s *settingsTab) layoutMember(e *env.Env, snapshot appstate.Snapshot, team protocol.Team, member protocol.Member, row *memberRow) layout.Widget {
-	th := e.Theme
-	about := member.Title
-	if member.Lead {
-		about = i18n.Tf("Leads the team as %s", member.Title)
-	}
-	engine := teamsui.MemberEngine(snapshot, member)
-	ink := th.R.Fg2
-	if engine.Missing {
-		ink = th.R.Jasper
-	} else if engine.Version != "" {
-		engine.Harness = i18n.Tf("%s %s", engine.Harness, engine.Version)
-	}
-	plaque := func(tip *look.Tip, button *kit.IconPlaque, disabled bool) layout.Widget {
-		return func(gtx layout.Context) layout.Dimensions {
-			if disabled {
-				gtx = gtx.Disabled()
-			}
-			return tip.Layout(gtx, th, e.Overlays, button.Description, func(gtx layout.Context) layout.Dimensions {
-				return button.Layout(gtx, th.Theme)
-			})
-		}
-	}
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(teamsui.Mark(th, member.Name, 32, member.Lead)),
-			layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(kit.Text(th.Theme, th.T.Row, th.R.Fg, member.Name)),
-					layout.Rigid(kit.Text(th.Theme, th.T.Detail, th.R.Fg2, about)),
-					layout.Rigid(look.Paragraph(th, th.T.Detail, ink, engine.Line())),
-				)
-			}),
-			layout.Rigid(plaque(&row.editTip, &row.edit, false)),
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Flexed(1, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, member.Title)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.edit.Layout(gtx, th.Theme) }),
 			layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout),
-			layout.Rigid(plaque(&row.dropTip, &row.drop, len(team.Members) <= 1)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if len(team.Members) <= 1 {
+					gtx = gtx.Disabled()
+				}
+				return row.drop.Layout(gtx, th.Theme)
+			}),
 		)
 	}
 }
@@ -476,7 +374,7 @@ func (s *settingsTab) accessSection(gtx layout.Context, e *env.Env, snapshot app
 	rows = append(rows, s.mailTrustRows(gtx, e, snapshot, team)...)
 	rows = append(rows, s.accessRows(gtx, e, team)...)
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Tools and access"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Tools and access"), Number: 3, Of: sectionCount}, rows)
 	}
 }
 
@@ -693,7 +591,7 @@ func (s *settingsTab) permissionsSection(e *env.Env, snapshot appstate.Snapshot,
 	warning := warningSlab(th, snapshot, team)
 	return func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return look.SettingsSection(gtx, th, i18n.T("Permissions"), rows)
+			return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Permissions"), Number: 4, Of: sectionCount}, rows)
 		})}
 		if warning != nil {
 			children = append(children, layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout), layout.Rigid(warning))
@@ -734,12 +632,16 @@ func (s *settingsTab) budgetSection(gtx layout.Context, e *env.Env, snapshot app
 	}
 	rows := []look.Setting{
 		{Title: i18n.T("Tokens a month"), Detail: i18n.T("At the limit the team pauses and asks you to raise it."),
+			Changed: s.limit.Value != team.Budget.MonthTokens, Reset: func() { s.limit.Value = team.Budget.MonthTokens },
 			Control: func(gtx layout.Context) layout.Dimensions { return s.limit.Layout(gtx, th) }},
 		{Title: i18n.T("Warn at"), Detail: i18n.T("You are told once a month when the team gets this close."),
+			Changed: s.warn.Value != team.Budget.WarnPercent, Reset: func() { s.warn.Value = team.Budget.WarnPercent },
 			Control: func(gtx layout.Context) layout.Dimensions { return s.warn.Layout(gtx, th.Theme) }},
 		{Title: i18n.T("Turns per task"), Detail: i18n.T("A task that uses them all stops and says so."),
+			Changed: s.turns.Value != team.Budget.TaskTurns, Reset: func() { s.turns.Value = team.Budget.TaskTurns },
 			Control: func(gtx layout.Context) layout.Dimensions { return s.turns.Layout(gtx, th.Theme) }},
 		{Title: i18n.T("Minutes per task"), Detail: minutes,
+			Changed: s.minutes.Value != team.Budget.TaskMinutes, Reset: func() { s.minutes.Value = team.Budget.TaskMinutes },
 			Control: func(gtx layout.Context) layout.Dimensions { return s.minutes.Layout(gtx, th.Theme) }},
 		s.runningSetting(e, snapshot, team),
 	}
@@ -749,7 +651,7 @@ func (s *settingsTab) budgetSection(gtx layout.Context, e *env.Env, snapshot app
 			func(done func(error)) { updateTeam(e, team.ID, map[string]any{"budget": budget}, done) }))
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Budget and limits"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Budget and limits"), Number: 5, Of: sectionCount}, rows)
 	}
 }
 
@@ -809,7 +711,7 @@ func (s *settingsTab) notifySection(e *env.Env, snapshot appstate.Snapshot, team
 		})
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Notifications"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Notifications"), Number: 6, Of: sectionCount}, rows)
 	}
 }
 
@@ -819,7 +721,7 @@ func (s *settingsTab) memorySection(e *env.Env, team protocol.Team) layout.Widge
 		updateTeam(e, team.ID, map[string]any{"memory": memory}, done)
 	})
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Memory"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Memory"), Number: 7, Of: sectionCount}, rows)
 	}
 }
 
@@ -834,7 +736,7 @@ func (s *settingsTab) exportSection(gtx layout.Context, e *env.Env, team protoco
 		Control: func(gtx layout.Context) layout.Dimensions { return s.export.Layout(gtx, th.Theme) },
 	}}
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Export"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Export")}, rows)
 	}
 }
 
@@ -889,6 +791,6 @@ func (s *settingsTab) dangerSection(gtx layout.Context, e *env.Env, p *Page, sna
 			Control: func(gtx layout.Context) layout.Dimensions { return s.remove.Layout(gtx, th.Theme) }},
 	}
 	return func(gtx layout.Context) layout.Dimensions {
-		return look.SettingsSection(gtx, th, i18n.T("Danger zone"), rows)
+		return look.SettingsSection(gtx, th, look.Head{Title: i18n.T("Danger zone")}, rows)
 	}
 }

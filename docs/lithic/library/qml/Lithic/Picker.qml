@@ -152,11 +152,15 @@ T.Control {
         // with the keyboard mark only when the keys opened it
         menuFocus: false
         keysOpened: root._openedFromKeys
+        onAboutToShow: Qt.callLater(function() {
+            if (popover.visible)
+                menu.focusItem(root.currentIndex, root._openedFromKeys)
+        })
         onOpened: menu.focusItem(root.currentIndex, root._openedFromKeys)
 
         Menu {
             id: menu
-            width: Math.max(root.width, LithicTokens.size.menuWidthMin)
+            menuWidth: Math.max(root.width, LithicTokens.size.menuWidthMin)
             items: root.menuItems()
             onTriggered: index => {
                 root.currentIndex = index

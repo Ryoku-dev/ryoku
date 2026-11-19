@@ -10,7 +10,7 @@
 // names are the kernel's comm, cut at 15 characters
 const PROTECTED = [
     "systemd", "systemd-logind", "logind", "dbus-daemon", "dbus-broker",
-    "niri", "hyprland", "wayfire", "xwayland", "xwayland-satell", "xorg",
+    "niri", "hyprland", "xwayland", "xwayland-satell", "xorg",
     "qs", "quickshell",
     "ryoku-shell", "ryoku-wm", "ryoku-wm-niri", "ryoku-host",
     "pipewire", "pipewire-pulse", "wireplumber", "gnome-keyring-d",

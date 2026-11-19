@@ -1,0 +1,4 @@
+#!/bin/sh
+# Explicitly park a clean exit; runsv restarts crashes and signal deaths.
+[ "$1" -eq 0 ] && [ "${2:-0}" -eq 0 ] && exec sv down .
+exit 0

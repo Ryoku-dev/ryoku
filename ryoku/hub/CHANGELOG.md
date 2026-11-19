@@ -1,6 +1,73 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+### Added
+
+- **Hub Credits now names oh-my-pi as the source of Rashin's native agent
+  engine and self-improvement workflows (MIT).** The About page links to
+  the project and names Can Bölük and Mario Zechner
+  (`quickshell/schema/about.js`, `../rashin/NOTICE`).
+- **Credits name what Kit's Downloads and the Rashin bar's Web stand on.**
+  anacrolix/torrent for the BitTorrent engine (MPL-2.0), Motrix and cobalt as
+  the references the download manager and its link handling were designed
+  from, and Wiktionary for the definitions in web search (CC BY-SA 4.0); the
+  yt-dlp row names Downloads' fallback too (`quickshell/schema/about.js`).
+
+### Changed
+
+- **Long dropdowns scroll and stay inside the window.** A menu holds about ten
+  rows with the next one showing, opens below its control or above it when that
+  has more room, never covers the control, scrolls with the wheel, touchpad and
+  keys, and opens on the current choice; labels that mix writing systems keep
+  one baseline (`docs/lithic/library/qml/Lithic/Menu.qml`, `Popover.qml`).
+- **Groups and lists use the whole setting row.** Chip groups, ordered picks,
+  toggle lists and editors sit under their title at full width instead of
+  beside empty space, Writing checks lays its switches out in columns, fields
+  and pickers keep comfortable widths, and taller single controls line up with
+  their titles (`docs/lithic/library/qml/Lithic/SettingRow.qml`,
+  `components/RowControl.qml`).
+- **Search, section links and deep links land on the setting you asked for.**
+  This includes rows under More options on the Rashin page, which no longer
+  shifts as it finishes loading (`components/SettingsPage.qml`).
+- **The Rashin settings page opens without holding up the window.** Its sections
+  build across frames, unchanged controls stay in place when status arrives, and
+  hidden sidebar outlines no longer build copies of the open page's section links.
+- **Theia's model picker offers models that can run.** It reads availability
+  from Rashin, checks a saved model in the background and uses display names to
+  explain missing keys or unavailable models, pointing to Providers or Use light model.
+  The provider model menu loads on request with at most 100 searchable matches.
+- **In place starts with Fix or translate.** Text already in the target language
+  gets spelling, grammar and punctuation fixes without changing its meaning.
+- **Fix writing has a built-in English checker and Your words**
+  Save spellings you use, choose an English dialect and see the Harper 3.2.0
+  Go port, SCOWL-derived dictionary and foldhash word identity hash credited in About
+  (`components/rashin/TheiaWords.qml`, `schema/about.js`, `../../NOTICE`).
+- **Theia's 21 optional features have switches on the Rashin page**
+  Options appear while each feature is on, and Save to Rashin also sets Collections
+- **Rashin app features open in Rashin's own Features settings**
+  The Hub shows how many of its 20 optional features are on without starting Rashin
+- **Credits name the tools behind Theia and Ask**
+  The Harper Go port, write-good, weasel-words, too-wordy, proselint,
+  retext-equality, blocklint, textstat, eSpeak NG, Piper and yt-dlp
+- **Rashin has a Theia section.** Turn triple-tap Right Alt or Left Alt while highlighting on or off, pick what it starts with, the
+  language it translates into, and a model (or leave it empty for Rashin's light model). Keep captures on local models only and add
+  text recognition languages, installed on demand for Arch, Fedora and Void (`pages/Rashin.qml`,
+  `components/rashin/Sight*.qml`, `schema/rashin.js`).
+- **Keyboard shortcuts has a key menu for Theia in place.** Pick the key you
+  tap three times with text selected, Right Ctrl unless you change it
+  (`pages/Shortcuts.qml`, `components/shortcuts/BindRow.qml`).
+- **Keyboard shortcuts offers menus for Theia's gesture keys.** Choose one of six modifier keys
+  for triple-tap screen boxes and another for highlighted text, with keycaps in Shortcuts and the
+  Super+K sheet. Each row says when it needs Rashin on (`pages/Shortcuts.qml`, `components/shortcuts/`).
+- **Notifications & pop-ups shows Ryoku's own card and pop-up moving, in the design in use.** The Ryoku
+  tiles and an example above each gallery play a real recording, light or dark like the desktop, and hold
+  still with reduced motion (`pages/Notifications.qml`, `components/notifications/DesignExample.qml`).
+- **Tester certificates name the Ryoku version that tester tested.** A badge code can carry a signed
+  program (version 3, `ryoku-hub badge issue --program "Ryoku v2 Hyperion"`); the certificate shows it
+  beside Issued by and Issued on, the Badge tab under the issue date, and `badge inspect`, `status` and
+  `list` report it. Tester badges from the first round read Ryoku v2 Hyperion; codes without a program are
+  unchanged, and Make a code in the owner tools takes an optional program (`backend/badgecodes.go`,
+  `components/badge/Certificate.qml`, `components/about/BadgeTab.qml`).
 - **Wobbly windows waits on Window animations, like the open and close effect.** Its switch did nothing
   while animations were off; the section now shows with them on, and a search for it lands on Window
   animations otherwise, as the old Hub's greyed switch did (`schema/animations.js`).

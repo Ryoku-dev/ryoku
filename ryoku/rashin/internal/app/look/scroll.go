@@ -11,10 +11,10 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 )
 
 const (
@@ -28,6 +28,7 @@ var scrollOnX11 = os.Getenv("WAYLAND_DISPLAY") == ""
 type Scroller struct {
 	layout.List
 	Preview kit.State
+	rail    kit.ScrollRail
 
 	tag          struct{}
 	fraction     float32
@@ -132,7 +133,6 @@ func (scroller *Scroller) setThumb(gtx layout.Context, th *Theme, shown bool) fl
 	if shown {
 		duration = th.Motion.HoverIn
 	}
-	scroller.thumb.Duration = duration
 	scroller.thumb.Ease = anim.EaseChisel
 	if !scroller.thumbReady {
 		scroller.thumb.Set(gtx, 0)
@@ -146,6 +146,7 @@ func (scroller *Scroller) setThumb(gtx layout.Context, th *Theme, shown bool) fl
 			scroller.thumb.Set(gtx, 0)
 		}
 	}
+	scroller.thumb.Duration = duration
 	return scroller.thumb.Value(gtx)
 }
 
@@ -289,26 +290,30 @@ func (scroller *Scroller) Layout(
 	}
 	scroller.programmatic = false
 
-	shown := scroller.hovered || (!scroller.lastScroll.IsZero() && gtx.Now.Before(scroller.lastScroll.Add(thumbIdle)))
+	shown := scroller.hovered || scroller.rail.Dragging() || (!scroller.lastScroll.IsZero() && gtx.Now.Before(scroller.lastScroll.Add(thumbIdle)))
 	if scroller.Preview == kit.StateHover || scroller.Preview == kit.StatePressed {
 		shown = true
 	}
 	alpha := scroller.setThumb(gtx, th, shown)
-	if alpha <= 0 {
-		return dimensions
+	if alpha > 0 {
+		scroller.rail.Preview = scroller.Preview
+		rail := gtx
+		rail.Constraints = layout.Exact(dimensions.Size)
+		fade := paint.PushOpacity(gtx.Ops, alpha)
+		scroller.rail.Layout(rail, th.Theme, &scroller.List, count)
+		fade.Pop()
 	}
-	DrawThumb(gtx, th, dimensions.Size, scroller.Position, count, alpha)
 	return dimensions
 }
 
-func DrawThumb(gtx layout.Context, th *Theme, size image.Point, position layout.Position, count int, alpha float32) {
-	top, height, ok := scrollThumb(size.Y, position.Length, position.First, position.Offset, count, gtx.Dp(12))
-	if !ok || alpha <= 0 {
-		return
+func (scroller *Scroller) Progress(count int) float32 {
+	position := scroller.Position
+	if count <= 0 || position.Length <= scroller.listConstraints.Max.Y {
+		return -1
 	}
-	width := max(1, gtx.Dp(3))
-	x := max(0, size.X-gtx.Dp(4)-width)
-	kit.FillCut(gtx.Ops, image.Rect(x, top, x+width, top+height), min(width/2, height/2), palette.WithAlpha(th.R.Vein, alpha))
+	content := float32(position.Length - scroller.listConstraints.Max.Y)
+	offset := float32(position.First)*float32(position.Length)/float32(count) + float32(position.Offset)
+	return min(max(offset/content, 0), 1)
 }
 
 func (scroller *Scroller) AnchorTo(index, offsetPx int) {

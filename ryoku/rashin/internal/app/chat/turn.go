@@ -23,6 +23,9 @@ import (
 type turnVisual struct {
 	hovered bool
 	show    anim.Tween
+	answers AnswerOptions
+	compare *compareVisual
+	rule    ruleVisual
 }
 
 func (state *viewState) turnVisual(turn int) *turnVisual {
@@ -65,30 +68,50 @@ func (state *viewState) layoutTurnFoot(gtx layout.Context, th *look.Theme, block
 	if turn == nil || turn.end == nil {
 		return layout.Dimensions{}
 	}
+	if state.feature("compare") {
+		state.syncComparison(block)
+	}
 	visual := state.turnVisual(block.turn)
-	show := look.Transition(gtx, &visual.show, visual.hovered || block.last, th.Motion.HoverIn, th.Motion.HoverOut)
-	height := gtx.Dp(28)
-	size := image.Pt(gtx.Constraints.Max.X, height)
+	children := []layout.FlexChild{
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.layoutTurnFootBase(gtx, th, block) }),
+	}
+	if state.feature("compare") && visual.compare != nil && visual.compare.source == block.info.ID {
+		if visual.compare.picking {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S2, Bottom: th.Sp.S2, Left: th.Sp.S3, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return state.layoutComparePicker(gtx, th, block, visual.compare, "compare:"+block.info.ID+":"+strconv.Itoa(block.turn))
+				})
+			}))
+		}
+		if visual.compare.err != "" {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: th.Sp.S2}.Layout(gtx, kit.Text(th.Theme, th.T.Detail, th.R.Fg2, visual.compare.err))
+			}))
+		}
+	}
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.layoutRule(gtx, th, block) }))
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+func (state *viewState) layoutTurnFootBase(gtx layout.Context, th *look.Theme, block blockContext) layout.Dimensions {
+	turn := block.row.turn
+	visual := state.turnVisual(block.turn)
+	show := look.Transition(gtx, &visual.show, visual.hovered || block.last || visual.rule.open, th.Motion.HoverIn, th.Motion.HoverOut)
 	if show <= 0 {
-		return layout.Dimensions{Size: size}
+		return layout.Dimensions{Size: image.Pt(gtx.Constraints.Max.X, gtx.Dp(th.Sp.S6))}
 	}
 	defer paint.PushOpacity(gtx.Ops, show).Pop()
-	gtx.Constraints = layout.Exact(size)
+	gtx.Constraints.Min.Y = gtx.Dp(th.Sp.S6)
 	key := "turn:" + strconv.Itoa(block.index)
-	layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// inset so the glyph, not its box, stands on the column's edge
-			return layout.Inset{Left: -5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return state.layoutTurnActions(gtx, th, block, key)
-			})
+			return state.layoutTurnActions(gtx, th, block, key)
 		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.E.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layoutTurnUsage(gtx, th, turn)
-			})
+		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layoutTurnUsage(gtx, th, turn)
 		}),
 	)
-	return layout.Dimensions{Size: size}
 }
 
 type turnAction struct {
@@ -112,8 +135,11 @@ func (state *viewState) layoutTurnActions(gtx layout.Context, th *look.Theme, bl
 	if block.info.Kind == protocol.KindAgent {
 		actions = append(actions, turnAction{look.Icon.Fork, i18n.T("Fork from here"), Action{Kind: ActFork, Seq: block.row.seq}})
 	}
-	children := make([]layout.FlexChild, 0, len(actions))
+	children := make([]layout.FlexChild, 0, len(actions)+5)
 	for index, item := range actions {
+		if index > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S1}.Layout))
+		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions, clicked := state.icon(gtx, th, key+":"+strconv.Itoa(index), item.icon, item.description)
 			if clicked {
@@ -121,6 +147,29 @@ func (state *viewState) layoutTurnActions(gtx layout.Context, th *look.Theme, bl
 			}
 			return dimensions
 		}))
+	}
+	addPlaque := func(label, id string, action func()) {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return state.answerPlaque(gtx, th, key+":"+id, label, action)
+			}),
+		)
+	}
+	if block.info.Kind == protocol.KindAsk && state.feature("compare") {
+		addPlaque(i18n.T("Compare"), "compare", func() { state.openCompare(block) })
+	}
+	if block.info.Kind == protocol.KindAsk && state.feature("share") {
+		addPlaque(i18n.T("Share as a picture"), "share", func() { state.shareAnswer(gtx, th, block) })
+	}
+	if state.feature(protocol.FeatureRules) && state.call != nil && strings.TrimSpace(answerText(block.model, block.index)) != "" {
+		addPlaque(i18n.T("That was wrong, make a rule"), "rule", func() {
+			visual := &state.turnVisual(block.turn).rule
+			visual.open = !visual.open
+			if visual.open {
+				visual.complaint.Focus()
+			}
+		})
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
@@ -158,8 +207,7 @@ func retryAction(model *modelState, index, turn int) Action {
 	return action
 }
 
-// how the turn ended and what it spent in words, then the model that answered,
-// a literal id in mono set apart by space
+// the turn's cost and the model that answered, without repeating the provider
 func layoutTurnUsage(gtx layout.Context, th *look.Theme, turn *turnState) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 3)
 	if words := turnUsage(turn); words != "" {
@@ -169,7 +217,11 @@ func layoutTurnUsage(gtx layout.Context, th *look.Theme, turn *turnState) layout
 		if len(children) > 0 {
 			children = append(children, layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout))
 		}
-		children = append(children, layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, turn.answer.Via)))
+		model := turn.answer.Via
+		if _, name, qualified := strings.Cut(model, "/"); qualified && name != "" {
+			model = name
+		}
+		children = append(children, layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, model)))
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx, children...)
 }

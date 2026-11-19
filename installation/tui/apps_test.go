@@ -369,17 +369,17 @@ func TestAppsResetRestoresDefaults(t *testing.T) {
 	m.idx = flowIndex(m.flow, "apps")
 	m.loadStep()
 	m.keep["yazi"] = false
-	m.keep["docker"] = false
+	m.keep["vm"] = false
 	m.appsKey("a")
-	if !m.keep["yazi"] || !m.keep["docker"] {
+	if !m.keep["yazi"] || !m.keep["vm"] {
 		t.Fatal("'a' must restore the shipped defaults")
 	}
 	if got := appsSummary(m.keep); got != "all" {
 		t.Errorf("appsSummary after reset = %q, want %q", got, "all")
 	}
-	m.keep["docker"] = false
-	if got := appsSummary(m.keep); !strings.Contains(got, "docker") {
-		t.Errorf("appsSummary after drop = %q, must name docker", got)
+	m.keep["vm"] = false
+	if got := appsSummary(m.keep); !strings.Contains(got, "vm") {
+		t.Errorf("appsSummary after drop = %q, must name vm", got)
 	}
 }
 
@@ -510,7 +510,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	m.picks["file-manager"] = "dolphin"
 	m.picks["rashin"] = "0"
 	m.keep = appDefaults()
-	m.keep["docker"] = false
+	m.keep["vm"] = false
 	m.keep["flatpak"] = false
 	m.keep["ryoport"] = false
 	env = m.installEnv()
@@ -522,7 +522,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 		t.Fatal("deselections must emit a drop list")
 	}
 	set := asSet(csv)
-	for _, want := range []string{"docker", "flatpak", "ryoport", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "ryoku-rashin"} {
+	for _, want := range []string{"qemu-desktop", "flatpak", "ryoport", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "ryoku-rashin"} {
 		if !set[want] {
 			t.Errorf("drop list %q missing %s", csv, want)
 		}

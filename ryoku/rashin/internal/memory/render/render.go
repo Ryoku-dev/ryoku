@@ -151,6 +151,34 @@ func Card(text string) string {
 	return fmt.Sprintf("<user_card chars=\"%d/%d\">\n%s\n</user_card>", utf8.RuneCountInString(text), protocol.MemoryCardMax, text)
 }
 
+func Profile(profile protocol.MemoryProfile, card string) string {
+	var lines []string
+	if name := heading(profile.Name); name != "" {
+		lines = append(lines, "- Name to use: "+name)
+	}
+	if work := heading(profile.Work); work != "" {
+		lines = append(lines, "- Work: "+work)
+	}
+	if len(profile.Traits) > 0 {
+		lines = append(lines, "- Preferred answer style: "+heading(strings.Join(profile.Traits, ", ")))
+	}
+	if about := heading(profile.About); about != "" {
+		lines = append(lines, "- Answer preferences: "+about)
+	}
+	if len(lines) == 0 {
+		return card
+	}
+	used := utf8.RuneCountInString(strings.Join(lines, "\n"))
+	for _, line := range strings.Split(card, "\n") {
+		cost := utf8.RuneCountInString(line) + 1
+		if strings.TrimSpace(line) != "" && used+cost <= protocol.MemoryCardMax {
+			lines = append(lines, line)
+			used += cost
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // Portions adapted from NousResearch/hermes-agent agent/prompt_builder.py @ fe6649291e60
 // (MIT, Copyright (c) 2025 Nous Research): the declarative-facts rule and the
 // past-conversation search line. Portions adapted from openai/codex

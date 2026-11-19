@@ -1,6 +1,8 @@
 # Changelog: ryoku-shell-installer
 
 ## Unreleased
+- **Removed the Wayfire compositor choice.** Existing-system installs now
+  offer Hyprland and niri on Arch, CachyOS and Fedora, and niri on Void.
 
 ### Fixed
 - **Layouts carried over from KDE or GNOME come with a way to switch (#875).**

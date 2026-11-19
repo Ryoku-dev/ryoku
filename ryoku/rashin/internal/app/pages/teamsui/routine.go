@@ -175,14 +175,12 @@ type RoutineTablet struct {
 	tablet kit.Tablet
 	edit   kit.Plaque
 	run    kit.IconPlaque
-	tip    look.Tip
 	enable RoutineSwitch
 }
 
 func (r *RoutineTablet) Layout(gtx layout.Context, e *env.Env, schedules *Schedules, routine protocol.Routine, selected bool) layout.Dimensions {
 	th := e.Theme
 	snapshot := e.Snapshot()
-	r.tablet.Pane = th.R.Stone2
 	r.edit.Kind, r.edit.Small, r.edit.Label = kit.PlaqueTonal, true, i18n.T("Edit")
 	r.run.Kind, r.run.Small, r.run.Icon, r.run.Description = kit.PlaqueQuiet, true, look.Icon.Play, i18n.T("Run now")
 	if r.tablet.Clicked(gtx) || r.tablet.DoubleClicked(gtx) || r.edit.Clicked(gtx) {
@@ -202,7 +200,7 @@ func (r *RoutineTablet) Layout(gtx layout.Context, e *env.Env, schedules *Schedu
 		Action: &r.edit,
 		Mark:   Mark(th, team, 32, false),
 	}
-	// the notch is for a routine that failed, the claim already says one is off
+	// the claim already says when a routine is off; only a problem needs a tone mark
 	if claimTone == palette.Failed || claimTone == palette.Attention {
 		content.Tone = claimTone
 	}
@@ -216,9 +214,7 @@ func (r *RoutineTablet) Layout(gtx layout.Context, e *env.Env, schedules *Schedu
 		}),
 		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return r.tip.Layout(gtx, th, e.Overlays, r.run.Description, func(gtx layout.Context) layout.Dimensions {
-				return r.run.Layout(gtx, th.Theme)
-			})
+			return r.run.Layout(gtx, th.Theme)
 		}),
 	)
 }

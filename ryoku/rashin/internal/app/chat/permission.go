@@ -15,8 +15,8 @@ import (
 )
 
 type permissionVisual struct {
-	field  look.Unfold
-	record look.Unfold
+	field  kit.Disclosure
+	record kit.Disclosure
 	// when the request was first drawn, and the last frame it was drawn in
 	seen  time.Time
 	drawn int
@@ -39,14 +39,16 @@ func (state *viewState) layoutPermission(gtx layout.Context, th *look.Theme, per
 	visual.drawn = state.frame
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return visual.field.Layout(gtx, th, open, func(gtx layout.Context) layout.Dimensions {
+			visual.field.Open = open
+			return visual.field.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 				return state.rise("permission:"+request).Layout(gtx, th, request, 8, func(gtx layout.Context) layout.Dimensions {
 					return state.layoutPermissionField(gtx, th, permission.data)
 				})
 			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return visual.record.Layout(gtx, th, !open, func(gtx layout.Context) layout.Dimensions {
+			visual.record.Open = !open
+			return visual.record.Layout(gtx, th.Theme, func(gtx layout.Context) layout.Dimensions {
 				label := permissionOutcome(permission) + ": " + permission.data.Title
 				return state.layoutRecord(gtx, th, "permission:"+request, look.Icon.Key, label, firstLine(permission.data.Input))
 			})
@@ -57,10 +59,16 @@ func (state *viewState) layoutPermission(gtx layout.Context, th *look.Theme, per
 func (state *viewState) layoutPermissionField(gtx layout.Context, th *look.Theme, data protocol.PermissionData) layout.Dimensions {
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))
-	return slab(gtx, th, 16, func(gtx layout.Context) layout.Dimensions {
+	return state.slab(gtx, th, th.Sp.S4, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		claim, tone := i18n.T("Needs you"), palette.Attention
+		if data.Kind == protocol.PermissionQuestion {
+			claim, tone = i18n.T("Question"), palette.Becoming
+		} else if data.Kind == protocol.PermissionPlan {
+			claim = i18n.T("Plan ready")
+		}
 		children := []layout.FlexChild{
-			layout.Rigid(kit.Claim(th.Theme, palette.Attention, i18n.T("Needs you"))),
+			layout.Rigid(kit.Claim(th.Theme, tone, claim)),
 			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 			layout.Rigid(look.Paragraph(th, th.T.Title, th.R.Fg, data.Title)),
 		}
@@ -82,17 +90,24 @@ func (state *viewState) layoutPermissionField(gtx layout.Context, th *look.Theme
 }
 
 func (state *viewState) layoutPermissionActions(gtx layout.Context, th *look.Theme, data protocol.PermissionData) layout.Dimensions {
-	return look.Flow{Gap: 8, LineGap: 8}.Layout(gtx, len(data.Options), func(gtx layout.Context, index int) layout.Dimensions {
+	return look.Flow{Gap: th.Sp.S2, LineGap: th.Sp.S2}.Layout(gtx, len(data.Options), func(gtx layout.Context, index int) layout.Dimensions {
 		option := data.Options[index]
 		plaque := state.plaque("permission:" + data.Request + ":" + option.ID)
 		plaque.Label, plaque.Small = i18n.T(option.Label), true
 		switch option.Kind {
 		case protocol.OptAllowOnce:
-			plaque.Kind = kit.PlaqueGold
+			if data.Request == state.waiting {
+				plaque.Kind = kit.PlaqueGold
+			} else {
+				plaque.Kind = kit.PlaqueTonal
+			}
 		case protocol.OptAllowAlways:
-			plaque.Kind = kit.PlaqueLine
+			plaque.Kind = kit.PlaqueTonal
 		default:
 			plaque.Kind = kit.PlaqueQuiet
+		}
+		if data.Kind == protocol.PermissionQuestion && index == 0 && data.Request == state.waiting {
+			plaque.Kind = kit.PlaqueGold
 		}
 		if plaque.Clicked(gtx) {
 			state.act(Action{Kind: ActPermission, Request: data.Request, Option: option.ID})
@@ -104,6 +119,15 @@ func (state *viewState) layoutPermissionActions(gtx layout.Context, th *look.The
 func permissionOutcome(permission *permissionState) string {
 	if permission.resolved == nil || permission.resolved.Outcome != "selected" {
 		return i18n.T("Denied")
+	}
+	if permission.data.Kind == protocol.PermissionQuestion {
+		return i18n.T("Answered")
+	}
+	if permission.data.Kind == protocol.PermissionPlan {
+		if permission.resolved.Option == "build" {
+			return i18n.T("Building")
+		}
+		return i18n.T("Still planning")
 	}
 	for _, option := range permission.data.Options {
 		if option.ID != permission.resolved.Option {
@@ -119,6 +143,18 @@ func permissionOutcome(permission *permissionState) string {
 		}
 	}
 	return i18n.T("Allowed")
+}
+
+func oldestOpen(model *modelState) string {
+	if model == nil {
+		return ""
+	}
+	for _, request := range model.permissionOrder {
+		if permission := model.permissions[request]; permission != nil && permission.resolved == nil {
+			return request
+		}
+	}
+	return ""
 }
 
 // how long a request has to have been on screen before a key can answer it
@@ -148,8 +184,10 @@ func (state *viewState) asking(model *modelState) AnswerKeys {
 		return AnswerKeys{}
 	}
 	return AnswerKeys{
-		Allow:  permissionOption(open.data, protocol.OptAllowOnce) != "",
-		Refuse: permissionOption(open.data, protocol.OptRejectOnce, protocol.OptRejectAlways) != "",
+		Allow:  open.data.Kind != protocol.PermissionQuestion && permissionOption(open.data, protocol.OptAllowOnce) != "",
+		Refuse: open.data.Kind != protocol.PermissionQuestion && permissionOption(open.data, protocol.OptRejectOnce, protocol.OptRejectAlways) != "",
+		Asked:  true,
+		Plan:   open.data.Kind == protocol.PermissionPlan,
 	}
 }
 

@@ -29,7 +29,8 @@ notify() {
 require_command() {
   local command_name="$1" label="$2"
   if ! command -v "$command_name" >/dev/null 2>&1; then
-    notify -u critical "Screen recording failed" "$label is not installed"
+    RESULT_REASON="$label is not installed"
+    notify -u critical "Screen recording failed" "$RESULT_REASON"
     echo "ryoku-cmd-record: missing command: $command_name" >&2
     exit 1
   fi
@@ -99,7 +100,8 @@ choose_available_codec() {
     return 0
   fi
 
-  notify -u critical "Screen recording failed" "No video encoder is available. Install your GPU's video driver with encoding support (VA-API for AMD and Intel)."
+  RESULT_REASON="No video encoder is available. Install your GPU's video driver with encoding support (VA-API for AMD and Intel)."
+  notify -u critical "Screen recording failed" "$RESULT_REASON"
   echo "ryoku-cmd-record: no hardware video encoder and no libx264 for CPU encoding" >&2
   return 1
 }
@@ -164,6 +166,8 @@ STATE_DIR="${RYOKU_STATE_PATH:-$HOME/.local/state/ryoku}"
 PID_FILE="$STATE_DIR/recorder.pid"
 STOP_FILE="$STATE_DIR/recorder.stop"
 STATUS_FILE="$STATE_DIR/recorder-status.json"
+RESULT_FILE="$STATE_DIR/recorder-result.json"
+LOCK_FILE="$STATE_DIR/recorder.lock"
 LAST_FILE="$STATE_DIR/last-recording"
 # GSR's stderr for the latest capture: where its own reason for a failure lands.
 LOG_FILE="$STATE_DIR/recorder.log"
@@ -189,7 +193,8 @@ focused_output() {
 validate_monitor_name() {
   local name="$1"
   if [[ -z $name || ! $name =~ ^[A-Za-z0-9._-]+$ ]]; then
-    notify -u critical "Screen recording failed" "Invalid monitor: $name"
+    RESULT_REASON="Invalid monitor: $name"
+    notify -u critical "Screen recording failed" "$RESULT_REASON"
     echo "ryoku-cmd-record: invalid monitor: $name" >&2
     exit 1
   fi
@@ -266,17 +271,87 @@ prepare_audio() {
   esac
 }
 
-json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+json_escape() { printf '%s' "$1" | tr '\t\r\n' '   ' | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
-# The status file exists exactly while a capture runs (cleanup_session removes
-# it on every exit), so the shell watches it to learn of a capture the moment it
-# starts, from any entry point, and reads the launch time from it to keep the
-# clock honest across a reload or a start it did not make itself.
+# bash only does integer math and EPOCHREALTIME takes the locale's decimal mark
+now_us() {
+  local t="${EPOCHREALTIME/,/.}"
+  printf '%s' "$((10#${t%.*} * 1000000 + 10#${t#*.}))"
+}
+seconds_to_us() {
+  local v="$1" whole frac=""
+  whole="${v%%.*}"
+  [[ $v == *.* ]] && frac="${v#*.}"
+  frac="${frac}000000"
+  frac="${frac:0:6}"
+  [[ $whole =~ ^[0-9]+$ ]] || whole=0
+  [[ $frac =~ ^[0-9]+$ ]] || frac=000000
+  printf '%s' "$((10#$whole * 1000000 + 10#$frac))"
+}
+us_to_seconds() { printf '%d.%06d' "$(($1 / 1000000))" "$(($1 % 1000000))"; }
+
+# The status file exists exactly while a capture runs, so the shell reads the
+# launch time, the pause accounting and the stop from it, even across a reload.
+# Every write renames a whole file into place, and pause, resume, stop and the
+# final removal hold LOCK_FILE so a late rewrite never brings back a capture
+# that already ended.
+ST_PID=0 ST_STARTED=0 ST_REQUESTED=none ST_ACTIVE=none ST_FALLBACK=false ST_TARGET=""
+ST_PAUSED=false ST_PAUSED_AT=0 ST_PAUSED_TOTAL=0 ST_STOPPING=false
+
 write_status() {
-  local pid="$1"
-  printf '{"recorderPid":%s,"startedAt":%s,"requestedAudioMode":"%s","activeAudioMode":"%s","audioFallback":%s}\n' \
-    "$pid" "$EPOCHSECONDS" "$(json_escape "$AUDIO_MODE")" "$(json_escape "$ACTIVE_AUDIO_MODE")" "$AUDIO_FALLBACK" \
-    >"$STATUS_FILE" 2>/dev/null || true
+  local tmp="$STATE_DIR/.recorder-status.$$.tmp"
+  if printf '{"recorderPid":%s,"startedAt":%s,"requestedAudioMode":"%s","activeAudioMode":"%s","audioFallback":%s,"target":"%s","paused":%s,"pausedAt":%s,"pausedTotal":%s,"stopping":%s}\n' \
+    "$ST_PID" "$ST_STARTED" "$(json_escape "$ST_REQUESTED")" "$(json_escape "$ST_ACTIVE")" "$ST_FALLBACK" \
+    "$(json_escape "$ST_TARGET")" "$ST_PAUSED" "$ST_PAUSED_AT" "$ST_PAUSED_TOTAL" "$ST_STOPPING" \
+    >"$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$STATUS_FILE" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+}
+
+# reads only the flat JSON this script writes
+json_field() {
+  local json="$1" key="$2"
+  local quoted="\"$key\":\"([^\"]*)\"" bare="\"$key\":([^,}\"]*)"
+  if [[ $json =~ $quoted || $json =~ $bare ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+read_status() {
+  local json
+  json="$(cat "$STATUS_FILE" 2>/dev/null)" || return 1
+  [[ -n $json ]] || return 1
+  ST_PID="$(json_field "$json" recorderPid)"
+  ST_STARTED="$(json_field "$json" startedAt)"
+  ST_REQUESTED="$(json_field "$json" requestedAudioMode)"
+  ST_ACTIVE="$(json_field "$json" activeAudioMode)"
+  ST_FALLBACK="$(json_field "$json" audioFallback)"
+  ST_TARGET="$(json_field "$json" target)"
+  ST_PAUSED="$(json_field "$json" paused)"
+  ST_PAUSED_AT="$(json_field "$json" pausedAt)"
+  ST_PAUSED_TOTAL="$(json_field "$json" pausedTotal)"
+  ST_STOPPING="$(json_field "$json" stopping)"
+  [[ $ST_PID =~ ^[0-9]+$ ]] || ST_PID=0
+  ST_STARTED="${ST_STARTED:-0}" ST_PAUSED_AT="${ST_PAUSED_AT:-0}" ST_PAUSED_TOTAL="${ST_PAUSED_TOTAL:-0}"
+  ST_REQUESTED="${ST_REQUESTED:-none}" ST_ACTIVE="${ST_ACTIVE:-none}"
+  [[ $ST_FALLBACK == true ]] || ST_FALLBACK=false
+  [[ $ST_PAUSED == true ]] || ST_PAUSED=false
+  [[ $ST_STOPPING == true ]] || ST_STOPPING=false
+}
+
+# never held while GSR is spawned, the child would keep the lock for the whole capture
+STATUS_LOCK_FD=""
+lock_status() {
+  command -v flock >/dev/null 2>&1 || return 0
+  exec {STATUS_LOCK_FD}>>"$LOCK_FILE" || { STATUS_LOCK_FD=""; return 0; }
+  flock "$STATUS_LOCK_FD" || true
+}
+unlock_status() {
+  [[ -n $STATUS_LOCK_FD ]] || return 0
+  exec {STATUS_LOCK_FD}>&-
+  STATUS_LOCK_FD=""
 }
 
 # absolute path to the post-save hook (a sibling script), empty when missing so
@@ -298,6 +373,30 @@ spawn_saved_hook() {
 
 cleanup_session() {
   rm -f "$PID_FILE" "$STOP_FILE" "$STATUS_FILE" "$GSR_SOCKET" 2>/dev/null || true
+}
+
+# every start attempt ends here, and the result lands before the status file goes
+# so the shell moves from saving straight to saved or failed
+RESULT_OK=false RESULT_REASON="" RESULT_CANCELLED=false START_FINISHED=0
+finish_start() {
+  ((START_FINISHED)) && return 0
+  START_FINISHED=1
+  local path="" reason="$RESULT_REASON" tmp="$STATE_DIR/.recorder-result.$$.tmp"
+  if $RESULT_OK; then
+    path="$OUTPUT_PATH" reason=""
+  elif ! $RESULT_CANCELLED && [[ -z $reason ]]; then
+    reason="The recorder could not start."
+  fi
+  if printf '{"endedAt":%s,"ok":%s,"path":"%s","reason":"%s","cancelled":%s}\n' \
+    "$(us_to_seconds "$(now_us)")" "$RESULT_OK" "$(json_escape "$path")" "$(json_escape "$reason")" "$RESULT_CANCELLED" \
+    >"$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$RESULT_FILE" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+  lock_status
+  cleanup_session
+  unlock_status
 }
 
 # An NVIDIA driver update replaces the userspace libraries at once, but the old
@@ -339,6 +438,7 @@ failure_reason() {
 report_failure() {
   local reason
   reason="$(failure_reason)"
+  RESULT_REASON="$reason"
   notify -u critical "Screen recording failed" "$reason"
   printf 'ryoku-cmd-record: %s\n' "$reason" >&2
   if command -v logger >/dev/null 2>&1; then
@@ -355,7 +455,10 @@ run_capture() {
   "$@" 2>"$LOG_FILE" &
   local pid=$!
   printf '%s\n' "$pid" >"$PID_FILE"
-  write_status "$pid"
+  ST_PID="$pid" ST_STARTED="$(us_to_seconds "$(now_us)")"
+  ST_REQUESTED="$AUDIO_MODE" ST_ACTIVE="$ACTIVE_AUDIO_MODE" ST_FALLBACK="$AUDIO_FALLBACK"
+  ST_PAUSED=false ST_PAUSED_AT=0 ST_PAUSED_TOTAL=0 ST_STOPPING=false
+  write_status
 
   # `wait` under errexit must not take the script down on GSR's own exit code.
   local status=0
@@ -365,6 +468,7 @@ run_capture() {
     report_failure
     return 1
   fi
+  RESULT_OK=true
   if [[ -f $STOP_FILE ]]; then status=0; fi
   case "$status" in 130 | 143) status=0 ;; esac
   return "$status"
@@ -455,10 +559,13 @@ start_recording() {
     notify "Screen recording" "A recording is already running"
     return 0
   fi
+  trap finish_start EXIT
   require_command gpu-screen-recorder "GPU Screen Recorder"
   require_command gsr-cli gsr-cli
 
+  lock_status
   rm -f "$PID_FILE" "$STOP_FILE" "$STATUS_FILE" "$GSR_SOCKET"
+  unlock_status
 
   # ── capture target. -w is a monitor name (fullscreen/monitor), the whole screen
   # (fallback), or a region in layout (logical) coordinates, the space slurp and
@@ -470,10 +577,14 @@ start_recording() {
     if [[ -z $geom ]]; then
       require_command slurp slurp
       geom="$(slurp -f '%wx%h+%x+%y' 2>/dev/null || true)"
-      [[ -n $geom ]] || exit 0
+      if [[ -z $geom ]]; then
+        RESULT_CANCELLED=true
+        exit 0
+      fi
     fi
     if [[ ! $geom =~ ^[0-9]+x[0-9]+\+-?[0-9]+\+-?[0-9]+$ ]]; then
-      notify -u critical "Screen recording failed" "Invalid region: $geom"
+      RESULT_REASON="Invalid region: $geom"
+      notify -u critical "Screen recording failed" "$RESULT_REASON"
       echo "ryoku-cmd-record: invalid region: $geom" >&2
       exit 1
     fi
@@ -490,6 +601,7 @@ start_recording() {
     if [[ -n $out ]]; then target=(-w "$out"); else target=(-w screen); fi
     ;;
   esac
+  ST_TARGET="${target[1]}"
 
   # ── encode settings (env override wins, then recording.json, then the default).
   local fps fmode quality bmode bitrate codec encoder cursor container
@@ -562,29 +674,51 @@ start_recording() {
     -o "$path"
   )
 
-  trap cleanup_session EXIT
   run_capture "${cmd[@]}" || true
+  finish_start
   spawn_saved_hook "$OUTPUT_PATH"
   ((DISCORD)) && maybe_compress_recording "$OUTPUT_PATH"
 }
 
 stop_recording() {
-  local pid=""
+  local pid="" how="" known=false
   pid="$(cat "$PID_FILE" 2>/dev/null || true)"
 
+  lock_status
+  read_status && known=true
+  # a second stop while the first one saves is not a second request
+  if $known && [[ $ST_STOPPING == true ]]; then
+    unlock_status
+    return 0
+  fi
   # gsr-cli stop finalizes the container (writes the moov atom) and prints the
   # saved path; a SIGINT can truncate a region capture, so prefer the socket while
   # it answers and only fall back to a signal when the socket is dead.
-  if gsr-cli -ipc "$GSR_SOCKET" status >/dev/null 2>&1; then
+  if recorder_running; then
+    how=ipc
+  elif [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    how=signal
+  fi
+  if [[ -n $how ]] && $known; then
+    ST_STOPPING=true
+    write_status
+  fi
+  unlock_status
+
+  case "$how" in
+  ipc)
     : >"$STOP_FILE"
     gsr-cli -ipc "$GSR_SOCKET" stop || true
-  elif [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    ;;
+  signal)
     : >"$STOP_FILE"
     kill -INT "$pid" 2>/dev/null || true
-  else
+    ;;
+  *)
     notify "Screen recording" "No active recording found"
     return 0
-  fi
+    ;;
+  esac
 
   # give the recorder a grace period to flush and exit, then force it down so stop
   # always clears the capture.
@@ -595,11 +729,37 @@ stop_recording() {
   fi
 }
 
-# ── pause/resume toggle the live capture through the IPC socket; gsr-cli's own
-# reply is relayed back to the shell by the daemon.
+# ── pause/resume through the IPC socket, accounted in the status file so the
+# shell's clock leaves paused time out. A repeat changes nothing, and a capture
+# that is saving takes no more of them.
 set_paused() {
+  local want="$1" now since
   require_command gsr-cli gsr-cli
-  gsr-cli -ipc "$GSR_SOCKET" set-paused "$1"
+  lock_status
+  if ! read_status; then
+    unlock_status
+    echo "ryoku-cmd-record: no active recording" >&2
+    return 1
+  fi
+  if [[ $ST_STOPPING == true || $ST_PAUSED == "$want" ]]; then
+    unlock_status
+    return 0
+  fi
+  if ! gsr-cli -ipc "$GSR_SOCKET" set-paused "$want"; then
+    unlock_status
+    return 1
+  fi
+  now="$(now_us)"
+  if [[ $want == true ]]; then
+    ST_PAUSED=true ST_PAUSED_AT="$(us_to_seconds "$now")"
+  else
+    since="$(seconds_to_us "$ST_PAUSED_AT")"
+    ((since > 0 && since <= now)) || since="$now"
+    ST_PAUSED_TOTAL="$(us_to_seconds "$(($(seconds_to_us "$ST_PAUSED_TOTAL") + now - since))")"
+    ST_PAUSED=false ST_PAUSED_AT=0
+  fi
+  write_status
+  unlock_status
 }
 
 # reads the backend identity for the Hub. version comes from gpu-screen-recorder

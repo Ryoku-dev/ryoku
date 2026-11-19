@@ -41,6 +41,27 @@ Scope {
         return send(method, params, callback);
     }
 
+    function discardGlance(id) {
+        if (!id || !ready)
+            return;
+        call("session.cancel", { id: id });
+        call("session.delete", { id: id });
+    }
+
+    // The lease outlives a card removed while its first request is in flight.
+    function glance(params, lease, callback) {
+        return call("glance", params, function(result, error) {
+            const session = result && result.session;
+            const id = typeof session === "string" ? session : String(session && session.id || "");
+            if (lease.closed) {
+                if (id.length > 0)
+                    root.discardGlance(id);
+                return;
+            }
+            callback(result, error, id);
+        });
+    }
+
     function failPending(code, message) {
         const pending = callbacks;
         callbacks = ({});

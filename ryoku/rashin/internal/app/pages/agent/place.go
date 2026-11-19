@@ -23,10 +23,9 @@ const (
 
 // the board's composer and the full dialog share one, so a choice made in either is the choice in both
 type placement struct {
-	project, worktree, harness  look.Select
+	project, worktree           look.Select
 	projectIndex, worktreeIndex int
-	pick                        env.HarnessPick
-	model                       modelPick
+	model                       env.ModelForm
 	primed                      bool
 }
 
@@ -43,8 +42,7 @@ func (place *placement) prime(e *env.Env) {
 func (place *placement) clamp(snapshot state.Snapshot) {
 	place.projectIndex = min(place.projectIndex, len(snapshot.Projects))
 	if place.projectIndex > 0 {
-		worktrees := snapshot.Worktrees[snapshot.Projects[place.projectIndex-1].ID]
-		place.worktreeIndex = min(place.worktreeIndex, worktreeFirst+len(worktrees)-1)
+		place.worktreeIndex = min(place.worktreeIndex, len(place.worktreeLabels(snapshot))-1)
 	}
 }
 
@@ -69,61 +67,19 @@ func (place *placement) worktreeLabels(snapshot state.Snapshot) []string {
 	return labels
 }
 
-func harnessOptions(harnesses []protocol.HarnessInfo) []look.SelectOption {
-	if len(harnesses) == 0 {
-		return []look.SelectOption{{Label: i18n.T("No harness installed")}}
-	}
-	options := make([]look.SelectOption, len(harnesses))
-	for index, harness := range harnesses {
-		options[index] = look.SelectOption{Label: harness.Name, Mark: look.Mark{ID: harness.ID, Name: harness.Name}}
-	}
-	return options
-}
-
 // home is the composer's text: a choice made in its row gives the keyboard back to it
 func (place *placement) controls(e *env.Env, home any) []layout.Widget {
-	snapshot := e.Snapshot()
-	place.prime(e)
-	place.clamp(snapshot)
-	th := e.Theme
-	quiet := func(selection *look.Select, label string) {
-		selection.Form, selection.Label, selection.Return = look.SelectQuiet, label, home
-	}
-	quiet(&place.project, i18n.T("Project"))
-	quiet(&place.worktree, i18n.T("Worktree"))
-	quiet(&place.harness, i18n.T("Harness"))
-	place.project.Icon, place.worktree.Icon, place.harness.Icon = look.Icon.Folder, look.Icon.Branch, look.Icon.Agents
-	controls := []layout.Widget{func(gtx layout.Context) layout.Dimensions {
-		return place.project.Layout(gtx, th, e.Overlays, place.projectLabels(snapshot), place.projectIndex)
-	}}
-	if place.projectIndex > 0 {
-		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-			return place.worktree.Layout(gtx, th, e.Overlays, place.worktreeLabels(snapshot), place.worktreeIndex)
-		})
-	}
-	harnesses := env.InstalledHarnesses(snapshot)
-	controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-		return place.harness.LayoutOptions(gtx, th, e.Overlays, harnessOptions(harnesses), place.pick.Index(snapshot, harnesses))
-	})
-	if len(harnesses) > 0 {
-		controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-			return place.model.layout(gtx, e, place.picked(e.Snapshot(), harnesses), look.SelectQuiet, home)
-		})
-	}
-	place.update(e, harnesses)
-	return controls
+	place.model.Parts, place.model.Agents = env.ModelOptions|env.ModelPlan|env.ModelAsking, true
+	place.model.FollowAgent(e)
+	return place.model.Controls(e, home)
 }
 
-func (place *placement) update(e *env.Env, harnesses []protocol.HarnessInfo) {
+func (place *placement) update() {
 	if index, changed := place.project.Changed(); changed {
 		place.projectIndex, place.worktreeIndex = index, worktreeRoot
 	}
 	if index, changed := place.worktree.Changed(); changed {
 		place.worktreeIndex = index
-	}
-	if index, changed := place.harness.Changed(); changed {
-		place.pick.Use(e, harnesses, index)
-		place.model.reader.Clear()
 	}
 }
 
@@ -131,20 +87,14 @@ type details struct {
 	folder, name, base, branch string
 }
 
-// the harness new sessions start on; harnesses is what InstalledHarnesses returned and is not empty
-func (place *placement) picked(snapshot state.Snapshot, harnesses []protocol.HarnessInfo) protocol.HarnessInfo {
-	return harnesses[place.pick.Index(snapshot, harnesses)]
-}
-
-// models is the pick remembered for each harness
-func (place *placement) params(snapshot state.Snapshot, models map[string]string, more details) (protocol.SessionNewParams, bool) {
-	harnesses := env.InstalledHarnesses(snapshot)
-	if len(harnesses) == 0 {
+func (place *placement) params(e *env.Env, more details) (protocol.SessionNewParams, bool) {
+	snapshot := e.Snapshot()
+	if !place.model.Ready(e) {
 		return protocol.SessionNewParams{}, false
 	}
 	place.clamp(snapshot)
-	harness := place.picked(snapshot, harnesses).ID
-	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Harness: harness, Model: models[harness], Origin: protocol.OriginApp}
+	model, _ := place.model.Effective()
+	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Model: model, Options: place.model.SessionOptions(), Origin: protocol.OriginApp}
 	if place.projectIndex == 0 {
 		params.Cwd = strings.TrimSpace(more.folder)
 		if params.Cwd == "" {

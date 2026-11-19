@@ -64,7 +64,7 @@ func TestChordLoneKey(t *testing.T) {
 	}
 }
 
-func TestChordKeycaps(t *testing.T) {
+func TestChordFaces(t *testing.T) {
 	cases := map[string][]string{
 		"Super+Shift+Return":    {"Super", "Shift", "Enter"},
 		"SUPER + CTRL + Prior":  {"Super", "Ctrl", "Page Up"},
@@ -80,8 +80,8 @@ func TestChordKeycaps(t *testing.T) {
 		"":                      nil,
 	}
 	for chord, want := range cases {
-		if got := chordKeycaps(chord); !reflect.DeepEqual(got, want) {
-			t.Errorf("chordKeycaps(%q) = %q, want %q", chord, got, want)
+		if got := ChordFaces(chord); !reflect.DeepEqual(got, want) {
+			t.Errorf("ChordFaces(%q) = %q, want %q", chord, got, want)
 		}
 	}
 }

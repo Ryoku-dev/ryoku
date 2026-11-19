@@ -4,8 +4,8 @@ Ryoku is one desktop that runs on more than one window manager. The shell, the
 Hub, the CLI and the lockscreen are the same code on every compositor; only a
 provider underneath differs.
 
-Today there are three: Hyprland, niri and Wayfire. A fourth is a new provider
-and a new package, and nothing else.
+Today there are two: Hyprland and niri. A third is a new provider and a new
+package, and nothing else.
 
 This page is the contract in table form. The same job as a walkthrough, with the
 traps that cost time on the second compositor, is in
@@ -65,11 +65,10 @@ and bounds per-file bytes, tree entries and total source bytes to keep enable
 and load paths fast.
 
 The Hyprland provider serves `quickshell-hyprland`, `hyprctl` and
-`hyprland-ipc`. The niri and wayfire providers serve no foreign shell APIs. A
-plugin that imports `Quickshell.Hyprland`, calls `hyprctl`, or reaches
-Hyprland IPC through `HYPRLAND_INSTANCE_SIGNATURE` or `.socket2.sock` therefore
-loads normally on Hyprland and is refused before enable or load on niri or
-wayfire, with the missing APIs in `reason`.
+`hyprland-ipc`. The niri provider serves no foreign shell APIs. A plugin
+that imports `Quickshell.Hyprland`, calls `hyprctl`, or reaches Hyprland IPC
+through `HYPRLAND_INSTANCE_SIGNATURE` or `.socket2.sock` therefore loads on
+Hyprland and is refused on niri, with the missing APIs in `reason`.
 
 `act window.place <id> <x> <y> <width> <height> <output>` is the neutral
 floating-window placement contract. The id is copied unchanged from `state`;
@@ -98,13 +97,11 @@ compositor's name, so a scrolling-tiler action niri has and Hyprland lacks is
 listed without the shell naming either. It resolves the store the way `apply`
 does, so a chord a user displaced is already gone from the list. A compositor
 whose binds are all shared prints an empty list and gets no section. Kit opens
-with Super+K and keeps Keys, Commands, Phone, Dev tools, and Typing test under
-one search field.
+with Super+K and keeps Downloads, Keys, Commands, Phone, Dev tools and Typing
+test as tabs beside one field.
 
 Hyprland adds one more verb, `plugins`. niri has no plugin system and says so
-in `caps` instead of shipping a verb that would fail. Wayfire loads plugins --
-the baseline runs `depthdeck`, the deck itself -- but its provider does not
-answer the verb, so it too says nothing in `caps`.
+in `caps` instead of shipping a verb that would fail.
 
 niri adds `nest <dir> <width>x<height>` and claims `nestedSession` for it: a
 hidden niri inside a headless weston, with `dir` as its runtime dir and a config
@@ -121,43 +118,26 @@ it cannot perform is worse than omitting it: the desktop would offer a control
 that does nothing. Ryoku Settings gates settings rows on these, so a row is never shown
 with nothing behind it.
 
-Shared by all three:
+Shared by both:
 
-    animations  focusHistory  keyboardLayoutSwitch  monitorConfig  nightLight
-    outputPower  paletteBorder  sessionExit  touchpadToggle  windowFloat
-    windowRules  windowWorkspaceMap  workspaces  workspaceMoveToOutput
+    animations  focusHistory  keyboardLayoutSwitch  layerRules  monitorConfig
+    nightLight  outputPower  paletteBorder  sessionExit  touchpadToggle
+    windowFloat  windowRules  windowWorkspaceMap  workspaces
+    workspaceMoveToOutput
 
-Shared by Hyprland and niri:
-
-    layerRules
-
-Shared by Hyprland and wayfire:
-
-    outputHdr  outputMirror  specialWorkspace  windowGeometry
-    workspaceFullscreenState
 
 Hyprland only:
 
     configReload  cursorSet  focusGrab  globalShortcuts  liveConfigEval
-    persistentScreenCapture  plugins  screenShader  submap  tiledLayout
-    workspaceSlideStyle
+    outputHdr  outputMirror  persistentScreenCapture  plugins
+    pointerPosition  screenShader  specialWorkspace  submap  tiledLayout
+    windowGeometry  workspaceFullscreenState  workspaceSlideStyle
 
 niri only:
 
     columnFill  keyboardGrabSharesPointer  nativeOverview  nestedSession
     overviewBackdrop  overviewState
 
-wayfire only:
-
-    deckLayout  systemLidEdgeSource
-
-Two of wayfire's claims are live rather than fixed: `specialWorkspace` holds only
-while the wsets plugin answers over IPC (it backs the scratchpad), and
-`deckLayout` only when the depthdeck plugin its variant package ships is
-installed, so a box without either never shows a control the compositor cannot
-load. `systemLidEdgeSource` is not a second lid policy: it tells the neutral
-clamshell owner that this compositor exposes no switch callback, so the owner
-watches the lid itself.
 
 The absences are each compositor's design, not gaps to fill later. The ones
 that change what a user sees:
@@ -172,12 +152,11 @@ that change what a user sees:
   no fullscreen field. The shell joins niri's per-output window frames to the
   compositor's foreign-toplevel fullscreen signal, so fullscreen-aware surfaces
   such as the dock still step aside on the correct monitor.
-- **`globalShortcuts`** is absent on niri and wayfire because neither
-  implements the protocol, so keybinds reach shell surfaces by running
-  `ryoku-shell <verb>` instead. Every shell surface remains reachable.
-- **`liveConfigEval`** and **`configReload`** are absent on niri and wayfire:
-  both configs are file-only, watched by the compositor itself (niri on save,
-  wayfire on change). Ryoku Settings applies on save rather than previewing live.
+- **`globalShortcuts`** is absent on niri, so keybinds reach shell surfaces by
+  running `ryoku-shell <verb>` instead. Every shell surface remains reachable.
+- **`liveConfigEval`** and **`configReload`** are absent on niri: its config is
+  file-only and watched on save. Ryoku Settings applies on save rather than
+  previewing live.
 - **`persistentScreenCapture`** is absent on niri because any whole-screen
   capture there can crash the shell, a one-shot one included. niri has no
   ext-image-copy-capture yet, so Quickshell captures through wlr-screencopy and
@@ -197,31 +176,20 @@ that change what a user sees:
 - **`submap`**, **`specialWorkspace`**, **`screenShader`**, **`plugins`** and
   **`cursorSet`** have no niri equivalent, so the binds and settings that need
   them are reported by `apply` rather than silently dropped.
-- **`layerRules`** is absent on wayfire: its window-rules plugin matches views
-  only, so the layer-rule settings stay hidden there and `apply --preview`
-  lists them under what this compositor cannot do.
-- **`nativeOverview`** is absent on wayfire too: its expo plugin has no IPC to
-  open, close or report it, so `Super+Tab` opens the shell's own overview, as
-  on Hyprland.
-- wayfire's `outputPower` goes through the wlroots output-power protocol
-  (`wlopm`), so a single named output can be blanked; its HDR claim is the
-  compositor's on/off switch, with wide gamut and SDR brightness reported as
-  losses.
-- **`workspaceSlideStyle`** is absent on niri and wayfire: neither answers a
-  query for its resolved workspace animation, so the live-draw overlay keeps
-  its built-in curve there and matches the compositor's own slide only on
-  Hyprland.
 - **`nestedSession`** is niri's alone. Hyprland cannot open inside the headless
   weston a nest starts on, because its backend needs a newer `wl_compositor`
-  than weston offers, and wayfire has no nest verb, so Rashin offers agents no
-  screen on either.
+  than weston offers, so Rashin offers agents no screen on Hyprland.
+- **`pointerPosition`** is Hyprland's alone, and only Hyprland needs it.
+  Hyprland sends no pointer enter to a layer surface it maps under a pointer
+  that is not moving, so Theia's highlight bubble and in-place toast ask
+  `pointer.locate` where the pointer is. niri sends that enter the moment the
+  overlay maps and has no pointer query, so the overlay learns it there.
 
 `nightLight` is the one shared capability the desktop drives through named
 actions rather than a settings row:
 
 - `nightlight.on <K>` warms the screen to a colour temperature; the provider runs
-  its own detached backend (`hyprsunset` on Hyprland, `wlsunset` on niri and
-  wayfire).
+  its own detached backend (`hyprsunset` on Hyprland, `wlsunset` on niri).
 - `nightlight.off` stops that backend, and the compositor restores the gamma when
   it goes away.
 
@@ -232,8 +200,7 @@ named action, plus a Hub switch that reads it live:
   key drives; `status` prints `on` or `off`, and `restore` re-asserts a stored
   off after a config reload. Hyprland flips the device live through `hyprctl
   eval`; niri, which has no runtime input IPC, records the intent in a state
-  file and re-emits `off` into the config it watches; wayfire flips the device
-  live through its input IPC.
+  file and re-emits `off` into the config it watches.
 
 `paletteBorder` is the shared capability that keeps the window border tracking
 the wallpaper, driven by a named action every provider honours:
@@ -244,16 +211,15 @@ the wallpaper, driven by a named action every provider honours:
   `~/.cache/ryoku/hypr-colors.lua` carries for the config-time border. Hyprland
   pushes the colours into the running config through `hyprctl eval`; niri,
   which has no runtime config IPC, records them in a state file and regenerates
-  the config it watches; wayfire writes the palette file its composer reads, and
-  wayfire reloads its config on the change. All three are a no-op when the store
-  pins a fixed colour (`desktop.appearance.borderFollowsPalette` off), so a
-  wallpaper change never overrides a border colour the user chose.
+  the config it watches. Both are a no-op when the store pins a fixed colour
+  (`desktop.appearance.borderFollowsPalette` off), so a wallpaper change never
+  overrides a border colour the user chose.
 
 `monitorConfig` adds two output actions beside the display settings it gates:
 
 - `output.cycle` steps the output arrangement one position. Hyprland runs its
-  display engine (`ryoku-monitor toggle`); niri and wayfire each walk the
-  outputs over IPC, keeping the cycle position in a state file.
+  display engine (`ryoku-monitor toggle`); niri walks the outputs over IPC,
+  keeping the cycle position in a state file.
 - `output.enable <connector> on|off` turns one named output on or off.
 
 `workspaces` also backs `window.summon`, which the desktop's summon keybind
@@ -289,22 +255,13 @@ The lid's panel handoff is the one compositor-shaped piece. Hyprland binds the
 lid switch to `ryoku-clamshell lid close|open` from
 `ryoku/hyprland/modules/lid.lua`; niri sends both native `lid-close` and
 `lid-open` switch events to the helper and retains its native output topology.
-Wayfire 0.11 creates switch devices and emits a private core switch signal, but
-its command plugin has no switch binding, ipc-rules publishes no switch event,
-and core does not change output state in response to the signal. Its provider
-therefore declares `systemLidEdgeSource` in its caps. Only for a provider
-making that declaration, `ryoku-clamshell` polls the live ACPI lid state, with
-UPower as the fallback, and sends ordered edges through the same `lid` path.
-The panel handoff still reaches the compositor only through the neutral
+The panel handoff reaches the compositor only through the neutral
 `output.enable` action.
 
 Only the active Ryoku session inhibits logind, so without a live owner logind's
 safe fallback suspends on lid close. A provider-delivered edge remains
-authoritative when UPower is lagging; the system watcher uses UPower only when
-ACPI cannot report the physical state. An open edge cancels a close still
-waiting on dock or power state. Providers that already deliver switch events
-omit `systemLidEdgeSource` and never start the watcher, so they cannot receive a
-duplicate system edge.
+authoritative when UPower is lagging. An open edge cancels a close still
+waiting on dock or power state.
 
 The logind drop-in that backs the sessionless lid fallback and the delay budget
 is delivered by both lanes: the package ships it and a checkout deploy seeds
@@ -328,36 +285,15 @@ Each provider owns a directory under `~/.config`, and `ryoku/wm/detect.go` is th
 only place that mapping exists. `ryoku wm config [name]` prints it, which is how
 scripts read it without keeping a second copy.
 
-|  |Hyprland|niri|Wayfire|
-|---|---|---|---|
-|Directory|`hypr/`|`niri/`|`wayfire/`|
-|Repo payload|`ryoku/hyprland/`|`ryoku/niri/`|`ryoku/wayfire/`|
-|Entry|`hyprland.lua`, authored Lua|`config.kdl`, includes the rest|none: generated in full|
-|Generated by `apply`|`settings.lua`, `rebinds.lua`|`settings.kdl`, `rebinds.kdl`|`wayfire.ini`, over the seeds|
-|Seeded, machine-owned|`monitors.lua`, `gpu.lua`, `keyboard.lua`, `user.lua`|the same names as `.kdl`, plus `monitors_user.kdl`|`monitors.ini`, `keyboard.ini`, `user.ini`|
-|Portal backend|`hyprland`|`gnome`|`gnome`|
+|  |Hyprland|niri|
+|---|---|---|
+|Directory|`hypr/`|`niri/`|
+|Repo payload|`ryoku/hyprland/`|`ryoku/niri/`|
+|Entry|`hyprland.lua`, authored Lua|`config.kdl`, includes the rest|
+|Generated by `apply`|`settings.lua`, `rebinds.lua`|`settings.kdl`, `rebinds.kdl`|
+|Seeded, machine-owned|`monitors.lua`, `gpu.lua`, `keyboard.lua`, `user.lua`|the same names as `.kdl`, plus `monitors_user.kdl`|
+|Portal backend|`hyprland`|`gnome`|
 
-One rule shapes wayfire's tree: `wayfire.ini` is composed in full on every
-`apply`, from the shipped defaults and the seeds together, and the compose
-refuses to run without its defaults rather than emitting a partial file. There
-is no authored entry layer beside it.
-
-### Wayfire window decoration
-
-Wayfire's core does not round window content or draw shadows, and its stock
-`decoration` plugin frames only server-decorated views. Ryoku therefore draws
-the rounded clip, active or inactive border ring, and drop shadow with its own
-`ryoku-decor` plugin. The provider reads the same `desktop.appearance.*` values
-as the other providers and writes them to `[ryoku-decor]`; changes from
-Ryoku Settings > Appearance > Window style apply on the next config reload. The stock plugin remains
-loaded for title bars and buttons, with its border width forced to zero so it
-does not draw a second ring.
-
-The source and option metadata live in `ryoku/wm/wayfire/decor/`. The Wayfire
-variant package installs `libryoku-decor.so` under `/usr/lib/wayfire/` and
-`ryoku-decor.xml` under `/usr/share/wayfire/metadata/`. A checkout deploy builds
-the same source outside the repository and installs those same two files before
-the provider composes `wayfire.ini`.
 
 Two niri rules shape its tree:
 
@@ -374,7 +310,7 @@ niri has no unbind. A duplicate chord in one `binds` block is a hard error, so
 rebinds applied, unbinds removed, and one winner per chord. There is no seeded
 bind block to subtract from.
 `desktop.keybindDisabled` names a shipped chord the user switched off: Hyprland
-never registers it, while niri and Wayfire release it before rebinds resolve.
+never registers it, while niri releases it before rebinds resolve.
 A catalogue bind can also name the program it launches (`Needs`). Ask needs
 `rashind`; the Rashin app needs `rashin-app`. While that program is not on PATH,
 every provider registers no chord and keeps a legend row that names what is

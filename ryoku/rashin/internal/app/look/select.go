@@ -22,12 +22,11 @@ const (
 	SelectQuiet
 )
 
-// detail is a second line under the label in the opened list; a disabled option
-// is shown at alpha.disabled, can't be picked and reads as unavailable; group
-// names the run of options this one belongs to, headed once in the opened list;
-// mark leads the row with a provider's or harness's logo
+// detail is the second line; chips are short capability words beneath it;
+// group heads a run; mark is the provider logo
 type SelectOption struct {
 	Label, Detail, Group string
+	Chips                []string
 	Disabled             bool
 	Mark                 Mark
 }
@@ -64,6 +63,12 @@ func (selection *Select) Changed() (int, bool) {
 // the menu is up, for a page that reads something fresh only while it is
 func (selection *Select) Opened(overlays *Overlays) bool {
 	return overlays != nil && overlays.IsOpen(&selection.click.Clickable)
+}
+
+func (selection *Select) Close(overlays *Overlays) {
+	if overlays != nil {
+		overlays.Close(&selection.click.Clickable)
+	}
 }
 
 func (selection *Select) Layout(
@@ -153,7 +158,7 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 	listed := searched
 	// the menu draws words only, so options with a logo take the list
 	for _, option := range options {
-		listed = listed || option.Detail != "" || option.Group != "" || option.Mark.ID != ""
+		listed = listed || option.Detail != "" || option.Group != "" || option.Mark.ID != "" || len(option.Chips) > 0
 	}
 	if listed {
 		selection.picker.open()
@@ -210,12 +215,7 @@ func (selection *Select) layoutField(gtx layout.Context, th *Theme, label string
 	bounds := image.Rect(0, 0, width, min(gtx.Dp(44), gtx.Constraints.Max.Y))
 	cut := gtx.Dp(th.Cut.Mid)
 	fill := palette.Mix(th.R.Field, th.R.Fg, tokens.AlphaHoverPlane*hover)
-	line := palette.Mix(th.R.Edge, th.R.Fg2, focus)
-	if !gtx.Source.Enabled() {
-		fill, line = palette.WithAlpha(fill, tokens.AlphaDisabled), palette.WithAlpha(line, tokens.AlphaDisabled)
-	}
-	kit.FillCut(gtx.Ops, bounds, cut, fill)
-	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(unit.Dp(tokens.SizeHairline))), line)
+	kit.FieldSurface(gtx, th.Theme, bounds, cut, fill, focus, false)
 	left, right := gtx.Dp(14), gtx.Dp(10)
 	content := gtx
 	content.Constraints = layout.Constraints{Max: image.Pt(width-left-right, bounds.Max.Y)}
@@ -258,7 +258,7 @@ func (selection *Select) layoutQuiet(gtx layout.Context, th *Theme, label string
 	call := record.Stop()
 	bounds := image.Rect(0, 0, dimensions.Size.X, height)
 	if hover > 0 {
-		kit.FillCut(gtx.Ops, bounds, gtx.Dp(th.Cut.Small), palette.WithAlpha(th.R.Fg, tokens.AlphaHoverFill*hover))
+		kit.Fill(gtx, th.Theme, bounds, gtx.Dp(th.Cut.Small), palette.SRGBAlpha(th.R.Fg, th.Planes().Pane, tokens.AlphaHoverFill*hover))
 	}
 	offset := op.Offset(image.Pt(0, (height-dimensions.Size.Y)/2)).Push(gtx.Ops)
 	call.Add(gtx.Ops)

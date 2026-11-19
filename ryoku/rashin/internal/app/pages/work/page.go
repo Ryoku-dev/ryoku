@@ -10,6 +10,8 @@ import (
 
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/pages/teamsui"
+	"ryoku-rashin/internal/protocol"
 )
 
 type Page struct {
@@ -53,6 +55,23 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 		return p.task.layout(gtx, e, p, task)
 	})
+}
+
+func (p *Page) Sheet(e *env.Env) look.SheetPage {
+	if task, ok := e.Snapshot().TeamTasks[p.selected]; ok {
+		page := look.PartPage(protocol.TabWork, 1, task.Title, "")
+		word, _, _ := teamsui.TaskStanding(task)
+		page.Facts = []string{word}
+		return page
+	}
+	return look.PageFor(protocol.TabWork)
+}
+
+func (p *Page) SheetProgress() float32 {
+	if p.selected != "" {
+		return p.task.column.Progress(p.task.rows)
+	}
+	return p.board.scroll.Progress(p.board.rows)
 }
 
 // the board's team filter is the team a new task most likely goes to

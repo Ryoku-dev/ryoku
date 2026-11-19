@@ -4,13 +4,17 @@ Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed255
 
 ## Layout
 
-- `src/codec.js`: Crockford text encoding, request CRC, signed-code, card (classic v2, styled v3 and worded v4, with the style allowlist and the words rule), card-delete and holder-proof verification, upload authorization, JPEG frame limits.
+- `src/codec.js`: Crockford text encoding, request CRC, signed-code (badge v2 and v3, revocation and design approval), card (classic v2, styled v3 and worded v4, with the style allowlist and the words rule), card-delete and holder-proof verification, upload authorization, JPEG frame limits.
 - `src/index.js`: HTTPS routes, bounded streaming reads, rate limits, the 60-second Cache API response for the list, and the daily cleanup entry point.
 - `src/storage.js`: conditional R2 writes for badges, designs, card records, the card index and badge holders' early-refresh counters, plus the cleanups (90-day expiry, styled or worded records without an active badge).
 - `test/*.test.js`: Node WebCrypto tests using fresh test-only signing keys. Optional `test/vectors.json` runs Go cross-language vectors too.
 - `wrangler.jsonc`: custom domain, public keys, `BUCKET` binding to `ryoku-team`, rate limiters, the cleanup cron, the card limits and the holders' early refreshes.
 
 R2 keys: `badges/<id>.txt`, `revoked/<id>.txt`, `designs/<lowercase-login>.txt`, `cards/<fp>.json`, `cards/<fp>/<uuid>/<sha>.jpg`, `cards/index.json`, `holders/<badge id>.json`, `pending/<sha>.zip`, `packs/<sha>.zip`. Publishing a design copies its authenticated pending pack into `packs/`. The pending copy remains available for review. Replacing a card picture deletes the old object. Revoked badges remain in the list alongside the signed revocations so clients can verify the history.
+
+## Badge codes
+
+A badge (`RYB-...`) is Crockford base32 over its bytes, and its id is the first eight bytes of SHA-256 over all of them, in hex. Version 2 is `2 | issuer | role | device (32) | day u16 | login length u8 | login | signature (64)`: issuer 1 is the owner and 2 is Mika, who may sign roles 1 (tester) and 2 (contributor) only, and the signature covers everything before it as `ryoku-badge-v2` NUL payload. Version 3 adds the program a tester round tested after the login, `3 | issuer | role | device | day | login length | login | program length u8 | program | signature`, signed as `ryoku-badge-v3`, so changing the program breaks the signature. A program is 1 to 40 ASCII characters matching `^[A-Za-z0-9](?:[A-Za-z0-9 .+-]{0,38}[A-Za-z0-9])?$` with no two spaces in a row; `ryoku-hub` applies the same rule (`badgeProgramValid` in `ryoku/hub/backend/badgecodes.go`) and refuses to sign anything else. `verifyCode('RYB', ...)` returns it as `program`; a v2 badge returns none (`ryoku-hub` reads every v2 tester badge as Ryoku v2 Hyperion, the version the first tester round tested). Only badges have a version 3: requests, revocations and design approvals stay version 2, and any other version gets 400 `Unsupported code version`. Every route that takes a badge (`POST /v1/badges`, the list, revocations, card records, holder proofs, design approvals) takes either version. Deploy the Worker before Mika issues version 3 codes: an older gate refuses them with 400 `Unsupported code version`.
 
 ## Local test
 
@@ -20,7 +24,7 @@ Requires Node 20+ and Wrangler. From the repository root:
 node --test release/team-badges/test/*.test.js
 ```
 
-Or run `npm test` in this directory. Tests do not contact Cloudflare. Optional vector files are an array (or `{ "vectors": [...] }`) of `{ "kind": "RYB", "text": "RYB-...", "valid": true }` entries. Kinds also accept `request`, `badge`, `revoke`, `design`, `card`, `deviceCard`, `cardDelete`, `pullHolder`, `upload`, and `styleOwners`. Signature vectors may provide `ownerKey` / `mikaKey` (or `OWNER_KEY` / `MIKA_KEY`); card vectors (v2, v3 and v4) supply `record`, `deviceKey`; device card vectors supply only `record` (it carries its own `device`); card delete vectors supply `id`, `at`, `sig`, `deviceKey`, `now`; holder vectors supply `holder`, `cards`, `now`; the one `styleOwners` vector supplies `owners`, ryoku-hub's style owner table; upload vectors supply `header`, `method`, `path`, `sha`, `now`. Absent keys use the production public keys. `go test -run TestWriteVectors . -args -write-vectors` in `ryoku/hub/backend` rewrites `test/vectors.json`.
+Or run `npm test` in this directory. Tests do not contact Cloudflare. Optional vector files are an array (or `{ "vectors": [...] }`) of `{ "kind": "RYB", "text": "RYB-...", "valid": true }` entries. Kinds also accept `request`, `badge`, `revoke`, `design`, `card`, `deviceCard`, `cardDelete`, `pullHolder`, `upload`, and `styleOwners`. Signature vectors may provide `ownerKey` / `mikaKey` (or `OWNER_KEY` / `MIKA_KEY`); a valid badge vector's `program` must match the one its code carries, and one without `program` must carry none; card vectors (v2, v3 and v4) supply `record`, `deviceKey`; device card vectors supply only `record` (it carries its own `device`); card delete vectors supply `id`, `at`, `sig`, `deviceKey`, `now`; holder vectors supply `holder`, `cards`, `now`; the one `styleOwners` vector supplies `owners`, ryoku-hub's style owner table; upload vectors supply `header`, `method`, `path`, `sha`, `now`. Absent keys use the production public keys. `go test -run TestWriteVectors . -args -write-vectors` in `ryoku/hub/backend` rewrites `test/vectors.json`.
 
 For local R2 simulation, run in this directory:
 

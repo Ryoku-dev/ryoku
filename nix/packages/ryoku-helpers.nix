@@ -45,8 +45,7 @@ pkgs.stdenvNoCC.mkDerivation {
     }
 
     install_helpers \
-      system/hardware/*/ryoku-* \
-      system/containers/ryoku-*
+      system/hardware/*/ryoku-*
 
     # Compositor-neutral shell helpers moved out of the Hyprland payload.
     # They must exist under both Hyprland and Niri.
@@ -307,13 +306,13 @@ SH
         pkgs.util-linux
       ]}"
 
-    for helper in ryoku/shell/scripts/stash-*.sh; do
+    for helper in ryoku/shell/scripts/stash-compress.sh ryoku/shell/scripts/stash-install.sh; do
       install -Dm755 \
         "$helper" \
         "$out/bin/$(basename "$helper")"
     done
 
-    patchShebangs "$out/bin"/stash-*.sh
+    patchShebangs "$out/bin/stash-compress.sh" "$out/bin/stash-install.sh"
 
     # Settings -> language integration.
     #

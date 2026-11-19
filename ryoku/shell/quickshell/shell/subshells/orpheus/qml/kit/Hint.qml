@@ -144,12 +144,12 @@ Item {
         NumberAnimation { duration: Style.snap; easing.type: Easing.OutCubic }
     }
 
-    Rectangle {
+    Shape {
         anchors.fill: parent
-        radius: Style.radius
-        color: Style.base
-        border.width: Style.border
-        border.color: Style.lineStrong
+        cutSize: Look.cutSm
+        fill: Style.base
+        strokeWidth: Style.border
+        strokeColor: Style.lineStrong
     }
 
     Label {

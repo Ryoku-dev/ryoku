@@ -2,6 +2,8 @@ package protocol
 
 import "time"
 
+const DreamDraftMaxBytes = 64 << 10
+
 // Dream phases, in the order a dream usually moves through them. The manager
 // says which one it is in; Presenting waits for the user, and Done is set only
 // when the user accepts what was presented.
@@ -33,6 +35,7 @@ type Dream struct {
 	// Statement is what the user wants, in their words; Brief adds what the
 	// interview settled.
 	Statement string `json:"statement"`
+	Preset    string `json:"preset,omitempty"`
 	Brief     string `json:"brief,omitempty"`
 	Phase     string `json:"phase"`
 	// Summary is the manager's latest one-sentence account of where the
@@ -59,6 +62,7 @@ type DreamPresentation struct {
 	Body    string    `json:"body"`
 	Tests   string    `json:"tests,omitempty"`
 	Files   []string  `json:"files,omitempty"`
+	Sources []string  `json:"sources,omitempty"`
 	At      time.Time `json:"at"`
 	Verdict string    `json:"verdict,omitempty"`
 	Note    string    `json:"note,omitempty"`
@@ -69,11 +73,12 @@ type DreamPresentation struct {
 // MonthTokens 0 leaves the dream without a token cap.
 type DreamCreateParams struct {
 	Statement string `json:"statement"`
+	Preset    string `json:"preset,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Folder    string `json:"folder,omitempty"`
-	Harness   string `json:"harness,omitempty"`
-	Model     string `json:"model,omitempty"`
-	// Options are the manager's harness options, as a member's are.
+	// Model is the manager's route or provider/model and Options its knobs,
+	// as a member's are.
+	Model       string            `json:"model,omitempty"`
 	Options     map[string]string `json:"options,omitempty"`
 	MonthTokens int64             `json:"monthTokens,omitempty"`
 }
@@ -94,9 +99,9 @@ type AgentHireParams struct {
 	Name         string `json:"name"`
 	Title        string `json:"title"`
 	Instructions string `json:"instructions"`
-	Harness      string `json:"harness,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Why          string `json:"why,omitempty"`
+	// Model is a route or provider/model; empty takes the manager's.
+	Model string `json:"model,omitempty"`
+	Why   string `json:"why,omitempty"`
 }
 
 // AgentReleaseParams lets a dream's manager let a member go once its work is
@@ -119,8 +124,9 @@ type AgentDreamParams struct {
 // user; the dream waits in DreamPresenting until the user answers.
 type AgentPresentParams struct {
 	AgentRef
-	Title string   `json:"title"`
-	Body  string   `json:"body"`
-	Tests string   `json:"tests,omitempty"`
-	Files []string `json:"files,omitempty"`
+	Title   string   `json:"title"`
+	Body    string   `json:"body"`
+	Tests   string   `json:"tests,omitempty"`
+	Files   []string `json:"files,omitempty"`
+	Sources []string `json:"sources,omitempty"`
 }

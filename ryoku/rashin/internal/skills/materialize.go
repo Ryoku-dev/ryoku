@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Root is the folder the sets lie in on disk, written out the first time it
@@ -111,16 +112,31 @@ func fileMode(body []byte) os.FileMode {
 	return 0o644
 }
 
-// prune removes what else lies in the skills folder: trees an older Rashin
-// wrote and any write that never finished.
+// prune removes trees an older Rashin wrote and any write that never
+// finished, and nothing else: whatever else lies in the folder (managed
+// skills, should the folder be pointed at their parent) is not the
+// library's to remove.
 func (l *Library) prune(keep string) {
 	entries, err := os.ReadDir(l.dir)
 	if err != nil {
 		return
 	}
 	for _, entry := range entries {
-		if entry.Name() != keep {
-			_ = os.RemoveAll(filepath.Join(l.dir, entry.Name()))
+		if name := entry.Name(); name != keep && ownEntry(name) {
+			_ = os.RemoveAll(filepath.Join(l.dir, name))
 		}
 	}
+}
+
+// ownEntry reports a name the library itself gives a folder: a content
+// hash or an unfinished write.
+func ownEntry(name string) bool {
+	if strings.HasPrefix(name, ".writing-") {
+		return true
+	}
+	if len(name) != 16 {
+		return false
+	}
+	_, err := hex.DecodeString(name)
+	return err == nil && strings.ToLower(name) == name
 }

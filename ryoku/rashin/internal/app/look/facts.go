@@ -17,6 +17,17 @@ type FactRow struct {
 }
 
 func Facts(gtx layout.Context, th *Theme, rows []FactRow) layout.Dimensions {
+	plain := make([]kit.Fact, 0, len(rows))
+	for _, row := range rows {
+		if row.Widget != nil {
+			plain = nil
+			break
+		}
+		plain = append(plain, kit.Fact{Label: row.Label, Value: row.Value, Mono: row.Mono})
+	}
+	if plain != nil {
+		return kit.Facts(th.Theme, plain)(gtx)
+	}
 	label, height, gap := gtx.Dp(112), gtx.Dp(32), gtx.Dp(13)
 	width := gtx.Constraints.Max.X
 	for index, row := range rows {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -67,7 +66,7 @@ func runSkills(args []string) int {
 			params.File = words[1]
 		}
 		var result protocol.SkillContent
-		if err := daemonCall(context.Background(), protocol.MSkillsGet, params, &result); err != nil {
+		if err := callIndex(protocol.MSkillsGet, params, &result); err != nil {
 			return report(err)
 		}
 		fmt.Fprint(os.Stdout, result.Text)
@@ -85,7 +84,7 @@ func runSkills(args []string) int {
 // skillsOutput calls a skills method and prints its answer, human through
 // human
 func skillsOutput(method string, params, result any, format string, human func(io.Writer)) int {
-	if err := daemonCall(context.Background(), method, params, result); err != nil {
+	if err := callIndex(method, params, result); err != nil {
 		return report(err)
 	}
 	if format == "human" {
@@ -131,7 +130,7 @@ func setupSkills(id, dir string) int {
 		return report(errors.New(i18n.Tf("The skill set %s needs no setup.", id)))
 	}
 	var result protocol.SkillsResult
-	if err := daemonCall(context.Background(), protocol.MSkillsList, protocol.Empty{}, &result); err != nil {
+	if err := callIndex(protocol.MSkillsList, protocol.Empty{}, &result); err != nil {
 		return report(err)
 	}
 	var name string

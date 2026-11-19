@@ -1,6 +1,110 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Wayfire support was removed.** Ryoku now supports Hyprland and niri;
+  doctor moves an older Wayfire installation to a supported desktop before
+  removing its retired variant.
+- **Alt+Space no longer depends on Rashin.** The `shell.ask` shortcut opens the
+  Rashin bar, whose web search and downloads work with Rashin off or absent,
+  so it stays bound without `rashind` (`wm/binds.go` and its vendored copies).
+- **Rashin runs Ask, Agents, Teams and Dreams on one native engine.** External
+  ACP harnesses and team sign-in are gone; local models run on demand before
+  free remote models. Learning is opt-in, and the app follows the desktop's
+  four styles. Adapted engine work credits oh-my-pi (MIT).
+- **Rashin sets each local model up for the computer it runs on.** It reads
+  the model's GGUF header and the hardware (a discrete card before an
+  integrated GPU, then the processor), picks context, offload and cache to
+  fit, retries smaller when a load fails, and says before a download whether
+  a model fits, splits, is too big or can't do Rashin's work. Models can be
+  added from a Hugging Face repository or link, or a `.gguf` file, with the
+  best quant preselected; each model's settings stay Automatic unless
+  overridden (`ryoku/rashin/internal/localmodels/plan.go`, `hardware.go`).
+- **Theia's and Rashin's long menus scroll inside the screen.** Theia's language
+  and "..." menus and the Rashin app's pickers hold about ten rows, open on the
+  side with room without covering their button, and scroll with the wheel and
+  keys (`shell/quickshell/shell/modules/sight/`,
+  `docs/lithic/library/go/kit/menu.go`).
+- **Theia fixes or translates selected text by default.** In place keeps text
+  in your language and corrects its spelling, grammar and punctuation, translating
+  other languages instead. Failure toasts explain the model or paste problem.
+- **In place copies terminal results instead of pretending to replace them.**
+  The result stays on the clipboard with an explanation; no text or paste
+  shortcut is sent to the terminal and no Undo is offered.
+- **Theia's panel text sits where it should.** Tab labels share one baseline,
+  pinned actions included, and sit centred with the selected tab in their
+  track; More sheet rows have room around their description and keyboard
+  focus, the follow-up text and caret line up, model names stay inside the
+  footer, In place errors wrap to show their full reason, and the answer no
+  longer shows through the sheet's corner
+  (`shell/quickshell/shell/modules/sight/`).
+- **Rashin's glance reads and writes in more ways for Theia.** It summarizes,
+  deep reads, solves, makes a quiz, defines a word, rewrites, changes tone,
+  smooths phrasing, sounds like you, says how a message reads, drafts three
+  replies and gives a rough machine-writing check; `rashin glance --option
+  key=value` tries each from a terminal
+  (`rashin/internal/protocol/glance.go`, `rashin/internal/ask/glance.go`,
+  `rashin/internal/daemon/glance.go`, `rashin/cmd/rashin/glance.go`).
+- **English spelling and grammar checks are built in**
+  Short passages with a typo stay on this computer, saved words keep their
+  casing and work in every dialect, and checked words show without raw backticks
+  (`rashin/internal/grammar/`, `rashin/internal/writing/`,
+  `rashin/internal/daemon/writing.go`).
+- **Rashin's 20 optional features start off and have their own Features settings**
+  The Hub shows how many are on and opens the app to change them without starting it just to read settings
+- **Ask's composer has a prompt library, Improve, writing tools and Analyze a
+  file.** Type a slash for your prompts and built-in templates, improve or fix
+  a draft with Ctrl+Z to undo, and attach a file with a question already
+  written (`rashin/internal/prompts/`, `rashin/internal/app/chat/composer.go`).
+- **Ask's writing review shows each replacement before you apply it, and Writing opens a menu of actions without a selected placeholder**
+  Longer reviews scroll above the action row, and replacement previews use the same mono text as the explanations
+- **Ask can read an audio file or a video link.** A recording becomes a
+  transcript and a summary, and a video link gets a summary with key moments
+  from its subtitles or its sound; only public internet links work, and
+  downloads go through a guarded local proxy
+  (`rashin/internal/media/`, `rashin/internal/ask/attach.go`).
+- **Ask answers can be compared, shared and tidied away.** Ask two more
+  models and keep the lane you like, turn an answer into a picture, ask again
+  about an earlier picture, star or archive conversations and pick up where
+  you left off (`rashin/internal/app/chat/compare.go`, `share.go`,
+  `rashin/internal/app/pages/ask/list.go`).
+- **Ask shows its search steps, mind maps and page previews**
+  See what it searched and read, explore a mind map and choose whether a page it made can run scripts
+- **Agents can use your own MCP servers and ask you to set something up.**
+  Add a server with its sign-in and a health check, agents reach signed-in
+  servers through a local proxy so they never see a token, and an agent that
+  needs you shows numbered steps with Done and Skip (`rashin/internal/mcpservers/`,
+  `rashin/internal/teams/approvals.go`).
+- **Dreams can do deep research, and routines can run on a schedule on their
+  own.** A research dream plans, gathers sources and presents a cited report,
+  and a routine can ask a question or start a dream, with a record of every run
+  (`rashin/internal/teams/dream.go`, `routines.go`, `runs.go`).
+- **Rashin has Collections, About you and Disk care.** Save answers and
+  excerpts, check saved links against public addresses only, chat with a whole
+  collection that loads 20 items at a time, tell Rashin your name and how you
+  like answers, and see what agents keep on disk and clear it safely
+  (`rashin/internal/collections/`, `rashin/internal/app/pages/index/`,
+  `rashin/internal/daemon/disk.go`).
+- **The shortcut list has Theia in place, and Sight's rows read Theia.** Right
+  Ctrl tapped three times with text selected, read by the shell daemon like the
+  other two gestures (`wm/binds.go`).
+- **Fedora and Void can install Theia's reading voice on request**
+  English writing checks need no extra package on any edition
+  (`fedora/packages/translations.tsv`, `void/packages/translations.tsv`).
+- **Rashin answers screen captures through a quick glance.** `glance` runs a
+  temporary Ask with no tools on Rashin's fast route, or on the harness Ask
+  uses with the model set for it; local Ollama and llama.cpp models count when
+  their server reports vision, pictures over 8 MiB are scaled down instead of
+  refused, a kept capture conversation keeps its picture, answers name the
+  user's language instead of guessing it from the capture, translations name
+  their source and target, and `rashin glance` tries it from a terminal
+  (`rashin/internal/daemon/glance.go`, `rashin/internal/ask/glance.go`,
+  `rashin/internal/protocol/glance.go`, `rashin/internal/gateway/local.go`,
+  `rashin/internal/attachment/shrink.go`).
+- **The shortcut list carries gestures the shell daemon reads itself.** A
+  daemon row is a key tapped a number of times or held while highlighting,
+  chosen from a short list of modifiers (`GestureKeys`); it shows on every
+  window manager and is never written into a compositor's config
+  (`wm/binds.go`).
 - **Ask and the Agent chat no longer fetch images from a reply or open
   arbitrary links.** Images in an answer show as their alt text, so a reply
   cannot make the shell call out to a host, and only web and mail links open
@@ -26,6 +130,9 @@
   translation rows and is a dependency of `ryoku-desktop` on both, and the rows
   Voxtype left behind are gone (`fedora/packages/translations.tsv`,
   `void/packages/translations.tsv`).
+- **Updating a source checkout no longer leaves a CMakeFiles folder at its
+  root.** The SPIRV headers check runs cmake's package probe in a scratch
+  directory (`ryoku/dictation/deploy.sh`).
 - **Updating no longer stops at the voice engine on a box without the SPIRV
   headers.** The deploy check, the package recipes and the build host list now
   name `spirv-headers` (Fedora `spirv-headers-devel`, Void `SPIRV-Headers`),

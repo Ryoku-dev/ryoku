@@ -634,6 +634,52 @@ func TestWindowPlaceRejectsInvalidOutputScaleBeforeMutation(t *testing.T) {
 	}
 }
 
+// pointer.locate answers in the output's own logical space: a scaled output
+// divides its mode by the scale, a rotated one swaps its sides, and a pointer
+// over no output is an error rather than a guess.
+func TestPointerLocateReportsOutputLocalLogicalPosition(t *testing.T) {
+	monitors := `[{"id":1,"name":"eDP-1","x":0,"y":0,"width":2880,"height":1800,"scale":1.5,"activeWorkspace":{"id":1}},` +
+		`{"id":2,"name":"DP-2","x":1920,"y":0,"width":2560,"height":1440,"scale":1,"transform":1,"activeWorkspace":{"id":2}}]`
+	for _, tc := range []struct {
+		cursor string
+		want   string
+	}{
+		{`{"x":1919,"y":1199}`, `{"output":"eDP-1","x":1919,"y":1199}`},
+		{`{"x":2000,"y":2000}`, `{"output":"DP-2","x":80,"y":2000}`},
+		{`{"x":1500,"y":1500}`, ""},
+	} {
+		restore := stubCtl(t, func(args ...string) ([]byte, error) {
+			switch args[0] {
+			case "cursorpos":
+				return []byte(tc.cursor), nil
+			case "monitors":
+				return []byte(monitors), nil
+			}
+			t.Fatalf("unexpected hyprctl args: %q", args)
+			return nil, nil
+		})
+		var buf bytes.Buffer
+		prevOut := stdout
+		stdout = bufio.NewWriter(&buf)
+		err := runAct([]string{"pointer.locate"})
+		stdout.Flush()
+		stdout = prevOut
+		restore()
+		if tc.want == "" {
+			if err == nil {
+				t.Errorf("cursor %s: located %q, want an error off every output", tc.cursor, buf.String())
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("cursor %s: %v", tc.cursor, err)
+		}
+		if got := strings.TrimSpace(buf.String()); got != tc.want {
+			t.Errorf("cursor %s: located %s, want %s", tc.cursor, got, tc.want)
+		}
+	}
+}
+
 // stubCtl swaps the compositor call and satisfies live(), which every action
 // checks before dispatching.
 func stubCtl(t *testing.T, fn func(...string) ([]byte, error)) func() {

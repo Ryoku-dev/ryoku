@@ -18,19 +18,23 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 
 	"ryoku-rashin/internal/app/look/logos"
+	"ryoku-rashin/internal/protocol"
 )
 
-// whose logo: a provider's or harness's id, and its name for the initial drawn where lobe-icons has no mark
+// Mark identifies a model provider's mark or its fallback initial
 type Mark struct {
 	ID, Name string
 }
 
-// a mark size square in a role ink, never its brand colour: fg2 at rest, fg raised or chosen
+// Logo draws a provider's mark in the supplied role ink
 func Logo(gtx layout.Context, th *Theme, mark Mark, size unit.Dp, ink color.NRGBA) layout.Dimensions {
 	pixels := gtx.Dp(size)
 	box := image.Pt(pixels, pixels)
 	if !gtx.Source.Enabled() {
 		ink = palette.WithAlpha(ink, tokens.AlphaDisabled)
+	}
+	if mark.ID == protocol.ProviderRashinModels {
+		return RashinMark(size, ink)(gtx)
 	}
 	if drawn, ok := logos.Image(mark.ID, pixels, ink); ok {
 		area := clip.Rect{Max: box}.Push(gtx.Ops)

@@ -2,8 +2,6 @@ package wm
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"net"
 	"os"
 	"os/exec"
@@ -20,7 +18,6 @@ import (
 const (
 	ProviderHyprland = "hyprland"
 	ProviderNiri     = "niri"
-	ProviderWayfire  = "wayfire"
 )
 
 // RetiredCompositorArtifacts names the state a removed provider left on
@@ -34,22 +31,31 @@ type RetiredCompositorArtifacts struct {
 	SessionHandle  string
 }
 
-func RetiredCompositor() RetiredCompositorArtifacts {
-	name := "mango"
-	return RetiredCompositorArtifacts{
-		VariantPackage: "ryoku-desktop-" + name,
-		Packages:       []string{name + "wm"},
-		ConfigDir:      name,
-		ProviderBinary: "ryoku-wm-" + name,
-		SessionHandle:  strings.ToUpper(name) + "_INSTANCE_SIGNATURE",
+// RetiredCompositors preserves enough package and session identity to move
+// older installations to an installed, supported provider.
+func RetiredCompositors() []RetiredCompositorArtifacts {
+	return []RetiredCompositorArtifacts{
+		{
+			VariantPackage: "ryoku-desktop-mango",
+			Packages:       []string{"mangowm"},
+			ConfigDir:      "mango",
+			ProviderBinary: "ryoku-wm-mango",
+			SessionHandle:  "MANGO_INSTANCE_SIGNATURE",
+		},
+		{
+			VariantPackage: "ryoku-desktop-wayfire",
+			Packages:       []string{"wayfire", "wlopm"},
+			ConfigDir:      "wayfire",
+			ProviderBinary: "ryoku-wm-wayfire",
+			SessionHandle:  "WAYFIRE_SOCKET",
+		},
 	}
 }
 
-// RetiredCompositorLive is deliberately conservative: a process carrying the
-// retired session handle may still belong to that session, so cleanup waits
-// until the user is in a supported one.
-func RetiredCompositorLive() bool {
-	return strings.TrimSpace(os.Getenv(RetiredCompositor().SessionHandle)) != ""
+// RetiredCompositorLive avoids removing the running session's package and
+// config before the user has logged into a supported compositor.
+func RetiredCompositorLive(retired RetiredCompositorArtifacts) bool {
+	return strings.TrimSpace(os.Getenv(retired.SessionHandle)) != ""
 }
 
 type Detection struct {
@@ -80,8 +86,6 @@ var envProviders = []struct {
 	{"HYPRLAND_INSTANCE_SIGNATURE", ProviderHyprland, hyprlandSockets},
 	// niri exports the socket path itself.
 	{"NIRI_SOCKET", ProviderNiri, func(h string) []string { return []string{h} }},
-	// wayfire's ipc plugin exports the socket path itself.
-	{"WAYFIRE_SOCKET", ProviderWayfire, func(h string) []string { return []string{h} }},
 }
 
 // SessionHandles names the environment variables a compositor session carries
@@ -127,7 +131,6 @@ func handleAlive(sockets []string) bool {
 var configDirs = map[string]string{
 	ProviderHyprland: "hypr",
 	ProviderNiri:     "niri",
-	ProviderWayfire:  "wayfire",
 }
 
 func ConfigDir(name string) string { return configDirs[name] }
@@ -153,7 +156,6 @@ func LeafScriptsDir(name string) string {
 var configEntries = map[string]string{
 	ProviderHyprland: "hyprland.lua",
 	ProviderNiri:     "config.kdl",
-	ProviderWayfire:  "wayfire.ini",
 }
 
 // ConfigEntry returns the entry point of a provider's config tree as a path
@@ -197,9 +199,6 @@ var configSeeds = map[string][]string{
 	// so the file has to exist from first boot. Being a seed is also what stops
 	// an update re-laying it over a user's edits.
 	ProviderNiri: {"monitors.kdl", "gpu.kdl", "keyboard.kdl", "user.kdl", "monitors_user.kdl"},
-	// wayfire has no include mechanism, so apply composes wayfire.ini from
-	// the shipped defaults, the store and these files, user.ini last.
-	ProviderWayfire: {"monitors.ini", "keyboard.ini", "user.ini"},
 }
 
 // ConfigSeeds returns the seeded, machine-owned files for a provider, as paths
@@ -241,7 +240,6 @@ func ConfigUserOwned(name string) []string {
 var configFiles = map[string][]string{
 	ProviderHyprland: {"hypr/user.lua", "hypr/monitors_user.lua", "hypr/modules"},
 	ProviderNiri:     {"niri/user.kdl", "niri/monitors_user.kdl"},
-	ProviderWayfire:  {"wayfire/user.ini", "wayfire/monitors.ini"},
 }
 
 // generatedConfig are the files a provider's apply authors from the store, as
@@ -251,7 +249,6 @@ var configFiles = map[string][]string{
 var generatedConfig = map[string][]string{
 	ProviderHyprland: {"hypr/settings.lua", "hypr/rebinds.lua", "ryoku/user_edits/hypr/settings.lua", "ryoku/user_edits/hypr/rebinds.lua"},
 	ProviderNiri:     {"niri/settings.kdl", "niri/rebinds.kdl", "ryoku/user_edits/niri/settings.kdl", "ryoku/user_edits/niri/rebinds.kdl"},
-	ProviderWayfire:  {"wayfire/wayfire.ini", "ryoku/user_edits/wayfire/wayfire.ini"},
 }
 
 // retiredGeneratedConfig are files a provider's apply authored once and no
@@ -279,52 +276,6 @@ func RetiredGeneratedConfig(name string) []string {
 	return append([]string(nil), retiredGeneratedConfig[name]...)
 }
 
-const generatedBaselineMarkerPrefix = "# ryoku-baseline-sha256="
-
-// GeneratedConfigBaselineMarker identifies a provider render with the baseline
-// it was composed from. Providers without a whole-file baseline return no mark.
-func GeneratedConfigBaselineMarker(name string, baseline []byte) string {
-	if name != ProviderWayfire {
-		return ""
-	}
-	sum := sha256.Sum256(baseline)
-	return generatedBaselineMarkerPrefix + hex.EncodeToString(sum[:8])
-}
-
-// GeneratedConfigIsRender distinguishes provider-authored output from a
-// user_edits fork. The legacy header keeps pre-marker renders upgradeable.
-func GeneratedConfigIsRender(name string, body []byte) bool {
-	if name != ProviderWayfire {
-		return false
-	}
-	return bytes.HasPrefix(body, []byte(generatedBaselineMarkerPrefix)) ||
-		bytes.HasPrefix(body, []byte("# Generated by ryoku apply;"))
-}
-
-// GeneratedConfigStale reports whether an existing whole-file render was
-// composed from a different shipped baseline. A missing baseline means the
-// provider is not shipped by this config base, so its retained tree is left
-// alone.
-func GeneratedConfigStale(name, baseConfigDir, configHome string) bool {
-	entry := ConfigEntry(name)
-	if entry == "" {
-		return false
-	}
-	baseline, err := os.ReadFile(filepath.Join(baseConfigDir, entry))
-	if err != nil {
-		return false
-	}
-	mark := GeneratedConfigBaselineMarker(name, baseline)
-	if mark == "" {
-		return false
-	}
-	rendered, err := os.ReadFile(filepath.Join(configHome, entry))
-	if err != nil {
-		return false
-	}
-	return !bytes.HasPrefix(rendered, []byte(mark+"\n"))
-}
-
 // ResetPaths are the config files a factory reset removes for a provider, as
 // paths relative to ~/.config: its generated config and its hand-edit files. It
 // never names the per-machine seeds (the display, GPU and keyboard pins), which
@@ -338,7 +289,7 @@ func ResetPaths(name string) []string {
 // Providers is stable order, so generated config and installer prompts do not
 // reshuffle between runs.
 func Providers() []string {
-	return []string{ProviderHyprland, ProviderNiri, ProviderWayfire}
+	return []string{ProviderHyprland, ProviderNiri}
 }
 
 // compositorBins is the executable each provider's session runs. Named in the
@@ -347,7 +298,6 @@ func Providers() []string {
 var compositorBins = map[string]string{
 	ProviderHyprland: "Hyprland",
 	ProviderNiri:     "niri",
-	ProviderWayfire:  "wayfire",
 }
 
 // VariantPackage returns the package that owns a known provider's Ryoku

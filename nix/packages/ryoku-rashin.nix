@@ -4,6 +4,7 @@
   # uv sets up Hindsight, the optional memory engine. Its Python and wheels
   # are prebuilt for FHS systems, so on NixOS it also needs programs.nix-ld.
   withUv ? false,
+  withLlamaCpp ? false,
 }:
 
 let
@@ -62,7 +63,8 @@ pkgs.buildGoModule {
     # Teams run their agents, and the programs those open, inside bwrap.
     wrapProgram "$out/bin/rashind" \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap ]} \
-      ${pkgs.lib.optionalString withUv "--suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.uv ]}"}
+      ${pkgs.lib.optionalString withUv "--suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.uv ]}"} \
+      ${pkgs.lib.optionalString withLlamaCpp "--suffix PATH : ${pkgs.lib.makeBinPath [ (pkgs.llama-cpp.override { vulkanSupport = true; }) ]}"}
     for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage; do
       install -Dm755 "usage/$collector" "$out/bin/$collector"
     done
@@ -97,6 +99,8 @@ pkgs.buildGoModule {
       "$out/share/licenses/ryoku-rashin/LICENSE.martian-mono"
     install -Dm644 vendor/gopkg.in/validator.v2/LICENSE \
       "$out/share/licenses/ryoku-rashin/LICENSE.validator"
+    install -Dm644 vendor/github.com/dlclark/regexp2/LICENSE \
+      "$out/share/licenses/ryoku-rashin/LICENSE.regexp2"
     install -Dm644 LICENSE.apache-2.0 \
       "$out/share/licenses/ryoku-rashin/LICENSE.apache-2.0"
     for set in superpowers openspec speckit egm; do
@@ -115,6 +119,16 @@ pkgs.buildGoModule {
       pkgs.lib.licenses.asl20
       pkgs.lib.licenses.ofl
       pkgs.lib.licenses.mit
+      pkgs.lib.licenses.bsd3
+      pkgs.lib.licenses.zlib
+      {
+        shortName = "SCOWL";
+        fullName = "SCOWL dictionary and included source notices";
+        spdxId = "LicenseRef-SCOWL";
+        url = "https://github.com/LibreOffice/dictionaries/blob/master/en/README_en_US.txt";
+        free = true;
+        redistributable = true;
+      }
     ];
     mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];

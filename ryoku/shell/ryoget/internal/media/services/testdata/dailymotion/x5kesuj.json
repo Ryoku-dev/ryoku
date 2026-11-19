@@ -1,0 +1,26 @@
+{
+ "title": "Office Christmas Party Review \u2013  Jason Bateman, Olivia Munn, T.J. Miller",
+ "duration": 187,
+ "thumbnails": {
+  "60": "https://s1.dmcdn.net/v/K456B1g41yc11Qw6Q/x60",
+  "120": "https://s2.dmcdn.net/v/K456B1g41ycXlV1qs/x120",
+  "180": "https://s2.dmcdn.net/v/K456B1g41ycVhF21q/x180",
+  "240": "https://s1.dmcdn.net/v/K456B1g41ycDlcV9D/x240",
+  "360": "https://s1.dmcdn.net/v/K456B1g41ycMFdUvP/x360",
+  "480": "https://s2.dmcdn.net/v/K456B1g41ycQ2lBn2/x480",
+  "720": "https://s2.dmcdn.net/v/K456B1g41ycT4aILX/x720",
+  "1080": "https://s2.dmcdn.net/v/K456B1g41yc8iNYz6/x1080"
+ },
+ "owner": {
+  "screenname": "Deadline"
+ },
+ "qualities": {
+  "auto": [
+   {
+    "type": "application/x-mpegURL",
+    "url": "https://cdndirector.dailymotion.com/cdn/manifest/video/x5kesuj.m3u8?sec=z7DF1dho78Eb0WUsAucSILYvwnaJ36UNB9WuTpuIqkK1UxpNY7Pj5syOlzahYompsbnHCUt2qZ_aorJUlUpK7w&dmTs=864321&dmV1st=31091EBBDE83C4CD85B549336FB42902"
+   }
+  ]
+ },
+ "is_password_protected": false
+}

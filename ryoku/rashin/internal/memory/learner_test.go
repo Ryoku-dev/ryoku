@@ -23,6 +23,7 @@ type scripted struct {
 	replies  []string
 	requests []llm.Request
 	gate     chan struct{}
+	resolved string
 }
 
 func (s *scripted) Stream(ctx context.Context, request llm.Request) (llm.Stream, error) {
@@ -40,7 +41,11 @@ func (s *scripted) Stream(ctx context.Context, request llm.Request) (llm.Stream,
 	if len(s.replies) > 0 {
 		reply, s.replies = s.replies[0], s.replies[1:]
 	}
-	return &textStream{text: reply, model: request.Model}, nil
+	model := request.Model
+	if s.resolved != "" {
+		model = s.resolved
+	}
+	return &textStream{text: reply, model: model}, nil
 }
 
 func (s *scripted) calls() []llm.Request {
@@ -178,8 +183,8 @@ func (n fakeNames) ProjectAt(root string) (string, string, string, bool) {
 
 func (n fakeNames) Team(id string) (protocol.Team, bool) { return protocol.Team{}, false }
 
-// testEngine is an engine over a temporary store, with memory on and a
-// local model up, so learning calls client with model "ollama-local/qwen".
+// testEngine is an engine over a temporary store, with memory on and
+// a local provider available to local-only learning.
 type testEngine struct {
 	*Engine
 	client   *scripted
@@ -332,7 +337,55 @@ func TestLearnAddsPreferenceAndReplacesCorrection(t *testing.T) {
 		t.Fatalf("emitted = %+v, want the update in the conversation", te.sessions.emitted)
 	}
 	requests := te.client.calls()
-	if len(requests) != 1 || requests[0].Model != "ollama-local/qwen" || !requests[0].Strict || requests[0].Extra["response_format"] == nil {
+	if len(requests) != 1 || requests[0].Model != protocol.RouteAuto || !requests[0].Light || !requests[0].LocalOnly || requests[0].Strict {
+		t.Fatalf("requests = %+v", requests)
+	}
+}
+
+func TestLearnAttributesFactsToTheResolvedModel(t *testing.T) {
+	te := newTestEngine(t, "", reply("Units.",
+		learnOp{Op: "add", Scope: "personal", Text: "The user always uses metric units", Kind: "permanent", Explicit: true, Evidence: "I always use metric units"},
+	))
+	te.client.resolved = protocol.ProviderRashinModels + "/lfm3"
+	te.sessions.add(protocol.SessionInfo{ID: "ask-model"}, turn{user: "I always use metric units.", reply: "Understood."})
+	change, err := te.learnNow(context.Background(), "ask-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(change.Items) != 1 || change.Model != te.client.resolved {
+		t.Fatalf("memory change = %+v, want %s", change, te.client.resolved)
+	}
+	store, err := te.store()
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts, err := store.Active(protocol.MemoryYou)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(facts) != 1 || facts[0].Source.Model != te.client.resolved {
+		t.Fatalf("memory provenance = %+v, want %s", facts, te.client.resolved)
+	}
+	if status := te.learn.state(); status.Model != te.client.resolved {
+		t.Fatalf("learner model = %q, want %q", status.Model, te.client.resolved)
+	}
+}
+
+func TestLearnLocalOnlyRoutesThroughRashinModels(t *testing.T) {
+	te := newTestEngine(t, "", reply("Metric units."))
+	te.settings.Memory.Model = protocol.LearnLocal
+	te.deps.Models = func(context.Context) []protocol.ProviderInfo {
+		return []protocol.ProviderInfo{{ID: protocol.ProviderRashinModels, Enabled: true, OnDemand: true, Models: 1}}
+	}
+	te.deps.ProviderModels = func(_ context.Context, provider string) []protocol.ModelInfo {
+		return []protocol.ModelInfo{{ID: provider + "/lfm3", Available: true}}
+	}
+	te.sessions.add(protocol.SessionInfo{ID: "ask-local"}, turn{user: "I always use metric units.", reply: "Understood."})
+	if _, err := te.learnNow(context.Background(), "ask-local"); err != nil {
+		t.Fatal(err)
+	}
+	requests := te.client.calls()
+	if len(requests) != 1 || requests[0].Model != protocol.RouteAuto || !requests[0].LocalOnly || !requests[0].Light || requests[0].Strict || requests[0].Extra["response_format"] == nil {
 		t.Fatalf("requests = %+v", requests)
 	}
 }
@@ -524,8 +577,9 @@ func TestSettleLearnsEverythingDue(t *testing.T) {
 	}
 }
 
-func TestLearnWaitsWithoutModel(t *testing.T) {
+func TestLocalLearningWaitsWithoutModel(t *testing.T) {
 	te := newTestEngine(t, "")
+	te.settings.Memory.Model = protocol.LearnLocal
 	te.deps.Models = func(context.Context) []protocol.ProviderInfo { return nil }
 	te.sessions.add(protocol.SessionInfo{ID: "ask-w"}, turn{user: "I prefer green tea, what should I buy?", reply: "Sencha."})
 	if _, err := te.learnNow(context.Background(), "ask-w"); err == nil {
@@ -644,6 +698,7 @@ func TestLearnListsEventsThenKeepsThem(t *testing.T) {
 		`"events":[{"what":"got the guitar serviced at the music shop on Main St","when":"2 May 2026"}],` +
 		`"ops":[{"op":"add","scope":"personal","text":"The user got their guitar serviced at the music shop on Main St on 2 May 2026","kind":"permanent","explicit":false,"sensitive":false,"supersedes":[],"evidence":"I got my guitar serviced at the music shop on Main St"}]}`
 	te := newTestEngine(t, "", answer)
+	te.settings.Memory.Model = protocol.LearnLocal
 	te.sessions.add(protocol.SessionInfo{ID: "ask-guitar"}, turn{user: "I got my guitar serviced at the music shop on Main St yesterday, ready for the festival!", reply: "Great, enjoy the festival."})
 	if _, err := te.learnNow(context.Background(), "ask-guitar"); err != nil {
 		t.Fatal(err)

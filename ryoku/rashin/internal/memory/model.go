@@ -2,16 +2,14 @@ package memory
 
 import (
 	"context"
-	"slices"
-	"strings"
-
 	i18n "ryoku-i18n"
 	"ryoku-rashin/internal/protocol"
+	"slices"
+	"strings"
 )
 
-// learnModel is the model a conversation is learned with: a provider/model
-// or a route, whether it runs on this computer, and its context in tokens (0
-// when unknown).
+// learnModel is a learning route, its local-only restriction, and the
+// model's known context in tokens (0 when the route has not resolved yet).
 type learnModel struct {
 	Model   string
 	Local   bool
@@ -33,76 +31,105 @@ func (m learnModel) budget() int {
 	return int(float64(context)*inputShare) * 4
 }
 
-// pickLocal is the first model of the first local provider that is enabled,
-// running and lists an available model, in protocol.LocalProviders order.
-func pickLocal(ctx context.Context, models func(context.Context) []protocol.ProviderInfo, providerModels func(context.Context, string) []protocol.ModelInfo) (protocol.ModelInfo, bool) {
-	if models == nil || providerModels == nil {
-		return protocol.ModelInfo{}, false
+// localAvailable includes installed models whose Rashin-owned server is resting.
+func localAvailable(ctx context.Context, providers []protocol.ProviderInfo, providerModels func(context.Context, string) []protocol.ModelInfo) bool {
+	if providerModels == nil {
+		return false
 	}
-	providers := models(ctx)
 	for _, id := range protocol.LocalProviders {
 		index := slices.IndexFunc(providers, func(p protocol.ProviderInfo) bool { return p.ID == id })
-		if index < 0 || !providers[index].Enabled || !providers[index].Running || providers[index].Models == 0 {
+		if index < 0 || !providers[index].Enabled || !(providers[index].Running || providers[index].OnDemand) || providers[index].Models == 0 {
 			continue
 		}
 		for _, model := range providerModels(ctx, id) {
 			if model.Available {
-				return model, true
+				return true
 			}
 		}
 	}
-	return protocol.ModelInfo{}, false
+	return false
 }
 
-// pickModel is memory's one policy for which model learns, per choice
-// (memory.model): a local model first; then, unless choice is local only,
-// the model that answered the conversation when the gateway has its
-// provider, or Ask's own route under LearnAny. When none fits, the model is
-// empty and the reason says why learning waits. Hindsight's learning model
-// is chosen with it too.
+// pickModel keeps learning on the same remote model only when no local model
+// can answer, so an automatic route never sends an earlier answer elsewhere.
 func pickModel(ctx context.Context, choice, answered string, models func(context.Context) []protocol.ProviderInfo, providerModels func(context.Context, string) []protocol.ModelInfo) (learnModel, string) {
-	if local, ok := pickLocal(ctx, models, providerModels); ok {
-		return learnModel{Model: local.ID, Local: true, Context: local.Context}, ""
-	}
-	switch choice {
-	case protocol.LearnLocal:
-		return learnModel{}, i18n.T("Waiting for a model on this computer: start Ollama or llama.cpp.")
-	case protocol.LearnAny:
+	if choice == protocol.LearnAny {
 		return learnModel{Model: protocol.RouteAuto}, ""
 	}
-	if model, ok := gatewayModel(ctx, answered, models, providerModels); ok {
-		return model, ""
+	var providers []protocol.ProviderInfo
+	if models != nil {
+		providers = models(ctx)
 	}
-	if answered == "" {
-		return learnModel{}, i18n.T("Waiting for a model on this computer, since the conversation does not say which model answered it.")
+	if localAvailable(ctx, providers, providerModels) {
+		return learnModel{Model: protocol.RouteAuto, Local: true}, ""
 	}
-	return learnModel{}, i18n.Tf("Waiting for a model on this computer, since Rashin's router does not have %s, which answered the conversation.", answered)
+	waiting := i18n.T("Waiting for a Rashin model on this computer: install one in Rashin, or start Ollama or llama.cpp.")
+	if choice == protocol.LearnLocal || answered == "" {
+		return learnModel{}, waiting
+	}
+	provider, _, ok := strings.Cut(answered, "/")
+	if !ok {
+		return learnModel{}, waiting
+	}
+	if slices.Contains(protocol.LocalProviders, provider) {
+		return learnModel{Model: answered, Local: true}, ""
+	}
+	if providerModels == nil {
+		return learnModel{}, waiting
+	}
+	index := slices.IndexFunc(providers, func(p protocol.ProviderInfo) bool { return p.ID == provider })
+	if index < 0 || !providers[index].Enabled {
+		return learnModel{}, waiting
+	}
+	for _, candidate := range providerModels(ctx, provider) {
+		if candidate.ID != answered {
+			continue
+		}
+		tier := candidate.Tier
+		if tier == "" {
+			tier = providers[index].Tier
+		}
+		if candidate.Available && (tier == protocol.TierFree || tier == protocol.TierCredits) {
+			return learnModel{Model: answered, Context: candidate.Context}, ""
+		}
+		break
+	}
+	return learnModel{}, waiting
+}
+
+// hindsightModel supplies a concrete local model when Hindsight requires
+// local-only learning: its HTTP gateway cannot carry llm.Request.LocalOnly.
+func hindsightModel(ctx context.Context, choice, answered string, models func(context.Context) []protocol.ProviderInfo, providerModels func(context.Context, string) []protocol.ModelInfo) (learnModel, string) {
+	if choice != protocol.LearnLocal {
+		return pickModel(ctx, choice, answered, models, providerModels)
+	}
+	if models != nil && providerModels != nil {
+		providers := models(ctx)
+		var best protocol.ModelInfo
+		for _, id := range protocol.LocalProviders {
+			index := slices.IndexFunc(providers, func(p protocol.ProviderInfo) bool { return p.ID == id })
+			if index < 0 || !providers[index].Enabled || !(providers[index].Running || providers[index].OnDemand) || providers[index].Models == 0 {
+				continue
+			}
+			for _, candidate := range providerModels(ctx, id) {
+				if !candidate.Available || !candidate.Tools {
+					continue
+				}
+				light := candidate.Light || candidate.Params <= protocol.LightParams
+				bestLight := best.Light || best.Params <= protocol.LightParams
+				if best.ID == "" || light && !bestLight || light == bestLight && candidate.Params < best.Params {
+					best = candidate
+				}
+			}
+		}
+		if best.ID != "" {
+			return learnModel{Model: best.ID, Local: true, Context: best.Context}, ""
+		}
+	}
+	return learnModel{}, i18n.T("Waiting for a Rashin model on this computer: install one in Rashin, or start Ollama or llama.cpp.")
 }
 
 // chooseModel is pickModel with the engine's settings and providers.
 func (e *Engine) chooseModel(ctx context.Context, answered string) (learnModel, string) {
 	return pickModel(ctx, e.settings().Model, answered, e.deps.Models, e.deps.ProviderModels)
-}
-
-// gatewayModel is model as the gateway serves it, when the gateway has its
-// provider in use.
-func gatewayModel(ctx context.Context, model string, models func(context.Context) []protocol.ProviderInfo, providerModels func(context.Context, string) []protocol.ModelInfo) (learnModel, bool) {
-	provider, _, ok := strings.Cut(model, "/")
-	if !ok || provider == "" || models == nil {
-		return learnModel{}, false
-	}
-	providers := models(ctx)
-	index := slices.IndexFunc(providers, func(p protocol.ProviderInfo) bool { return p.ID == provider })
-	if index < 0 || !providers[index].Enabled || !(providers[index].Configured || providers[index].Keyless) {
-		return learnModel{}, false
-	}
-	chosen := learnModel{Model: model, Local: providers[index].Local}
-	if providerModels != nil {
-		for _, info := range providerModels(ctx, provider) {
-			if info.ID == model {
-				chosen.Context = info.Context
-			}
-		}
-	}
-	return chosen, true
 }

@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"strconv"
+	"time"
 
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
@@ -15,7 +16,6 @@ import (
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
-	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -69,36 +69,39 @@ type navRow struct {
 	hover anim.Tween
 	press anim.Tween
 	focus anim.Tween
-	tip   look.Tip
 }
 
 type navContent struct {
 	icon  *widget.Icon
 	label string
-	tip   string
 	// zero draws no number
 	count         int
 	current, slab bool
-	// the frame's one standing gold, the New plaque
-	gold bool
-	hint string
+	tab           string
+	hint          string
 }
 
 type sidebar struct {
 	// leaves out the destinations and settings, for a window whose bottom bar already has them
 	bare bool
 
-	fresh    navRow
-	rows     [destinationsMax]navRow
-	settings navRow
-	slab     look.Selection
+	freshPlaque kit.Plaque
+	freshIcon   kit.IconPlaque
+	rows        [destinationsMax]navRow
+	peekTag     struct{}
+	peekTab     string
+	peekSince   time.Time
+	peekPointer image.Point
+	foot        [3]navRow
+	slab        look.Selection
 }
 
 type sidebarLayout struct {
-	fresh, settings image.Rectangle
-	rows            [destinationsMax]image.Rectangle
-	list            image.Rectangle
-	vein            int
+	fresh image.Rectangle
+	foot  [3]image.Rectangle
+	rows  [destinationsMax]image.Rectangle
+	list  image.Rectangle
+	vein  int
 }
 
 // count rows stand for the mode's destinations, the rest stay empty
@@ -111,7 +114,13 @@ func resolveSidebar(gtx layout.Context, size image.Point, bare bool, count int) 
 	resolved.fresh = image.Rect(inset, y, inset+width, y+row)
 	y += row + gtx.Dp(13)
 	if bare {
-		resolved.list = image.Rect(inset, y, inset+width, max(y, size.Y-gtx.Dp(8)))
+		foot := gtx.Dp(34)
+		for index := range resolved.foot[:2] {
+			y := size.Y - gtx.Dp(13) - (2-index)*foot
+			resolved.foot[index] = image.Rect(inset, y, inset+width, y+foot)
+		}
+		resolved.vein = resolved.foot[0].Min.Y - gtx.Dp(9)
+		resolved.list = image.Rect(inset+gtx.Dp(13), y, inset+full, max(y, resolved.vein-gtx.Dp(8)))
 		return resolved
 	}
 	for index := range resolved.rows[:count] {
@@ -119,10 +128,14 @@ func resolveSidebar(gtx layout.Context, size image.Point, bare bool, count int) 
 		y += row + gap
 	}
 	y += gtx.Dp(13) - gap
-	resolved.settings = image.Rect(inset, size.Y-gtx.Dp(13)-row, inset+width, size.Y-gtx.Dp(13))
-	resolved.vein = resolved.settings.Min.Y - gtx.Dp(9)
+	foot := gtx.Dp(34)
+	for index := range resolved.foot {
+		y := size.Y - gtx.Dp(13) - (len(resolved.foot)-index)*foot
+		resolved.foot[index] = image.Rect(inset, y, inset+width, y+foot)
+	}
+	resolved.vein = resolved.foot[0].Min.Y - gtx.Dp(9)
 	// the list keeps its open width while the pane folds so rows clip instead of reflowing
-	resolved.list = image.Rect(inset, y, inset+full, max(y, resolved.vein-gtx.Dp(8)))
+	resolved.list = image.Rect(inset+gtx.Dp(13), y, inset+full, max(y, resolved.vein-gtx.Dp(8)))
 	return resolved
 }
 
@@ -137,15 +150,12 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 	listCall, list := bar.recordList(gtx, e, page, geometry.list, fold)
 	bar.layoutSlab(gtx, th, s, geometry, list, fold)
 
-	fresh := s.page(s.listTab).NewLabel()
-	bar.layoutRow(gtx, th, e, &bar.fresh, geometry.fresh, fold, navContent{
-		icon: look.Icon.Add, label: fresh, tip: fresh + "  Ctrl N", gold: true, hint: "Ctrl N",
-	})
+	bar.layoutNew(gtx, s, e, geometry.fresh, fold)
 	onList := list.HasSelected && fold < 1
 	for index, item := range items[:count] {
 		current := s.router.Tab == item.tab
 		content := navContent{
-			icon: item.glyph(current), label: item.label, tip: item.label + "  " + item.shortcut, current: current, slab: current && !onList,
+			icon: item.glyph(current), label: item.label, tab: item.tab, hint: item.shortcut, current: current, slab: current && !onList,
 		}
 		switch item.tab {
 		case protocol.TabAgent:
@@ -153,10 +163,21 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 		case protocol.TabInbox:
 			content.count = s.router.Inbox
 		}
-		bar.layoutRow(gtx, th, e, &bar.rows[index], geometry.rows[index], fold, content)
+		bar.layoutRow(gtx, th, &bar.rows[index], geometry.rows[index], fold, content)
+	}
+	peekTab, peekTitle := "", ""
+	for index, item := range items[:count] {
+		if bar.rows[index].click.Hovered() {
+			peekTab, peekTitle = item.tab, item.label
+		}
 	}
 	if fold < 1 {
 		opacity := paint.PushOpacity(gtx.Ops, 1-fold)
+		if !bar.bare && geometry.list.Dy() > 0 {
+			x := geometry.list.Min.X + gtx.Dp(look.SideInset) + gtx.Dp(look.SideIndent)/2
+			line := max(1, gtx.Dp(1))
+			kit.Fill(gtx, th.Theme, image.Rect(x, geometry.list.Min.Y, x+line, geometry.list.Max.Y), 0, th.R.Guide())
+		}
 		offset := op.Offset(geometry.list.Min).Push(gtx.Ops)
 		area := clip.Rect(image.Rectangle{Max: geometry.list.Size()}).Push(gtx.Ops)
 		listCall.Add(gtx.Ops)
@@ -166,23 +187,46 @@ func (bar *sidebar) Layout(gtx layout.Context, s *uiShell, e *env.Env, page env.
 	}
 
 	if bar.bare {
+		bar.layoutFoot(gtx, s, e, geometry, fold, onList, 2)
+		bar.updatePeek(gtx, s, e, "", "")
 		return layout.Dimensions{Size: size}
 	}
-	inset, line := gtx.Dp(8), max(1, gtx.Dp(1))
-	paint.FillShape(gtx.Ops, th.R.Vein, clip.Rect(image.Rect(inset, geometry.vein, size.X-inset, geometry.vein+line)).Op())
-	settings := s.router.Tab == protocol.TabSettings
-	icon := look.Icon.Settings
-	if settings {
-		icon = look.IconFill.Settings
+	bar.layoutFoot(gtx, s, e, geometry, fold, onList, 3)
+	for index, tab := range []string{protocol.TabMemory, protocol.TabLearning, protocol.TabSettings} {
+		if bar.foot[index].click.Hovered() {
+			place, _ := look.PlaceFor(tab)
+			peekTab, peekTitle = tab, place.Title()
+		}
 	}
-	bar.layoutRow(gtx, th, e, &bar.settings, geometry.settings, fold, navContent{
-		icon: icon, label: i18n.T("Settings"), tip: i18n.T("Settings") + "  Ctrl ,", current: settings, slab: settings && !onList,
-	})
+	if fold > 0 || s.router.Modal {
+		peekTab = ""
+	}
+	bar.updatePeek(gtx, s, e, peekTab, peekTitle)
 	return layout.Dimensions{Size: size}
 }
 
+func (bar *sidebar) layoutFoot(gtx layout.Context, s *uiShell, e *env.Env, geometry sidebarLayout, fold float32, onList bool, count int) {
+	th := e.Theme
+	inset, line := gtx.Dp(8), max(1, gtx.Dp(1))
+	kit.Fill(gtx, th.Theme, image.Rect(inset, geometry.vein, gtx.Constraints.Max.X-inset, geometry.vein+line), 0, th.R.Line())
+	for index, tab := range []string{protocol.TabMemory, protocol.TabLearning, protocol.TabSettings}[:count] {
+		place, _ := look.PlaceFor(tab)
+		current := s.router.Tab == tab
+		icon := look.Icon.Memory
+		switch tab {
+		case protocol.TabLearning:
+			icon = look.Icon.Skills
+		case protocol.TabSettings:
+			icon = look.Icon.Settings
+		}
+		bar.layoutRow(gtx, th, &bar.foot[index], geometry.foot[index], fold, navContent{
+			icon: icon, label: place.Title(), tab: tab, current: current, slab: current && !onList,
+		})
+	}
+}
+
 func (bar *sidebar) handle(gtx layout.Context, s *uiShell, e *env.Env) {
-	if bar.fresh.click.Clicked(gtx) {
+	if bar.freshPlaque.Clicked(gtx) || bar.freshIcon.Clicked(gtx) {
 		s.newCurrent(e)
 	}
 	items, count := destinations(s.router.TeamsMode())
@@ -191,9 +235,54 @@ func (bar *sidebar) handle(gtx layout.Context, s *uiShell, e *env.Env) {
 			s.openDestination(item.tab)
 		}
 	}
-	if bar.settings.click.Clicked(gtx) {
-		s.openDestination(protocol.TabSettings)
+	for index, tab := range []string{protocol.TabMemory, protocol.TabLearning, protocol.TabSettings} {
+		if bar.foot[index].click.Clicked(gtx) {
+			s.openDestination(tab)
+		}
 	}
+}
+
+func (bar *sidebar) layoutNew(gtx layout.Context, s *uiShell, e *env.Env, rectangle image.Rectangle, fold float32) {
+	label := s.page(s.listTab).NewLabel()
+	look.Place(gtx, rectangle, func(gtx layout.Context) layout.Dimensions {
+		if fold >= 1 {
+			bar.freshIcon.Kind, bar.freshIcon.Small = kit.PlaqueLine, true
+			bar.freshIcon.Icon, bar.freshIcon.Description = look.Icon.Add, label
+			return bar.freshIcon.Layout(gtx, e.Theme.Theme)
+		}
+		bar.freshPlaque.Kind, bar.freshPlaque.Small = kit.PlaqueLine, true
+		bar.freshPlaque.Icon, bar.freshPlaque.Label = look.Icon.Add, label
+		return bar.freshPlaque.Layout(gtx, e.Theme.Theme)
+	})
+}
+
+func (bar *sidebar) updatePeek(gtx layout.Context, s *uiShell, e *env.Env, tab, title string) {
+	if tab == "" || !gtx.Source.Enabled() {
+		bar.peekTab = ""
+		s.overlay.Close(&bar.peekTag)
+		return
+	}
+	pointer := e.Overlays.Pointer()
+	if tab != bar.peekTab || pointer != bar.peekPointer {
+		bar.peekTab, bar.peekSince, bar.peekPointer = tab, gtx.Now, pointer
+		s.overlay.Close(&bar.peekTag)
+		gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(480 * time.Millisecond)})
+		return
+	}
+	if gtx.Now.Sub(bar.peekSince) < 480*time.Millisecond {
+		return
+	}
+	place, _ := look.PlaceFor(tab)
+	anchor := image.Rect(gtx.Dp(look.Margin+look.SidebarExpanded+look.Gap), e.Overlays.Pointer().Y,
+		gtx.Dp(look.Margin+look.SidebarExpanded+look.Gap), e.Overlays.Pointer().Y)
+	s.overlay.Open(&bar.peekTag, anchor, look.Placement{Passive: true, Frame: true, Width: 300}, func(gtx layout.Context) layout.Dimensions {
+		th := e.Theme
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(kit.RawText(th.Theme, th.T.Label, th.R.Fg, title)),
+			layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+			layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg3, look.Crumb(place.PagePlace(), title))),
+		)
+	})
 }
 
 // laid out without drawing first, the slab under it needs the selected row's place
@@ -218,11 +307,16 @@ func (bar *sidebar) recordList(
 }
 
 func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, geometry sidebarLayout, list look.ListDimensions, fold float32) {
-	key, target, inList := s.router.Tab, geometry.settings, false
+	key, target, inList := s.router.Tab, image.Rectangle{}, false
 	switch {
 	case list.HasSelected && fold < 1:
 		key, target, inList = "row:"+list.Key, list.Selected.Add(geometry.list.Min), true
-	case s.router.Tab == protocol.TabSettings:
+	case standaloneTab(s.router.Tab):
+		for index, tab := range []string{protocol.TabMemory, protocol.TabLearning, protocol.TabSettings} {
+			if tab == s.router.Tab {
+				target = geometry.foot[index]
+			}
+		}
 	default:
 		items, count := destinations(s.router.TeamsMode())
 		for index, item := range items[:count] {
@@ -242,14 +336,12 @@ func (bar *sidebar) layoutSlab(gtx layout.Context, th *look.Theme, s *uiShell, g
 		area := clip.Rect(geometry.list).Push(gtx.Ops)
 		defer area.Pop()
 	}
-	cut := gtx.Dp(th.Cut.Small)
-	kit.FillCut(gtx.Ops, rectangle, cut, th.R.Sel)
+	look.RowWash(gtx, th, rectangle, 0, 0, true)
 }
 
 func (bar *sidebar) layoutRow(
 	gtx layout.Context,
 	th *look.Theme,
-	e *env.Env,
 	row *navRow,
 	rectangle image.Rectangle,
 	fold float32,
@@ -271,45 +363,30 @@ func (bar *sidebar) layoutRow(
 		kit.FocusRingAlpha(original, th.Theme, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Small), focus)
 		return dimensions
 	}
-	look.Place(gtx, rectangle, func(gtx layout.Context) layout.Dimensions {
-		// only the rail needs a tooltip, the open row says its own name
-		if fold < 1 {
-			return body(gtx)
-		}
-		return row.tip.Layout(gtx, th, e.Overlays, content.tip, body)
-	})
+	look.Place(gtx, rectangle, body)
 }
 
 func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, content navContent) {
 	size := gtx.Constraints.Max
 	bounds := image.Rectangle{Max: size}
-	cut := gtx.Dp(th.Cut.Small)
 	hover := look.Transition(gtx, &row.hover, row.click.Hovered() && gtx.Source.Enabled(), th.Motion.HoverIn, th.Motion.HoverOut)
 	press := look.Transition(gtx, &row.press, row.click.Pressed(), th.Motion.Press, th.Motion.Press)
 	ink, hint := palette.Mix(th.R.Fg2, th.R.Fg, hover), th.R.Fg3
-	switch {
-	case content.gold:
-		ink, hint = th.R.OnGold, palette.Mix(th.R.OnGold, th.R.Gold, tokens.AlphaOnSel2)
-		kit.FillCut(gtx.Ops, bounds, cut, palette.Mix(th.R.Gold, th.R.OnGold, tokens.AlphaHoverFill*hover))
-	case content.slab:
-		ink = th.R.OnSel
-	case content.current:
-		ink = th.R.Fg
+	mark := ink
+	if content.slab {
+		ink, hint = look.RowInk(th, true)
+		mark = th.R.Sel
+	} else if content.current {
+		ink, mark = th.R.Fg, th.R.Sel
 	}
-	// hover lifts the stone, the selection's colour stays the selection's
-	if !content.slab && !content.gold && hover > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Stone3, hover))
-	}
-	if press > 0 {
-		kit.FillCut(gtx.Ops, bounds, cut, palette.WithAlpha(th.R.Fg, .08*press))
-	}
+	look.RowWash(gtx, th, bounds, hover, press, false)
 
 	glyph := gtx.Dp(20)
 	rail := gtx.Dp(look.SidebarRail) - 2*gtx.Dp(8)
 	x := gtx.Dp(look.SideInset) + int(float32((rail-glyph)/2-gtx.Dp(look.SideInset))*fold+.5)
-	look.PlaceIcon(gtx, content.icon, image.Pt(x, (size.Y-glyph)/2), 20, ink)
+	look.PlaceIcon(gtx, content.icon, image.Pt(x+int(float32(gtx.Dp(2))*hover+.5), (size.Y-glyph)/2), 20, mark)
 	if content.count > 0 && fold >= 1 {
-		kit.Notch(gtx.Ops, image.Point{}, gtx.Dp(8), th.R.Amber)
+		kit.ToneMark(gtx, th.Theme, bounds, palette.Attention)
 	}
 	if fold >= 1 {
 		return
@@ -317,13 +394,25 @@ func drawNavRow(gtx layout.Context, th *look.Theme, row *navRow, fold float32, c
 	opacity := paint.PushOpacity(gtx.Ops, 1-fold)
 	defer opacity.Pop()
 	trailing := gtx.Dp(look.SideInset)
-	// a count is a number and reads in the sans; a shortcut is a key, so it keeps the mono
+	number, gloss := look.Numbered(content.tab)
 	if content.count > 0 {
-		trailing += drawTrailingText(gtx, th, th.T.Caption, strconv.Itoa(content.count), th.R.Amber)
+		trailing += drawTrailingText(gtx, th, th.T.MonoSm, strconv.Itoa(content.count), th.R.Amber)
+	} else if th.Desktop.Gloss && gloss != "" {
+		glossInk := th.R.Fg3
+		if content.current {
+			glossInk = mark
+		}
+		trailing += drawTrailingText(gtx, th, th.T.Caption, gloss, glossInk)
 	} else if content.hint != "" {
 		trailing += drawTrailingText(gtx, th, th.T.MonoSm, content.hint, hint)
 	}
-	left := gtx.Dp(look.SideInset) + glyph + gtx.Dp(13)
+	left := gtx.Dp(look.SideInset) + glyph + gtx.Dp(8) + int(float32(gtx.Dp(2))*hover+.5)
+	if number != "" {
+		look.Place(gtx, image.Rect(left, 0, left+gtx.Dp(24), size.Y), func(gtx layout.Context) layout.Dimensions {
+			return layout.W.Layout(gtx, kit.RawText(th.Theme, th.T.MonoSm, mark, number))
+		})
+		left += gtx.Dp(28)
+	}
 	label := gtx
 	label.Constraints = layout.Exact(image.Pt(max(0, gtx.Dp(look.SidebarExpanded)-2*gtx.Dp(8)-left-trailing), size.Y))
 	offset := op.Offset(image.Pt(left, 0)).Push(gtx.Ops)

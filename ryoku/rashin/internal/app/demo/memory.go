@@ -82,9 +82,9 @@ func makeMemoryFixtures() memoryFixtures {
 	coverageTitle, duplicatesTitle := i18n.T("Find this week's coverage of Ryoku"), i18n.T("Group the duplicate install failure issues")
 	morningTitle := demoTemplate("repo").Routines[0].Title
 	ask := func(session, title string, turn int) protocol.MemorySource {
-		return protocol.MemorySource{Kind: protocol.MemoryFromAsk, Session: session, Turn: turn, Title: title, Model: "llama.cpp"}
+		return protocol.MemorySource{Kind: protocol.MemoryFromAsk, Session: session, Turn: turn, Title: title, Model: demoLocalID}
 	}
-	agent := protocol.MemorySource{Kind: protocol.MemoryFromAgent, Session: "agent-20261110-101500-b82d", Title: panelTitle, Model: "gpt-5.6"}
+	agent := protocol.MemorySource{Kind: protocol.MemoryFromAgent, Session: "agent-20261110-101500-b82d", Title: panelTitle, Model: demoLocalID}
 	you := protocol.MemorySource{Kind: protocol.MemoryFromYou}
 	file := protocol.MemorySource{Kind: protocol.MemoryFromFile}
 	chatgpt := protocol.MemorySource{Kind: protocol.MemoryFromImport, From: "ChatGPT"}
@@ -203,7 +203,7 @@ func makeMemoryFixtures() memoryFixtures {
 		change: protocol.MemoryChange{ID: "chg-demo-told", At: ago(80 * time.Minute), Origin: protocol.MemoryByTool, Session: demoMemorySession, Turn: 1, Items: []protocol.MemoryItem{added(told)}},
 		snaps:  []memorySnap{{id: told.ID, after: told}},
 	})
-	// the agent session's harness called remember on its first turn
+	// the native agent called remember on its first turn
 	demo := find("m5b9e3f6")
 	m.changes = append(m.changes, memoryChange{
 		change: protocol.MemoryChange{ID: "chg-demo-agent", At: ago(50 * time.Minute), Origin: protocol.MemoryByTool, Session: agent.Session, Turn: 1, Model: agent.Model, Items: []protocol.MemoryItem{added(demo)}},
@@ -213,7 +213,7 @@ func makeMemoryFixtures() memoryFixtures {
 	ltsItem := added(lts)
 	ltsItem.Replaces = mainline.Text
 	m.changes = append(m.changes, memoryChange{
-		change: protocol.MemoryChange{ID: "chg-demo-learned", At: ago(6 * time.Minute), Origin: protocol.MemoryByLearning, Session: demoMemorySession, Model: "llama.cpp", Items: []protocol.MemoryItem{added(fish), ltsItem}},
+		change: protocol.MemoryChange{ID: "chg-demo-learned", At: ago(6 * time.Minute), Origin: protocol.MemoryByLearning, Session: demoMemorySession, Model: demoLocalID, Items: []protocol.MemoryItem{added(fish), ltsItem}},
 		snaps:  []memorySnap{{id: fish.ID, after: fish}, {id: lts.ID, after: lts}, {id: mainline.ID, before: wasActive, after: mainline}},
 	})
 	return m
@@ -351,7 +351,7 @@ func (s *server) tellMemory(change *protocol.MemoryChange) {
 // a settings patch that moved memory is heard as memory.changed too, after the method's own events
 func (s *server) takeMemoryEvents() []protocol.Event {
 	m := s.memory()
-	if m.settings != s.data.snapshot.Settings.Memory {
+	if !reflect.DeepEqual(m.settings, s.data.snapshot.Settings.Memory) {
 		m.settings = s.data.snapshot.Settings.Memory
 		s.tellMemory(nil)
 	}
@@ -477,7 +477,7 @@ func (s *server) memoryStatus() *protocol.MemoryStatus {
 	for i := range days {
 		days[i].InUse = max(0, counts.All-rise+days[i].InUse)
 	}
-	learner := protocol.MemoryLearner{State: protocol.LearnerReady, Model: "llama.cpp", Local: true, Last: new(Epoch.Add(-6 * time.Minute)), Detail: "127.0.0.1:8080"}
+	learner := protocol.MemoryLearner{State: protocol.LearnerReady, Model: demoLocalID, Local: true, Last: new(Epoch.Add(-6 * time.Minute)), Detail: i18n.T("Available on demand")}
 	if !settings.Learn {
 		learner.State = protocol.LearnerOff
 	}
@@ -652,7 +652,7 @@ func (s *server) callMemory(method string, raw json.RawMessage) (any, error) {
 		}
 		// nothing new in the demo's conversations, so the pass learns nothing
 		m := s.memory()
-		return s.commitMemory(protocol.MemoryChange{At: m.now(), Origin: protocol.MemoryByLearning, Session: params.Session, Model: "llama.cpp"}, m.byID()), nil
+		return s.commitMemory(protocol.MemoryChange{At: m.now(), Origin: protocol.MemoryByLearning, Session: params.Session, Model: demoLocalID}, m.byID()), nil
 	case protocol.MMemoryEngineTest:
 		params, err := memoryParams[protocol.MemoryEngineParams](raw)
 		if err != nil {

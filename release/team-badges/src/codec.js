@@ -1,6 +1,8 @@
 const encoder = new TextEncoder();
 const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const loginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+// the program a tester round tested; ryoku-hub applies the same rule (badgeProgramValid)
+const programPattern = /^[A-Za-z0-9](?:[A-Za-z0-9 .+-]{0,38}[A-Za-z0-9])?$/;
 export const CARD_ID = /^[0-9a-f]{16}$/;
 export const SHA = /^[0-9a-f]{64}$/;
 export const DEFAULT_KEYS = {
@@ -8,6 +10,7 @@ export const DEFAULT_KEYS = {
   MIKA_KEY: 'TtnSdWqRm4UPQ4JXa5IG8yBKp/xbxTudgO/C/AeBnUg=',
 };
 const domains = { RYB: 'ryoku-badge-v2', RYX: 'ryoku-revoke-v2', RYD: 'ryoku-design-v2' };
+const badgeDomains = { 2: 'ryoku-badge-v2', 3: 'ryoku-badge-v3' };
 
 export class InputError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -81,16 +84,23 @@ function issuerKey(issuer, env) {
   requireThat(issuer === 1 || issuer === 2, 'Unknown issuer');
   return env[issuer === 1 ? 'OWNER_KEY' : 'MIKA_KEY'] ?? DEFAULT_KEYS[issuer === 1 ? 'OWNER_KEY' : 'MIKA_KEY'];
 }
-function readLogin(payload, offset) {
+function readLogin(payload, offset, end = payload.length) {
   const length = payload[offset];
-  requireThat(length >= 1 && length <= 39 && payload.length === offset + 1 + length, 'Invalid login length');
-  const login = new TextDecoder('utf-8', { fatal: true }).decode(payload.subarray(offset + 1));
+  requireThat(length >= 1 && length <= 39 && end === offset + 1 + length && end <= payload.length, 'Invalid login length');
+  const login = new TextDecoder('utf-8', { fatal: true }).decode(payload.subarray(offset + 1, end));
   requireThat(loginPattern.test(login), 'Invalid login');
   return login;
 }
+// a v3 badge follows the login with its u8 length-prefixed program
+function readProgram(payload, offset) {
+  requireThat(offset < payload.length && payload.length === offset + 1 + payload[offset], 'Invalid program length');
+  const program = new TextDecoder('utf-8', { fatal: true }).decode(payload.subarray(offset + 1));
+  requireThat(programPattern.test(program) && !program.includes('  '), 'Invalid program');
+  return program;
+}
 export async function verifyCode(kind, text, env = {}) {
   const bytes = decodeCode(kind, text);
-  requireThat(bytes[0] === 2, 'Unsupported code version');
+  requireThat(bytes[0] === 2 || (kind === 'RYB' && bytes[0] === 3), 'Unsupported code version');
   if (kind === 'RYQ') {
     requireThat(bytes.length === 35 && crc16(bytes.subarray(0, 33)) === new DataView(bytes.buffer).getUint16(33), 'Invalid request CRC or length');
     return { kind, code: encodeCode(kind, bytes), cardId: await cardId(bytes.subarray(1, 33)), device: bytes.slice(1, 33) };
@@ -101,9 +111,10 @@ export async function verifyCode(kind, text, env = {}) {
   let fields;
   if (kind === 'RYB') {
     requireThat(payload.length >= 39, 'Invalid badge length');
-    const role = payload[2], device = payload.slice(3, 35);
+    const role = payload[2], device = payload.slice(3, 35), loginEnd = bytes[0] === 3 ? 38 + payload[37] : payload.length;
     requireThat(role >= 1 && role <= 5 && (issuer === 1 || role <= 2), 'Issuer cannot grant role');
-    fields = { role, cardId: await cardId(device), device, day: new DataView(payload.buffer, payload.byteOffset).getUint16(35), login: readLogin(payload, 37), id: (await digest(bytes)).slice(0, 16) };
+    fields = { role, cardId: await cardId(device), device, day: new DataView(payload.buffer, payload.byteOffset).getUint16(35), login: readLogin(payload, 37, loginEnd), id: (await digest(bytes)).slice(0, 16) };
+    if (bytes[0] === 3) fields.program = readProgram(payload, loginEnd);
   } else if (kind === 'RYX') {
     requireThat(payload.length === 12, 'Invalid revocation length');
     fields = { id: hex(payload.subarray(2, 10)), day: new DataView(payload.buffer, payload.byteOffset).getUint16(10) };
@@ -111,7 +122,7 @@ export async function verifyCode(kind, text, env = {}) {
     requireThat(payload.length >= 40, 'Invalid approval length');
     fields = { sha: hex(payload.subarray(2, 34)), approvedAt: new DataView(payload.buffer, payload.byteOffset).getUint32(34), login: readLogin(payload, 38) };
   }
-  requireThat(await verifySignature(key, signature, domains[kind], payload), 'Invalid signature');
+  requireThat(await verifySignature(key, signature, kind === 'RYB' ? badgeDomains[bytes[0]] : domains[kind], payload), 'Invalid signature');
   return { kind, code: encodeCode(kind, bytes), issuer, ...fields };
 }
 // each built-in card style belongs to GitHub logins (lowercase): a style is one badge holder's own

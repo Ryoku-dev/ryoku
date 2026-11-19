@@ -4,6 +4,7 @@ import (
 	"gioui.org/layout"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
 
 	"ryoku-rashin/internal/app/env"
@@ -19,21 +20,41 @@ func (ed *editor) layoutForm(gtx layout.Context, e *env.Env, snapshot state.Snap
 	ed.title.Label, ed.title.Placeholder = i18n.T("Title"), i18n.T("Morning review")
 	ed.brief.Lines, ed.brief.Label = 4, i18n.T("What to do")
 	ed.brief.Placeholder = i18n.T("Review the pull requests opened since the last run and tell me which need me.")
+	ed.brief.Help = ""
+	if e.Feature("schedules") {
+		switch ed.kindValue {
+		case protocol.RoutineAsk:
+			ed.brief.Label = i18n.T("Question")
+			ed.brief.Placeholder = i18n.T("What should Rashin answer each time?")
+			ed.brief.Help = i18n.T("Each run opens a new Ask conversation and tells you when it is ready.")
+		case protocol.RoutineDream:
+			ed.brief.Label = i18n.T("Dream statement")
+			ed.brief.Placeholder = i18n.T("What should the manager work on each time?")
+			ed.brief.Help = i18n.T("Each run starts a separate dream. Its manager asks you about the task first.")
+		}
+	}
 	rows := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return ed.title.Layout(gtx, th.Theme) },
-		func(gtx layout.Context) layout.Dimensions { return ed.layoutTeam(gtx, e, snapshot) },
-		func(gtx layout.Context) layout.Dimensions { return ed.layoutMember(gtx, e, snapshot) },
+	}
+	if e.Feature("schedules") {
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.layoutKind(gtx, e, snapshot) })
+	}
+	rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.layoutTeam(gtx, e, snapshot) })
+	if ed.kindValue == protocol.RoutineTask || !e.Feature("schedules") {
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.layoutMember(gtx, e, snapshot) })
+	}
+	rows = append(rows,
 		func(gtx layout.Context) layout.Dimensions { return ed.brief.Layout(gtx, th) },
 		func(gtx layout.Context) layout.Dimensions { return ed.when.layout(gtx, e) },
 		func(gtx layout.Context) layout.Dimensions { return ed.layoutMore(gtx, e) },
 		func(gtx layout.Context) layout.Dimensions { return ed.layoutOn(gtx, e, snapshot, routine) },
-	}
+	)
 	if ed.creating {
 		ed.runNow.Label = i18n.T("Run it once now to see what it does")
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.runNow.Layout(gtx, th.Theme) })
 	}
 	if ed.problem != "" {
-		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Amber, ed.problem))
+		rows = append(rows, look.Paragraph(th, th.T.Caption, th.R.Jasper, ed.problem))
 	}
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions { return ed.layoutFoot(gtx, e, snapshot) })
 	children := make([]layout.FlexChild, 0, 2*len(rows))
@@ -49,6 +70,15 @@ func (ed *editor) layoutForm(gtx layout.Context, e *env.Env, snapshot state.Snap
 // a routine stays with its team, so only a new one picks it
 func (ed *editor) layoutTeam(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
 	th := e.Theme
+	if ed.kindValue != protocol.RoutineTask && e.Feature("schedules") {
+		if ed.creating {
+			ed.teamID, ed.memberID = protocol.RoutinePersonal, ""
+		}
+		if !ed.creating && ed.teamID != protocol.RoutinePersonal {
+			return look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.Tf("Runs for %s in a separate conversation", teamsui.TeamName(snapshot.Teams, ed.teamID)))(gtx)
+		}
+		return look.Paragraph(th, th.T.Caption, th.R.Fg2, i18n.T("Personal routine, no team needed"))(gtx)
+	}
 	if len(snapshot.Teams) == 0 {
 		return look.Paragraph(th, th.T.Body, th.R.Fg2, i18n.T("A routine belongs to a team, so start one first."))(gtx)
 	}
@@ -164,7 +194,7 @@ func (ed *editor) layoutOn(gtx layout.Context, e *env.Env, snapshot state.Snapsh
 		return ed.enable.Layout(gtx, e, routine, i18n.T("On"))
 	}
 	if full && (ed.creating || !routine.Enabled) {
-		note = th.R.Amber
+		note = th.R.Stone(palette.Attention)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(toggle),
@@ -207,6 +237,52 @@ func (ed *editor) layoutFoot(gtx layout.Context, e *env.Env, snapshot state.Snap
 				gtx = gtx.Disabled()
 			}
 			return ed.discard.Layout(gtx, th.Theme)
+		}),
+	)
+}
+
+func (ed *editor) layoutKind(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
+	th := e.Theme
+	ed.kind.Label = i18n.T("Run")
+	values := []string{protocol.RoutineTask, protocol.RoutineDream, protocol.RoutineAsk}
+	options := []look.SelectOption{
+		{Label: i18n.T("Team task"), Disabled: len(snapshot.Teams) == 0 || (!ed.creating && ed.teamID == protocol.RoutinePersonal)},
+		{Label: i18n.T("Dream")},
+		{Label: i18n.T("Question")},
+	}
+	selected := 0
+	for index, value := range values {
+		if ed.kindValue == value {
+			selected = index
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			dimensions := ed.kind.LayoutOptions(gtx, th, e.Overlays, options, selected)
+			if index, changed := ed.kind.Changed(); changed && index < len(values) {
+				ed.kindValue, ed.presetValue = values[index], ""
+			}
+			return dimensions
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if ed.kindValue != protocol.RoutineDream || !e.Feature("research") {
+				return layout.Dimensions{}
+			}
+			ed.preset.Label = i18n.T("Dream preset")
+			selected := 0
+			if ed.presetValue == "research" {
+				selected = 1
+			}
+			return layout.Inset{Top: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				dimensions := ed.preset.Layout(gtx, th, e.Overlays, []string{i18n.T("Make something"), i18n.T("Deep research")}, selected)
+				if index, changed := ed.preset.Changed(); changed {
+					ed.presetValue = ""
+					if index == 1 {
+						ed.presetValue = "research"
+					}
+				}
+				return dimensions
+			})
 		}),
 	)
 }

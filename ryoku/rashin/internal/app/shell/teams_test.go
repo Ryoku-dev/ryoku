@@ -4,6 +4,9 @@ import (
 	"image"
 	"testing"
 
+	"gioui.org/f32"
+	"gioui.org/io/pointer"
+
 	"ryoku-rashin/internal/app/env"
 	"ryoku-rashin/internal/protocol"
 )
@@ -67,5 +70,37 @@ func TestTheModeSwitchGoesBothWays(t *testing.T) {
 	}
 	if _, ok := stage.named("Routines"); ok {
 		t.Error("Rashin mode still shows Teams' Routines")
+	}
+}
+
+func TestTeamSettingsUseModelsWithoutSeparateSignIn(t *testing.T) {
+	stage := newStage(t, image.Pt(1440, 1200))
+	stage.open("teams/team-research/settings")
+	want := map[string]bool{
+		"Identity": true, "Crew and models": true, "Set every member's model": true,
+		"Tools and access": true, "Permissions": true, "Budget and limits": true,
+		"Notifications": true, "Memory": true, "Skills": true,
+	}
+	at := f32.Pt(1100, 600)
+	for range 24 {
+		for name := range want {
+			if _, ok := stage.named(name); ok {
+				delete(want, name)
+			}
+		}
+		if _, ok := stage.named("Sign-in for Teams"); ok {
+			t.Fatal("the native team's settings still ask for a harness sign-in")
+		}
+		if len(want) == 0 {
+			return
+		}
+		stage.queue(
+			pointer.Event{Kind: pointer.Move, Position: at},
+			pointer.Event{Kind: pointer.Scroll, Position: at, Scroll: f32.Pt(0, 320)},
+		)
+		stage.settle()
+	}
+	for name := range want {
+		t.Errorf("the team settings lack %q", name)
 	}
 }

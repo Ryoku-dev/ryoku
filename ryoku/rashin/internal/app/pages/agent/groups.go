@@ -137,15 +137,6 @@ func projectName(snapshot state.Snapshot, id string) string {
 	return ""
 }
 
-func harnessName(snapshot state.Snapshot, id string) string {
-	for _, harness := range snapshot.Harnesses {
-		if harness.ID == id {
-			return harness.Name
-		}
-	}
-	return id
-}
-
 func sessionFolder(info protocol.SessionInfo) string {
 	if info.Worktree != "" {
 		return info.Worktree

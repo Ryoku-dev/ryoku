@@ -100,10 +100,12 @@ QML_ROOT = os.path.join(REPO, "ryoku")
 # route through Lithic.tr to I18n.tr
 LITHIC_QML_ROOT = os.path.join(REPO, "docs", "lithic", "library", "qml", "Lithic")
 HUB_ROOT = os.path.join(REPO, "ryoku", "hub", "quickshell")
+KIT_COMMANDS_ROOT = os.path.join(REPO, "ryoku", "shell", "quickshell", "shell",
+                             "modules", "kit", "sections", "commands", "catalog")
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
-             "ryoku/shell/ipc", "ryoku/hub/backend", "ryoku/apps/ryostore/backend",
-             "ryoku/rashin")]
+             "ryoku/shell/ipc", "ryoku/shell/ryoget", "ryoku/hub/backend",
+             "ryoku/apps/ryostore/backend", "ryoku/rashin")]
 SH_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/backend", "ryoku-shell-installer")]
 
@@ -236,6 +238,24 @@ def _scan_qml(keys, root_dir, include_model_fields=False):
                         keys.add(s)
 
 
+def _scan_command_catalogue(keys, root_dir):
+    for name in sorted(os.listdir(root_dir)) if os.path.isdir(root_dir) else []:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(root_dir, name), encoding="utf-8") as source:
+            data = json.load(source)
+        for command in data.get("commands", []):
+            for field in ("title", "description"):
+                value = command.get(field)
+                if isinstance(value, str) and value.strip():
+                    keys.add(value.strip())
+        for library in data.get("libraries", []):
+            for row in [library] + library.get("groups", []):
+                value = row.get("label")
+                if isinstance(value, str) and value.strip():
+                    keys.add(value.strip())
+
+
 def _scan_hub_data(keys, hub_root):
     # keywords stay English: search matches them beside the translated titles
     for sub in ("registry", "schema"):
@@ -323,6 +343,7 @@ def extract_keys(store_root=None):
     for root in _catalogue_qml_roots(store_root):
         _scan_qml(keys, root, include_model_fields=True)
     _scan_hub_data(keys, HUB_ROOT)
+    _scan_command_catalogue(keys, KIT_COMMANDS_ROOT)
     pages = os.path.join(HUB_ROOT, "pages")
     if os.path.isdir(pages):
         for f in os.listdir(pages):

@@ -7,24 +7,22 @@ import (
 	"time"
 
 	"ryoku-rashin/internal/brief"
+	"ryoku-rashin/internal/core"
+	"ryoku-rashin/internal/engine"
 	"ryoku-rashin/internal/paths"
 	"ryoku-rashin/internal/protocol"
 )
 
-// agentBrief is what an agent session is told ahead of its first prompt:
-// Ryoku, the vault, Rashin, the session's own place, the code search over
-// its folder, for a team task its team and, for any other session, what
-// Rashin remembers that it may use and the built-in skills. A team task's
-// agent is told what its sandbox lets it reach in place of the vault it
-// cannot see, and offered only an index it may read. The search is named
-// whenever the folder can be indexed, even while indexSession is still
-// registering it: the commands wait for the index themselves, and a session
-// is only ever briefed once.
+// agentBrief is the session part of an agent's system prompt: the folder it
+// works in, its project, the code search over the folder, its screen and, for
+// a team task, its team and what its sandbox lets it change. A team task is
+// offered only an index it may read. The search is named whenever the folder
+// can be indexed, even while indexSession is still registering it: the tools
+// wait for the index themselves, and the brief is built once per session.
 func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	tools := len(d.agentTools(info)) > 0
-	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Tools: tools, Screen: tools && d.screenFor(info)}
+	session := brief.Session{Info: info, Semantic: d.Settings().Index.Semantic, Screen: d.screenFor(info)}
 	var roots []string
 	if info.Team != "" {
 		roots = d.agentIndexRoots(info)
@@ -33,11 +31,6 @@ func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 	if d.deps.Teams != nil {
 		session.Team = d.deps.Teams.Brief(info)
 	}
-	// a team task hears what its team remembers through the team's brief
-	if d.deps.Memory != nil && info.Team == "" {
-		session.Memory = d.deps.Memory.Brief(info)
-	}
-	session.Skills = d.skillsBrief(info, tools)
 	if d.deps.Work != nil && info.Project != "" {
 		for _, project := range d.deps.Work.Projects(ctx) {
 			if project.ID == info.Project {
@@ -54,6 +47,43 @@ func (d *Daemon) agentBrief(info protocol.SessionInfo) string {
 		}
 	}
 	return brief.Agent(session)
+}
+
+// memoryBudget caps the memory block in bytes: small models get the facts
+// that matter most and keep their window for the work.
+const (
+	memoryBudget        = 8000
+	memoryBudgetCompact = 1500
+)
+
+// memoryContext puts what Rashin remembers into an Agent session's system
+// prompt. An Ask recalls per question in the engine instead, and a team task
+// hears what its team remembers through the team's brief.
+type memoryContext struct{ memory core.Memory }
+
+// MemoryContext is the memory block provider for engine.Deps.Context, last
+// in its order; nil memory gives nil.
+func MemoryContext(memory core.Memory) engine.ContextProvider {
+	if memory == nil {
+		return nil
+	}
+	return memoryContext{memory: memory}
+}
+
+func (c memoryContext) Blocks(_ context.Context, tc engine.TurnContext) []engine.Block {
+	info := tc.Session
+	if info.Kind != protocol.KindAgent || info.Team != "" {
+		return nil
+	}
+	text := c.memory.Brief(info)
+	if text == "" {
+		return nil
+	}
+	budget := memoryBudget
+	if tc.Profile.Compact() {
+		budget = memoryBudgetCompact
+	}
+	return []engine.Block{{Name: engine.BlockMemory, Text: text, Budget: budget}}
 }
 
 // indexSession makes sure the folder an agent session works in is indexed and

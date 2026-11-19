@@ -27,9 +27,9 @@ const (
 	screenWatch = 20 * time.Second
 )
 
-// agentWait bounds an agent's call that waits on the user: harnesses give up
-// on a tool call after half a minute or so, so the call returns before that
-// and the agent calls again, while what it waits on stays up
+// agentWait bounds an agent's call that waits on the user, so a turn the
+// user walked away from still ends its tool call and the agent can say what
+// it waits on; what it waits on stays up and its next call goes on waiting.
 var agentWait = 20 * time.Second
 
 // screenManager keeps one screen per Agent session that asked for one. A
@@ -436,7 +436,7 @@ func (m *screenManager) control(ctx context.Context, p protocol.ScreenControlPar
 
 // askUser has the agent ask the user to do something on its screen and waits
 // for them to hand it back, up to agentWait. The ask stays up past that, and
-// the agent's next action goes on waiting for them; a call the harness
+// the agent's next action goes on waiting for them; a call the engine
 // cancels takes it back.
 func (m *screenManager) askUser(ctx context.Context, p protocol.ScreenControlParams) (protocol.ScreenState, error) {
 	reason := strings.TrimSpace(p.Reason)
