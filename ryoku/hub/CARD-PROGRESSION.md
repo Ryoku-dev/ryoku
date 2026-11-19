@@ -1,119 +1,121 @@
-# Hyperion profile progression and canvas
+# Ryoku Profile Progression v4
 
-This feature is a Ryoku-wide **local** identity and achievement system. It is
-not owned by hardware cards, not dependent on hardware rarity, and not an
-online trading economy. Neuro's TCG is deliberately unaffected.
+Ryoku's profile, achievements, and Points Shop are global to Ryoku, not tied
+to a hardware card. None of these rewards changes card scoring or Neuro's TCG.
 
-## Experience
+## Entry points and interface
 
-Open Ryoku Settings **Home** and use the first two profile actions before
-Binder: **Achievements** and **Points Shop**. These are separate destinations
-and do not appear in the Accounts navigation tree.
+Home includes **Achievements** and **Points Shop** before Binder.
+Achievements are organised into Ryoku, Profile, Card Studio, Collection,
+Mastery and Classified. The latter shows only *discovered* achievements.
+The header reports the true completed/total catalogue, including hidden
+requirements, so 100% cannot appear before completion.
 
-### Achievement Book
+The user can feature any claimed badge using Customise > Layout > Featured
+badge. A claimed badge becomes an engraved seal sticker. Decorative shop
+stickers are genuine Ryoku art, not copies of achievement badges.
 
-- Horizontally organised categories: Ryoku, Profile, Card Studio, Collection,
-  Mastery and Classified.
-- Each category has its own folio of achievements and reward seals.
-- 41 achievements use seven colour-coded rarities: common, uncommon, rare,
-  epic, legendary, mythic and holographic. Each QML-drawn seal uses engraved
-  radial lettering, concentric rims, a category sigil and technical ticks.
-- Four classified achievements stay absent from the standard album until
-  discovered. The final seal remains completely hidden until **all other**
-  achievements, including other classified achievements, are completed.
-- Holographic rewards get a motion-sensitive, iridescent finish. The renderer
-  is procedural QML, not a generic PNG icon pack.
-- Completion unlocks a **Claim** action. It does not immediately issue credits.
-- Claiming issues one-time credits and a collectible badge sticker.
-- Previously earned v1/v2 achievements are migrated as *claimed*, preserving
-  their existing rewards and unlocks.
-- A claimed achievement badge can be featured on Home or placed as a sticker.
-  To choose one, open **Customise > Layout > Featured badge** or click the
-  current badge on Home. The selection gallery lists only claimed badges.
-  Claimed achievements also have a **Feature** action in the archive.
+All shop assets are owned locally and never give competitive advantages.
+Customise > Layout > Decorate allows drag, resize and rotation with the
+profile text above decorative elements.
 
-### Points Shop
+## Rebalanced v4 achievements
 
-Points Shop has its own Home entry and standalone page. It is not a tab
-inside Achievements.
-
-- Purchasable backgrounds cover **the entire Home canvas**, not the trading card.
-- A custom local picture may be chosen with Ryoku's existing image chooser. The
-  picture remains at its original location. Moving or removing the source file
-  will break its display. Only local image URLs are accepted.
-- Achievement badges retain their engraved circular seals. Shop stickers use
-  **ten original SVG illustrations** in `assets/stickers/`, including a stone
-  bust, lunar diagram, calligraphy sheet, archive clearance paper, floral
-  sculpture and distinct flame and astronomical designs. These are not badge
-  recolours.
-- Stickers may be earned badges or decorative shop items. Up to 24 may be placed
-  at once, with independently saved position, rotation and size.
-- **Customise > Layout > Decorate profile** starts the canvas editor and
-  returns to Home. The top-right action changes to **Finish** until editing
-  is complete. Select any placed asset and drag its corner handle to resize
-  directly on the profile, or scroll over it to scale in 14-pixel steps.
-  The size range is 36 to 300 pixels. The shop also has size and rotation
-  controls for every placed decoration.
-- Home's identity text and controls explicitly sit above the sticker layer,
-  regardless of sticker placement or user rotation. The featured badge also
-  uses the archive seal renderer.
-- Fonts are separate unlocks, individually assigned to display name, hostname
-  and tagline. The font choices use installed font families and safely fall
-  back when a family is unavailable.
-- The existing Card Studio still handles the displayed profile name and words,
-  as well as the hardware card. A shortcut in the Workshop goes to those controls.
-- Card palettes remain cosmetic and do not change rarity or TCG attributes.
-
-## One-time local economy
-
-| Achievement group | Count | Maximum credits |
+| Collection | Achievements | Total award potential |
 | --- | ---: | ---: |
-| Ryoku | 7 | 810 |
-| Profile | 10 | 1240 |
-| Card Studio | 9 | 1010 |
-| Collection | 10 | 1250 |
-| Mastery | 1 | 230 |
-| Classified | 4 | 1100 |
-| **Total** | **41** | **5640** |
+| Ryoku | 11 | 4920 |
+| Profile | 14 | 2690 |
+| Card Studio | 11 | 1580 |
+| Collection | 15 | 3060 |
+| Mastery | 6 | 2000 |
+| Classified | 15 | 4720 |
+| **Total** | **72** | **18970** |
 
-| Shop category | Count | Total cost |
+Four new Legendary Mastery awards cover Ryoku, Profile, Card Studio and
+Collection individually. **Living Archive** is the new Holographic overall
+Mastery badge. The classified **Final Seal** is reserved for completion
+of every other achievement, including the hidden ones.
+
+The original alpha achievement cohort remains independently eligible for
+**First Archive** and **First Seal**. Both keep their previous rewards
+(230 and 420 credits respectively). This is deliberate: people who legitimately completed v3
+retain those badges, but they do not receive the new v4 100% automatically.
+
+The new milestones demand distinct achievements, page categories and unique
+sticker designs, rather than copies of one sticker. Long-term achievements
+track *different local calendar days*. Important milestones require seven,
+fourteen and thirty days. Opening Settings 100 times in a day still counts
+as **one day**. Visiting the Points Shop and changing the profile are tracked
+as separate once-per-day activities. No background polling is needed.
+
+A user can earn an achievement once, **claim** it once and spend its credits
+once. Hidden achievements only enter the book when genuinely discovered.
+The local save is user-owned, not anti-cheat-secure, and no online rewards
+or achievements can be trusted from this file alone.
+
+## Original Ryoku artwork
+
+Shop stickers reuse ten real images from upstream
+`ryoku/assets/ryodecors/`, copied into the self-contained Hub asset directory.
+The old synthetic SVG pack has been removed. The profile backgrounds are
+illustrated from the same original high-quality image assets, with curated
+Lithic treatments rather than generic icons and geometry-only previews.
+
+| Shop group | Items | Total catalogue cost |
 | --- | ---: | ---: |
-| Card palettes | 3 | 600 |
-| Engraved sticker relics | 10 | 985 |
-| Canvas backgrounds | 7 | 960 |
-| Fonts | 6 | 590 |
-| **Total** | **26** | **3135** |
+| Card palettes | 3 | 1290 |
+| Original Ryoku art stickers | 10 | 2118 |
+| Full-profile illustrated backgrounds | 13 | 6686 |
+| Fonts | 6 | 1269 |
+| **Total** | **32** | **11363** |
 
-Completing and claiming all achievements provides enough credits to collect
-every launch cosmetic, leaving a surplus of 2505 credits for future catalogues.
-This is a long-term maximum, not an up-front grant. Certain purchases and
-creative acts are required for later achievements and secret combinations.
-Each reward and purchase can occur only once. No daily farming or repeatable
-currency is available.
+Prices are higher for newly purchased items. New time-gated rewards ensure
+the shop can ultimately be collected without repeatable farming. Purchasing
+every item is **not expected in the first session**.
 
-This is intentionally a local, user-owned reward system. Editing progress data
-is possible and expected for a user's own machine. Neither coins nor badges
-should be trusted as online entitlements or multiplayer proofs. There are no
-paid boosts, hardware-stat advantages, loot boxes, or background pollers.
+## Wallet compatibility
 
-## State
+The save is at `$XDG_DATA_HOME/ryoku/progression.json` (typically
+`~/.local/share/ryoku/progression.json`).
 
-Version 3 state resides at
-`$XDG_DATA_HOME/ryoku/progression.json`
-(or `~/.local/share/ryoku/progression.json`).
+Version 4 adds purchase receipts, unique-day counters, histories of real
+background/featured badge choices, and a maximum sticker count.
+Previously earned and claimed achievements and owned items are preserved.
+For each pre-v4 owned item, the migration records its **original paid price**.
+Changing the current shop price does *not* deduct extra credits from an
+existing purchaser's wallet.
 
-The model stores:
-- an internal secret-signal interaction counter
-- earned, claimed and visited milestones
-- purchased cosmetics and the active card palette
-- one featured badge
-- canvas background, optional local picture URL, fonts and sticker placements
+The balance is always derived from claimed rewards minus each item's recorded
+paid price. Badges, original artwork choices, sticker positions and font
+assignments survive migration. No external service or telemetry is used.
 
-The balance is **always derived** from claimed achievements minus purchased
-cosmetics, never an editable balance field. Claims and purchases are idempotent.
-Unknown IDs, unowned placements, invalid fonts and unsafe image URLs are
-rejected during state normalisation. Old progress files are migrated in memory
-without erasing the previous purchases or claimed rewards.
+## Settings Keepsake
+
+The existing Settings Easter egg is ported from the earlier Ryoku Hub into
+Hyperion. Its original window-local key sequence, story, contributor portraits,
+and escape-to-close behaviour are preserved. It never intercepts typing in
+text fields and is omitted from normal navigation. Revealing it triggers one
+hidden achievement. No bundled soundtrack or extra audio process is launched.
+
+A separate future achievement mentioned by the user has **not** been invented.
+A crash-triggered badge is intentionally deferred until a reliably verified
+unexpected crash event is available. Ordinary restarts must not be mistaken
+for a crash, and users should never be encouraged to crash Ryoku on purpose.
+
+## Validation and rollout
+
+Use:
+
+`node --test ryoku/hub/quickshell/registry/*.test.mjs ryoku/hub/quickshell/KeepsakeSequence.test.mjs`
+
+Parse changed QML with `qmlformat`. The private test session should be
+started with `qs -p <new-hub-directory>` and an isolated `XDG_DATA_HOME`
+to protect actual user purchases and achievement state.
+
+Do not automatically overwrite the user's existing live NixOS Hub or change
+its system generation during development. This branch follows the prior
+feature/hyperion-card-progression work and needs a separate NixOS port and
+package validation before distribution.
 
 ## Card rarity scoring: Steam October 2026
 

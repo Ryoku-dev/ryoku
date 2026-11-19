@@ -97,6 +97,7 @@ Column {
             delegate: Item {
                 id: backdrop
                 required property var modelData
+                required property int index
                 readonly property bool owned: Progression.data.owned[modelData.id] === true
                 readonly property bool active: Progression.canvas.background === modelData.id
                 readonly property color tint: modelData.id === "bg-blueprint" ? "#7395bc" :
@@ -147,22 +148,24 @@ Column {
                             opacity: 0.13
                         }
                     }
-                    Glyph {
-                        x: backdrop.width - 112
-                        y: 12
-                        name: backdrop.modelData.id === "bg-blueprint" ? "architecture" :
-                            backdrop.modelData.id === "bg-ember" ? "flare" : "grid_4x4"
-                        size: 92
-                        ink: backdrop.tint
-                        opacity: 0.25
-                    }
+
+                }
+                Image {
+                    width: parent.width * 0.94
+                    height: 150
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 1
+                    asynchronous: true
+                    fillMode: Image.PreserveAspectFit
+                    opacity: 0.84
+                    source: backdrop.modelData.art ? Qt.resolvedUrl("../../assets/" + backdrop.modelData.art) : ""
                 }
                 Column {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 5
                     Label {
-                        text: "CANVAS / 0" + (root.ownedBackgrounds.indexOf(backdrop.modelData) + 1)
+                        text: "SCENE / " + String(backdrop.index + 1).padStart(2, "0")
                         typeRole: "monoSm"
                         ink: backdrop.tint
                     }

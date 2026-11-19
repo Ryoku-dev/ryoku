@@ -463,6 +463,8 @@ Item {
                 anchors.fill: parent
                 readonly property string chosen: Progression.canvas.background || ""
                 readonly property string customImage: Progression.canvas.image || ""
+                readonly property var collection: Progression.cosmetics.find(c => c.id === chosen)
+                readonly property string galleryArt: collection && collection.art ? collection.art : ""
                 visible: chosen !== "" || customImage !== ""
                 Image {
                     anchors.fill: parent
@@ -483,6 +485,19 @@ Item {
                            profileBackground.chosen === "bg-obsidian" ? "#11171b" :
                            profileBackground.chosen === "bg-sutra" ? "#1f2225" :
                            profileBackground.chosen === "bg-signal" ? "#121b22" : "#1b1d23"
+                }
+                Image {
+                    visible: profileBackground.customImage === "" && profileBackground.galleryArt !== ""
+                    source: profileBackground.galleryArt !== "" ?
+                        Qt.resolvedUrl("../assets/" + profileBackground.galleryArt) : ""
+                    asynchronous: true
+                    fillMode: Image.PreserveAspectFit
+                    anchors.centerIn: parent
+                    width: parent.width * 0.83
+                    height: parent.height * 0.90
+                    sourceSize.width: Math.min(1250, Math.round(width))
+                    sourceSize.height: Math.min(900, Math.round(height))
+                    opacity: 0.31
                 }
                 Repeater {
                     model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.width / 62)

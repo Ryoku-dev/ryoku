@@ -15,6 +15,8 @@ Singleton {
     property bool directoryReady: false
     property string error: ""
     property var pending: []
+    property string pendingSessionAt: ""
+    property bool pendingKeepsake: false
     property bool editMode: false
     property string selectedSticker: ""
     readonly property int balance: data.balance || 0
@@ -24,6 +26,7 @@ Singleton {
     readonly property var rarityColours: Model.rarityColours
     readonly property int discoveredSecrets: Model.secretCount(root.data)
     function visibleBadges(category) { return Model.visibleAchievements(root.data, category); }
+    function progressFor(id) { return Model.progress(root.data, id); }
     readonly property var stickers: Model.availableStickers(root.data)
     readonly property var canvas: data.canvas || ({ background: "", fonts: {}, stickers: [] })
     readonly property var activePalette: Model.palette(root.data)
@@ -76,6 +79,36 @@ Singleton {
         root.pending = [];
         for (var i = 0; i < queued.length; i++)
             root.award(queued[i]);
+        if (root.pendingSessionAt !== "") {
+            var at = root.pendingSessionAt;
+            root.pendingSessionAt = "";
+            root.openedHub(at);
+        }
+        if (root.pendingKeepsake) {
+            root.pendingKeepsake = false;
+            root.recordKeepsake();
+        }
+    }
+
+    function openedHub(at) {
+        var today = at || new Date().toISOString();
+        if (!root.ready) {
+            root.pendingSessionAt = today;
+            return;
+        }
+        if (root.error !== "") return;
+        var result = Model.startDay(root.data, today);
+        if (result.changed) root.save(result.state);
+    }
+
+    function recordKeepsake() {
+        if (!root.ready) {
+            root.pendingKeepsake = true;
+            return;
+        }
+        if (root.error !== "") return;
+        var result = Model.keepsake(root.data);
+        if (result.changed) root.save(result.state);
     }
 
     function save(state) {
