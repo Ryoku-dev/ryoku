@@ -98,7 +98,7 @@ PanelWindow {
 
     // Only cards that can resize carry limits; the rest keep their drawn size.
     readonly property var cardLimits: ({
-        voice: { minW: 300, minH: 280, maxW: 640, maxH: 640 },
+        voice: { minW: 280, minH: 240, maxW: 1100, maxH: 640 },
         media: { minW: 300, minH: 200, maxW: 640, maxH: 560 },
         audio: { minW: 300, minH: 240, maxW: 640, maxH: 640 }
     })
@@ -112,7 +112,23 @@ PanelWindow {
     }
 
     function limitsFor(id) {
-        return win.cardLimits[id] || { minW: 220, minH: 160, maxW: 800, maxH: 700 };
+        const base = win.cardLimits[id] || { minW: 220, minH: 160, maxW: 800, maxH: 700 };
+        if (id !== "voice")
+            return base;
+        // A horizontal card can spread across the output. A vertical stack
+        // only needs one column, so cap it at the avatar plus the widest name
+        // the current settings can draw, with padding and spacing.
+        var wanted = base.maxW;
+        if (win.cfg.voiceVertical !== false) {
+            const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
+            const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+            const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+            const cell = VoiceLayout.cell(avatar, true, win.voiceNameSide(), gap, chars);
+            wanted = cell + 32 + 4;
+        }
+        const screenW = Math.floor((win.width - win.sidePad * 2) / win.us);
+        return { minW: base.minW, minH: base.minH, maxH: base.maxH,
+            maxW: Math.max(base.minW, Math.min(wanted, screenW)) };
     }
 
     function minimalCard(id) {
@@ -123,26 +139,111 @@ PanelWindow {
         return false;
     }
 
+    // Must match VoiceCard.namePosition: horizontal always uses Below, and a
+    // side name on the same side as the alignment is mirrored to the other.
+    // The name always sits opposite the aligned avatars. Horizontal draws
+    // names below internally, where alignment is always centered.
+    function voiceNameSide() {
+        if (win.cfg.voiceVertical === false)
+            return "below";
+        return (win.cfg.voiceAlign || "left") === "right" ? "left" : "right";
+    }
+
+    // How many avatars fit below the strip. Each surface has its own avatar
+    // size, chrome and row spacing, so the cap is calculated per surface.
+    function voiceAvatarLimit(avatar, chrome, spacing, cols) {
+        const want = Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8));
+        const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+        const rowH = VoiceLayout.rowHeight(avatar, true, win.voiceNameSide(), gap);
+        const available = Math.max(rowH, (win.height - win.topPad - win.gap * 2) / win.us);
+        return Math.max(1, Math.min(want, cols * VoiceLayout.maxRows(chrome, rowH, spacing, available)));
+    }
+
+    // While a card is being resized the live width is the one it actually has.
+    // The content floor follows that width, so the avatar limits must too.
+    function voiceLimitWidth() {
+        return (win.resizeCard === "voice" ? win.liveW : win.fullSizeFor("voice").w) / win.us;
+    }
+
+    function voiceOpenAvatarLimit(width) {
+        const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
+        const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+        const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+        const cell = VoiceLayout.cell(avatar, true, win.voiceNameSide(), gap, chars);
+        const stageW = Math.max(0, width - 32);
+        const cols = win.cfg.voiceVertical === false
+            ? Math.max(1, Math.min(8, Math.floor((stageW + 4) / (cell + 4)))) : 1;
+        return win.voiceAvatarLimit(avatar, 46 + 56 + 8 + 4 + 56 + 24, 4, cols);
+    }
+
+    function voicePinnedAvatarLimit(width) {
+        const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
+        const names = win.cfg.voiceNames !== false;
+        const vertical = win.cfg.voiceVertical !== false;
+        const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+        const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+        const cols = VoiceLayout.columns(width, Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8)),
+            avatar, names, vertical, win.voiceNameSide(), gap, chars);
+        return win.voiceAvatarLimit(avatar, VoiceLayout.PAD * 2 + VoiceLayout.HEADER + VoiceLayout.GAP,
+            VoiceLayout.SPACE, cols);
+    }
+
     // A pinned minimal card shrinks to what it draws, so it can meet a screen
     // edge instead of stopping where the full card would.
     function compactSizeFor(id) {
         if (!win.minimalCard(id))
             return null;
         const avatars = Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8));
-        const count = Math.min(avatars, DiscordVoice.participantCount);
+        const fullWidth = win.voiceLimitWidth();
+        const count = Math.min(avatars, DiscordVoice.participantCount,
+            win.voicePinnedAvatarLimit(fullWidth));
         const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
         const names = win.cfg.voiceNames !== false;
-        return VoiceLayout.size(win.fullSizeFor(id).w / win.us, count, avatar, names);
+        const vertical = win.cfg.voiceVertical !== false;
+        const namePosition = win.voiceNameSide();
+        const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+        const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+        return VoiceLayout.size(fullWidth, count, avatar, names, vertical, namePosition, gap, chars);
+    }
+
+    // The smallest size the open Voice card can take without its contents
+    // touching. Both the saved size and a live resize are floored by this.
+    function voiceContentSize(width) {
+        const count = Math.min(Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8)),
+            DiscordVoice.participantCount, win.voiceOpenAvatarLimit(width));
+        const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
+        const pos = win.voiceNameSide();
+        const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
+        const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
+        const cell = VoiceLayout.cell(avatar, true, pos, gap, chars);
+        const stageW = Math.max(0, width - 32);
+        const cols = win.cfg.voiceVertical !== false ? 1
+            : Math.max(1, Math.min(8, Math.floor((stageW + 4) / (cell + 4))));
+        const rows = Math.ceil(count / cols);
+        const gridH = rows * VoiceLayout.rowHeight(avatar, true, pos, gap) + (rows - 1) * 4;
+        return {
+            // Card padding plus one avatar spacing on each side.
+            w: Math.max(280, cols * cell + (cols - 1) * 4 + 32 + 4),
+            // title area + header + stage margins + grid + footer + bottom pad
+            h: Math.max(240, 46 + 56 + 8 + gridH + 4 + 56 + 24)
+        };
     }
 
     function fullSizeFor(id) {
         const e = win.cardSizes[id] || { w: 320, h: 300 };
         const saved = GameBarStore.sizeFor(id);
         const lim = win.limitsFor(id);
-        const w = Math.max(lim.minW, Math.min(lim.maxW,
+        let w = Math.max(lim.minW, Math.min(lim.maxW,
             saved && typeof saved.w === "number" ? saved.w : e.w));
-        const h = Math.max(lim.minH, Math.min(lim.maxH,
+        let h = Math.max(lim.minH, Math.min(lim.maxH,
             saved && typeof saved.h === "number" ? saved.h : e.h));
+        if (id === "voice") {
+            const floor = win.voiceContentSize(w);
+            w = Math.max(w, Math.min(Math.max(lim.maxW, floor.w), floor.w));
+            // A full vertical stack needs more height than the old max; never
+            // cap the content floor or the last rows spill out of the card.
+            h = Math.max(h, floor.h);
+        }
         return { w: w * win.us, h: h * win.us };
     }
 
@@ -293,24 +394,10 @@ PanelWindow {
         const saved = GameBarStore.positionFor(id);
         if (!saved || typeof saved.x !== "number" || typeof saved.y !== "number")
             return win.defaultPosFor(id, win.sizeFor(id));
-        const full = win.fullSizeFor(id);
-        const compact = win.sizeFor(id);
-        // A saved spot can belong to a monitor that is gone or resized; clamp
-        // the full frame it was placed on before anchoring the compact panel.
+        // Keep the panel at the card's saved spot. Anchoring it to the card's
+        // edge made it jump sideways when a layout change altered its size.
         const k = typeof saved.us === "number" && saved.us > 0 ? win.us / saved.us : 1;
-        const frame = win.clampTo(full, saved.x * k, saved.y * k);
-        const rightEdge = frame.x + full.w;
-        const bottomEdge = frame.y + full.h;
-        const reach = 120 * win.us;
-        const right = win.width - rightEdge <= reach;
-        const left = frame.x <= reach;
-        const bottom = win.height - bottomEdge <= reach;
-        const top = frame.y <= reach;
-        const x = right ? rightEdge - compact.w
-            : (left ? frame.x : frame.x + (full.w - compact.w) / 2);
-        const y = bottom ? bottomEdge - compact.h
-            : (top ? frame.y : frame.y + (full.h - compact.h) / 2);
-        return win.clampPos(id, x, y);
+        return win.clampPos(id, saved.x * k, saved.y * k);
     }
 
     function positionFor(id) {
@@ -375,10 +462,17 @@ PanelWindow {
         if (win.resizeCard !== id)
             return;
         const lim = win.limitsFor(id);
-        win.liveW = Math.round(Math.max(lim.minW * win.us,
+        let nextW = Math.round(Math.max(lim.minW * win.us,
             Math.min(lim.maxW * win.us, win.resizeFromW + dx)));
-        win.liveH = Math.round(Math.max(lim.minH * win.us,
+        let nextH = Math.round(Math.max(lim.minH * win.us,
             Math.min(lim.maxH * win.us, win.resizeFromH + dy)));
+        if (id === "voice") {
+            const floor = win.voiceContentSize(nextW / win.us);
+            nextW = Math.max(nextW, floor.w * win.us);
+            nextH = Math.max(nextH, floor.h * win.us);
+        }
+        win.liveW = nextW;
+        win.liveH = nextH;
     }
 
     function endResize(id) {
@@ -845,7 +939,9 @@ PanelWindow {
     }
     Component {
         id: voiceComp
-        VoiceCard { s: win.us; host: win; cardId: "voice"; minimalWhenPinned: win.minimalCard("voice") }
+        VoiceCard { s: win.us; host: win; cardId: "voice"; minimalWhenPinned: win.minimalCard("voice")
+            visibleAvatars: win.voiceOpenAvatarLimit(win.voiceLimitWidth())
+            miniVisibleAvatars: win.voicePinnedAvatarLimit(win.voiceLimitWidth()) }
     }
     Component {
         id: audioComp

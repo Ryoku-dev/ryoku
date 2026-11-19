@@ -90,10 +90,18 @@ Item {
 
     function optionIndex() {
         var opts = root.row.options || [];
-        for (var i = 0; i < opts.length; i++)
-            if (JSON.stringify(opts[i].value) === JSON.stringify(root.value))
-                return i;
-        return -1;
+        var wanted = root.value;
+        var hit = opts.findIndex(o => JSON.stringify(o.value) === JSON.stringify(wanted));
+        // A mirrored side is computed from the live value, never baked into the
+        // row: page.layout keeps old row objects when only a value changes.
+        if (hit < 0 && root.row && root.row.mirrorSide) {
+            var alt = wanted === "center" ? "left"
+                : wanted === "left" ? "right"
+                : wanted === "right" ? "left" : undefined;
+            if (alt !== undefined)
+                hit = opts.findIndex(o => JSON.stringify(o.value) === JSON.stringify(alt));
+        }
+        return hit;
     }
 
     function optionLabels() {

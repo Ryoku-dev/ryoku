@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { PAD, HEADER, NAME, SPACE, avatar, cell, columns, size } = require("./layout.js");
+const { PAD, HEADER, NAME, NAME_SIDE, SPACE, avatar, beside, nameWidth, cell, rowHeight, maxRows, columns, size } = require("./layout.js");
 
 test("avatar size is clamped to the setting range", () => {
     assert.equal(avatar(undefined), 52);
@@ -48,4 +48,40 @@ test("names off leaves the avatar cell tighter", () => {
     const named = size(400, 4, 52, true);
     const plain = size(400, 4, 52, false);
     assert.ok(plain.h < named.h);
+});
+
+test("vertical stacks everyone in one column", () => {
+    assert.equal(columns(2000, 8, 52, true, true), 1);
+    const narrow = size(400, 8, 52, true, false);
+    const tall = size(400, 8, 52, true, true);
+    assert.ok(tall.h > narrow.h);
+});
+
+test("a name beside the avatar takes width and drops the name row", () => {
+    assert.equal(beside("left"), true);
+    assert.equal(beside("below"), false);
+    assert.equal(cell(52, true, "left"), 52 + NAME_SIDE);
+    assert.equal(rowHeight(52, true, "below"), 52 + NAME);
+    assert.equal(rowHeight(52, true, "left"), 52);
+    assert.equal(cell(52, true, "left", 6), 52 + NAME_SIDE);
+    assert.equal(cell(52, true, "right", 6), 52 + NAME_SIDE + 6);
+    assert.equal(rowHeight(52, true, "below", 6), 52 + NAME + 6);
+    const below = size(400, 1, 52, true, false, "below");
+    const side = size(400, 1, 52, true, false, "left");
+    assert.ok(side.h < below.h);
+});
+
+test("row budget includes chrome and spacing", () => {
+    // open card at scale 2: 460 logical px available, 194 chrome, 4 spacing
+    assert.equal(maxRows(194, 63, 4, 460), 4);
+    // pinned panel with 72 px avatars: 516 available, 74 chrome, 9 spacing
+    assert.equal(maxRows(74, 89, 9, 516), 4);
+    assert.equal(maxRows(194, 63, 4, 100), 1);
+});
+
+test("a higher character limit widens the name box", () => {
+    assert.equal(nameWidth(8), NAME_SIDE);
+    assert.equal(nameWidth(20), 20 * 6);
+    assert.equal(nameWidth(32), 32 * 6);
+    assert.equal(cell(52, true, "below", 0, 32), 32 * 6);
 });

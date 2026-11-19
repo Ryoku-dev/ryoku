@@ -15,7 +15,8 @@ const daemon = {
     enabled: [true], dim: [0.62, 0, 1], fade: [200, 0, 2000], scale: [1, 0.5, 2],
     snap: [true], snapReach: [9, 0, 64], snapGrid: [24, 4, 128], guideGrid: [true], gridStep: [48, 8, 256],
     gridAlpha: [0.28, 0, 1], spring: [3.2, 0.5, 20], damping: [0.58, 0.05, 1], mass: [1, 0.1, 10],
-    voiceAvatars: [8, 1, 8], voiceDim: [true], voiceDimOpacity: [0.5, 0.2, 1], voiceAvatarSize: [52, 32, 72],
+    voiceAvatars: [8, 1, 8], voiceVertical: [false], voiceAlign: ["center"],
+    voiceNameGap: [1, 0, 16], voiceNameChars: [12, 4, 32], voiceDim: [true], voiceDimOpacity: [0.5, 0.2, 1], voiceAvatarSize: [52, 32, 72],
     voiceNames: [true], voiceControls: [true], voiceBgOpacity: [0.72, 0, 1]
 };
 
@@ -35,6 +36,30 @@ test("one row per gamebar key, with the daemon's default and range", () => {
     assert.equal(new Set(S.rows.map(r => r.id)).size, S.rows.length);
     for (const r of S.rows)
         assert.ok(S.sections.some(s => s.id === r.section), r.id);
+});
+
+test("the voice layout choice offers horizontal and vertical", () => {
+    const row = S.row("voice-vertical");
+    assert.equal(row.label, "Avatar layout");
+    assert.equal(row.control, "segmented");
+    assert.equal(JSON.stringify(row.options.map(o => [o.label, o.value])),
+        JSON.stringify([["Horizontal", false], ["Vertical", true]]));
+
+    const align = S.row("voice-align");
+    assert.equal(align.label, "Avatar alignment");
+    assert.equal(align.control, "segmented");
+    assert.equal(JSON.stringify(align.options.map(o => [o.label, o.value])),
+        JSON.stringify([["Center", "center"], ["Left", "left"], ["Right", "right"]]));
+
+    const gap = S.row("voice-name-gap");
+    assert.equal(gap.control, "stepper");
+    assert.equal(gap.min, 0);
+    assert.equal(gap.max, 16);
+
+    const chars = S.row("voice-name-chars");
+    assert.equal(chars.control, "stepper");
+    assert.equal(chars.min, 4);
+    assert.equal(chars.max, 32);
 });
 
 // a store of the given gamebar values over the defaults
@@ -59,6 +84,36 @@ test("rows wait on the outermost switch that is off", () => {
     const noGuides = shown({ guideGrid: false });
     assert.ok(noGuides.includes("guide-grid") && !noGuides.includes("grid-step") && !noGuides.includes("grid-alpha"));
     assert.ok(!shown({ voiceDim: false }).includes("voice-dim-opacity"));
+});
+
+test("alignment is hidden in a horizontal layout", () => {
+    assert.ok(!shown({ voiceVertical: false }).includes("voice-align"));
+    const vertical = S.adapt(S.rows, store({ voiceVertical: true }));
+    assert.equal(JSON.stringify(vertical.find(r => r.id === "voice-align").options.map(o => o.value)),
+        JSON.stringify(["left", "right"]));
+});
+
+test("the names row follows the avatar layout", () => {
+    const row = vertical => S.adapt(S.rows, store({ voiceVertical: vertical }))
+        .find(r => r.id === "voice-names");
+    assert.equal(row(false).label, "Names under pictures");
+    assert.match(row(false).detail, /under their picture/);
+    assert.equal(row(true).label, "Names beside pictures");
+    assert.match(row(true).detail, /beside their picture/);
+    // adapt must not rewrite the schema row itself
+    assert.equal(S.row("voice-names").label, "Names under pictures");
+});
+
+test("adaptive rows carry no baked value", () => {
+    // Ghost Button: a value frozen into the row goes stale when page.layout
+    // is kept because only the value changed.
+    for (const v of ["center", "left", "right"]) {
+        const rows = S.adapt(S.rows, store({ voiceVertical: true, voiceAlign: v }));
+        for (const r of rows) {
+            assert.equal(r.value, undefined, r.id);
+            assert.equal(r.valueAlias, undefined, r.id);
+        }
+    }
 });
 
 test("a hidden row's condition names the switch a deep link lands on", () => {

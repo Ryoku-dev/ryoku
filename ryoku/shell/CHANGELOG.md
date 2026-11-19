@@ -182,6 +182,17 @@
 - **The volume, mic, brightness and keyboard pop-ups take the shape of the design
   in Style.** Lithic hangs a small tab under the bar, Material an edge slider on
   the right, Adwaita and Fluent a pill near the bottom (`modules/osd/OsdLook.qml`).
+- **The Game Bar's Discord voice widget can stack people vertically.** The new
+  `voiceVertical` setting makes both the open card and the pinned overlay put
+  each participant in one column when turned on; rows stay the default. The
+  `voiceAlign` setting places the avatars at the left or right of both the open
+  card and the pinned overlay, with a stored centre acting as left, and names
+  sit opposite the aligned avatars.
+  `voiceNameGap` sets the space between them,
+  and `voiceNameChars` caps the characters shown before an ellipsis. A tall
+  vertical stack shows only as many people as fit below the strip, so the card
+  never runs off the screen at a large scale
+  (`quickshell/shell/modules/gamebar`, `ipc/settings.go`).
 - **Orpheus notifications resolve themed icon URLs through the shell's icon
   index (#852).** The notification card and the bar notice passed an
   `image://icon/` app icon straight to Qt's icon provider; they now resolve it
