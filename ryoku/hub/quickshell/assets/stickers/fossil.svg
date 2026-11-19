@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-122 142Q-139 77 -85 50L-50 27L-49 -22Q-82 -80 -49 -125Q-16 -160 32 -141L73 -117L77 -65L58 -43L48 8L99 48Q137 80 123 140Z" fill="url(#stone)" stroke="#d7d5cf" stroke-width="5"/>
+<path d="M-76 61Q-29 82 5 52T84 62M-76 92Q-10 124 83 85M-104 120Q2 153 101 121" fill="none" stroke="#6d7475" stroke-width="5" opacity=".75"/>
+<path d="M-43 -104Q-22 -139 28 -124L65 -100L54 -55L31 -32L15 -38L-13 -21L-38 -45Z" fill="#bbbcb7" stroke="#535d61" stroke-width="3"/>
+<path d="M-28 -70Q-7 -83 7 -75M30 -77Q45 -79 54 -71" stroke="#414c53" stroke-width="4" fill="none"/>
+<path d="M-11 -60Q-3 -57 -11 -28L7 -22L19 -25" fill="none" stroke="#515c62" stroke-width="4"/>
+<path d="M-14 -5Q13 4 34 -6" fill="none" stroke="#656b6b" stroke-width="4"/>
+<g fill="none" stroke="#677174" stroke-width="4"><path d="M-48 -117C-103 -152 -100 -78 -68 -71"/><path d="M-32 -135C-58 -176 -19 -181 4 -146"/><path d="M16 -145C37 -184 78 -140 65 -104"/><path d="M-87 -88Q-110 -116 -116 -79"/></g>
+<g fill="#e3e0d8" opacity=".8"><circle cx="-70" cy="73" r="3"/><circle cx="-40" cy="98" r="3"/><circle cx="22" cy="117" r="3"/><circle cx="63" cy="91" r="3"/><circle cx="90" cy="120" r="3"/></g>
+<path d="M-141 -148H-118M-141 -148V-124 M119 -148H142M142 -148V-126 M-141 150H-118M-141 150V130 M119 150H142M142 150V130" stroke="#99a4a5" stroke-width="3" fill="none"/>
+<text x="0" y="168" font-size="10" letter-spacing="7" text-anchor="middle" fill="#c5c4b9">MARMORE / XI</text>
+</svg>

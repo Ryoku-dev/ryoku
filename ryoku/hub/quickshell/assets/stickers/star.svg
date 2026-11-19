@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-142 114 Q-50 60 25 -40" fill="none" stroke="#e1d7a4" stroke-width="7" stroke-linecap="round" opacity=".65"/>
+<path d="M-134 71 Q-60 37 -10 -23M-111 137 Q-54 104 13 26" fill="none" stroke="#b7c6d2" stroke-width="3" stroke-dasharray="12 10"/>
+<path d="M31 -126L51 -35L137 -19L57 13L38 108L9 19L-77 4L8 -22Z" fill="#e7d6a4" stroke="#fff3da" stroke-width="4"/>
+<path d="M31 -84L40 -23L94 -15L47 5L36 62L21 7L-31 0L20 -17Z" fill="#20262d"/>
+<path d="M31 -165v20 M101 -83l18 -17 M-15 116l-18 21 M-84 -70l-12 -10" stroke="#f2dfb1" stroke-width="3"/>
+<circle cx="120" cy="92" r="3" fill="#e7d6a4"/>
+<text x="-92" y="154" font-size="14" letter-spacing="5" fill="#c6bda5">STARFALL</text>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-127 -141L90 -154L132 -110L139 135L-123 148Z" fill="#ded8c7" stroke="#98978f" stroke-width="5"/>
+<path d="M87 -151L89 -102L134 -110" fill="#bab7a9" stroke="#666b6a" stroke-width="2"/>
+<text x="-92" y="-113" font-size="11" font-weight="bold" letter-spacing="5" fill="#444746">RYOKU ARCHIVE</text>
+<path d="M-90 -88H95M-90 -74H73M-90 -63H45" stroke="#5f6466" stroke-width="4" stroke-linecap="square"/>
+<g transform="rotate(-17)">
+<path d="M-134 -28H130V45H-134Z" fill="#a8564a" fill-opacity=".16" stroke="#b35e52" stroke-width="8"/>
+<text x="0" y="17" text-anchor="middle" fill="#a34b41" font-size="33" font-weight="900" letter-spacing="2">CLEARED</text>
+</g>
+<path d="M-91 74H61M-90 86H10M-90 102H40" stroke="#777e7b" stroke-width="3" stroke-dasharray="10 5"/>
+<g fill="#343c42"><rect x="-88" y="116" width="4" height="19"/><rect x="-78" y="116" width="8" height="19"/><rect x="-66" y="116" width="3" height="19"/><rect x="-56" y="116" width="6" height="19"/><rect x="-45" y="116" width="4" height="19"/><rect x="-34" y="116" width="9" height="19"/><rect x="-21" y="116" width="3" height="19"/><rect x="-12" y="116" width="6" height="19"/><rect x="2" y="116" width="5" height="19"/><rect x="13" y="116" width="3" height="19"/><rect x="24" y="116" width="8" height="19"/><rect x="37" y="116" width="4" height="19"/><rect x="51" y="116" width="7" height="19"/></g>
+<text x="112" y="129" font-size="13" text-anchor="middle" fill="#333739">03</text>
+</svg>

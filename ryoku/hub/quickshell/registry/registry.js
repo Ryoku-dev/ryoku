@@ -15,7 +15,7 @@ var categories = [
     { id: "apps", label: "Apps", glyph: "apps",
       pages: ["installed-apps", "default-apps", "startup-apps", "terminal", "screen-capture", "voice-typing", "rashin", "add-ons"] },
     { id: "accounts", label: "Accounts", glyph: "group",
-      pages: ["users", "sign-in", "achievements"] },
+      pages: ["users", "sign-in"] },
     { id: "system", label: "System", glyph: "settings",
       pages: ["power", "graphics", "performance", "time-language", "backup-import", "about"] },
     { id: "updates", label: "Updates", glyph: "system_update", pages: ["updates"] }
@@ -23,6 +23,8 @@ var categories = [
 
 var ryogamiTheme = ["ryogami", "wallpaper", "settings", "colours"];
 var ryogamiWallpaper = ["ryogami", "wallpaper", "settings"];
+
+var homePages = ["achievements", "points-shop"];
 
 var pages = {
     "style": { title: "Style", category: "appearance", file: "Style",
@@ -108,6 +110,8 @@ var pages = {
         keywords: ["sign in", "login", "keyring", "fingerprint", "security keys", "sudo", "pam", "fido"] },
     "achievements": { title: "Achievements & badges", category: "accounts", file: "Achievements",
         keywords: ["achievements", "badges", "trophies", "profile", "credits", "rewards", "collection", "cosmetics"] },
+    "points-shop": { title: "Points Shop", category: "accounts", file: "PointsShop",
+        keywords: ["points", "shop", "stickers", "fonts", "backgrounds", "profile", "store", "credits", "rewards"] },
 
     "power": { title: "Power & battery", category: "system", file: "Power",
         keywords: ["power", "battery", "charge limit", "power saver", "idle", "sleep", "suspend", "lock after", "cpu", "epp", "aspm", "governor"] },
@@ -285,5 +289,5 @@ function allPageIds() {
     var out = [];
     for (var i = 0; i < categories.length; i++)
         out = out.concat(categories[i].pages);
-    return out;
+    return out.concat(homePages);
 }
