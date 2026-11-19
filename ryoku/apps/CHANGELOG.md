@@ -5,6 +5,9 @@
   commands stay intact with or without the Xfce preferred-app helper.
 
 ### Added
+- `ryovm/`: **ryovm-fetch has unit tests.** They cover range probing, the
+  single-stream download, ranged chunk writes at an offset, and the parallel
+  download, all against local test servers.
 - `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a
   featured shelf, a row of Flathub category plates with counts, a Trending /
   Popular / New / Updated strip, a filter field, and compact icon and text
