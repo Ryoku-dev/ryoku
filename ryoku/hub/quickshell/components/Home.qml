@@ -17,7 +17,6 @@ Item {
     // drawn as the live card's preview (Customise, About): the plate at its design
     // size, its own controls inert, so the preview IS Home and cannot drift from it
     property bool preview: false
-    property bool choosingBadge: false
     readonly property real designWidth: 1280
     readonly property real designHeight: 800
 
@@ -46,7 +45,8 @@ Item {
     readonly property bool needsYou: Updates.available || Attention.items.length > 0 || root.failures.length > 0
     readonly property string continuePage: {
         var id = Registry.resolve(root.hub.lastSection);
-        return id !== "" && root.hub.pageAvailable(id) && !Registry.page(id).handoff ? id : "";
+        return id !== "" && id !== "achievements" && id !== "points-shop"
+            && root.hub.pageAvailable(id) && !Registry.page(id).handoff ? id : "";
     }
 
     // the profile's design, shared with the system card
@@ -898,9 +898,17 @@ Item {
                     kind: "quiet"
                     small: true
                     glyph: "edit"
-                    text: topBar.width >= 420 ? I18n.tr("Customise") : ""
-                    accessibleName: I18n.tr("Customise")
-                    onClicked: root.customise()
+                    text: Progression.editMode ? I18n.tr("Finish") :
+                        topBar.width >= 420 ? I18n.tr("Customise") : ""
+                    accessibleName: Progression.editMode ? I18n.tr("Finish decorating") : I18n.tr("Customise")
+                    onClicked: {
+                        if (Progression.editMode) {
+                            Progression.editMode = false;
+                            Progression.selectedSticker = "";
+                        } else {
+                            root.customise();
+                        }
+                    }
                 }
             }
 
@@ -969,7 +977,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 4
                             Label {
-                                text: I18n.tr("FEATURED SEAL")
+                                text: I18n.tr("FEATURED BADGE")
                                 typeRole: "monoSm"
                                 inkRole: "fg2"
                             }
@@ -980,101 +988,10 @@ Item {
                         }
                         MouseArea {
                             anchors.fill: parent
+                            enabled: !root.preview
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.choosingBadge = !root.choosingBadge
+                            onClicked: root.customise("layout")
                         }
-                    }
-                    Row {
-                        spacing: LithicTokens.space.s2
-                        visible: !root.preview
-                        Plaque {
-                            small: true
-                            kind: root.choosingBadge ? "gold" : "quiet"
-                            glyph: "workspace_premium"
-                            text: Progression.featuredBadge ? I18n.tr("Change featured seal") : I18n.tr("Choose featured seal")
-                            onClicked: root.choosingBadge = !root.choosingBadge
-                        }
-                        Plaque {
-                            visible: Progression.featuredBadge !== ""
-                            small: true
-                            kind: "line"
-                            text: I18n.tr("Clear")
-                            onClicked: Progression.featureBadge("")
-                        }
-                    }
-                    Flickable {
-                        visible: root.choosingBadge && !root.preview
-                        width: parent.width
-                        height: visible ? 100 : 0
-                        contentWidth: badgeChoices.implicitWidth
-                        contentHeight: height
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-                        Row {
-                            id: badgeChoices
-                            spacing: LithicTokens.space.s2
-                            Repeater {
-                                model: Progression.achievements.filter(a => Progression.data.claimed[a.id] === true)
-                                delegate: Item {
-                                    id: option
-                                    required property var modelData
-                                    width: 76
-                                    height: 96
-                                    ArchiveSeal {
-                                        width: 60
-                                        height: 60
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        title: option.modelData.title
-                                        sigil: option.modelData.sigil
-                                        rarity: option.modelData.rarity
-                                        category: option.modelData.category
-                                    }
-                                    Label {
-                                        y: 65
-                                        width: parent.width
-                                        text: I18n.tr(option.modelData.title)
-                                        typeRole: "monoSm"
-                                        horizontalAlignment: Text.AlignHCenter
-                                        elide: Text.ElideRight
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            Progression.featureBadge(option.modelData.id);
-                                            root.choosingBadge = false;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Row {
-                        visible: !root.preview
-                        spacing: LithicTokens.space.s2
-                        Plaque {
-                            small: true
-                            kind: Progression.editMode ? "gold" : "quiet"
-                            glyph: "draw"
-                            text: Progression.editMode ? I18n.tr("Finish decorating") : I18n.tr("Decorate")
-                            onClicked: Progression.editMode = !Progression.editMode
-                        }
-                        Plaque {
-                            small: true
-                            kind: "quiet"
-                            glyph: "auto_stories"
-                            text: I18n.tr("Points Shop")
-                            onClicked: root.hub.navigate("points-shop", "")
-                        }
-                    }
-                    Label {
-                        width: parent.width
-                        visible: Progression.editMode && !root.preview
-                        text: I18n.tr("Drag to move · select a sticker and pull ↘ to resize · scroll to scale")
-                        typeRole: "detail"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
                     }
                     Label {
                         width: parent.width
