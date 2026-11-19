@@ -20,6 +20,9 @@ Singleton {
     readonly property var achievements: Model.achievements
     readonly property var cosmetics: Model.cosmetics
     readonly property var groups: Model.groups
+    readonly property var rarityColours: Model.rarityColours
+    readonly property int discoveredSecrets: Model.secretCount(root.data)
+    function visibleBadges(category) { return Model.visibleAchievements(root.data, category); }
     readonly property var stickers: Model.availableStickers(root.data)
     readonly property var canvas: data.canvas || ({ background: "", fonts: {}, stickers: [] })
     readonly property var activePalette: Model.palette(root.data)
@@ -182,6 +185,14 @@ Singleton {
 
     function stickerArt(id) {
         return Model.stamp(id);
+    }
+
+    function recordSignal() {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.signal(root.data);
+        if (result.changed)
+            root.save(result.state);
     }
 
     function featureBadge(id) {

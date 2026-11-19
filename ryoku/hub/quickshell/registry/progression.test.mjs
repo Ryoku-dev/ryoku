@@ -153,19 +153,76 @@ test("stored balances and inventory cannot mint new items", () => {
     assert.equal(state.canvas.stickers.length, 0);
 });
 
-test("one-time milestones can fund every launch cosmetic without grinding", () => {
-    const totalRewards = P.achievements.reduce((sum, achievement) => sum + achievement.reward, 0);
-    const totalCost = P.cosmetics.reduce((sum, item) => sum + item.price, 0);
-    assert.equal(totalRewards, 1280);
-    assert.equal(totalCost, 1230);
-    assert.ok(totalRewards >= totalCost);
-    let state = P.clean({});
-    for (const a of P.achievements)
-        state = P.claim(P.unlock(state, a.id).state, a.id).state;
-    for (const item of P.cosmetics)
-        state = P.purchase(state, item.id).state;
-    assert.equal(state.balance, 50);
+test("finite achievement rewards cover every catalogue cosmetic", () => {
+    const reward = P.achievements.reduce((sum, item) => sum + item.reward, 0);
+    const price = P.cosmetics.reduce((sum, item) => sum + item.price, 0);
+    assert.ok(reward >= price, "catalogue must be achievable without farming");
+    const ids = Object.fromEntries(P.achievements.map(a => [a.id, true]));
+    let state = P.clean({ version: 3, earned: ids, claimed: ids });
+    for (const item of P.cosmetics) {
+        const bought = P.purchase(state, item.id);
+        assert.equal(bought.changed, true, item.id);
+        state = bought.state;
+    }
+    assert.equal(state.balance, reward - price);
     assert.equal(Object.keys(state.owned).length, P.cosmetics.length);
+});
+
+test("rarities and secret visibility are consistent", () => {
+    const allowed = new Set(["common", "uncommon", "rare", "epic", "legendary", "mythic", "holographic"]);
+    assert.ok(P.achievements.length >= 40);
+    assert.ok(P.cosmetics.length >= 25);
+    for (const a of P.achievements) {
+        assert.ok(allowed.has(a.rarity), a.id);
+        assert.ok(a.sigil, a.id);
+        assert.equal(!!a.secret, a.rarity === "holographic");
+    }
+    assert.equal(new Set(P.achievements.map(a => a.id)).size, P.achievements.length);
+    assert.equal(new Set(P.cosmetics.map(a => a.id)).size, P.cosmetics.length);
+    assert.equal(P.visibleAchievements({}, "Classified").length, 0);
+    assert.equal(P.unlock({}, "secret-totality").changed, false);
+    assert.equal(P.unlock({}, "master-archive").changed, false);
+    assert.equal(P.unlock({}, "secret-monolith").changed, false);
+});
+
+test("a secret signal must be discovered rather than manually awarded", () => {
+    let state = P.clean({});
+    for (let i = 0; i < 6; i++)
+        state = P.signal(state).state;
+    assert.equal(state.earned["secret-signal"], undefined);
+    state = P.signal(state).state;
+    assert.equal(state.earned["secret-signal"], true);
+    assert.equal(P.signal(state).changed, false);
+    assert.equal(P.visibleAchievements(state, "Classified").length, 1);
+    assert.equal(state.claimed["secret-signal"], undefined);
+});
+
+test("the final seal is hidden and requires every other achievement", () => {
+    const all = Object.fromEntries(P.achievements.filter(a => a.id !== "secret-totality")
+        .map(a => [a.id, true]));
+    const almost = { ...all, "secret-monolith": false };
+    assert.equal(P.clean({ version: 3, earned: almost }).earned["secret-totality"], undefined);
+    const complete = P.clean({ version: 3, earned: all });
+    assert.equal(complete.earned["secret-totality"], true);
+    assert.equal(P.visibleAchievements(complete, "Classified").length, 4);
+    assert.equal(complete.claimed["secret-totality"], undefined);
+});
+
+test("multi-stage achievements reflect real tracked state", () => {
+    let state = P.clean({});
+    for (let i = 0; i < 30; i++)
+        state = P.visit(state, "visit-" + i, ["accounts","desktop","apps","system"][i % 4]).state;
+    assert.equal(state.earned["ryoku-tenfold"], true);
+    assert.equal(state.earned["ryoku-cartographer"], true);
+    assert.equal(state.earned["ryoku-omniscope"], true);
+    assert.equal(state.earned["secret-totality"], undefined);
+    const claimed = P.claim(P.unlock({}, "welcome").state, "welcome").state;
+    let placed = claimed;
+    for (let i = 0; i < 10; i++)
+        placed = P.addSticker(placed, "welcome").state;
+    assert.equal(placed.earned["profile-mosaic"], true);
+    assert.equal(placed.earned["profile-gallery"], true);
+    assert.equal(placed.earned["secret-sevenfold"], undefined);
 });
 
 test("all shop palettes have valid colours, and every badge has a glyph", () => {

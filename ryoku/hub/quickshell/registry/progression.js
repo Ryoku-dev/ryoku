@@ -3,26 +3,56 @@
 // Local-only Ryoku achievements, collection and profile canvas.
 // Entitlements here are personal customisation, never trusted online currency.
 var achievements = [
-    { id: "ryoku-first-steps", category: "Ryoku", title: "First Steps", detail: "Open your achievement collection", reward: 30, glyph: "flag" },
-    { id: "ryoku-pathfinder", category: "Ryoku", title: "Pathfinder", detail: "Visit five different Ryoku settings pages", reward: 80, glyph: "explore" },
-    { id: "ryoku-voyager", category: "Ryoku", title: "Voyager", detail: "Visit fifteen different Ryoku settings pages", reward: 150, glyph: "public" },
-    { id: "ryoku-versatile", category: "Ryoku", title: "Versatile", detail: "Explore four different Ryoku settings areas", reward: 100, glyph: "auto_awesome" },
-    { id: "profile-curator", category: "Profile", title: "Curator", detail: "Feature an earned badge on your profile", reward: 70, glyph: "workspace_premium" },
-    { id: "profile-sticker", category: "Profile", title: "Sticker Artist", detail: "Place a collectible sticker on your profile", reward: 90, glyph: "draw" },
-    { id: "profile-background", category: "Profile", title: "New Canvas", detail: "Equip a collectible profile backdrop", reward: 80, glyph: "texture" },
-    { id: "profile-type", category: "Profile", title: "Typographer", detail: "Change the typography of your profile identity", reward: 80, glyph: "text_fields" },
-    { id: "welcome", category: "Card studio", title: "First Contact", detail: "Open the card studio", reward: 50, glyph: "style" },
-    { id: "explorer", category: "Card studio", title: "Under the Hood", detail: "Inspect your hardware card's rarity", reward: 80, glyph: "memory" },
-    { id: "identity", category: "Card studio", title: "Signature", detail: "Personalise your card's words", reward: 100, glyph: "edit_note" },
-    { id: "portrait", category: "Card studio", title: "A New Face", detail: "Choose your own card artwork", reward: 100, glyph: "portrait" },
-    { id: "layout", category: "Card studio", title: "Art Director", detail: "Customise your card layout", reward: 120, glyph: "view_quilt" },
-    { id: "showcase", category: "Card studio", title: "Showtime", detail: "Successfully copy or save your card", reward: 150, glyph: "present_to_all" }
+    { id: "ryoku-first-steps", category: "Ryoku", title: "First Steps", detail: "Open your achievement collection", reward: 30, glyph: "flag", rarity: "common", sigil: "I" },
+    { id: "ryoku-pathfinder", category: "Ryoku", title: "Pathfinder", detail: "Visit five different Ryoku settings pages", reward: 80, glyph: "explore", rarity: "uncommon", sigil: "V" },
+    { id: "ryoku-voyager", category: "Ryoku", title: "Voyager", detail: "Visit fifteen different Ryoku settings pages", reward: 150, glyph: "public", rarity: "rare", sigil: "XV" },
+    { id: "ryoku-versatile", category: "Ryoku", title: "Versatile", detail: "Explore four different Ryoku settings areas", reward: 100, glyph: "auto_awesome", rarity: "rare", sigil: "IV" },
+    { id: "profile-curator", category: "Profile", title: "Curator", detail: "Feature an earned badge on your profile", reward: 70, glyph: "workspace_premium", rarity: "common", sigil: "C" },
+    { id: "profile-sticker", category: "Profile", title: "Sticker Artist", detail: "Place a collectible sticker on your profile", reward: 90, glyph: "draw", rarity: "common", sigil: "S" },
+    { id: "profile-background", category: "Profile", title: "New Canvas", detail: "Equip a collectible profile backdrop", reward: 80, glyph: "texture", rarity: "uncommon", sigil: "B" },
+    { id: "profile-type", category: "Profile", title: "Typographer", detail: "Change the typography of your profile identity", reward: 80, glyph: "text_fields", rarity: "uncommon", sigil: "T" },
+    { id: "welcome", category: "Card studio", title: "First Contact", detail: "Open the card studio", reward: 50, glyph: "style", rarity: "common", sigil: "I" },
+    { id: "explorer", category: "Card studio", title: "Under the Hood", detail: "Inspect your hardware card's rarity", reward: 80, glyph: "memory", rarity: "uncommon", sigil: "II" },
+    { id: "identity", category: "Card studio", title: "Signature", detail: "Personalise your card's words", reward: 100, glyph: "edit_note", rarity: "uncommon", sigil: "III" },
+    { id: "portrait", category: "Card studio", title: "A New Face", detail: "Choose your own card artwork", reward: 100, glyph: "portrait", rarity: "rare", sigil: "IV" },
+    { id: "layout", category: "Card studio", title: "Art Director", detail: "Customise your card layout", reward: 120, glyph: "view_quilt", rarity: "rare", sigil: "V" },
+    { id: "showcase", category: "Card studio", title: "Showtime", detail: "Successfully copy or save your card", reward: 150, glyph: "present_to_all", rarity: "epic", sigil: "VI" },
+    { id: "ryoku-tenfold", category: "Ryoku", title: "Tenfold", detail: "Visit ten different settings pages", reward: 90, glyph: "route", rarity: "uncommon", sigil: "X" },
+    { id: "ryoku-cartographer", category: "Ryoku", title: "Cartographer", detail: "Map twenty-five settings pages", reward: 170, glyph: "map", rarity: "epic", sigil: "XXV" },
+    { id: "ryoku-omniscope", category: "Ryoku", title: "Omniscope", detail: "Explore thirty different settings pages", reward: 190, glyph: "all_inclusive", rarity: "legendary", sigil: "XXX" },
+    { id: "profile-mosaic", category: "Profile", title: "Mosaic", detail: "Display five stickers at once", reward: 140, glyph: "dashboard_customize", rarity: "rare", sigil: "V" },
+    { id: "profile-gallery", category: "Profile", title: "Gallery", detail: "Display ten stickers at once", reward: 160, glyph: "collections", rarity: "epic", sigil: "X" },
+    { id: "profile-sanctuary", category: "Profile", title: "The Sanctuary", detail: "Fill twenty-four sticker placements", reward: 210, glyph: "temple_buddhist", rarity: "mythic", sigil: "XXIV" },
+    { id: "profile-self", category: "Profile", title: "Own Reflection", detail: "Use a personal background image", reward: 100, glyph: "image", rarity: "rare", sigil: "OWN" },
+    { id: "profile-identity", category: "Profile", title: "Type Ritual", detail: "Style your name hostname and tagline", reward: 130, glyph: "format_size", rarity: "epic", sigil: "III" },
+    { id: "profile-custom", category: "Profile", title: "Signature Plate", detail: "Equip a backdrop font and featured badge", reward: 180, glyph: "fingerprint", rarity: "legendary", sigil: "力" },
+    { id: "card-spectrum", category: "Card studio", title: "Chromatic", detail: "Equip a collectible card palette", reward: 100, glyph: "palette", rarity: "rare", sigil: "VII" },
+    { id: "card-complete", category: "Card studio", title: "Full Deck", detail: "Complete every original card milestone", reward: 140, glyph: "playing_cards", rarity: "legendary", sigil: "VIII" },
+    { id: "card-tapestry", category: "Card studio", title: "Card Archivist", detail: "Claim all six original card seals", reward: 170, glyph: "collections_bookmark", rarity: "mythic", sigil: "IX" },
+    { id: "collection-firstclaim", category: "Collection", title: "Seal Keeper", detail: "Claim your first achievement badge", reward: 45, glyph: "verified", rarity: "common", sigil: "I" },
+    { id: "collection-fifth", category: "Collection", title: "Fivefold Archive", detail: "Claim five achievement badges", reward: 100, glyph: "shield", rarity: "uncommon", sigil: "V" },
+    { id: "collection-tenth", category: "Collection", title: "Ten Seals", detail: "Claim ten achievement badges", reward: 140, glyph: "token", rarity: "rare", sigil: "X" },
+    { id: "collection-twentieth", category: "Collection", title: "Twenty Seals", detail: "Claim twenty achievement badges", reward: 180, glyph: "album", rarity: "epic", sigil: "XX" },
+    { id: "collection-firstbuy", category: "Collection", title: "First Relic", detail: "Buy one cosmetic", reward: 45, glyph: "local_mall", rarity: "common", sigil: "I" },
+    { id: "collection-trio", category: "Collection", title: "Relic Collector", detail: "Own three cosmetics", reward: 90, glyph: "inventory_2", rarity: "uncommon", sigil: "III" },
+    { id: "collection-stickers", category: "Collection", title: "Wax and Ink", detail: "Collect all decorative shop stickers", reward: 130, glyph: "auto_awesome_mosaic", rarity: "epic", sigil: "S" },
+    { id: "collection-backgrounds", category: "Collection", title: "World Painter", detail: "Collect every shop backdrop", reward: 130, glyph: "landscape", rarity: "epic", sigil: "B" },
+    { id: "collection-fonts", category: "Collection", title: "The Letterpress", detail: "Collect every shop font", reward: 130, glyph: "article", rarity: "epic", sigil: "T" },
+    { id: "collection-everything", category: "Collection", title: "Complete Collection", detail: "Own every shop cosmetic", reward: 260, glyph: "diamond", rarity: "mythic", sigil: "∞" },
+    { id: "master-archive", category: "Mastery", title: "Living Archive", detail: "Complete every unclassified achievement", reward: 230, glyph: "account_balance", rarity: "mythic", sigil: "力" },
+    { id: "secret-signal", category: "Classified", title: "Signal in the Stone", detail: "Follow the archive hidden signal", reward: 210, glyph: "sensors", rarity: "holographic", sigil: "?", secret: true },
+    { id: "secret-sevenfold", category: "Classified", title: "Sevenfold", detail: "Display seven unique earned badge seals", reward: 220, glyph: "deployed_code", rarity: "holographic", sigil: "VII", secret: true },
+    { id: "secret-monolith", category: "Classified", title: "Monolith Protocol", detail: "Unite graphite field terminal name and legendary seal", reward: 250, glyph: "hexagon", rarity: "holographic", sigil: "NULL", secret: true },
+    { id: "secret-totality", category: "Classified", title: "The Final Seal", detail: "Complete every other achievement in Ryoku", reward: 420, glyph: "all_inclusive", rarity: "holographic", sigil: "力", secret: true }
 ];
 
 var groups = [
     { id: "Ryoku", title: "Ryoku", subtitle: "Explore the world you call home" },
     { id: "Profile", title: "Profile", subtitle: "Make your identity your own" },
-    { id: "Card studio", title: "Card Studio", subtitle: "Craft the machine that represents you" }
+    { id: "Card studio", title: "Card Studio", subtitle: "Craft the machine that represents you" },
+    { id: "Collection", title: "Collection", subtitle: "Acquire, classify, preserve" },
+    { id: "Mastery", title: "Mastery", subtitle: "For those who complete the archive" },
+    { id: "Classified", title: "Classified", subtitle: "Nothing here is given away" }
 ];
 
 var cosmetics = [
@@ -41,7 +71,20 @@ var cosmetics = [
     { id: "bg-ember", name: "Afterglow", type: "background", price: 80 },
     { id: "font-serif", name: "Engraved", type: "font", price: 50, family: "Liberation Serif" },
     { id: "font-mono", name: "Terminal", type: "font", price: 60, family: "JetBrainsMono Nerd Font" },
-    { id: "font-clean", name: "Technical", type: "font", price: 65, family: "Inter Display" }
+    { id: "font-clean", name: "Technical", type: "font", price: 65, family: "Inter Display" },
+    { id: "sticker-origins", name: "Origin Mark", type: "sticker", price: 140, glyph: "token", tint: "#ef8d69", rarity: "legendary", sigil: "力" },
+    { id: "sticker-sutra", name: "Sutra Fragment", type: "sticker", price: 105, glyph: "deployed_code", tint: "#b3b7c5", rarity: "epic", sigil: "道" },
+    { id: "sticker-ember", name: "Ember Crest", type: "sticker", price: 140, glyph: "whatshot", tint: "#e97452", rarity: "mythic", sigil: "焔" },
+    { id: "sticker-archive", name: "Archive Clearance", type: "sticker", price: 120, glyph: "verified_user", tint: "#b8ab90", rarity: "rare", sigil: "III" },
+    { id: "sticker-moonseal", name: "Moon Archive", type: "sticker", price: 115, glyph: "brightness_2", tint: "#b3bbdd", rarity: "rare", sigil: "月" },
+    { id: "sticker-fossil", name: "Stone Witness", type: "sticker", price: 120, glyph: "museum", tint: "#d8c8b0", rarity: "epic", sigil: "石" },
+    { id: "bg-archive", name: "Archive Paper", type: "background", price: 175 },
+    { id: "bg-obsidian", name: "Obsidian Mesh", type: "background", price: 180 },
+    { id: "bg-sutra", name: "Sutra Diagram", type: "background", price: 195 },
+    { id: "bg-signal", name: "Signal Void", type: "background", price: 200 },
+    { id: "font-ritual", name: "Ritual Sans", type: "font", price: 130, family: "Inter Display" },
+    { id: "font-archive", name: "Archive Mono", type: "font", price: 135, family: "FiraCode Nerd Font" },
+    { id: "font-stone", name: "Stone Serif", type: "font", price: 150, family: "Noto Serif" }
 ];
 
 function achievement(id) { return achievements.find(function(a) { return a.id === id; }); }
@@ -49,9 +92,105 @@ function cosmetic(id) { return cosmetics.find(function(a) { return a.id === id; 
 function stamp(id) {
     var a = achievement(id);
     if (a)
-        return { id: id, name: a.title, glyph: a.glyph, tint: "#e9c78c", type: "badge" };
+        return { id: id, name: a.title, glyph: a.glyph, sigil: a.sigil, rarity: a.rarity, tint: rarityColour(a.rarity), type: "badge" };
     var c = cosmetic(id);
-    return c && c.type === "sticker" ? c : null;
+    return c && c.type === "sticker" ? Object.assign({ rarity: c.rarity || "common", sigil: c.sigil || "力" }, c) : null;
+}
+var rarityColours = {
+    common: "#9499a6",
+    uncommon: "#86bca6",
+    rare: "#65b9e1",
+    epic: "#c38be6",
+    legendary: "#f1bb6e",
+    mythic: "#f17854",
+    holographic: "#c5a8f6"
+};
+function rarityColour(name) { return rarityColours[name] || rarityColours.common; }
+function visibleAchievements(state, category) {
+    var next = clean(state);
+    return achievements.filter(function(a) {
+        return (!category || a.category === category) && (!a.secret || next.earned[a.id]);
+    });
+}
+function secretCount(state) {
+    var next = clean(state);
+    return achievements.filter(function(a) { return a.secret && next.earned[a.id]; }).length;
+}
+function entitled(state, id) {
+    var next = clean(state);
+    return next.claimed[id] === true || next.owned[id] === true;
+}
+function sealProgress(state, id) {
+    var next = clean(state);
+    var a = achievement(id);
+    if (!a) return "locked";
+    return next.claimed[id] ? "claimed" : next.earned[id] ? "claimable" : "locked";
+}
+function evaluate(next) {
+    var count = Object.keys(next.visited).length;
+    if (count >= 10) next.earned["ryoku-tenfold"] = true;
+    if (count >= 25) next.earned["ryoku-cartographer"] = true;
+    if (count >= 30) next.earned["ryoku-omniscope"] = true;
+
+    var placed = next.canvas.stickers;
+    if (placed.length >= 5) next.earned["profile-mosaic"] = true;
+    if (placed.length >= 10) next.earned["profile-gallery"] = true;
+    if (placed.length >= 24) next.earned["profile-sanctuary"] = true;
+    if (next.canvas.image) next.earned["profile-self"] = true;
+    if (["name","hostname","tagline"].every(function(role) { return !!next.canvas.fonts[role]; }))
+        next.earned["profile-identity"] = true;
+    if ((next.canvas.background || next.canvas.image) &&
+        Object.keys(next.canvas.fonts).some(function(role) { return !!next.canvas.fonts[role]; }) &&
+        next.featured) next.earned["profile-custom"] = true;
+
+    var original = ["welcome","explorer","identity","portrait","layout","showcase"];
+    if (original.every(function(id) { return next.earned[id]; })) next.earned["card-complete"] = true;
+    if (original.every(function(id) { return next.claimed[id]; })) next.earned["card-tapestry"] = true;
+    if (next.active) next.earned["card-spectrum"] = true;
+
+    var claimed = Object.keys(next.claimed).length;
+    if (claimed >= 1) next.earned["collection-firstclaim"] = true;
+    if (claimed >= 5) next.earned["collection-fifth"] = true;
+    if (claimed >= 10) next.earned["collection-tenth"] = true;
+    if (claimed >= 20) next.earned["collection-twentieth"] = true;
+
+    var owned = Object.keys(next.owned).length;
+    if (owned >= 1) next.earned["collection-firstbuy"] = true;
+    if (owned >= 3) next.earned["collection-trio"] = true;
+    ["sticker","background","font"].forEach(function(type) {
+        var relevant = cosmetics.filter(function(c) { return c.type === type; });
+        var goals = { sticker:"collection-stickers", background:"collection-backgrounds", font:"collection-fonts" };
+        if (relevant.length && relevant.every(function(c) { return next.owned[c.id]; }))
+            next.earned[goals[type]] = true;
+    });
+    if (cosmetics.every(function(c) { return next.owned[c.id]; }))
+        next.earned["collection-everything"] = true;
+
+    var seals = {};
+    placed.forEach(function(p) {
+        var a = achievement(p.item);
+        if (a && next.claimed[a.id]) seals[a.id] = true;
+    });
+    if (Object.keys(seals).length >= 7) next.earned["secret-sevenfold"] = true;
+    if (next.canvas.background === "bg-graphite" && next.canvas.fonts.name === "font-mono" &&
+        next.featured && achievement(next.featured).rarity === "legendary")
+        next.earned["secret-monolith"] = true;
+
+    if (achievements.filter(function(a) { return !a.secret && a.id !== "master-archive"; })
+        .every(function(a) { return next.earned[a.id]; }))
+        next.earned["master-archive"] = true;
+    if (achievements.filter(function(a) { return a.id !== "secret-totality"; })
+        .every(function(a) { return next.earned[a.id]; }))
+        next.earned["secret-totality"] = true;
+    return next;
+}
+function signal(state) {
+    var next = clean(state);
+    if (next.earned["secret-signal"]) return { state:next, changed:false };
+    var previous = Number(next.secretSignal) || 0;
+    next.secretSignal = Math.min(7, previous + 1);
+    if (next.secretSignal >= 7) next.earned["secret-signal"] = true;
+    return { state:clean(next), changed:true };
 }
 function clamp(n, min, max, fallback) {
     n = Number(n);
@@ -114,17 +253,21 @@ function clean(value) {
     var image = typeof rawCanvas.image === "string" &&
         /^file:\/\/\/[^?#]{1,1024}\.(png|jpe?g|webp|gif|bmp)$/i.test(rawCanvas.image)
         ? rawCanvas.image : "";
-    return {
+    var secretSignal = Math.floor(clamp(source.secretSignal, 0, 7, 0));
+    var result = {
         version: 3, earned: earned, claimed: claimed, owned: owned, visited: visited,
+        secretSignal: secretSignal,
         featured: featured, active: active, balance: Math.max(0, balance),
         canvas: { background: background, image: image, fonts: fonts, stickers: stickers,
                   serial: Math.floor(clamp(rawCanvas.serial, 0, 99999999, 0)) }
     };
+    return evaluate(result);
 }
 
 function unlock(state, id) {
     var next = clean(state);
-    if (!achievement(id) || next.earned[id])
+    var target = achievement(id);
+    if (!target || target.secret || target.id === "master-archive" || next.earned[id])
         return { state: next, changed: false };
     next.earned[id] = true;
     return { state: clean(next), changed: true };

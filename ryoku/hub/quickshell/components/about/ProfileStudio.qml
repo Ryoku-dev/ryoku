@@ -100,9 +100,17 @@ Column {
                 readonly property bool owned: Progression.data.owned[modelData.id] === true
                 readonly property bool active: Progression.canvas.background === modelData.id
                 readonly property color tint: modelData.id === "bg-blueprint" ? "#7395bc" :
-                    modelData.id === "bg-ember" ? "#f1a17e" : "#a3aabc"
+                    modelData.id === "bg-ember" ? "#f1a17e" :
+                    modelData.id === "bg-archive" ? "#cfba96" :
+                    modelData.id === "bg-obsidian" ? "#a1bbc4" :
+                    modelData.id === "bg-sutra" ? "#acd2c1" :
+                    modelData.id === "bg-signal" ? "#76b8df" : "#a3aabc"
                 readonly property color ground: modelData.id === "bg-blueprint" ? "#122437" :
-                    modelData.id === "bg-ember" ? "#2c1c1c" : "#22242b"
+                    modelData.id === "bg-ember" ? "#2c1c1c" :
+                    modelData.id === "bg-archive" ? "#29241e" :
+                    modelData.id === "bg-obsidian" ? "#11191e" :
+                    modelData.id === "bg-sutra" ? "#1c2524" :
+                    modelData.id === "bg-signal" ? "#13202b" : "#22242b"
                 width: (backdropGallery.width - backdropGallery.columnSpacing * 2) / 3
                 height: 208
 
@@ -322,7 +330,7 @@ Column {
                 required property var modelData
                 readonly property bool owned: Progression.data.owned[modelData.id] === true
                 width: (stickerGallery.width - stickerGallery.columnSpacing * 3) / 4
-                height: 174
+                height: 195
 
                 CutRect {
                     anchors.fill: parent
@@ -331,16 +339,19 @@ Column {
                     strokeColor: stickerTile.owned ? Lithic.gold : Lithic.mix(Lithic.ground, stickerTile.modelData.tint, 0.5)
                     strokeWidth: 1
                 }
-                Glyph {
+                ArchiveSeal {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: 18
-                    name: stickerTile.modelData.glyph
-                    size: 55
-                    ink: stickerTile.modelData.tint
+                    y: 6
+                    width: 93
+                    height: 93
+                    title: stickerTile.modelData.name
+                    sigil: stickerTile.modelData.sigil || "力"
+                    rarity: stickerTile.modelData.rarity || "common"
+                    category: "RELIC"
                 }
                 Column {
                     x: 10
-                    y: 91
+                    y: 103
                     width: parent.width - 20
                     spacing: 6
                     Label {
@@ -391,7 +402,7 @@ Column {
                 id: earnedSticker
                 required property var modelData
                 width: (badgeGallery.width - badgeGallery.columnSpacing * 3) / 4
-                height: 154
+                height: 182
 
                 CutRect {
                     anchors.fill: parent
@@ -400,16 +411,19 @@ Column {
                     strokeColor: Lithic.mix(Lithic.ground, Lithic.gold, 0.42)
                     strokeWidth: 1
                 }
-                Glyph {
+                ArchiveSeal {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: 13
-                    name: earnedSticker.modelData.glyph
-                    size: 52
-                    ink: Lithic.gold
+                    y: 4
+                    width: 89
+                    height: 89
+                    title: earnedSticker.modelData.name
+                    sigil: earnedSticker.modelData.sigil
+                    rarity: earnedSticker.modelData.rarity
+                    category: "ARCHIVE"
                 }
                 Column {
                     x: 9
-                    y: 77
+                    y: 96
                     width: parent.width - 18
                     spacing: 6
                     Label {

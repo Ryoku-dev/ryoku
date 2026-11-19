@@ -477,7 +477,11 @@ Item {
                     anchors.fill: parent
                     visible: profileBackground.customImage === ""
                     color: profileBackground.chosen === "bg-blueprint" ? "#132335" :
-                           profileBackground.chosen === "bg-ember" ? "#271a19" : "#1b1d23"
+                           profileBackground.chosen === "bg-ember" ? "#271a19" :
+                           profileBackground.chosen === "bg-archive" ? "#27231d" :
+                           profileBackground.chosen === "bg-obsidian" ? "#11171b" :
+                           profileBackground.chosen === "bg-sutra" ? "#1f2225" :
+                           profileBackground.chosen === "bg-signal" ? "#121b22" : "#1b1d23"
                 }
                 Repeater {
                     model: profileBackground.customImage !== "" ? 0 : Math.ceil(profileBackground.width / 62)
@@ -486,7 +490,11 @@ Item {
                         width: 1
                         height: profileBackground.height
                         color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
-                               profileBackground.chosen === "bg-ember" ? "#a26e56" : "#777e8b"
+                               profileBackground.chosen === "bg-ember" ? "#a26e56" :
+                               profileBackground.chosen === "bg-archive" ? "#b5a78d" :
+                               profileBackground.chosen === "bg-obsidian" ? "#738590" :
+                               profileBackground.chosen === "bg-sutra" ? "#9caba6" :
+                               profileBackground.chosen === "bg-signal" ? "#6497c0" : "#777e8b"
                         opacity: 0.16
                     }
                 }
@@ -497,7 +505,11 @@ Item {
                         width: profileBackground.width
                         height: 1
                         color: profileBackground.chosen === "bg-blueprint" ? "#627f9f" :
-                               profileBackground.chosen === "bg-ember" ? "#a26e56" : "#777e8b"
+                               profileBackground.chosen === "bg-ember" ? "#a26e56" :
+                               profileBackground.chosen === "bg-archive" ? "#b5a78d" :
+                               profileBackground.chosen === "bg-obsidian" ? "#738590" :
+                               profileBackground.chosen === "bg-sutra" ? "#9caba6" :
+                               profileBackground.chosen === "bg-signal" ? "#6497c0" : "#777e8b"
                         opacity: 0.16
                     }
                 }
@@ -669,21 +681,15 @@ Item {
                     x: Math.min(modelData.x * plate.width, Math.max(0, plate.width - width * 1.15))
                     y: Math.min(modelData.y * plate.height, Math.max(0, plate.height - height * 1.15))
                     rotation: modelData.rotation
-                    z: 2
+                    z: 1
 
-                    Rectangle {
+                    ArchiveSeal {
                         anchors.fill: parent
-                        radius: width / 2
-                        color: Lithic.mix(Lithic.ground, placedSticker.art ? placedSticker.art.tint : Lithic.gold, 0.16)
-                        border.width: Progression.editMode ? 2 : 1
-                        border.color: placedSticker.art ? placedSticker.art.tint : Lithic.gold
-                        opacity: 0.93
-                    }
-                    Glyph {
-                        anchors.centerIn: parent
-                        name: placedSticker.art ? placedSticker.art.glyph : "star"
-                        size: Math.round(placedSticker.width * 0.57)
-                        ink: placedSticker.art ? placedSticker.art.tint : Lithic.gold
+                        title: placedSticker.art ? placedSticker.art.name : "RYOKU"
+                        sigil: placedSticker.art && placedSticker.art.sigil ? placedSticker.art.sigil : "力"
+                        category: placedSticker.art && placedSticker.art.type === "badge" ? "ARCHIVE" : "RELIC"
+                        rarity: placedSticker.art && placedSticker.art.rarity ? placedSticker.art.rarity : "common"
+                        animateFoil: false
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -708,6 +714,7 @@ Item {
             // sidebar is put away, keeps the search here too, clear of the drawer's button
             Item {
                 id: topBar
+                z: 8
                 visible: !root.preview
                 x: root.side + (root.hub.wide ? 0 : 40)
                 y: LithicTokens.space.s3
@@ -798,6 +805,7 @@ Item {
 
             Column {
                 id: column
+                z: 5
                 // the near plane: a little with the pointer
                 transform: Translate { x: root.tiltX * 4; y: root.tiltY * 2 }
                 x: root.roomy && root.heroLeft ? plate.width - root.side - width : root.side
@@ -838,16 +846,42 @@ Item {
                             numeric: true
                         }
                     }
-                    Plaque {
-                        visible: Progression.featuredBadge !== ""
-                        kind: "quiet"
-                        small: true
-                        glyph: "military_tech"
-                        text: {
-                            var badge = Progression.achievements.find(a => a.id === Progression.featuredBadge);
-                            return badge ? I18n.tr(badge.title) : "";
+                    Item {
+                        id: featuredSeal
+                        readonly property var badge: Progression.achievements.find(a => a.id === Progression.featuredBadge)
+                        visible: featuredSeal.badge !== undefined
+                        width: Math.min(parent.width, 220)
+                        height: visible ? 62 : 0
+
+                        ArchiveSeal {
+                            x: 0
+                            y: 0
+                            width: 62
+                            height: 62
+                            title: featuredSeal.badge ? featuredSeal.badge.title : ""
+                            sigil: featuredSeal.badge ? featuredSeal.badge.sigil : "力"
+                            rarity: featuredSeal.badge ? featuredSeal.badge.rarity : "common"
+                            category: featuredSeal.badge ? featuredSeal.badge.category : "RYOKU"
                         }
-                        onClicked: root.hub.navigate("achievements", "")
+                        Column {
+                            x: 70
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 4
+                            Label {
+                                text: I18n.tr("FEATURED SEAL")
+                                typeRole: "monoSm"
+                                inkRole: "fg2"
+                            }
+                            Label {
+                                text: featuredSeal.badge ? I18n.tr(featuredSeal.badge.title) : ""
+                                typeRole: "sentence"
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.hub.navigate("achievements", "")
+                        }
                     }
                     Row {
                         visible: !root.preview
