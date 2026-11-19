@@ -34,15 +34,35 @@ test("shop purchases are affordable and repeat purchases do not charge twice", (
     assert.equal(P.equip(bought.state, "midnight").state.active, "midnight");
 });
 
-test("full completion earns exactly enough for the catalogue", () => {
+test("card milestones retain existing rewards while global badges add more", () => {
     let state = P.clean({});
-    for (const achievement of P.achievements)
+    for (const achievement of P.achievements.filter(a => a.category === "Card studio"))
         state = P.unlock(state, achievement.id).state;
     assert.equal(state.balance, 600);
     for (const item of P.cosmetics)
         state = P.purchase(state, item.id).state;
     assert.equal(state.balance, 0);
     assert.equal(Object.keys(state.owned).length, 3);
+    assert.equal(P.clean({ version: 1, earned: state.earned, owned: state.owned }).balance, 0);
+});
+
+test("global visits award badges once and feature only earned badges", () => {
+    let state = P.unlock({}, "ryoku-first-steps").state;
+    assert.equal(state.balance, 30);
+    for (let i = 0; i < 15; i++) {
+        const category = ["appearance", "desktop", "apps", "system"][i % 4];
+        state = P.visit(state, "page-" + i, category).state;
+    }
+    assert.equal(Object.keys(state.visited).length, 15);
+    assert.equal(state.earned["ryoku-pathfinder"], true);
+    assert.equal(state.earned["ryoku-voyager"], true);
+    assert.equal(state.earned["ryoku-versatile"], true);
+    assert.equal(P.visit(state, "page-1", "apps").changed, false);
+    assert.equal(P.feature({}, "ryoku-voyager").changed, false);
+    const featured = P.feature(state, "ryoku-voyager");
+    assert.equal(featured.changed, true);
+    assert.equal(featured.state.featured, "ryoku-voyager");
+    assert.equal(P.feature(featured.state, "").state.featured, "");
 });
 
 test("stored balance cannot mint credits and unknown unlocks are discarded", () => {

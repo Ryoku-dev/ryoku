@@ -36,6 +36,9 @@ FocusScope {
     onPageIdChanged: {
         if (hub.pageId === "about")
             SysInfo.load();
+        var page = Registry.page(hub.pageId);
+        if (page)
+            Progression.visitedPage(hub.pageId, page.category);
     }
     // "home": no page is open; "category": one is
     property string listMode: "home"

@@ -15,7 +15,7 @@ var categories = [
     { id: "apps", label: "Apps", glyph: "apps",
       pages: ["installed-apps", "default-apps", "startup-apps", "terminal", "screen-capture", "voice-typing", "rashin", "add-ons"] },
     { id: "accounts", label: "Accounts", glyph: "group",
-      pages: ["users", "sign-in"] },
+      pages: ["users", "sign-in", "achievements"] },
     { id: "system", label: "System", glyph: "settings",
       pages: ["power", "graphics", "performance", "time-language", "backup-import", "about"] },
     { id: "updates", label: "Updates", glyph: "system_update", pages: ["updates"] }
@@ -106,6 +106,8 @@ var pages = {
         keywords: ["users", "accounts", "people", "password", "picture", "admin", "profiles"] },
     "sign-in": { title: "Sign-in & security", category: "accounts", file: "SignIn",
         keywords: ["sign in", "login", "keyring", "fingerprint", "security keys", "sudo", "pam", "fido"] },
+    "achievements": { title: "Achievements & badges", category: "accounts", file: "Achievements",
+        keywords: ["achievements", "badges", "trophies", "profile", "credits", "rewards", "collection", "cosmetics"] },
 
     "power": { title: "Power & battery", category: "system", file: "Power",
         keywords: ["power", "battery", "charge limit", "power saver", "idle", "sleep", "suspend", "lock after", "cpu", "epp", "aspm", "governor"] },
@@ -211,7 +213,7 @@ var kanji = {
     "wifi": "無線", "ethernet": "有線", "vpn": "隧道", "dns": "名前", "bluetooth": "近接", "phone": "電話",
     "installed-apps": "導入", "default-apps": "既定", "startup-apps": "始動", "terminal": "端末", "screen-capture": "録画",
     "voice-typing": "音声", "rashin": "羅針", "add-ons": "拡張",
-    "users": "人々", "sign-in": "認証",
+    "users": "人々", "sign-in": "認証", "achievements": "実績",
     "power": "電力", "graphics": "演算", "performance": "性能", "time-language": "言語",
     "backup-import": "取込", "about": "概要", "updates": "更新"
 };
@@ -233,7 +235,7 @@ var glyphs = {
     "wifi": "wifi", "ethernet": "settings_ethernet", "vpn": "vpn_key", "dns": "dns", "bluetooth": "bluetooth", "phone": "smartphone",
     "installed-apps": "apps", "default-apps": "star", "startup-apps": "rocket_launch", "terminal": "terminal",
     "screen-capture": "screenshot_monitor", "voice-typing": "mic", "rashin": "explore", "add-ons": "extension",
-    "users": "group", "sign-in": "fingerprint",
+    "users": "group", "sign-in": "fingerprint", "achievements": "military_tech",
     "power": "battery_charging_full", "graphics": "developer_board", "performance": "speed",
     "time-language": "language", "backup-import": "backup", "about": "info",
     "updates": "system_update"

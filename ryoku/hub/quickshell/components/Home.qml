@@ -744,6 +744,17 @@ Item {
                             numeric: true
                         }
                     }
+                    Plaque {
+                        visible: Progression.featuredBadge !== ""
+                        kind: "quiet"
+                        small: true
+                        glyph: "military_tech"
+                        text: {
+                            var badge = Progression.achievements.find(a => a.id === Progression.featuredBadge);
+                            return badge ? I18n.tr(badge.title) : "";
+                        }
+                        onClicked: root.hub.navigate("achievements", "")
+                    }
                     Label {
                         width: parent.width
                         visible: text.length > 0
