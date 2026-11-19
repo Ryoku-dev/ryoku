@@ -1,87 +1,119 @@
-# Hyperion card rarity and progression
+# Hyperion profile progression and canvas
 
-This change adds an offline, cosmetic-only progression layer to the existing
-Hyperion card studio. It does not define battle rules or online account rewards.
+This feature is a Ryoku-wide **local** identity and achievement system. It is
+not owned by hardware cards, not dependent on hardware rarity, and not an
+online trading economy. Neuro's TCG is deliberately unaffected.
 
-## Hardware rarity
+## Experience
 
-- Local graphics scoring uses performance bands keyed by GPU family, generation,
-  tier and supported mobile variants. The legacy five-level GPU class used in
-  card codes and Stand attributes is deliberately unchanged.
-- The CPU score combines threads with a conservative generation bonus for
-  recognised Intel Core and AMD Ryzen models. Unknown models score from threads.
-- Memory scores saturate to avoid making very large RAM capacities dominate.
-- Display scoring uses the active output list provided by `ryoku-hub outputs`.
-  The highest-resolution active screen is the primary screen for scoring.
-  One or two additional active screens add a small capped bonus.
-- The card editor shows the four category contributions and next rarity threshold.
-- The old shared card protocol is intentionally unchanged. Shared cards have
-  neither the full CPU model nor the complete output list, so their ratings may
-  remain coarser than those of the machine's live card. Updating the signed
-  card record and optical card code requires a coordinated protocol migration.
+Open **Ryoku Settings > Accounts > Achievements & badges**.
 
-The rarity algorithm is a rough hardware classification, not a benchmark result.
-Adjust its model table only with test coverage and measured comparisons.
+### Achievement Book
 
-## Ryoku-wide offline progression
+- Horizontally organised categories: Ryoku, Profile and Card Studio.
+- Each category has its own folio of achievements and reward seals.
+- Completion unlocks a **Claim** action. It does not immediately issue credits.
+- Claiming issues one-time credits and a collectible badge sticker.
+- Previously earned v1/v2 achievements are migrated as *claimed*, preserving
+  their existing rewards and unlocks.
+- A claimed badge can be featured on Home and placed as a canvas sticker.
 
-Achievements live under Accounts > Achievements & badges. This is a Ryoku
-profile feature, not a hardware card feature. The first global milestones
-recognise exploring Ryoku's Settings pages and different areas of the desktop,
-while card studio goals are one smaller collection. Profile owners may feature
-one earned badge on their Home identity panel.
+### Profile Workshop
 
-The global launch milestones are First Steps (30 credits), Pathfinder
-(5 distinct Settings pages, 80), Voyager (15 pages, 150) and Versatile
-(4 different Settings categories, 100). Visits are deduplicated and stored
-locally. Further gaming, creative and community badges require actual
-application events or verified community participation, not fabricated
-client-side claims.
+The Profile Workshop is on a second tab in the Achievements area.
 
-The original card-studio achievements remain available:
+- Purchasable backgrounds cover **the entire Home canvas**, not the trading card.
+- A custom local picture may be chosen with Ryoku's existing image chooser. The
+  picture remains at its original location. Moving or removing the source file
+  will break its display. Only local image URLs are accepted.
+- Stickers may be earned badges or decorative shop items. Up to 24 may be placed
+  at once, with independently saved position, rotation and size.
+- Home's **Decorate** control enables sticker drag mode. Editing is off by default.
+- Fonts are separate unlocks, individually assigned to display name, hostname
+  and tagline. The font choices use installed font families and safely fall
+  back when a family is unavailable.
+- The existing Card Studio still handles the displayed profile name and words,
+  as well as the hardware card. A shortcut in the Workshop goes to those controls.
+- Card palettes remain cosmetic and do not change rarity or TCG attributes.
 
-| Achievement | Credits |
+## One-time local economy
+
+| Achievement group | Maximum credits |
 | --- | ---: |
-| First Contact | 50 |
-| Under the Hood | 80 |
-| Signature | 100 |
-| A New Face | 100 |
-| Art Director | 120 |
-| Showtime | 150 |
+| Ryoku exploration | 360 |
+| Profile customisation | 320 |
+| Existing Card Studio milestones | 600 |
+| **Total** | **1280** |
 
-The six legacy card milestones still award once, for 600 credits total.
-Global achievements add up to 360 additional credits. The complete launch
-catalogue therefore offers 960 earnable credits in total.
-
-| Stock card palette | Cost |
+| Shop category | Total cost |
 | --- | ---: |
-| Midnight | 150 |
-| Ember | 200 |
-| Jade | 250 |
+| Original card palettes | 600 |
+| Decorative stickers | 245 |
+| Canvas backgrounds | 210 |
+| Fonts | 175 |
+| **Total** | **1230** |
 
-The launch cosmetic catalogue costs 600 credits, while all milestones
-together award 960 credits. There is no daily reset, repeat reward, random
-loot, paid currency or hardware-dependent progression.
+The full launch catalogue can be collected from finite, one-time achievements
+without repeating trivial actions. Collecting everything leaves 50 credits.
 
-The user-owned ledger lives at
-`$XDG_DATA_HOME/ryoku/progression.json` or
-`~/.local/share/ryoku/progression.json`. Balance is *derived* from
-known earned milestones minus known purchased cosmetics. An edited balance
-field is ignored, and duplicate rewards or purchases are rejected.
+This is intentionally a local, user-owned reward system. Editing progress data
+is possible and expected for a user's own machine. Neither coins nor badges
+should be trusted as online entitlements or multiplayer proofs. There are no
+paid boosts, hardware-stat advantages, loot boxes, or background pollers.
 
-This storage is deliberately not tamper-proof. Users fully control local data.
-Do not represent its credits, ownership or achievements as cryptographic proof,
-allow trading, or confer server-side entitlements. Any later online economy
-requires independent server authority and a separate security design.
+## State
 
-The progression palettes affect stock cards locally. An approved or custom
-card design retains its own authored palette. The existing signed team badge
-programme is separate and unchanged.
+Version 3 state resides at
+`$XDG_DATA_HOME/ryoku/progression.json`
+(or `~/.local/share/ryoku/progression.json`).
+
+The model stores:
+- earned, claimed and visited milestones
+- purchased cosmetics and the active card palette
+- one featured badge
+- canvas background, optional local picture URL, fonts and sticker placements
+
+The balance is **always derived** from claimed achievements minus purchased
+cosmetics, never an editable balance field. Claims and purchases are idempotent.
+Unknown IDs, unowned placements, invalid fonts and unsafe image URLs are
+rejected during state normalisation. Old progress files are migrated in memory
+without erasing the previous purchases or claimed rewards.
+
+## Hardware card scoring
+
+- Generation-aware performance bands replace suffix-only GPU rankings.
+- CPU threads plus conservative model-generation credit replace thread count
+  alone.
+- The highest-resolution active monitor is selected. Additional active outputs
+  receive a modest, capped bonus.
+- Compact shared cards still carry legacy GPU class, CPU thread count and one
+  display summary. Do not silently change their signed protocol, or Neuro's TCG
+  battle attributes, in this feature branch.
 
 ## Validation
 
-Run `node --test ryoku/hub/quickshell/registry/*.test.mjs` and exercise
-Accounts > Achievements & badges, featured badges on Home, the card studio,
-one-time exports, file persistence, palette selection and restart. Check the
-multi-monitor card scorer separately. All global achievements currently use
-local receipts, not online verification.
+Run:
+`node --test ryoku/hub/quickshell/registry/*.test.mjs`
+
+Use `qmlformat <file.qml> >/dev/null` for syntax checks. Actual Qt imports
+and interactive rendering must also be exercised in a running Quickshell Hub
+session. Confirm claim, purchase, sticker placement/drag, decoration removal,
+font changes, background selection, achievement page navigation, persistence
+after Settings restart, and preview rollback.
+
+The user's current live NixOS test is a backed-up overlay of the materialised
+`~/.config/quickshell/hub` files, **not** a NixOS rebuild. The rollback
+manifest and script live under
+`~/.local/state/ryoku/hyperion-card-preview/`.
+
+## Future integration
+
+Gaming and cross-app achievements require meaningful application events or
+server-verified contributions. Don't infer them from opening a menu. A public
+profile and social inventory also need authentication and an authoritative
+server-side entitlement ledger. These systems are **not implemented here**.
+
+The profile canvas currently has curated backgrounds, user-picked local
+pictures, glyph stickers, fonts and editable card words. Remote/cloud sharing,
+custom externally sourced sticker packs, rich animation packs and a global
+theme marketplace are future work. Keep those modular and optional.
