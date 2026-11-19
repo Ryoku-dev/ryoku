@@ -48,6 +48,15 @@ function rowHeight(avatarSize, names, namePosition, gap) {
     return avatarSize + (names && !beside(namePosition) ? NAME + space : 0);
 }
 
+// How many rows fit in a surface's available height: chrome + rows*rowHeight
+// + (rows-1)*spacing must stay under available.
+function maxRows(chrome, rowH, spacing, available) {
+    var budget = available - chrome + spacing;
+    if (budget < rowH)
+        return 1;
+    return Math.max(1, Math.floor(budget / (rowH + spacing)));
+}
+
 function columns(width, count, avatarSize, names, vertical, namePosition, gap, nameChars) {
     if (count <= 0 || vertical)
         return 1;
@@ -72,4 +81,4 @@ function size(fullWidth, count, avatarSize, names, vertical, namePosition, gap, 
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { PAD, HEADER, GAP, SPACE, NAME, NAME_SIDE, NAME_CHAR, NAME_MAX, avatar, beside, nameWidth, cell, rowHeight, columns, size };
+    module.exports = { PAD, HEADER, GAP, SPACE, NAME, NAME_SIDE, NAME_CHAR, NAME_MAX, avatar, beside, nameWidth, cell, rowHeight, maxRows, columns, size };

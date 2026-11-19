@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { PAD, HEADER, NAME, NAME_SIDE, NAME_MAX, SPACE, avatar, beside, nameWidth, cell, rowHeight, columns, size } = require("./layout.js");
+const { PAD, HEADER, NAME, NAME_SIDE, NAME_MAX, SPACE, avatar, beside, nameWidth, cell, rowHeight, maxRows, columns, size } = require("./layout.js");
 
 test("avatar size is clamped to the setting range", () => {
     assert.equal(avatar(undefined), 52);
@@ -69,6 +69,14 @@ test("a name beside the avatar takes width and drops the name row", () => {
     const below = size(400, 1, 52, true, false, "below");
     const side = size(400, 1, 52, true, false, "left");
     assert.ok(side.h < below.h);
+});
+
+test("row budget includes chrome and spacing", () => {
+    // open card at scale 2: 460 logical px available, 194 chrome, 4 spacing
+    assert.equal(maxRows(194, 63, 4, 460), 4);
+    // pinned panel with 72 px avatars: 516 available, 74 chrome, 9 spacing
+    assert.equal(maxRows(74, 89, 9, 516), 4);
+    assert.equal(maxRows(194, 63, 4, 100), 1);
 });
 
 test("a higher character limit widens the name box", () => {

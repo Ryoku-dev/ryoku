@@ -108,6 +108,7 @@ Item {
         width: root.beside ? root.nameWidth : root.width - root.nameShift
         visible: root.showName
         text: root.displayName
+        elide: Text.ElideRight
         typeRole: "caption"
         ink: root.active ? GameBarTone.ink : GameBarTone.ink2
         horizontalAlignment: root.beside

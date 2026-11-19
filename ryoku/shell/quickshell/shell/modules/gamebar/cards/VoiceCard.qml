@@ -17,6 +17,7 @@ GameBarCard {
     resizable: true
     // Set by the host to the number of avatars that fit below the strip.
     property int visibleAvatars: 8
+    property int miniVisibleAvatars: 8
 
     readonly property var voice: DiscordVoice
     readonly property int avatarLimit: Math.max(1, Math.min(8, Config.gamebar.voiceAvatars || 8))
@@ -453,7 +454,7 @@ GameBarCard {
             visible: card.voice.participantCount > 0
 
             Repeater {
-                model: Math.min(card.avatarLimit, card.visibleAvatars, card.voice.participantCount)
+                model: Math.min(card.avatarLimit, card.miniVisibleAvatars, card.voice.participantCount)
 
                 delegate: ParticipantAvatar {
                     required property int index
