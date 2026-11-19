@@ -265,40 +265,40 @@ Item {
                 //    ICONS is the same cell with the workspace's symbol, if it has one. ──
                 Rectangle {
                     id: numbersCell
-                    readonly property string icon: root.workspaceStyle === "icons" ? root.workspaceIcon(wsKey) : ""
+                    readonly property string icon: root.workspaceStyle === "icons" ? root.workspaceIcon(wsCell.wsKey) : ""
                     visible: root.workspaceStyle === "numbers" || root.workspaceStyle === "icons"
                     anchors.centerIn: parent
                     width:  20
                     height: 20
                     radius: root.panelButtonRadius
                     clip: true
-                    color: isFocused  ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.30)
-                         : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.12)
+                    color: wsCell.isFocused  ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.30)
+                         : wsCell.isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.12)
                                       : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.04)
                     Behavior on color { ColorAnimation { duration: 200 } }
                     IconText {
                         visible: numbersCell.icon !== ""
                         anchors.centerIn: parent
                         text: numbersCell.icon
-                        fill: isFocused ? 1 : 0
-                        color: isFocused  ? wsWidget.contentColor
-                             : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
+                        fill: wsCell.isFocused ? 1 : 0
+                        color: wsCell.isFocused  ? wsWidget.contentColor
+                             : wsCell.isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
                                           : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.28)
-                        font.pixelSize: isFocused ? 16 : 15
-                        font.weight: isFocused ? Font.Bold : Font.Normal
+                        font.pixelSize: wsCell.isFocused ? 16 : 15
+                        font.weight: wsCell.isFocused ? Font.Bold : Font.Normal
                     }
                     Text {
                         visible: numbersCell.icon === ""
                         anchors.centerIn: parent
-                        text: wsKey
+                        text: wsCell.wsKey
                         // focused = the only BRIGHT digit (lightened seal + bold + bigger);
                         // others dimmed so the active workspace is unmistakable
-                        color: isFocused  ? wsWidget.contentColor
-                             : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
+                        color: wsCell.isFocused  ? wsWidget.contentColor
+                             : wsCell.isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.5)
                                           : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.28)
                         font.family: root.mono
-                        font.pixelSize: isFocused ? 13 : 12
-                        font.weight: isFocused ? Font.Bold : Font.Normal
+                        font.pixelSize: wsCell.isFocused ? 13 : 12
+                        font.weight: wsCell.isFocused ? Font.Bold : Font.Normal
                     }
                 }
 
