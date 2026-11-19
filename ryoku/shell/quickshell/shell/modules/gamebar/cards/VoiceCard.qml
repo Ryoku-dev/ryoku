@@ -29,14 +29,10 @@ GameBarCard {
     readonly property string align: !card.vertical ? "center"
         : ["left", "right"].indexOf(Config.gamebar.voiceAlign) >= 0
             ? Config.gamebar.voiceAlign : "left"
-    readonly property string configuredNamePosition: ["below", "left", "right"].indexOf(Config.gamebar.voiceNamePosition) >= 0
-        ? Config.gamebar.voiceNamePosition : "below"
-    // A name on the same side as the alignment would point out of the widget:
-    // mirror it. Below is always allowed; horizontal always uses Below.
+    // The name always sits opposite the aligned avatars. Horizontal still
+    // draws names below internally, where alignment is always centered.
     readonly property string namePosition: !card.vertical ? "below"
-        : (card.align === "left" && card.configuredNamePosition === "left") ? "right"
-        : (card.align === "right" && card.configuredNamePosition === "right") ? "left"
-        : card.configuredNamePosition
+        : card.align === "right" ? "left" : "right"
     readonly property int nameGap: typeof Config.gamebar.voiceNameGap === "number"
         ? Math.max(0, Math.min(16, Config.gamebar.voiceNameGap)) : 1
     readonly property int nameChars: typeof Config.gamebar.voiceNameChars === "number"

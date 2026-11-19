@@ -119,7 +119,7 @@ Singleton {
             snap: true, snapReach: 9, snapGrid: 24,
             guideGrid: true, gridStep: 48, gridAlpha: 0.28,
             spring: 3.2, damping: 0.58, mass: 1,
-            voiceAvatars: 8, voiceVertical: false, voiceAlign: "center", voiceNamePosition: "below",
+            voiceAvatars: 8, voiceVertical: false, voiceAlign: "center",
             voiceNameGap: 1, voiceNameChars: 12, voiceDim: true, voiceDimOpacity: 0.5,
             voiceAvatarSize: 52, voiceNames: true, voiceControls: true,
             voiceBgOpacity: 0.72
@@ -511,7 +511,6 @@ Singleton {
             "voiceAvatars": 8,
             "voiceVertical": false,
             "voiceAlign": "center",
-            "voiceNamePosition": "below",
             "voiceNameGap": 1,
             "voiceNameChars": 12,
             "voiceDim": true,

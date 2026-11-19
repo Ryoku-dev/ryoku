@@ -125,16 +125,12 @@ PanelWindow {
 
     // Must match VoiceCard.namePosition: horizontal always uses Below, and a
     // side name on the same side as the alignment is mirrored to the other.
-    function voiceNamePosition() {
-        const configured = win.cfg.voiceNamePosition || "below";
+    // The name always sits opposite the aligned avatars. Horizontal draws
+    // names below internally, where alignment is always centered.
+    function voiceNameSide() {
         if (win.cfg.voiceVertical === false)
             return "below";
-        const align = win.cfg.voiceAlign || "center";
-        if ((align === "left" || align === "center") && configured === "left")
-            return "right";
-        if (align === "right" && configured === "right")
-            return "left";
-        return configured;
+        return (win.cfg.voiceAlign || "left") === "right" ? "left" : "right";
     }
 
     // How many avatars fit below the strip. Each surface has its own avatar
@@ -142,7 +138,7 @@ PanelWindow {
     function voiceAvatarLimit(avatar, chrome, spacing, cols) {
         const want = Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8));
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
-        const rowH = VoiceLayout.rowHeight(avatar, true, win.voiceNamePosition(), gap);
+        const rowH = VoiceLayout.rowHeight(avatar, true, win.voiceNameSide(), gap);
         const available = Math.max(rowH, (win.height - win.topPad - win.gap * 2) / win.us);
         return Math.max(1, Math.min(want, cols * VoiceLayout.maxRows(chrome, rowH, spacing, available)));
     }
@@ -151,7 +147,7 @@ PanelWindow {
         const avatar = 46;
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
-        const cell = VoiceLayout.cell(avatar, true, win.voiceNamePosition(), gap, chars);
+        const cell = VoiceLayout.cell(avatar, true, win.voiceNameSide(), gap, chars);
         const stageW = Math.max(0, width - 32);
         const cols = win.cfg.voiceVertical === false
             ? Math.max(1, Math.min(8, Math.floor((stageW + 4) / (cell + 4)))) : 1;
@@ -165,7 +161,7 @@ PanelWindow {
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
         const cols = VoiceLayout.columns(width, Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8)),
-            avatar, names, vertical, win.voiceNamePosition(), gap, chars);
+            avatar, names, vertical, win.voiceNameSide(), gap, chars);
         return win.voiceAvatarLimit(avatar, VoiceLayout.PAD * 2 + VoiceLayout.HEADER + VoiceLayout.GAP,
             VoiceLayout.SPACE, cols);
     }
@@ -182,7 +178,7 @@ PanelWindow {
         const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
         const names = win.cfg.voiceNames !== false;
         const vertical = win.cfg.voiceVertical !== false;
-        const namePosition = win.voiceNamePosition();
+        const namePosition = win.voiceNameSide();
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
         return VoiceLayout.size(fullWidth, count, avatar, names, vertical, namePosition, gap, chars);
@@ -194,7 +190,7 @@ PanelWindow {
         const count = Math.min(Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8)),
             DiscordVoice.participantCount, win.voiceOpenAvatarLimit(width));
         const avatar = 46; // the open card draws fixed-size avatars
-        const pos = win.voiceNamePosition();
+        const pos = win.voiceNameSide();
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
         const cell = VoiceLayout.cell(avatar, true, pos, gap, chars);

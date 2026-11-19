@@ -25,14 +25,6 @@ var snapOn = { bind: g("snap", true), is: [true] };
 var leftRight = [
     { label: "Left", value: "left" }, { label: "Right", value: "right" }
 ];
-var belowRight = [
-    { label: "Below", value: "below" }, { label: "Right", value: "right" }
-];
-var belowLeft = [
-    { label: "Below", value: "below" }, { label: "Left", value: "left" }
-];
-var alignLeft = { bind: g("voiceAlign", "center"), is: ["left", "center"] };
-var alignRight = { bind: g("voiceAlign", "center"), is: ["right"] };
 var guidesOn = { bind: g("guideGrid", true), is: [true] };
 
 // a row that needs several switches on lists them outermost first in `whenAll`;
@@ -132,15 +124,6 @@ var rows = [
       ], changeLabel: "Game bar avatar alignment",
       bind: g("voiceAlign", "center"), "default": "center",
       whenAll: [on, verticalOn], when: verticalOn },
-    { id: "voice-name-position", section: "voice", label: "Name position",
-      detail: "Where the name sits next to each avatar",
-      keywords: ["discord", "voice", "name", "label", "below", "left", "right", "avatar"],
-      control: "segmented", options: [
-          { label: "Below", value: "below" }, { label: "Left", value: "left" },
-          { label: "Right", value: "right" }
-      ], changeLabel: "Game bar avatar name position",
-      bind: g("voiceNamePosition", "below"), "default": "below",
-      whenAll: [on, verticalOn], when: verticalOn },
     { id: "voice-name-gap", section: "voice", label: "Name gap",
       detail: "Space between each avatar and its name",
       keywords: ["discord", "voice", "name", "gap", "spacing", "padding", "avatar"],
@@ -209,13 +192,6 @@ function adapt(rows, value) {
         if (flat.id === "voice-align") {
             // Vertical only has two sides: a stored Center behaves as Left.
             options = leftRight;
-            mirrorSide = true;
-        } else if (flat.id === "voice-name-position") {
-            // Mirror the name away from the aligned edge; Below always stays.
-            if (met(alignLeft, value))
-                options = belowRight;
-            if (met(alignRight, value))
-                options = belowLeft;
             mirrorSide = true;
         }
         return Object.assign({}, flat, { options: options, mirrorSide: mirrorSide });

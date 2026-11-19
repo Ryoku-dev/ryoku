@@ -15,7 +15,7 @@ const daemon = {
     enabled: [true], dim: [0.62, 0, 1], fade: [200, 0, 2000], scale: [1, 0.5, 2],
     snap: [true], snapReach: [9, 0, 64], snapGrid: [24, 4, 128], guideGrid: [true], gridStep: [48, 8, 256],
     gridAlpha: [0.28, 0, 1], spring: [3.2, 0.5, 20], damping: [0.58, 0.05, 1], mass: [1, 0.1, 10],
-    voiceAvatars: [8, 1, 8], voiceVertical: [false], voiceAlign: ["center"], voiceNamePosition: ["below"],
+    voiceAvatars: [8, 1, 8], voiceVertical: [false], voiceAlign: ["center"],
     voiceNameGap: [1, 0, 16], voiceNameChars: [12, 4, 32], voiceDim: [true], voiceDimOpacity: [0.5, 0.2, 1], voiceAvatarSize: [52, 32, 72],
     voiceNames: [true], voiceControls: [true], voiceBgOpacity: [0.72, 0, 1]
 };
@@ -50,12 +50,6 @@ test("the voice layout choice offers horizontal and vertical", () => {
     assert.equal(align.control, "segmented");
     assert.equal(JSON.stringify(align.options.map(o => [o.label, o.value])),
         JSON.stringify([["Center", "center"], ["Left", "left"], ["Right", "right"]]));
-
-    const names = S.row("voice-name-position");
-    assert.equal(names.label, "Name position");
-    assert.equal(names.control, "segmented");
-    assert.equal(JSON.stringify(names.options.map(o => [o.label, o.value])),
-        JSON.stringify([["Below", "below"], ["Left", "left"], ["Right", "right"]]));
 
     const gap = S.row("voice-name-gap");
     assert.equal(gap.control, "stepper");
@@ -92,12 +86,9 @@ test("rows wait on the outermost switch that is off", () => {
     assert.ok(!shown({ voiceDim: false }).includes("voice-dim-opacity"));
 });
 
-test("alignment and name position are hidden in a horizontal layout", () => {
-    const horizontal = shown({ voiceVertical: false });
-    assert.ok(!horizontal.includes("voice-name-position"));
-    assert.ok(!horizontal.includes("voice-align"));
+test("alignment is hidden in a horizontal layout", () => {
+    assert.ok(!shown({ voiceVertical: false }).includes("voice-align"));
     const vertical = S.adapt(S.rows, store({ voiceVertical: true }));
-    assert.equal(vertical.find(r => r.id === "voice-name-position").options.length, 2);
     assert.equal(JSON.stringify(vertical.find(r => r.id === "voice-align").options.map(o => o.value)),
         JSON.stringify(["left", "right"]));
 });
@@ -112,20 +103,6 @@ test("adaptive rows carry no baked value", () => {
             assert.equal(r.valueAlias, undefined, r.id);
         }
     }
-    assert.equal(S.adapt(S.rows, store({ voiceAlign: "left" }))
-        .find(r => r.id === "voice-name-position").mirrorSide, true);
-});
-
-test("a side alignment mirrors the available name positions", () => {
-    const names = values => S.adapt(S.rows, store(values))
-        .find(r => r.id === "voice-name-position").options.map(o => o.value);
-    assert.equal(JSON.stringify(names({ voiceAlign: "left" })),
-        JSON.stringify(["below", "right"]));
-    assert.equal(JSON.stringify(names({ voiceAlign: "right" })),
-        JSON.stringify(["below", "left"]));
-    // a stored Center acts as Left until a side is chosen
-    assert.equal(JSON.stringify(names({ voiceAlign: "center" })),
-        JSON.stringify(["below", "right"]));
 });
 
 test("a hidden row's condition names the switch a deep link lands on", () => {

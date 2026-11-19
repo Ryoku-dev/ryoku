@@ -176,7 +176,6 @@ colours look is the desktop's appearance, not a game bar setting.
 | `voiceAvatars` | `8` | Participant avatars shown before the list stops. A vertical stack shows fewer when the screen cannot fit them all. |
 | `voiceVertical` | `false` | Participant layout: rows by default, or one column when on. |
 | `voiceAlign` | `"center"` | Where the avatars sit in the widget: `center`, `left` or `right`. |
-| `voiceNamePosition` | `"below"` | Where each name sits when the layout is vertical: `below`, `left` or `right`. With Left alignment only Below/Right are offered, with Right only Below/Left; Horizontal always puts names below. |
 | `voiceNameGap` | `1` | Pixels between an avatar and its name. |
 | `voiceNameChars` | `12` | Characters of a name shown before an ellipsis. |
 | `voiceDim` | `true` | Fade participants who are not speaking. |

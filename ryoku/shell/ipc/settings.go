@@ -87,7 +87,6 @@ var (
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
 	voiceAlignValues      = []string{"center", "left", "right"}
-	voiceNamePosValues    = []string{"below", "left", "right"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
 	controlSectionIDs     = []string{"vitals", "connections", "powerProfile", "media", "levels", "bottomControls"}
 	controlPositionValues = []string{"top-left", "top-center", "top-right", "center"}
@@ -170,7 +169,6 @@ type gameBarSettings struct {
 	VoiceAvatars    int     `json:"voiceAvatars"`
 	VoiceVertical   bool    `json:"voiceVertical"`
 	VoiceAlign      string  `json:"voiceAlign"`
-	VoiceNamePos    string  `json:"voiceNamePosition"`
 	VoiceNameGap    int     `json:"voiceNameGap"`
 	VoiceNameChars  int     `json:"voiceNameChars"`
 	VoiceDim        bool    `json:"voiceDim"`
@@ -544,7 +542,6 @@ func defaultSettings() *settings {
 			VoiceAvatars:    8,
 			VoiceVertical:   false,
 			VoiceAlign:      "center",
-			VoiceNamePos:    "below",
 			VoiceNameGap:    1,
 			VoiceNameChars:  12,
 			VoiceDim:        true,
@@ -668,16 +665,6 @@ func (g *gameBarSettings) normalize(v *validator) {
 	v.clampF(&g.Mass, 0.1, 10)
 	v.rangeI("gamebar.voiceAvatars", &g.VoiceAvatars, 1, 8)
 	g.VoiceAlign = v.known("gamebar.voiceAlign", g.VoiceAlign, voiceAlignValues, "center")
-	g.VoiceNamePos = v.known("gamebar.voiceNamePosition", g.VoiceNamePos, voiceNamePosValues, "below")
-	// A name on the same side as the aligned avatars points out of the widget.
-	// Mirror it here so one patch publishes both values together.
-	if (g.VoiceAlign == "left" || g.VoiceAlign == "right") && g.VoiceNamePos == g.VoiceAlign {
-		if g.VoiceAlign == "left" {
-			g.VoiceNamePos = "right"
-		} else {
-			g.VoiceNamePos = "left"
-		}
-	}
 	v.rangeI("gamebar.voiceNameGap", &g.VoiceNameGap, 0, 16)
 	v.rangeI("gamebar.voiceNameChars", &g.VoiceNameChars, 4, 32)
 	v.clampF(&g.VoiceDimOpacity, 0.2, 1)
