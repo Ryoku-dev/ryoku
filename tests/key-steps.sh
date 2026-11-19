@@ -2,7 +2,8 @@
 # Regression test for the volume and brightness key steps: both helpers take
 # their magnitude from shell.json (audio.step and display.brightnessStep), so
 # the keys, the bar's wheel and the IPC verbs move by Ryoku Settings' number
-# instead of a literal 5. A missing or bad value must fall back to 5, and
+# instead of a literal 5. A missing or bad value must fall back to 5, a sink
+# that reports a level one point off must still move a full step (#910), and
 # ryoku-cmd-brightness must keep its explicit +N/-N form working.
 set -euo pipefail
 
@@ -59,7 +60,25 @@ store '{"qsbar":{"audioBoost":true},"audio":{"step":10}}'
 [[ $(volumePress 145 up) == 150% ]] || fail "boost up from 145 = $(volumePress 145 up), want 150%"
 [[ $(volumePress 155 up) == 150% ]] || fail "boost up from 155 = $(volumePress 155 up), want 150%"
 
-# 4. A bad store never stalls a keypress: a word falls back to 5, and a number
+# 4. A sink that reports one point off still moves by a full step (#910).
+store '{}'
+[[ $(volumePress 66 down) == 60% ]] || fail "down from a reported 66 = $(volumePress 66 down), want 60%"
+[[ $(volumePress 64 up) == 70% ]] || fail "up from a reported 64 = $(volumePress 64 up), want 70%"
+[[ $(volumePress 67 up) == 70% ]] || fail "up from 67 = $(volumePress 67 up), want 70%"
+store '{"audio":{"step":10}}'
+[[ $(volumePress 71 down) == 60% ]] || fail "step 10 down from a reported 71 = $(volumePress 71 down), want 60%"
+[[ $(volumePress 69 up) == 80% ]] || fail "step 10 up from a reported 69 = $(volumePress 69 up), want 80%"
+
+# 5. The cap still applies after snapping: 99 reaches 100 without boost, and
+# 105 is allowed from 100 when boost is on.
+store '{}'
+[[ $(volumePress 99 up) == 100% ]] || fail "up from 99 = $(volumePress 99 up), want 100%"
+[[ $(volumePress 100 up) == 100% ]] || fail "up at 100 without boost = $(volumePress 100 up), want 100%"
+store '{"qsbar":{"audioBoost":true}}'
+[[ $(volumePress 100 up) == 105% ]] || fail "boost up from 100 = $(volumePress 100 up), want 105%"
+[[ $(volumePress 99 up) == 105% ]] || fail "boost up from 99 = $(volumePress 99 up), want 105%"
+
+# 6. A bad store never stalls a keypress: a word falls back to 5, and a number
 # outside the Hub's range clamps or floors into it (negative to 1, 99 to 25, a
 # fraction to the whole below it).
 for tc in '{"audio":{"step":0}}:41' '{"audio":{"step":-4}}:41' '{"audio":{"step":99}}:50' '{"audio":{"step":6.7}}:42' '{"audio":{"step":"loud"}}:45'; do
@@ -69,7 +88,7 @@ for tc in '{"audio":{"step":0}}:41' '{"audio":{"step":-4}}:41' '{"audio":{"step"
 	[[ $got == "$want%" ]] || fail "${tc%:*} stepped to $got, want $want%"
 done
 
-# 5. Brightness: panel-only fakes, recording the brightnessctl magnitude.
+# 7. Brightness: panel-only fakes, recording the brightnessctl magnitude.
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/backlight.calls" >"$tmp/bin/brightnessctl"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$tmp/bin/ryoku-hw-backlight"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/ddcutil"
@@ -102,11 +121,11 @@ store '{"display":{"brightnessStep":7.9}}'
 store '{"display":{"brightnessStep":"dim"}}'
 [[ $(brightnessPress up) == *'set 5%+'* ]] || fail "word step up = $(brightnessPress up), want set 5%+"
 
-# 6. The explicit form scripts already use keeps its own magnitude.
+# 8. The explicit form scripts already use keeps its own magnitude.
 [[ $(brightnessPress +3) == *'set 3%+'* ]] || fail "explicit +3 = $(brightnessPress +3), want set 3%+"
 [[ $(brightnessPress -3) == *'set 3%-'* ]] || fail "explicit -3 = $(brightnessPress -3), want set 3%-"
 
-# 7. Nothing else is a press.
+# 9. Nothing else is a press.
 if PATH="$tmp/bin:$PATH" "$brightness" sideways >/dev/null 2>&1; then
 	fail "a bad argument was accepted"
 fi

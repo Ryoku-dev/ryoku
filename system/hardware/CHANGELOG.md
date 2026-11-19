@@ -37,6 +37,13 @@
   headless one exits at once.
 
 ### Fixed
+- `audio/ryoku-volume`: **a sink that reports a rounded level no longer stalls
+  the volume keys (#910).** Some sinks read back one point above what was set
+  (65 reports 66), so volume down computed the same level again and took extra
+  presses to move. A reported level within one point of the step grid now snaps
+  onto it before stepping, for steps of 4 and up; a value genuinely between
+  levels still moves one step in that direction, and the 100% cap and the 150%
+  boost limit are unchanged. Covered by `tests/key-steps.sh`.
 - `network/ryoku-dns`: **the DNS picker changes DNS where systemd-resolved
   does the lookups.** NetworkManager stores `[global-dns]` but does not apply it
   with its systemd-resolved backend, so every connection kept the DNS its

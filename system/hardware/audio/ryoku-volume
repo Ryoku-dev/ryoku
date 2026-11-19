@@ -16,6 +16,19 @@ step="$(jq -r '(.audio.step // 5) as $s | if ($s|type) == "number" then ($s|floo
 cur="$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf "%d", $2 * 100 + 0.5}')"
 max="$(awk -v l="$lim" 'BEGIN{printf "%d", l * 100 + 0.5}')"
 
+# A sink can report a level one point off from what was set (65 reads back as
+# 66). Snap a value within one point of a grid level onto it before stepping, so
+# a press moves a full step instead of stalling (issue #910). A value genuinely
+# between levels still moves to the next level in that direction. Steps of 1 to
+# 3 keep no tolerance, because one point is too much of such a step to tell
+# drift from a value in between.
+if [ "$step" -ge 4 ]; then
+	nearest=$(((cur + step / 2) / step * step))
+	diff=$((cur - nearest))
+	[ "$diff" -lt 0 ] && diff=$((-diff))
+	[ "$diff" -le 1 ] && cur=$nearest
+fi
+
 case "${1:-up}" in
 up)
 	next=$(((cur / step) * step + step))
