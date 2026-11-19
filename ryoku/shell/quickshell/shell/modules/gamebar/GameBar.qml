@@ -98,7 +98,7 @@ PanelWindow {
 
     // Only cards that can resize carry limits; the rest keep their drawn size.
     readonly property var cardLimits: ({
-        voice: { minW: 280, minH: 240, maxW: 640, maxH: 640 },
+        voice: { minW: 280, minH: 240, maxW: 1100, maxH: 640 },
         media: { minW: 300, minH: 200, maxW: 640, maxH: 560 },
         audio: { minW: 300, minH: 240, maxW: 640, maxH: 640 }
     })
@@ -112,7 +112,16 @@ PanelWindow {
     }
 
     function limitsFor(id) {
-        return win.cardLimits[id] || { minW: 220, minH: 160, maxW: 800, maxH: 700 };
+        const base = win.cardLimits[id] || { minW: 220, minH: 160, maxW: 800, maxH: 700 };
+        if (id !== "voice")
+            return base;
+        // A horizontal card can spread across the output; a vertical stack
+        // only needs one column, so keep it compact and never wider than the
+        // screen at the current scale.
+        const wanted = win.cfg.voiceVertical !== false ? 640 : base.maxW;
+        const screenW = Math.floor((win.width - win.sidePad * 2) / win.us);
+        return { minW: base.minW, minH: base.minH, maxH: base.maxH,
+            maxW: Math.max(base.minW, Math.min(wanted, screenW)) };
     }
 
     function minimalCard(id) {
@@ -143,8 +152,14 @@ PanelWindow {
         return Math.max(1, Math.min(want, cols * VoiceLayout.maxRows(chrome, rowH, spacing, available)));
     }
 
+    // While a card is being resized the live width is the one it actually has.
+    // The content floor follows that width, so the avatar limits must too.
+    function voiceLimitWidth() {
+        return (win.resizeCard === "voice" ? win.liveW : win.fullSizeFor("voice").w) / win.us;
+    }
+
     function voiceOpenAvatarLimit(width) {
-        const avatar = 46;
+        const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
         const cell = VoiceLayout.cell(avatar, true, win.voiceNameSide(), gap, chars);
@@ -172,7 +187,7 @@ PanelWindow {
         if (!win.minimalCard(id))
             return null;
         const avatars = Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8));
-        const fullWidth = win.fullSizeFor(id).w / win.us;
+        const fullWidth = win.voiceLimitWidth();
         const count = Math.min(avatars, DiscordVoice.participantCount,
             win.voicePinnedAvatarLimit(fullWidth));
         const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
@@ -189,7 +204,7 @@ PanelWindow {
     function voiceContentSize(width) {
         const count = Math.min(Math.max(1, Math.min(8, win.cfg.voiceAvatars || 8)),
             DiscordVoice.participantCount, win.voiceOpenAvatarLimit(width));
-        const avatar = 46; // the open card draws fixed-size avatars
+        const avatar = VoiceLayout.avatar(win.cfg.voiceAvatarSize);
         const pos = win.voiceNameSide();
         const gap = typeof win.cfg.voiceNameGap === "number" ? win.cfg.voiceNameGap : 1;
         const chars = typeof win.cfg.voiceNameChars === "number" ? win.cfg.voiceNameChars : 12;
@@ -200,7 +215,8 @@ PanelWindow {
         const rows = Math.ceil(count / cols);
         const gridH = rows * VoiceLayout.rowHeight(avatar, true, pos, gap) + (rows - 1) * 4;
         return {
-            w: Math.max(280, cols * cell + (cols - 1) * 4 + 32),
+            // Card padding plus one avatar spacing on each side.
+            w: Math.max(280, cols * cell + (cols - 1) * 4 + 32 + 4),
             // title area + header + stage margins + grid + footer + bottom pad
             h: Math.max(240, 46 + 56 + 8 + gridH + 4 + 56 + 24)
         };
@@ -931,8 +947,8 @@ PanelWindow {
     Component {
         id: voiceComp
         VoiceCard { s: win.us; host: win; cardId: "voice"; minimalWhenPinned: win.minimalCard("voice")
-            visibleAvatars: win.voiceOpenAvatarLimit(win.fullSizeFor("voice").w / win.us)
-            miniVisibleAvatars: win.voicePinnedAvatarLimit(win.fullSizeFor("voice").w / win.us) }
+            visibleAvatars: win.voiceOpenAvatarLimit(win.voiceLimitWidth())
+            miniVisibleAvatars: win.voicePinnedAvatarLimit(win.voiceLimitWidth()) }
     }
     Component {
         id: audioComp

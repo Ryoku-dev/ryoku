@@ -151,7 +151,7 @@ var rows = [
       control: "toggle", changeLabel: "Game bar voice names",
       bind: g("voiceNames", true), "default": true, when: on },
     { id: "voice-avatar-size", section: "pinned", label: "Picture size",
-      detail: "How large each picture is while the overlay is pinned and the game bar is closed",
+      detail: "How large each picture is in the voice card and in the pinned overlay",
       keywords: ["discord", "voice", "pinned", "avatar size", "larger", "smaller"],
       control: "stepper", min: 32, max: 72, unit: "px", changeLabel: "Game bar voice picture size",
       bind: g("voiceAvatarSize", 52), "default": 52, when: on },

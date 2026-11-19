@@ -185,8 +185,9 @@
 - **The Game Bar's Discord voice widget can stack people vertically.** The new
   `voiceVertical` setting makes both the open card and the pinned overlay put
   each participant in one column when turned on; rows stay the default. The
-  `voiceAlign` setting places the avatars at the centre, left or right of both
-  the open card and the pinned overlay, names sit opposite the aligned avatars,
+  `voiceAlign` setting places the avatars at the left or right of both the open
+  card and the pinned overlay, with a stored centre acting as left, and names
+  sit opposite the aligned avatars.
   `voiceNameGap` sets the space between them,
   and `voiceNameChars` caps the characters shown before an ellipsis. A tall
   vertical stack shows only as many people as fit below the strip, so the card

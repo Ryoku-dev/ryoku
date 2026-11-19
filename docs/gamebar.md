@@ -181,7 +181,7 @@ colours look is the desktop's appearance, not a game bar setting.
 | `voiceDim` | `true` | Fade participants who are not speaking. |
 | `voiceDimOpacity` | `0.5` | How far a quiet participant fades. |
 | `voiceNames` | `true` | Names beside the avatars in a vertical stack, under them in a horizontal row, in the pinned panel. |
-| `voiceAvatarSize` | `52` | Avatar size in the pinned panel, in pixels. |
+| `voiceAvatarSize` | `52` | Avatar size in the voice card and the pinned panel, in pixels. |
 | `voiceBgOpacity` | `0.72` | Background opacity of the pinned panel. |
 | `voiceControls` | `true` | Show mute and deafen state in the pinned panel. |
 

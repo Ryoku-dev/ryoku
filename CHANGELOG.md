@@ -13,8 +13,9 @@ for finer detail.
 
 ### Added
 - The Game Bar's Discord voice widget can stack the people in a call in one
-  column instead of a row, and place the avatars at the left, centre or right,
-  with **Avatar layout** and **Avatar alignment** choices, a **Name gap**
+  column instead of a row, and place the avatars at the left or right, with a
+  stored centre acting as left. It also adds **Avatar layout** and
+  **Avatar alignment** choices, a **Name gap**
   control and a **Name length** cap in Ryoku Settings > Desktop >
   Game bar > Discord voice (`voiceVertical`, `voiceAlign`, `voiceNameGap`,
   `voiceNameChars`).

@@ -37,19 +37,16 @@ GameBarCard {
         ? Math.max(0, Math.min(16, Config.gamebar.voiceNameGap)) : 1
     readonly property int nameChars: typeof Config.gamebar.voiceNameChars === "number"
         ? Math.max(4, Math.min(32, Config.gamebar.voiceNameChars)) : 12
+    readonly property real avatarLogical: VoiceLayout.avatar(Config.gamebar.voiceAvatarSize)
     readonly property real avatarSpacing: 4 * card.s
     readonly property real avatarCell: (VoiceLayout.beside(card.namePosition)
-        ? 46 + VoiceLayout.nameWidth(card.nameChars) + (card.namePosition === "right" ? card.nameGap : 0)
-        : Math.max(58, VoiceLayout.nameWidth(card.nameChars))) * card.s
-    readonly property real avatarSize: 46 * card.s
-    // Where the avatar sits inside its cell, for each name position.
-    readonly property real avatarOffset: card.namePosition === "right" ? 0
-        : card.namePosition === "left" ? VoiceLayout.nameWidth(card.nameChars) * card.s
-        : (card.avatarCell - card.avatarSize) / 2
+        ? card.avatarLogical + VoiceLayout.nameWidth(card.nameChars) + (card.namePosition === "right" ? card.nameGap : 0)
+        : Math.max(card.avatarLogical, 58, VoiceLayout.nameWidth(card.nameChars))) * card.s
+    readonly property real avatarSize: card.avatarLogical * card.s
     readonly property int avatarColumns: card.vertical ? 1 : Math.max(1, Math.min(8,
         Math.floor((stage.width + card.avatarSpacing) / (card.avatarCell + card.avatarSpacing))))
 
-    readonly property real miniAvatarLogical: VoiceLayout.avatar(Config.gamebar.voiceAvatarSize)
+    readonly property real miniAvatarLogical: card.avatarLogical
     readonly property bool miniNames: Config.gamebar.voiceNames !== false
     readonly property bool miniControls: Config.gamebar.voiceControls !== false
     readonly property real miniBgOpacity: {
@@ -61,8 +58,11 @@ GameBarCard {
     readonly property real miniHeaderHeight: VoiceLayout.HEADER * card.s
     readonly property real miniCell: VoiceLayout.cell(card.miniAvatarLogical, card.miniNames, card.namePosition, card.nameGap, card.nameChars) * card.s
     // The pinned header's Discord tile starts at miniPad; line the first
-    // avatar up with it when the grid is on the left.
-    readonly property real miniPlateOffset: card.namePosition === "right" ? 0
+    // avatar up with it when the grid is on the left. With names off the cell
+    // is just the avatar, so there is no name width to offset by.
+    readonly property real miniPlateOffset: !card.miniNames
+        ? (card.miniCell - card.miniAvatarLogical * card.s) / 2
+        : card.namePosition === "right" ? 0
         : card.namePosition === "left" ? VoiceLayout.nameWidth(card.nameChars) * card.s
         : (card.miniCell - card.miniAvatarLogical * card.s) / 2
     // The avatar grid follows Avatar alignment, never the header mirror.
@@ -73,7 +73,9 @@ GameBarCard {
     // Right mirrors left around the avatar, not around the (wider) name cell.
     readonly property real miniRightX: card.width - card.miniPad
         - card.miniAvatarLogical * card.s - card.miniPlateOffset
-    readonly property int miniColumns: VoiceLayout.columns(card.width / card.s,
+    // Size the grid from the same logical width the panel was sized with. The
+    // physical card width can round a hair below the column threshold.
+    readonly property int miniColumns: VoiceLayout.columns(card.host.voiceLimitWidth(),
         Math.min(card.avatarLimit, card.miniVisibleAvatars, card.voice.participantCount),
         card.miniAvatarLogical, card.miniNames, card.vertical, card.namePosition, card.nameGap, card.nameChars)
     readonly property string miniSubtitle: {
@@ -195,10 +197,10 @@ GameBarCard {
 
             Grid {
                 anchors.verticalCenter: parent.verticalCenter
-                x: card.align === "left" ? card.pad + card.avatarSpacing
-                    : card.align === "right" ? Math.max(card.pad, parent.width - card.pad - card.avatarSpacing
-                        - card.avatarSize - card.avatarOffset)
-                    : (parent.width - implicitWidth) / 2
+                x: Math.max(card.pad, Math.min(parent.width - card.pad - implicitWidth,
+                    card.align === "left" ? card.pad + card.avatarSpacing
+                        : card.align === "right" ? parent.width - card.pad - card.avatarSpacing - card.avatarCell
+                        : (parent.width - implicitWidth) / 2))
                 columns: card.avatarColumns
                 spacing: card.avatarSpacing
                 visible: card.voice.participantCount > 0
