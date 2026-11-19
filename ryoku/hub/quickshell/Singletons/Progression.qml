@@ -206,6 +206,12 @@ Singleton {
             root.save(result.state);
     }
 
+    function reorderSticker(slot, direction) {
+        if (!root.ready || root.error !== "") return;
+        var result = Model.reorderSticker(root.data, slot, direction);
+        if (result.changed) root.save(result.state);
+    }
+
     function removeSticker(slot) {
         if (!root.ready || root.error !== "")
             return;

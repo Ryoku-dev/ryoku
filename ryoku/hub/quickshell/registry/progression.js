@@ -102,9 +102,9 @@ var cosmetics = [
     { id: "sticker-flame", name: "Ryoku Needle", type: "sticker", price: 161, art: "ryodecors/needle.png", glyph: "local_fire_department", tint: "#ffac83" },
     { id: "sticker-bloom", name: "Laocoön", type: "sticker", price: 129, art: "ryodecors/laocoon.png", glyph: "filter_vintage", tint: "#d9b0ef" },
     { id: "sticker-star", name: "Hawk Study", type: "sticker", price: 97, art: "ryodecors/hawk.png", glyph: "star", tint: "#f6d18b" },
-    { id: "bg-graphite", name: "Aurelius / Graphite", type: "background", price: 156, art: "ryodecors/aurelius.png" },
-    { id: "bg-blueprint", name: "Ryoku Needle", type: "background", price: 182, art: "ryodecors/needle.png" },
-    { id: "bg-ember", name: "Afterglow / Blade", type: "background", price: 208, art: "ryodecors/katana.png" },
+    { id: "bg-graphite", name: "Aurelius / Graphite", type: "background", price: 156, art: "scenes/bg-graphite.svg" },
+    { id: "bg-blueprint", name: "Ryoku Needle", type: "background", price: 182, art: "scenes/bg-blueprint.svg" },
+    { id: "bg-ember", name: "Afterglow / Blade", type: "background", price: 208, art: "scenes/bg-ember.svg" },
     { id: "font-serif", name: "Engraved", type: "font", price: 108, family: "Liberation Serif" },
     { id: "font-mono", name: "Terminal", type: "font", price: 129, family: "JetBrainsMono Nerd Font" },
     { id: "font-clean", name: "Technical", type: "font", price: 140, family: "Inter Display" },
@@ -114,19 +114,19 @@ var cosmetics = [
     { id: "sticker-archive", name: "Camera Obscura", type: "sticker", price: 258, art: "ryodecors/camera.png", glyph: "verified_user", tint: "#b8ab90", rarity: "rare", sigil: "III" },
     { id: "sticker-moonseal", name: "Microphone", type: "sticker", price: 247, art: "ryodecors/mic.png", glyph: "brightness_2", tint: "#b3bbdd", rarity: "rare", sigil: "月" },
     { id: "sticker-fossil", name: "Rashin Hero", type: "sticker", price: 258, art: "ryodecors/rashin-hero.png", glyph: "museum", tint: "#d8c8b0", rarity: "epic", sigil: "石" },
-    { id: "bg-archive", name: "Laocoön Archive", type: "background", price: 455, art: "ryodecors/laocoon.png" },
-    { id: "bg-obsidian", name: "Lunar Obsidian", type: "background", price: 468, art: "ryodecors/moon.png" },
-    { id: "bg-sutra", name: "Stone & Sutra", type: "background", price: 507, art: "ryodecors/david.png" },
-    { id: "bg-signal", name: "Signal / Rashin", type: "background", price: 520, art: "ryodecors/rashin-hero.png" },
+    { id: "bg-archive", name: "Laocoön Archive", type: "background", price: 455, art: "scenes/bg-archive.svg" },
+    { id: "bg-obsidian", name: "Lunar Obsidian", type: "background", price: 468, art: "scenes/bg-obsidian.svg" },
+    { id: "bg-sutra", name: "Stone & Sutra", type: "background", price: 507, art: "scenes/bg-sutra.svg" },
+    { id: "bg-signal", name: "Signal / Rashin", type: "background", price: 520, art: "scenes/bg-signal.svg" },
     { id: "font-ritual", name: "Ritual Sans", type: "font", price: 280, family: "Inter Display" },
     { id: "font-archive", name: "Archive Mono", type: "font", price: 290, family: "FiraCode Nerd Font" },
     { id: "font-stone", name: "Stone Serif", type: "font", price: 322, family: "Noto Serif" },
-    { id: "bg-atelier", name: "The Atelier", type: "background", price: 550, art: "ryodecors/laocoon.png" },
-    { id: "bg-antiquity", name: "Ancient Archive", type: "background", price: 600, art: "ryodecors/aurelius.png" },
-    { id: "bg-memento", name: "Memento Mori", type: "background", price: 700, art: "ryodecors/david.png" },
-    { id: "bg-astral", name: "Astral Cartography", type: "background", price: 740, art: "ryodecors/moon.png" },
-    { id: "bg-storm", name: "Rashin Afterimage", type: "background", price: 820, art: "ryodecors/rashin-hero.png" },
-    { id: "bg-metal", name: "Temple of Steel", type: "background", price: 780, art: "ryodecors/katana.png" }
+    { id: "bg-atelier", name: "The Atelier", type: "background", price: 550, art: "scenes/bg-atelier.svg" },
+    { id: "bg-antiquity", name: "Ancient Archive", type: "background", price: 600, art: "scenes/bg-antiquity.svg" },
+    { id: "bg-memento", name: "Memento Mori", type: "background", price: 700, art: "scenes/bg-memento.svg" },
+    { id: "bg-astral", name: "Astral Cartography", type: "background", price: 740, art: "scenes/bg-astral.svg" },
+    { id: "bg-storm", name: "Rashin Afterimage", type: "background", price: 820, art: "scenes/bg-storm.svg" },
+    { id: "bg-metal", name: "Temple of Steel", type: "background", price: 780, art: "scenes/bg-metal.svg" }
 ];
 
 // Completion cosmetics live outside the paid catalogue, so rewards cannot
@@ -423,6 +423,11 @@ function clamp(n, min, max, fallback) {
     n = Number(n);
     return isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 }
+function normalizeAngle(value, fallback) {
+    var angle = Number(value);
+    if (!isFinite(angle)) return fallback;
+    return ((angle % 360) + 540) % 360 - 180;
+}
 function validId(id) { return typeof id === "string" && /^[a-z][a-z0-9-]{0,49}$/.test(id); }
 
 function clean(value) {
@@ -482,9 +487,9 @@ function clean(value) {
             if (!/^st[0-9]{1,8}$/.test(slot))
                 return;
             used[slot] = true;
-            stickers.push({ slot: slot, item: s.item, x: clamp(s.x, 0, 0.94, 0.5),
-                            y: clamp(s.y, 0, 0.94, 0.5), size: clamp(s.size, 36, 300, 82),
-                            rotation: clamp(s.rotation, -45, 45, 0) });
+            stickers.push({ slot: slot, item: s.item, x: clamp(s.x, -2, 2, 0.5),
+                            y: clamp(s.y, -2, 2, 0.5), size: clamp(s.size, 8, 4096, 82),
+                            rotation: normalizeAngle(s.rotation, 0) });
         });
     }
     var image = typeof rawCanvas.image === "string" &&
@@ -693,11 +698,24 @@ function moveSticker(state, slot, x, y, size, rotation) {
     var s = next.canvas.stickers.find(function(item) { return item.slot === slot; });
     if (!s)
         return { state: next, changed: false };
-    var nx = clamp(x, 0, 0.94, s.x), ny = clamp(y, 0, 0.94, s.y);
-    var ns = clamp(size, 36, 300, s.size), nr = clamp(rotation, -45, 45, s.rotation);
+    var nx = clamp(x, -2, 2, s.x), ny = clamp(y, -2, 2, s.y);
+    var ns = clamp(size, 8, 4096, s.size), nr = normalizeAngle(rotation, s.rotation);
     if (s.x === nx && s.y === ny && s.size === ns && s.rotation === nr)
         return { state: next, changed: false };
     s.x = nx; s.y = ny; s.size = ns; s.rotation = nr;
+    touchProfile(next);
+    return { state: clean(next), changed: true };
+}
+
+function reorderSticker(state, slot, direction) {
+    var next = clean(state);
+    var stickers = next.canvas.stickers;
+    var from = stickers.findIndex(function(item) { return item.slot === slot; });
+    if (from < 0) return { state: next, changed: false };
+    var to = Math.max(0, Math.min(stickers.length - 1, from + (direction > 0 ? 1 : -1)));
+    if (to === from) return { state: next, changed: false };
+    var item = stickers.splice(from, 1)[0];
+    stickers.splice(to, 0, item);
     touchProfile(next);
     return { state: clean(next), changed: true };
 }

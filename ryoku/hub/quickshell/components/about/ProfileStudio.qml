@@ -23,16 +23,7 @@ Column {
         onAccepted: Progression.setCustomImage(backgroundPicker.selectedFile)
     }
 
-    Label { text: I18n.tr("POINTS SHOP"); typeRole: "mono"; ink: Lithic.gold }
-    Label { text: I18n.tr("Collect something extraordinary."); typeRole: "title" }
-    Label {
-        width: parent.width
-        text: I18n.tr("Everything in your collection belongs to your Ryoku profile. Buy cosmetics with earned credits, then equip them or place them on Home.")
-        typeRole: "detail"
-        inkRole: "fg2"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
-    }
+    Label { text: I18n.tr("Points Shop"); typeRole: "title" }
     Row {
         spacing: LithicTokens.space.s3
         Label {
@@ -113,7 +104,7 @@ Column {
                     modelData.id === "bg-sutra" ? "#1c2524" :
                     modelData.id === "bg-signal" ? "#13202b" : "#22242b"
                 width: (backdropGallery.width - backdropGallery.columnSpacing * 2) / 3
-                height: 208
+                height: 217
 
                 CutRect {
                     anchors.fill: parent
@@ -123,77 +114,44 @@ Column {
                     strokeWidth: backdrop.active ? 2 : 1
                 }
                 Item {
-                    anchors.fill: parent
-                    anchors.margins: 1
+                    x: 2
+                    y: 2
+                    width: parent.width - 4
+                    height: 133
                     clip: true
-                    Repeater {
-                        model: 7
-                        delegate: Rectangle {
-                            x: index * (backdrop.width / 6)
-                            y: 0
-                            height: 126
-                            width: 1
-                            color: backdrop.tint
-                            opacity: 0.13
-                        }
-                    }
-                    Repeater {
-                        model: 4
-                        delegate: Rectangle {
-                            y: index * 40 + 3
-                            x: 0
-                            width: backdrop.width
-                            height: 1
-                            color: backdrop.tint
-                            opacity: 0.13
-                        }
-                    }
 
+                    Image {
+                        anchors.fill: parent
+                        source: Qt.resolvedUrl("../../assets/" + backdrop.modelData.art)
+                        asynchronous: true
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                    }
                 }
-                Image {
-                    width: parent.width * 0.94
-                    height: 150
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    y: 1
-                    asynchronous: true
-                    fillMode: Image.PreserveAspectFit
-                    opacity: 0.84
-                    source: backdrop.modelData.art ? Qt.resolvedUrl("../../assets/" + backdrop.modelData.art) : ""
+                Label {
+                    x: 11
+                    y: 140
+                    width: parent.width - 22
+                    height: 33
+                    text: I18n.tr(backdrop.modelData.name)
+                    typeRole: "detail"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
                 }
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 5
-                    Label {
-                        text: "SCENE / " + String(backdrop.index + 1).padStart(2, "0")
-                        typeRole: "monoSm"
-                        ink: backdrop.tint
-                    }
-                    Item { width: 1; height: 72 }
-                    Label {
-                        width: parent.width
-                        text: I18n.tr(backdrop.modelData.name)
-                        typeRole: "sentence"
-                        ink: "#f1f2f5"
-                        elide: Text.ElideRight
-                    }
-                    Label {
-                        text: backdrop.owned ? I18n.tr("COLLECTED") :
-                              backdrop.modelData.price + " ◆"
-                        typeRole: "monoSm"
-                        ink: backdrop.tint
-                    }
-                    Plaque {
-                        small: true
-                        kind: backdrop.active ? "gold" : "line"
-                        text: backdrop.active ? I18n.tr("Equipped") :
-                              backdrop.owned ? I18n.tr("Use canvas") : I18n.tr("Unlock")
-                        enabled: !backdrop.active &&
-                            (backdrop.owned || Progression.balance >= backdrop.modelData.price)
-                        onClicked: {
-                            if (backdrop.owned) Progression.setBackground(backdrop.modelData.id);
-                            else Progression.purchase(backdrop.modelData.id);
-                        }
+                Plaque {
+                    x: 11
+                    y: 178
+                    small: true
+                    kind: backdrop.active ? "gold" : "line"
+                    text: backdrop.active ? I18n.tr("Equipped") :
+                          backdrop.owned ? I18n.tr("Use canvas") :
+                          I18n.tr("Unlock") + " · " + backdrop.modelData.price + " ◆"
+                    enabled: !backdrop.active &&
+                        (backdrop.owned || Progression.balance >= backdrop.modelData.price)
+                    onClicked: {
+                        if (backdrop.owned) Progression.setBackground(backdrop.modelData.id);
+                        else Progression.purchase(backdrop.modelData.id);
                     }
                 }
             }
@@ -247,19 +205,10 @@ Column {
     }
 
     Label { text: I18n.tr("Typography"); typeRole: "section" }
-    Plaque {
-        small: true
-        kind: "quiet"
-        text: I18n.tr("Edit display name and tagline")
-        onClicked: if (root.hub) root.hub.customiseHome("words")
-    }
     Label {
-        width: parent.width
-        text: I18n.tr("Assign a font individually to the display name, hostname and tagline. The default Ryoku typography remains free.")
+        text: I18n.tr("Apply fonts in Customise → Words")
         typeRole: "detail"
         inkRole: "fg2"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
     }
     Grid {
         id: fontGallery
@@ -314,48 +263,6 @@ Column {
             }
         }
     }
-    Repeater {
-        model: [
-            { id: "name", title: "Display name" },
-            { id: "hostname", title: "Hostname" },
-            { id: "tagline", title: "Tagline" }
-        ]
-        delegate: Column {
-            id: fontRow
-            required property var modelData
-            width: root.width
-            spacing: LithicTokens.space.s2
-            Label { text: I18n.tr(fontRow.modelData.title); typeRole: "sentence" }
-            Row {
-                spacing: LithicTokens.space.s2
-                Plaque {
-                    small: true
-                    kind: !Progression.canvas.fonts[fontRow.modelData.id] ? "gold" : "line"
-                    text: I18n.tr("Default")
-                    onClicked: Progression.setFont(fontRow.modelData.id, "")
-                }
-                Repeater {
-                    model: root.ownedFonts
-                    delegate: Plaque {
-                        id: fontChoice
-                        required property var modelData
-                        readonly property bool owned: Progression.data.owned[modelData.id] === true
-                        small: true
-                        kind: Progression.canvas.fonts[fontRow.modelData.id] === modelData.id ? "gold" : "line"
-                        text: I18n.tr(modelData.name) + (owned ? "" : " · " + modelData.price + " ◆")
-                        enabled: owned || Progression.balance >= modelData.price
-                        onClicked: {
-                            if (fontChoice.owned)
-                                Progression.setFont(fontRow.modelData.id, modelData.id);
-                            else
-                                Progression.purchase(modelData.id);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     Label { text: I18n.tr("Collectible stickers"); typeRole: "section" }
     Label {
         width: parent.width
@@ -460,6 +367,7 @@ Column {
                     strokeWidth: 1
                 }
                 ArchiveSeal {
+                    badgeId: earnedSticker.modelData.id
                     anchors.horizontalCenter: parent.horizontalCenter
                     y: 4
                     width: 89
@@ -492,60 +400,6 @@ Column {
         }
     }
 
-    Label { text: I18n.tr("Placed decorations"); typeRole: "section" }
-    Label {
-        width: parent.width
-        visible: root.placed.length === 0
-        text: I18n.tr("No stickers placed yet. Choose one above to start your layout.")
-        typeRole: "detail"
-        inkRole: "fg2"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
-    }
-    Repeater {
-        model: root.placed
-        delegate: SettingRow {
-            id: placedRow
-            required property var modelData
-            readonly property var art: Progression.stickerArt(modelData.item)
-            width: root.width
-            title: art ? I18n.tr(art.name) : ""
-            detail: I18n.tr("Size %1 · rotation %2°").replace("%1", Math.round(modelData.size)).replace("%2", Math.round(modelData.rotation))
-            Row {
-                spacing: 6
-                Plaque {
-                    small: true
-                    kind: "line"
-                    text: "−"
-                    onClicked: Progression.moveSticker(placedRow.modelData.slot,
-                        placedRow.modelData.x, placedRow.modelData.y, placedRow.modelData.size - 12,
-                        placedRow.modelData.rotation)
-                }
-                Plaque {
-                    small: true
-                    kind: "line"
-                    text: "+"
-                    onClicked: Progression.moveSticker(placedRow.modelData.slot,
-                        placedRow.modelData.x, placedRow.modelData.y, placedRow.modelData.size + 12,
-                        placedRow.modelData.rotation)
-                }
-                Plaque {
-                    small: true
-                    kind: "line"
-                    text: "↻"
-                    onClicked: Progression.moveSticker(placedRow.modelData.slot,
-                        placedRow.modelData.x, placedRow.modelData.y, placedRow.modelData.size,
-                        placedRow.modelData.rotation + 15)
-                }
-                Plaque {
-                    small: true
-                    kind: "line"
-                    text: I18n.tr("Remove")
-                    onClicked: Progression.removeSticker(placedRow.modelData.slot)
-                }
-            }
-        }
-    }
     Label { text: I18n.tr("Card palettes"); typeRole: "section" }
     Repeater {
         model: root.palettes

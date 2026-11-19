@@ -116,6 +116,7 @@ FocusScope {
                 height: Math.min(245, Math.max(150, reveal.height * 0.4))
 
                 ArchiveSeal {
+                    badgeId: reveal.badge ? reveal.badge.id : ""
                     anchors.centerIn: parent
                     width: Math.min(230, parent.height)
                     height: width

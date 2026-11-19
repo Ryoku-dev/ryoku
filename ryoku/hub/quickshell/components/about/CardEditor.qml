@@ -700,6 +700,63 @@ Dialog {
                         }
                     }
 
+                    Slab {
+                        visible: root.tab === "words"
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: LithicTokens.space.s3
+                            Label {
+                                text: I18n.tr("Profile typography")
+                                typeRole: "section"
+                            }
+                            Repeater {
+                                model: [
+                                    { id: "name", title: "Display name" },
+                                    { id: "hostname", title: "Hostname" },
+                                    { id: "tagline", title: "Tagline" }
+                                ]
+                                delegate: Column {
+                                    id: fontRole
+                                    required property var modelData
+                                    width: parent.width
+                                    spacing: LithicTokens.space.s2
+                                    Label {
+                                        text: I18n.tr(fontRole.modelData.title)
+                                        typeRole: "detail"
+                                    }
+                                    Flow {
+                                        width: parent.width
+                                        spacing: LithicTokens.space.s2
+                                        Plaque {
+                                            small: true
+                                            kind: Progression.canvas.fonts[fontRole.modelData.id] ? "line" : "gold"
+                                            text: I18n.tr("Default")
+                                            onClicked: Progression.setFont(fontRole.modelData.id, "")
+                                        }
+                                        Repeater {
+                                            model: Progression.cosmetics.filter(c =>
+                                                c.type === "font" && Progression.data.owned[c.id] === true)
+                                            delegate: Plaque {
+                                                required property var modelData
+                                                small: true
+                                                kind: Progression.canvas.fonts[fontRole.modelData.id] === modelData.id ?
+                                                    "gold" : "line"
+                                                text: I18n.tr(modelData.name)
+                                                onClicked: Progression.setFont(fontRole.modelData.id, modelData.id)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Label {
+                                text: I18n.tr("Additional fonts are available in Points Shop.")
+                                typeRole: "detail"
+                                inkRole: "fg2"
+                            }
+                        }
+                    }
+
                     // Profile controls belong in Customise, not on the profile itself
                     Slab {
                         visible: root.tab === "layout"
@@ -747,6 +804,7 @@ Dialog {
                                         width: 94
                                         height: 105
                                         ArchiveSeal {
+                                            badgeId: modelData.id
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             width: 70
                                             height: 70
@@ -794,6 +852,94 @@ Dialog {
                                         Progression.selectedSticker = "";
                                         Progression.editMode = true;
                                         root.close();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Slab {
+                        visible: root.tab === "layout" &&
+                            Progression.canvas.stickers.length > 0
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: LithicTokens.space.s2
+                            Label {
+                                text: I18n.tr("Placed decorations")
+                                typeRole: "section"
+                            }
+                            Label {
+                                width: parent.width
+                                text: I18n.tr("Drag to move, use the corner grips to size and rotate. Shift + wheel rotates, Ctrl + wheel makes fine adjustments.")
+                                typeRole: "detail"
+                                inkRole: "fg2"
+                                wrapMode: Text.Wrap
+                                elide: Text.ElideNone
+                            }
+                            Repeater {
+                                model: Progression.canvas.stickers
+                                delegate: SettingRow {
+                                    id: decoration
+                                    required property var modelData
+                                    readonly property var asset: Progression.stickerArt(modelData.item)
+                                    width: parent.width
+                                    title: asset ? I18n.tr(asset.name) : ""
+                                    detail: Math.round(modelData.size) + " px · " +
+                                        Math.round(modelData.rotation) + "°"
+                                    Flow {
+                                        width: Math.min(340, decoration.width * 0.68)
+                                        spacing: LithicTokens.space.s2
+                                        Plaque {
+                                            small: true
+                                            kind: "line"
+                                            text: "−"
+                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
+                                                decoration.modelData.x, decoration.modelData.y,
+                                                decoration.modelData.size - 20, decoration.modelData.rotation)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "line"
+                                            text: "+"
+                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
+                                                decoration.modelData.x, decoration.modelData.y,
+                                                decoration.modelData.size + 20, decoration.modelData.rotation)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "line"
+                                            text: "↶"
+                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
+                                                decoration.modelData.x, decoration.modelData.y,
+                                                decoration.modelData.size, decoration.modelData.rotation - 5)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "line"
+                                            text: "↷"
+                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
+                                                decoration.modelData.x, decoration.modelData.y,
+                                                decoration.modelData.size, decoration.modelData.rotation + 5)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "quiet"
+                                            text: I18n.tr("Back")
+                                            onClicked: Progression.reorderSticker(decoration.modelData.slot, -1)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "quiet"
+                                            text: I18n.tr("Front")
+                                            onClicked: Progression.reorderSticker(decoration.modelData.slot, 1)
+                                        }
+                                        Plaque {
+                                            small: true
+                                            kind: "quiet"
+                                            text: I18n.tr("Remove")
+                                            onClicked: Progression.removeSticker(decoration.modelData.slot)
+                                        }
                                     }
                                 }
                             }

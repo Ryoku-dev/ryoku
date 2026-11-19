@@ -39,8 +39,8 @@ test("owned artwork cannot be placed until purchased and resizes within bounds",
     state = P.addSticker(state, sticker.id).state;
     assert.equal(state.canvas.stickers[0].item, sticker.id);
     assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, 250, -20).state.canvas.stickers[0].size, 250);
-    assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, -100, 0).state.canvas.stickers[0].size, 36);
-    assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, 999, 0).state.canvas.stickers[0].size, 300);
+    assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, -100, 0).state.canvas.stickers[0].size, 8);
+    assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, 999, 0).state.canvas.stickers[0].size, 999);
 });
 
 test("Home keeps profile identity clear and delegates editing to Customise", () => {

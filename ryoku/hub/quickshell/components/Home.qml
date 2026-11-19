@@ -702,16 +702,24 @@ Item {
                 delegate: Item {
                     id: placedSticker
                     required property var modelData
+                    required property int index
                     readonly property var art: Progression.stickerArt(modelData.item)
                     property real displayedSize: modelData.size
+                    property real displayedRotation: modelData.rotation
+                    onModelDataChanged: {
+                        displayedSize = modelData.size;
+                        displayedRotation = modelData.rotation;
+                    }
                     width: displayedSize
                     height: width
-                    x: Math.min(modelData.x * plate.width, Math.max(0, plate.width - width * 1.15))
-                    y: Math.min(modelData.y * plate.height, Math.max(0, plate.height - height * 1.15))
-                    rotation: modelData.rotation
-                    z: 1
+                    x: modelData.x * plate.width
+                    y: modelData.y * plate.height
+                    rotation: displayedRotation
+                    z: 1 + index / 100
 
                     ArchiveSeal {
+                        badgeId: placedSticker.art && placedSticker.art.type === "badge" ?
+                            placedSticker.modelData.item : ""
                         anchors.fill: parent
                         visible: !placedSticker.art || placedSticker.art.type === "badge"
                         title: placedSticker.art ? placedSticker.art.name : "RYOKU"
@@ -742,22 +750,78 @@ Item {
                         onPressed: Progression.selectedSticker = placedSticker.modelData.slot
                         onWheel: wheel => {
                             Progression.selectedSticker = placedSticker.modelData.slot;
-                            var delta = wheel.angleDelta.y > 0 ? 14 : -14;
+                            var sign = wheel.angleDelta.y >= 0 ? 1 : -1;
+                            var rotate = (wheel.modifiers & Qt.ShiftModifier) !== 0;
+                            var step = (wheel.modifiers & Qt.ControlModifier) !== 0 ? 2 : 20;
                             Progression.moveSticker(placedSticker.modelData.slot,
                                 placedSticker.modelData.x, placedSticker.modelData.y,
-                                placedSticker.width + delta, placedSticker.modelData.rotation);
+                                rotate ? placedSticker.displayedSize :
+                                    placedSticker.displayedSize + sign * step,
+                                placedSticker.displayedRotation + (rotate ? sign * step : 0));
                             wheel.accepted = true;
                         }
                         drag.target: placedSticker
-                        drag.minimumX: 0
-                        drag.maximumX: Math.max(0, plate.width - placedSticker.width)
-                        drag.minimumY: 0
-                        drag.maximumY: Math.max(0, plate.height - placedSticker.height)
+                        drag.minimumX: -placedSticker.width * 0.80
+                        drag.maximumX: Math.max(0, plate.width - placedSticker.width * 0.20)
+                        drag.minimumY: -placedSticker.height * 0.80
+                        drag.maximumY: Math.max(0, plate.height - placedSticker.height * 0.20)
                         onReleased: {
                             Progression.moveSticker(placedSticker.modelData.slot,
                                 placedSticker.x / Math.max(1, plate.width),
                                 placedSticker.y / Math.max(1, plate.height),
                                 placedSticker.width, placedSticker.rotation);
+                        }
+                    }
+                    Rectangle {
+                        id: rotationGrip
+                        visible: Progression.editMode && !root.preview &&
+                            Progression.selectedSticker === placedSticker.modelData.slot
+                        z: 16
+                        width: 28
+                        height: 28
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.rightMargin: -13
+                        anchors.topMargin: -13
+                        radius: 5
+                        color: Lithic.ground
+                        border.color: Lithic.gold
+                        border.width: 2
+                        Label {
+                            anchors.centerIn: parent
+                            text: "⟳"
+                            typeRole: "detail"
+                            ink: Lithic.gold
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.SizeAllCursor
+                            property real angleAtStart: 0
+                            property real rotationAtStart: 0
+                            onPressed: mouse => {
+                                var pointer = rotationGrip.mapToItem(plate, mouse.x, mouse.y);
+                                var center = placedSticker.mapToItem(plate,
+                                    placedSticker.width / 2, placedSticker.height / 2);
+                                angleAtStart = Math.atan2(pointer.y - center.y,
+                                    pointer.x - center.x) * 180 / Math.PI;
+                                rotationAtStart = placedSticker.displayedRotation;
+                            }
+                            onPositionChanged: mouse => {
+                                if (!pressed) return;
+                                var pointer = rotationGrip.mapToItem(plate, mouse.x, mouse.y);
+                                var center = placedSticker.mapToItem(plate,
+                                    placedSticker.width / 2, placedSticker.height / 2);
+                                var now = Math.atan2(pointer.y - center.y,
+                                    pointer.x - center.x) * 180 / Math.PI;
+                                placedSticker.displayedRotation = rotationAtStart + now - angleAtStart;
+                            }
+                            onReleased: {
+                                Progression.moveSticker(placedSticker.modelData.slot,
+                                    placedSticker.x / Math.max(1, plate.width),
+                                    placedSticker.y / Math.max(1, plate.height),
+                                    placedSticker.displayedSize,
+                                    placedSticker.displayedRotation);
+                            }
                         }
                     }
                     Rectangle {
@@ -799,8 +863,8 @@ Item {
                                 if (!pressed) return;
                                 var pos = resizeGrip.mapToItem(plate, mouse.x, mouse.y);
                                 var delta = ((pos.x - startX) + (pos.y - startY)) / 2;
-                                placedSticker.displayedSize = Math.max(36,
-                                    Math.min(300, startSize + delta));
+                                placedSticker.displayedSize = Math.max(8,
+                                    Math.min(4096, startSize + delta));
                             }
                             onReleased: {
                                 Progression.moveSticker(placedSticker.modelData.slot,
@@ -989,6 +1053,7 @@ Item {
                         height: visible ? 62 : 0
 
                         ArchiveSeal {
+                            badgeId: featuredSeal.badge ? featuredSeal.badge.id : ""
                             x: 0
                             y: 0
                             width: 62

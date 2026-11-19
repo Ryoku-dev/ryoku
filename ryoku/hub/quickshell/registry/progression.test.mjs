@@ -140,10 +140,10 @@ test("sticker placement clamps coordinates and limits inventory to 24", () => {
     assert.equal(P.addSticker(state, "welcome").changed, false);
     const first = state.canvas.stickers[0].slot;
     const moved = P.moveSticker(state, first, 999, -20, 12000, 999).state;
-    assert.equal(moved.canvas.stickers[0].x, 0.94);
-    assert.equal(moved.canvas.stickers[0].y, 0);
-    assert.equal(moved.canvas.stickers[0].size, 300);
-    assert.equal(moved.canvas.stickers[0].rotation, 45);
+    assert.equal(moved.canvas.stickers[0].x, 2);
+    assert.equal(moved.canvas.stickers[0].y, -2);
+    assert.equal(moved.canvas.stickers[0].size, 4096);
+    assert.equal(moved.canvas.stickers[0].rotation, -81);
     assert.equal(P.removeSticker(moved, first).state.canvas.stickers.length, 23);
 });
 

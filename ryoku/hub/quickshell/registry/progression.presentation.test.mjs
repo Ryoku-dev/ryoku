@@ -107,7 +107,7 @@ test("collectible card and claim reveal respect reduced motion and preserve hidd
     const book = fs.readFileSync(path.join(components, "ProgressionTab.qml"), "utf8");
     assert.match(card, /ArchiveSeal \{/);
     assert.match(card, /Progression\.progressInfoFor/);
-    assert.match(card, /card\.classified/);
+    assert.match(card, /badge.category === "Classified"/);
     assert.match(reveal, /Lithic\.reduceMotion/);
     assert.match(reveal, /Keys\.onEscapePressed/);
     assert.match(book, /Progression\.visibleBadges/);
@@ -120,7 +120,8 @@ test("free animated Black Prism uses gated Home rendering and a static shop prev
     const home = fs.readFileSync(path.join(components, "Home.qml"), "utf8");
     const studio = fs.readFileSync(path.join(components, "about/ProfileStudio.qml"), "utf8");
     assert.match(scene, /live && visible && !Lithic\.reduceMotion/);
-    assert.match(scene, /renderStrategy: Canvas.Threaded/);
+    assert.match(scene, /AnimatedImage \{/);
+    assert.match(scene, /black-prism.gif/);
     assert.match(home, /profileBackground\.chosen === Progression\.completionScene\.id/);
     assert.match(studio, /Progression\.completionSceneUnlocked/);
     assert.match(studio, /BlackPrism \{/);
