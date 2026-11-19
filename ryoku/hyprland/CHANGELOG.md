@@ -17,6 +17,10 @@
   they resize the tile; niri and Wayfire get the same pair (#797).
 
 ### Changed
+- **`dev-binds.sh` finds the shell binary again.** The script moved to
+  `ryoku/hyprland/` without changing its body, so `$here/ipc/ryoku-shell` named
+  a path that does not exist and every chord it bound spawned nothing. It now
+  resolves the daemon one directory over, in the shell tree (`dev-binds.sh`).
 - **Blur and shadows follow Window style.** `modules/decoration.lua` stops
   reading `performance.json` `disableBlur` / `disableShadows`; Window style's
   Blur and Shadows are the switches, and low power still strips both.

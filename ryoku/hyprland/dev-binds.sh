@@ -8,7 +8,9 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-bin="$here/ipc/ryoku-shell"
+# this script sits with the compositor config; the daemon binary is in the shell
+# tree one directory over (it was beside this script before the wm provider move)
+bin="$(cd "$here/../shell/ipc" && pwd)/ryoku-shell"
 
 chords=("SUPER + Space" "SUPER + L" "SUPER + Escape" "SUPER + W" "SUPER + S" "SUPER + Tab" "SUPER + comma")
 cmds=(
