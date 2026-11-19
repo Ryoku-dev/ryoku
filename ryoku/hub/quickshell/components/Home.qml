@@ -17,6 +17,7 @@ Item {
     // drawn as the live card's preview (Customise, About): the plate at its design
     // size, its own controls inert, so the preview IS Home and cannot drift from it
     property bool preview: false
+    property bool choosingBadge: false
     readonly property real designWidth: 1280
     readonly property real designHeight: 800
 
@@ -676,7 +677,8 @@ Item {
                     id: placedSticker
                     required property var modelData
                     readonly property var art: Progression.stickerArt(modelData.item)
-                    width: modelData.size
+                    property real displayedSize: modelData.size
+                    width: displayedSize
                     height: width
                     x: Math.min(modelData.x * plate.width, Math.max(0, plate.width - width * 1.15))
                     y: Math.min(modelData.y * plate.height, Math.max(0, plate.height - height * 1.15))
@@ -685,16 +687,41 @@ Item {
 
                     ArchiveSeal {
                         anchors.fill: parent
+                        visible: !placedSticker.art || placedSticker.art.type === "badge"
                         title: placedSticker.art ? placedSticker.art.name : "RYOKU"
                         sigil: placedSticker.art && placedSticker.art.sigil ? placedSticker.art.sigil : "力"
-                        category: placedSticker.art && placedSticker.art.type === "badge" ? "ARCHIVE" : "RELIC"
+                        category: "ARCHIVE"
                         rarity: placedSticker.art && placedSticker.art.rarity ? placedSticker.art.rarity : "common"
                         animateFoil: false
+                    }
+                    StickerArtwork {
+                        anchors.fill: parent
+                        visible: placedSticker.art && placedSticker.art.type === "sticker"
+                        artwork: placedSticker.art ? placedSticker.art.art || "" : ""
+                        fallbackGlyph: placedSticker.art ? placedSticker.art.glyph : "auto_awesome"
+                        tint: placedSticker.art ? placedSticker.art.tint : Lithic.gold
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: Progression.editMode && Progression.selectedSticker === placedSticker.modelData.slot
+                        color: "transparent"
+                        border.color: Lithic.gold
+                        border.width: 1
+                        radius: 4
                     }
                     MouseArea {
                         anchors.fill: parent
                         enabled: Progression.editMode && !root.preview
                         cursorShape: Qt.OpenHandCursor
+                        onPressed: Progression.selectedSticker = placedSticker.modelData.slot
+                        onWheel: wheel => {
+                            Progression.selectedSticker = placedSticker.modelData.slot;
+                            var delta = wheel.angleDelta.y > 0 ? 14 : -14;
+                            Progression.moveSticker(placedSticker.modelData.slot,
+                                placedSticker.modelData.x, placedSticker.modelData.y,
+                                placedSticker.width + delta, placedSticker.modelData.rotation);
+                            wheel.accepted = true;
+                        }
                         drag.target: placedSticker
                         drag.minimumX: 0
                         drag.maximumX: Math.max(0, plate.width - placedSticker.width)
@@ -705,6 +732,56 @@ Item {
                                 placedSticker.x / Math.max(1, plate.width),
                                 placedSticker.y / Math.max(1, plate.height),
                                 placedSticker.width, placedSticker.rotation);
+                        }
+                    }
+                    Rectangle {
+                        id: resizeGrip
+                        visible: Progression.editMode && !root.preview &&
+                            Progression.selectedSticker === placedSticker.modelData.slot
+                        z: 15
+                        width: 28
+                        height: 28
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: -12
+                        anchors.bottomMargin: -12
+                        radius: 5
+                        color: Lithic.ground
+                        border.color: Lithic.gold
+                        border.width: 2
+
+                        Label {
+                            anchors.centerIn: parent
+                            text: "↘"
+                            typeRole: "sentence"
+                            ink: Lithic.gold
+                        }
+                        MouseArea {
+                            id: resizeMouse
+                            anchors.fill: parent
+                            cursorShape: Qt.SizeFDiagCursor
+                            property real startX: 0
+                            property real startY: 0
+                            property real startSize: 0
+                            onPressed: mouse => {
+                                var pos = resizeGrip.mapToItem(plate, mouse.x, mouse.y);
+                                startX = pos.x;
+                                startY = pos.y;
+                                startSize = placedSticker.width;
+                            }
+                            onPositionChanged: mouse => {
+                                if (!pressed) return;
+                                var pos = resizeGrip.mapToItem(plate, mouse.x, mouse.y);
+                                var delta = ((pos.x - startX) + (pos.y - startY)) / 2;
+                                placedSticker.displayedSize = Math.max(36,
+                                    Math.min(300, startSize + delta));
+                            }
+                            onReleased: {
+                                Progression.moveSticker(placedSticker.modelData.slot,
+                                    placedSticker.x / Math.max(1, plate.width),
+                                    placedSticker.y / Math.max(1, plate.height),
+                                    placedSticker.displayedSize, placedSticker.rotation);
+                            }
                         }
                     }
                 }
@@ -741,7 +818,7 @@ Item {
                 }
                 Plaque {
                     id: expandPlaque
-                    anchors.right: binderPlaque.left
+                    anchors.right: achievementsPlaque.left
                     anchors.rightMargin: LithicTokens.space.s2
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "quiet"
@@ -750,6 +827,30 @@ Item {
                     text: ""
                     accessibleName: I18n.tr("Show your system card large")
                     onClicked: root.expandCard()
+                }
+                Plaque {
+                    id: achievementsPlaque
+                    anchors.right: shopPlaque.left
+                    anchors.rightMargin: LithicTokens.space.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "quiet"
+                    small: true
+                    glyph: "workspace_premium"
+                    text: topBar.width >= 740 ? I18n.tr("Achievements") : ""
+                    accessibleName: I18n.tr("Open achievements")
+                    onClicked: root.hub.navigate("achievements", "")
+                }
+                Plaque {
+                    id: shopPlaque
+                    anchors.right: binderPlaque.left
+                    anchors.rightMargin: LithicTokens.space.s2
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "quiet"
+                    small: true
+                    glyph: "storefront"
+                    text: topBar.width >= 740 ? I18n.tr("Points Shop") : ""
+                    accessibleName: I18n.tr("Open Points Shop")
+                    onClicked: root.hub.navigate("points-shop", "")
                 }
                 Plaque {
                     id: binderPlaque
@@ -880,7 +981,72 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.hub.navigate("achievements", "")
+                            onClicked: root.choosingBadge = !root.choosingBadge
+                        }
+                    }
+                    Row {
+                        spacing: LithicTokens.space.s2
+                        visible: !root.preview
+                        Plaque {
+                            small: true
+                            kind: root.choosingBadge ? "gold" : "quiet"
+                            glyph: "workspace_premium"
+                            text: Progression.featuredBadge ? I18n.tr("Change featured seal") : I18n.tr("Choose featured seal")
+                            onClicked: root.choosingBadge = !root.choosingBadge
+                        }
+                        Plaque {
+                            visible: Progression.featuredBadge !== ""
+                            small: true
+                            kind: "line"
+                            text: I18n.tr("Clear")
+                            onClicked: Progression.featureBadge("")
+                        }
+                    }
+                    Flickable {
+                        visible: root.choosingBadge && !root.preview
+                        width: parent.width
+                        height: visible ? 100 : 0
+                        contentWidth: badgeChoices.implicitWidth
+                        contentHeight: height
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        Row {
+                            id: badgeChoices
+                            spacing: LithicTokens.space.s2
+                            Repeater {
+                                model: Progression.achievements.filter(a => Progression.data.claimed[a.id] === true)
+                                delegate: Item {
+                                    id: option
+                                    required property var modelData
+                                    width: 76
+                                    height: 96
+                                    ArchiveSeal {
+                                        width: 60
+                                        height: 60
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        title: option.modelData.title
+                                        sigil: option.modelData.sigil
+                                        rarity: option.modelData.rarity
+                                        category: option.modelData.category
+                                    }
+                                    Label {
+                                        y: 65
+                                        width: parent.width
+                                        text: I18n.tr(option.modelData.title)
+                                        typeRole: "monoSm"
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Progression.featureBadge(option.modelData.id);
+                                            root.choosingBadge = false;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     Row {
@@ -897,9 +1063,18 @@ Item {
                             small: true
                             kind: "quiet"
                             glyph: "auto_stories"
-                            text: I18n.tr("Profile workshop")
-                            onClicked: root.hub.navigate("achievements", "")
+                            text: I18n.tr("Points Shop")
+                            onClicked: root.hub.navigate("points-shop", "")
                         }
+                    }
+                    Label {
+                        width: parent.width
+                        visible: Progression.editMode && !root.preview
+                        text: I18n.tr("Drag to move · select a sticker and pull ↘ to resize · scroll to scale")
+                        typeRole: "detail"
+                        inkRole: "fg2"
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
                     }
                     Label {
                         width: parent.width

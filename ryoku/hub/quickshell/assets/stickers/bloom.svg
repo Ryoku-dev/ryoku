@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<g transform="translate(0 -9)">
+<path d="M0 85C-50 45 -93 -5 -72 -50C-32 -72 -13 -32 0 -15 C18 -65 61 -78 85 -45 C92 -2 54 49 0 85Z" fill="#2e3241" stroke="#c7abd2" stroke-width="3"/>
+<g fill="#bca0bd" stroke="#f4d5e3" stroke-width="3">
+<path d="M0 -9 C-40 -100 -12 -134 0 -145 C19 -115 33 -80 0 -9Z"/>
+<path d="M0 -9 C-85 -97 -111 -72 -127 -48 C-88 -24 -52 -12 0 -9Z"/>
+<path d="M0 -9 C-115 -6 -123 29 -107 61 C-61 60 -27 32 0 -9Z"/>
+<path d="M0 -9 C-76 76 -47 123 -11 134 C15 92 12 46 0 -9Z"/>
+<path d="M0 -9 C59 87 100 94 123 65 C92 16 49 -4 0 -9Z"/>
+<path d="M0 -9 C115 -50 95 -100 64 -114 C34 -75 17 -35 0 -9Z"/>
+</g>
+<circle cx="0" cy="-9" r="32" fill="#413449" stroke="#f4d5e3" stroke-width="3"/>
+<circle cy="-9" r="14" fill="#e8c5b9"/>
+<g fill="#eedbd2"><circle cx="-15" cy="-26" r="4"/><circle cx="18" cy="-17" r="4"/><circle cx="8" cy="9" r="4"/><circle cx="-22" cy="3" r="4"/></g>
+</g>
+<path d="M-141 132L-116 105 M111 122L137 91" stroke="#acbcaa" stroke-width="3"/>
+</svg>

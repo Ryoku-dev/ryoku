@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-119 121L-65 -105L-15 -56L30 -152L78 -52L136 121L60 88L29 147L-4 92L-58 148L-78 78Z" fill="url(#ember)" stroke="#f9b38f" stroke-width="5"/>
+<path d="M-72 91L-51 -24L-11 21L25 -92L66 17L91 91L35 49L-6 100L-39 46Z" fill="#252024"/>
+<path d="M-13 -34L6 0L-10 72L30 40L7 120" fill="none" stroke="#f5c3a5" stroke-width="9" stroke-linejoin="bevel"/>
+<path d="M-151 -94L-116 -75 M114 -108L143 -75 M-100 154L-77 144" stroke="#eb906b" stroke-width="3"/>
+<text x="0" y="168" font-size="12" letter-spacing="7" text-anchor="middle" fill="#e6a385">AFTERGLOW</text>
+</svg>

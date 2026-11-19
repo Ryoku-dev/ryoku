@@ -239,7 +239,7 @@ Column {
                             typeRole: "mono"
                             ink: Lithic.gold
                         }
-                        Item { width: Math.max(0, parent.width - 188); height: 1 }
+                        Item { width: Math.max(0, parent.width - 255); height: 1 }
                         Plaque {
                             small: true
                             kind: achievementTile.complete && !achievementTile.claimed ? "gold" : "line"
@@ -247,6 +247,14 @@ Column {
                                 achievementTile.complete ? I18n.tr("Claim") : I18n.tr("Locked")
                             enabled: achievementTile.complete && !achievementTile.claimed
                             onClicked: Progression.claim(achievementTile.modelData.id)
+                        }
+                        Plaque {
+                            visible: achievementTile.claimed
+                            small: true
+                            kind: Progression.featuredBadge === achievementTile.modelData.id ? "gold" : "quiet"
+                            text: Progression.featuredBadge === achievementTile.modelData.id ? I18n.tr("Featured") : I18n.tr("Feature")
+                            enabled: Progression.featuredBadge !== achievementTile.modelData.id
+                            onClicked: Progression.featureBadge(achievementTile.modelData.id)
                         }
                     }
                 }

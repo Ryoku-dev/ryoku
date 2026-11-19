@@ -23,8 +23,8 @@ Column {
         onAccepted: Progression.setCustomImage(backgroundPicker.selectedFile)
     }
 
-    Label { text: I18n.tr("PROFILE WORKSHOP"); typeRole: "mono"; ink: Lithic.gold }
-    Label { text: I18n.tr("Make this space yours."); typeRole: "title" }
+    Label { text: I18n.tr("POINTS SHOP"); typeRole: "mono"; ink: Lithic.gold }
+    Label { text: I18n.tr("Collect something extraordinary."); typeRole: "title" }
     Label {
         width: parent.width
         text: I18n.tr("Everything in your collection belongs to your Ryoku profile. Buy cosmetics with earned credits, then equip them or place them on Home.")
@@ -339,15 +339,14 @@ Column {
                     strokeColor: stickerTile.owned ? Lithic.gold : Lithic.mix(Lithic.ground, stickerTile.modelData.tint, 0.5)
                     strokeWidth: 1
                 }
-                ArchiveSeal {
+                StickerArtwork {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: 6
-                    width: 93
-                    height: 93
-                    title: stickerTile.modelData.name
-                    sigil: stickerTile.modelData.sigil || "力"
-                    rarity: stickerTile.modelData.rarity || "common"
-                    category: "RELIC"
+                    y: 4
+                    width: 112
+                    height: 112
+                    artwork: stickerTile.modelData.art
+                    fallbackGlyph: stickerTile.modelData.glyph
+                    tint: stickerTile.modelData.tint
                 }
                 Column {
                     x: 10

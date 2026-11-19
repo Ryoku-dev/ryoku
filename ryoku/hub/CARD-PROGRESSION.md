@@ -6,7 +6,9 @@ online trading economy. Neuro's TCG is deliberately unaffected.
 
 ## Experience
 
-Open **Ryoku Settings > Accounts > Achievements & badges**.
+Open Ryoku Settings **Home** and use the first two profile actions before
+Binder: **Achievements** and **Points Shop**. These are separate destinations
+and do not appear in the Accounts navigation tree.
 
 ### Achievement Book
 
@@ -26,18 +28,31 @@ Open **Ryoku Settings > Accounts > Achievements & badges**.
 - Previously earned v1/v2 achievements are migrated as *claimed*, preserving
   their existing rewards and unlocks.
 - A claimed badge can be featured on Home and placed as a canvas sticker.
+  **Change featured seal** is immediately accessible from Home, with a
+  horizontal gallery of claimed badges. A **Feature** control also appears
+  on each claimed achievement in the book.
 
-### Profile Workshop
+### Points Shop
 
-The Profile Workshop is on a second tab in the Achievements area.
+Points Shop has its own Home entry and standalone page. It is not a tab
+inside Achievements.
 
 - Purchasable backgrounds cover **the entire Home canvas**, not the trading card.
 - A custom local picture may be chosen with Ryoku's existing image chooser. The
   picture remains at its original location. Moving or removing the source file
   will break its display. Only local image URLs are accepted.
+- Achievement badges retain their engraved circular seals. Shop stickers use
+  **ten original SVG illustrations** in `assets/stickers/`, including a stone
+  bust, lunar diagram, calligraphy sheet, archive clearance paper, floral
+  sculpture and distinct flame and astronomical designs. These are not badge
+  recolours.
 - Stickers may be earned badges or decorative shop items. Up to 24 may be placed
   at once, with independently saved position, rotation and size.
-- Home's **Decorate** control enables sticker drag mode. Editing is off by default.
+- Home's **Decorate** control enables sticker drag mode. Editing is off by
+  default. Select any placed asset and drag its corner handle to resize
+  directly on the profile, or scroll over it to scale in 14-pixel steps.
+  The size range is 36 to 300 pixels. The shop also has size and rotation
+  controls for every placed decoration.
 - Home's identity text and controls explicitly sit above the sticker layer,
   regardless of sticker placement or user rotation. The featured badge also
   uses the archive seal renderer.
@@ -117,8 +132,9 @@ Run:
 
 Use `qmlformat <file.qml> >/dev/null` for syntax checks. Actual Qt imports
 and interactive rendering must also be exercised in a running Quickshell Hub
-session. Confirm claim, purchase, sticker placement/drag, decoration removal,
-font changes, background selection, achievement page navigation, persistence
+session. Confirm claim, purchase, inline seal selection, navigation to Achievements
+and Points Shop from Home, vector sticker loading, direct resize/drag/wheel
+scaling, decoration removal, font changes, background selection, persistence
 after Settings restart, and preview rollback.
 
 The user's current live NixOS test is a backed-up overlay of the materialised

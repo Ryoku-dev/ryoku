@@ -16,6 +16,7 @@ Singleton {
     property string error: ""
     property var pending: []
     property bool editMode: false
+    property string selectedSticker: ""
     readonly property int balance: data.balance || 0
     readonly property var achievements: Model.achievements
     readonly property var cosmetics: Model.cosmetics

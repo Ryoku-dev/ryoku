@@ -62,22 +62,22 @@ var cosmetics = [
       palette: { ink: "#ffe6d7", plate: "#281813", accent: "#ffad72", rim: "#d77c58" } },
     { id: "jade", name: "Jade", type: "palette", price: 250,
       palette: { ink: "#e0fff1", plate: "#10251e", accent: "#7de0b8", rim: "#49b58c" } },
-    { id: "sticker-orbit", name: "Orbit Seal", type: "sticker", price: 65, glyph: "planet", tint: "#b9c9fa" },
-    { id: "sticker-flame", name: "Little Flame", type: "sticker", price: 75, glyph: "local_fire_department", tint: "#ffac83" },
-    { id: "sticker-bloom", name: "Night Bloom", type: "sticker", price: 60, glyph: "filter_vintage", tint: "#d9b0ef" },
-    { id: "sticker-star", name: "Starfall", type: "sticker", price: 45, glyph: "star", tint: "#f6d18b" },
+    { id: "sticker-orbit", name: "Orbit Seal", type: "sticker", price: 65, art: "orbit", glyph: "planet", tint: "#b9c9fa" },
+    { id: "sticker-flame", name: "Little Flame", type: "sticker", price: 75, art: "flame", glyph: "local_fire_department", tint: "#ffac83" },
+    { id: "sticker-bloom", name: "Night Bloom", type: "sticker", price: 60, art: "bloom", glyph: "filter_vintage", tint: "#d9b0ef" },
+    { id: "sticker-star", name: "Starfall", type: "sticker", price: 45, art: "star", glyph: "star", tint: "#f6d18b" },
     { id: "bg-graphite", name: "Graphite Grid", type: "background", price: 60 },
     { id: "bg-blueprint", name: "Blueprint", type: "background", price: 70 },
     { id: "bg-ember", name: "Afterglow", type: "background", price: 80 },
     { id: "font-serif", name: "Engraved", type: "font", price: 50, family: "Liberation Serif" },
     { id: "font-mono", name: "Terminal", type: "font", price: 60, family: "JetBrainsMono Nerd Font" },
     { id: "font-clean", name: "Technical", type: "font", price: 65, family: "Inter Display" },
-    { id: "sticker-origins", name: "Origin Mark", type: "sticker", price: 140, glyph: "token", tint: "#ef8d69", rarity: "legendary", sigil: "力" },
-    { id: "sticker-sutra", name: "Sutra Fragment", type: "sticker", price: 105, glyph: "deployed_code", tint: "#b3b7c5", rarity: "epic", sigil: "道" },
-    { id: "sticker-ember", name: "Ember Crest", type: "sticker", price: 140, glyph: "whatshot", tint: "#e97452", rarity: "mythic", sigil: "焔" },
-    { id: "sticker-archive", name: "Archive Clearance", type: "sticker", price: 120, glyph: "verified_user", tint: "#b8ab90", rarity: "rare", sigil: "III" },
-    { id: "sticker-moonseal", name: "Moon Archive", type: "sticker", price: 115, glyph: "brightness_2", tint: "#b3bbdd", rarity: "rare", sigil: "月" },
-    { id: "sticker-fossil", name: "Stone Witness", type: "sticker", price: 120, glyph: "museum", tint: "#d8c8b0", rarity: "epic", sigil: "石" },
+    { id: "sticker-origins", name: "Origin Mark", type: "sticker", price: 140, art: "origins", glyph: "token", tint: "#ef8d69", rarity: "legendary", sigil: "力" },
+    { id: "sticker-sutra", name: "Sutra Fragment", type: "sticker", price: 105, art: "sutra", glyph: "deployed_code", tint: "#b3b7c5", rarity: "epic", sigil: "道" },
+    { id: "sticker-ember", name: "Ember Crest", type: "sticker", price: 140, art: "ember", glyph: "whatshot", tint: "#e97452", rarity: "mythic", sigil: "焔" },
+    { id: "sticker-archive", name: "Archive Clearance", type: "sticker", price: 120, art: "archive", glyph: "verified_user", tint: "#b8ab90", rarity: "rare", sigil: "III" },
+    { id: "sticker-moonseal", name: "Moon Archive", type: "sticker", price: 115, art: "moonseal", glyph: "brightness_2", tint: "#b3bbdd", rarity: "rare", sigil: "月" },
+    { id: "sticker-fossil", name: "Stone Witness", type: "sticker", price: 120, art: "fossil", glyph: "museum", tint: "#d8c8b0", rarity: "epic", sigil: "石" },
     { id: "bg-archive", name: "Archive Paper", type: "background", price: 175 },
     { id: "bg-obsidian", name: "Obsidian Mesh", type: "background", price: 180 },
     { id: "bg-sutra", name: "Sutra Diagram", type: "background", price: 195 },
@@ -246,7 +246,7 @@ function clean(value) {
                 return;
             used[slot] = true;
             stickers.push({ slot: slot, item: s.item, x: clamp(s.x, 0, 0.94, 0.5),
-                            y: clamp(s.y, 0, 0.94, 0.5), size: clamp(s.size, 48, 150, 82),
+                            y: clamp(s.y, 0, 0.94, 0.5), size: clamp(s.size, 36, 300, 82),
                             rotation: clamp(s.rotation, -45, 45, 0) });
         });
     }
@@ -383,7 +383,7 @@ function moveSticker(state, slot, x, y, size, rotation) {
     if (!s)
         return { state: next, changed: false };
     var nx = clamp(x, 0, 0.94, s.x), ny = clamp(y, 0, 0.94, s.y);
-    var ns = clamp(size, 48, 150, s.size), nr = clamp(rotation, -45, 45, s.rotation);
+    var ns = clamp(size, 36, 300, s.size), nr = clamp(rotation, -45, 45, s.rotation);
     if (s.x === nx && s.y === ny && s.size === ns && s.rotation === nr)
         return { state: next, changed: false };
     s.x = nx; s.y = ny; s.size = ns; s.rotation = nr;

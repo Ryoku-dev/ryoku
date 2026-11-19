@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-25 147 C-107 109 -104 34 -65 -22 C-65 22 -45 14 -41 -39 C-40 -95 1 -121 15 -157 C11 -109 49 -91 63 -38 C80 12 112 32 97 82 C86 127 41 158 -25 147Z" fill="url(#ember)" stroke="#f8b694" stroke-width="5"/>
+<path d="M-4 123 C-55 91 -37 52 -12 18 C-3 -12 0 -45 7 -70 C27 -31 57 -9 42 33 C78 86 38 125 -4 123Z" fill="#131b22" opacity=".94"/>
+<path d="M-23 80 L5 30 L-2 73 L26 56 L-2 122Z" fill="#ffb999"/>
+<path d="M-80 99 L-109 124 L-61 115 M73 -48L110 -70L80 -13" fill="none" stroke="#ef9169" stroke-width="3"/>
+<text x="0" y="153" font-size="12" letter-spacing="3" text-anchor="middle" fill="#f0ac89">火   /   EMBER</text>
+</svg>

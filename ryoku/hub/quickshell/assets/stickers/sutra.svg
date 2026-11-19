@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<path d="M-91 -155Q-50 -140 -6 -152T92 -147L104 -99L88 -52L100 1L90 55L104 103L86 154Q47 139 13 151T-90 145L-110 93L-94 45L-105 -2L-91 -55L-104 -109Z" fill="url(#paper)" stroke="#cbbca7" stroke-width="4"/>
+<path d="M-77 -121H70M-74 115H78" stroke="#77776b" stroke-width="2"/>
+<text x="38" y="-64" font-family="serif" font-size="35" fill="#313538" text-anchor="middle" writing-mode="tb">孤月道</text>
+<text x="-35" y="-64" font-family="serif" font-size="31" fill="#313538" text-anchor="middle" writing-mode="tb">始無終</text>
+<path d="M55 88L79 63L83 93L58 105Z" fill="#b2604f" opacity=".9"/>
+<text x="67" y="91" text-anchor="middle" font-size="13" fill="#f3e7d2">印</text>
+<g fill="#747e81" opacity=".5"><circle cx="-62" cy="-133" r="2"/><circle cx="21" cy="-138" r="3"/><circle cx="65" cy="126" r="2"/><circle cx="-47" cy="133" r="2"/></g>
+</svg>

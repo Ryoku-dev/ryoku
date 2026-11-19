@@ -57,11 +57,15 @@ test("the Game bar line says off, or how far it dims the game, and waits for she
 const R = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(here, "registry.js"), "utf8").replace(/^\.(pragma|import) .*$/gm, ""), R);
 
-test("every listed page is listed once and has an entry in its category, and every alias resolves", () => {
+test("all sidebar and Home pages resolve, without duplicate registrations", () => {
     const ids = R.allPageIds();
     assert.equal(new Set(ids).size, ids.length);
-    for (const id of ids)
-        assert.equal(R.pages[id].category, R.categories.find(c => c.pages.includes(id)).id, id);
+    for (const category of R.categories)
+        for (const id of category.pages)
+            assert.equal(R.pages[id].category, category.id, id);
+    assert.deepEqual([...R.homePages].sort(), ["achievements", "points-shop"]);
+    for (const id of R.homePages)
+        assert.equal(R.pages[id].category, "accounts");
     assert.deepEqual(Object.keys(R.pages).sort(), [...ids].sort());
     for (const alias of Object.keys(R.aliases))
         assert.notEqual(R.resolve(alias), "", alias);

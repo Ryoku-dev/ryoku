@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="-180 -180 360 360"><defs>
+<linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#253448"/><stop offset=".6" stop-color="#5d829e"/><stop offset="1" stop-color="#172431"/></linearGradient>
+<linearGradient id="ember" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ffc09c"/><stop offset=".46" stop-color="#f36e3c"/><stop offset="1" stop-color="#a73325"/></linearGradient>
+<linearGradient id="paper" x1="0" y1="0" x2=".7" y2="1"><stop stop-color="#e0d8c5"/><stop offset=".5" stop-color="#c9c1ae"/><stop offset="1" stop-color="#8d8980"/></linearGradient>
+<linearGradient id="moon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f0e5"/><stop offset=".47" stop-color="#afb9ce"/><stop offset="1" stop-color="#71819f"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#e3e2dc"/><stop offset=".45" stop-color="#a6aaab"/><stop offset="1" stop-color="#62696d"/></linearGradient>
+</defs>
+<g stroke="#b2cae5" fill="none" stroke-width="3">
+ <ellipse rx="124" ry="52" transform="rotate(-32)"/>
+ <ellipse rx="124" ry="52" transform="rotate(54)" stroke-dasharray="10 6"/>
+ <ellipse rx="93" ry="109" transform="rotate(20)" opacity=".6"/>
+</g>
+<circle r="56" fill="url(#navy)" stroke="#d3e5f2" stroke-width="5"/>
+<path d="M-52 12 Q-20 -30 7 -23 T52 -13 M-38 42 Q8 17 36 33" stroke="#85afcc" fill="none" stroke-width="8" opacity=".75"/>
+<path d="M-41 -40 L-24 -20 M27 -48 L42 -29 M-12 55 L12 48" stroke="#d9eaef" stroke-width="2"/>
+<circle cx="121" cy="-23" r="10" fill="#eecc9e"/>
+<path d="M-138 -72v-16m-8 8h16M85 112v-23m-11 11h22" stroke="#e9e5d4" stroke-width="3"/>
+<text x="0" y="116" font-size="11" letter-spacing="7" text-anchor="middle" fill="#afc6de">ORBIT  /  01</text>
+</svg>
