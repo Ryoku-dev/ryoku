@@ -102,6 +102,54 @@ A crash-triggered badge is intentionally deferred until a reliably verified
 unexpected crash event is available. Ordinary restarts must not be mistaken
 for a crash, and users should never be encouraged to crash Ryoku on purpose.
 
+## Collectible Archive and the Black Prism reward
+
+The Achievement Book uses `AchievementCard.qml`, with the original
+`ArchiveSeal` artwork on each card. Rarity affects the engraved edge,
+plate material, ornament and progress accent. Mastery gets a broader-cut
+engraved enclosure and Classified entries remain anonymous until earned.
+Category tabs scroll horizontally on compact windows, and turning a page
+resets the vertical scroll to the top.
+
+When an **earned** badge is manually claimed, `AchievementReveal.qml`
+provides a short, modal seal-unfurl and credit acknowledgement.
+Escape, the return button or the dark scrim dismiss the reveal.
+Animations are suppressed when `Lithic.reduceMotion` is set.
+
+Every objective with a measurable counter includes a live progress
+bar, with the correct numerator and requirement. Complex objectives
+retain their full description rather than inventing percentages.
+
+**Black Prism** is an original animated profile background earned for
+owning all **32** regular shop cosmetics, the same event as Complete
+Collection. It is not one of the purchasable items, has no points price,
+cannot be acquired through the shop API, and is never required for its
+own unlock condition. The reward remains secret until earned, then
+appears in the Points Shop with a free Equip action.
+
+The rendering is pure QML and static Canvas geometry with a slow
+rotating prismatic accent. Nothing runs in the background while Home
+is closed, and reduced motion leaves a still, readable scene. The shop's
+reward preview is always static to avoid offscreen animations.
+Old saves with all items already owned automatically gain the reward.
+Unfinished collections cannot retain an unequipped bonus via save edits.
+
+Balance refinements avoid paying twice for identical work:
+
+- Behind Every Door requires both 40 distinct Settings pages and
+  eight distinct Settings areas, rather than duplicating Cartographer.
+- Variety Show requires two distinct earned badge seals **and** three
+  different purchased shop art stickers simultaneously, rather than
+  duplicating Mosaic's five designs.
+- The Long Game secret requires 21 distinct days, instead of being an
+  identical 14-day copy of Habit Formed.
+
+These requirements are additive and possible using the existing
+Settings pages and cosmetic catalogue. Previously earned badges
+remain earned and claimed after migration, without clawing back rewards.
+The 30-distinct-day milestone still sets the earliest genuine endgame
+completion, and the progression system stays offline and cosmetic-only.
+
 ## Validation and rollout
 
 Use:

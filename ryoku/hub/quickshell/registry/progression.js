@@ -47,8 +47,8 @@ var achievements = [
     { id: "ryoku-steadfast", category: "Ryoku", title: "First Week", detail: "Visit Ryoku on seven different days", reward: 190, glyph: "today", rarity: "rare", sigil: "VII" },
     { id: "ryoku-two-weeks", category: "Ryoku", title: "Habit Formed", detail: "Return on fourteen separate days", reward: 1100, glyph: "event_repeat", rarity: "epic", sigil: "XIV" },
     { id: "ryoku-thirty", category: "Ryoku", title: "A Month in the Archive", detail: "Open Ryoku on thirty different days", reward: 2600, glyph: "calendar_month", rarity: "mythic", sigil: "XXX" },
-    { id: "ryoku-mapmaker", category: "Ryoku", title: "Behind Every Door", detail: "Explore forty different Settings pages", reward: 220, glyph: "map", rarity: "legendary", sigil: "XL" },
-    { id: "profile-variety", category: "Profile", title: "Variety Show", detail: "Display five different stickers at once", reward: 150, glyph: "interests", rarity: "rare", sigil: "V" },
+    { id: "ryoku-mapmaker", category: "Ryoku", title: "Behind Every Door", detail: "Explore forty Settings pages across eight areas", reward: 220, glyph: "map", rarity: "legendary", sigil: "XL" },
+    { id: "profile-variety", category: "Profile", title: "Variety Show", detail: "Display two distinct earned badges and three shop art stickers together", reward: 150, glyph: "interests", rarity: "rare", sigil: "V" },
     { id: "profile-curation", category: "Profile", title: "Curated Exhibit", detail: "Display twelve unique sticker designs at once", reward: 310, glyph: "museum", rarity: "legendary", sigil: "XII" },
     { id: "profile-week", category: "Profile", title: "Seven Versions of Me", detail: "Decorate your profile on seven different days", reward: 750, glyph: "brush", rarity: "mythic", sigil: "VII" },
     { id: "profile-wardrobe", category: "Profile", title: "Changing Rooms", detail: "Use five different collectible backgrounds", reward: 240, glyph: "wallpaper", rarity: "epic", sigil: "V" },
@@ -69,7 +69,7 @@ var achievements = [
     { id: "secret-atelier", category: "Classified", title: "Gallery After Dark", detail: "Display five different Ryoku art relics on your profile", reward: 320, glyph: "museum", rarity: "holographic", sigil: "石", secret: true },
     { id: "secret-moon", category: "Classified", title: "Moon Ritual", detail: "Place the moon artwork over the Signal Void backdrop", reward: 250, glyph: "brightness_2", rarity: "holographic", sigil: "月", secret: true },
     { id: "secret-scribe", category: "Classified", title: "Ink Collector", detail: "Collect every typography option and set all three text roles", reward: 280, glyph: "draw", rarity: "holographic", sigil: "文", secret: true },
-    { id: "secret-timekeeper", category: "Classified", title: "The Long Game", detail: "Keep returning to Ryoku for fourteen different days", reward: 260, glyph: "hourglass_top", rarity: "holographic", sigil: "時", secret: true },
+    { id: "secret-timekeeper", category: "Classified", title: "The Long Game", detail: "Keep returning to Ryoku for twenty-one different days", reward: 260, glyph: "hourglass_top", rarity: "holographic", sigil: "時", secret: true },
     { id: "secret-many-faces", category: "Classified", title: "Identity Crisis", detail: "Use five different featured badges over time", reward: 290, glyph: "face", rarity: "holographic", sigil: "五", secret: true },
     { id: "secret-nightshift", category: "Classified", title: "The Midnight Compiler", detail: "Visit Settings on three different evenings", reward: 220, glyph: "nights_stay", rarity: "holographic", sigil: "夜", secret: true },
     { id: "secret-rabbit", category: "Classified", title: "Are You Still Here?", detail: "Browse forty settings pages and decorate on seven days", reward: 300, glyph: "pest_control_rodent", rarity: "holographic", sigil: "兎", secret: true },
@@ -129,6 +129,17 @@ var cosmetics = [
     { id: "bg-metal", name: "Temple of Steel", type: "background", price: 780, art: "ryodecors/katana.png" }
 ];
 
+// Completion cosmetics live outside the paid catalogue, so rewards cannot
+// make the "own every item" milestone recursively impossible.
+var completionScene = {
+    id: "bg-black-prism", name: "Black Prism", type: "background",
+    reward: true, price: 0, rarity: "holographic"
+};
+
+function completionSceneUnlocked(state) {
+    return !!(state && state.earned && state.earned["collection-everything"] === true);
+}
+
 function achievement(id) { return achievements.find(function(a) { return a.id === id; }); }
 function cosmetic(id) { return cosmetics.find(function(a) { return a.id === id; }); }
 function stamp(id) {
@@ -154,6 +165,66 @@ function visibleAchievements(state, category) {
         return (!category || a.category === category) && (!a.secret || next.earned[a.id]);
     });
 }
+function progressInfo(state, id) {
+    var entry = achievement(id);
+    if (!entry || (entry.secret && !(state && state.earned && state.earned[id])))
+        return null;
+    var next = clean(state);
+    var pages = Object.keys(next.visited).length, areas = {};
+    Object.keys(next.visited).forEach(function(key) { areas[next.visited[key]] = true; });
+    var screens = {}, badges = {}, drawings = {};
+    next.canvas.stickers.forEach(function(sticker) {
+        screens[sticker.item] = true;
+        if (achievement(sticker.item) && next.claimed[sticker.item]) badges[sticker.item] = true;
+        if (cosmetic(sticker.item) && cosmetic(sticker.item).type === "sticker" && next.owned[sticker.item])
+            drawings[sticker.item] = true;
+    });
+    var days = Object.keys(next.days).length,
+        edits = Object.keys(next.customDays).length,
+        claims = Object.keys(next.claimed).length,
+        owned = Object.keys(next.owned).length;
+    var nums = {
+        "ryoku-pathfinder": [pages,12,"PAGES"], "ryoku-tenfold": [pages,24,"PAGES"],
+        "ryoku-voyager": [pages,30,"PAGES"], "ryoku-cartographer": [pages,40,"PAGES"],
+        "ryoku-omniscope": [pages,42,"PAGES"],
+        "ryoku-versatile": [Object.keys(areas).length,6,"AREAS"],
+        "ryoku-mapmaker": [Math.min(pages,40)+Math.min(Object.keys(areas).length,8),48,"PAGES + AREAS"],
+        "ryoku-steadfast": [days,7,"DAYS"], "ryoku-two-weeks": [days,14,"DAYS"],
+        "ryoku-thirty": [days,30,"DAYS"],
+        "profile-mosaic": [Object.keys(screens).length,5,"DESIGNS"],
+        "profile-gallery": [Object.keys(screens).length,10,"DESIGNS"],
+        "profile-sanctuary": [Object.keys(screens).length,24,"DESIGNS"],
+        "profile-variety": [Math.min(Object.keys(badges).length,2)+Math.min(Object.keys(drawings).length,3),5,"BADGES + ART"],
+        "profile-curation": [Object.keys(screens).length,12,"DESIGNS"],
+        "profile-week": [edits,7,"DAYS"],
+        "profile-wardrobe": [Object.keys(next.backgroundHistory).length,5,"SCENES"],
+        "collection-fifth": [claims,5,"BADGES"], "collection-tenth": [claims,10,"BADGES"],
+        "collection-twentieth": [claims,20,"BADGES"],
+        "collection-thirty": [claims,30,"BADGES"],
+        "collection-forty": [claims,40,"BADGES"],
+        "collection-trio": [owned,3,"OWNED"],
+        "collection-tenth-buy": [owned,10,"OWNED"],
+        "collection-twentieth-buy": [owned,20,"OWNED"],
+        "collection-patron": [Object.keys(next.shopDays).length,7,"DAYS"]
+    };
+    var category = {
+        "master-ryoku": "Ryoku", "master-profile": "Profile",
+        "master-card": "Card studio", "master-collection": "Collection"
+    }[id];
+    if (category) {
+        var entries = achievements.filter(function(a) { return a.category === category; });
+        nums[id] = [entries.filter(function(a) { return next.earned[a.id]; }).length,
+                    entries.length, "CHALLENGES"];
+    }
+    if (id === "master-hyperion")
+        nums[id] = [["master-ryoku","master-profile","master-card","master-collection"]
+            .filter(function(k) { return next.earned[k]; }).length, 4, "MASTERIES"];
+    if (!nums[id]) return null;
+    var v = nums[id];
+    return { current: Math.min(v[0],v[1]), total:v[1], label:v[2],
+             fraction: Math.max(0,Math.min(1,v[0]/v[1])) };
+}
+
 function progress(state, id) {
     var next = clean(state);
     if (!achievement(id) || next.earned[id]) return "";
@@ -223,7 +294,10 @@ function evaluate(next) {
     if (count >= 24) next.earned["ryoku-tenfold"] = true;
     if (count >= 40) next.earned["ryoku-cartographer"] = true;
     if (count >= 42) next.earned["ryoku-omniscope"] = true;
-    if (count >= 40) next.earned["ryoku-mapmaker"] = true;
+    var areas = {};
+    Object.keys(next.visited).forEach(function(key) { areas[next.visited[key]] = true; });
+    if (count >= 40 && Object.keys(areas).length >= 8)
+        next.earned["ryoku-mapmaker"] = true;
     if (days >= 7) next.earned["ryoku-steadfast"] = true;
     if (days >= 14) next.earned["ryoku-two-weeks"] = true;
     if (days >= 30) next.earned["ryoku-thirty"] = true;
@@ -231,7 +305,14 @@ function evaluate(next) {
     if (uniqueCount >= 5) next.earned["profile-mosaic"] = true;
     if (uniqueCount >= 10) next.earned["profile-gallery"] = true;
     if (uniqueCount >= 24) next.earned["profile-sanctuary"] = true;
-    if (uniqueCount >= 5) next.earned["profile-variety"] = true;
+    var badgeKinds = {}, artKinds = {};
+    placed.forEach(function(item) {
+        if (achievement(item.item) && next.claimed[item.item]) badgeKinds[item.item] = true;
+        if (cosmetic(item.item) && cosmetic(item.item).type === "sticker" && next.owned[item.item])
+            artKinds[item.item] = true;
+    });
+    if (Object.keys(badgeKinds).length >= 2 && Object.keys(artKinds).length >= 3)
+        next.earned["profile-variety"] = true;
     if (uniqueCount >= 12) next.earned["profile-curation"] = true;
     if (customDays >= 7) next.earned["profile-week"] = true;
     if (Object.keys(next.backgroundHistory).length >= 5) next.earned["profile-wardrobe"] = true;
@@ -297,7 +378,7 @@ function evaluate(next) {
         .every(function(c) { return next.owned[c.id]; }) &&
         ["name", "hostname", "tagline"].every(function(role) { return !!next.canvas.fonts[role]; }))
         next.earned["secret-scribe"] = true;
-    if (days >= 14) next.earned["secret-timekeeper"] = true;
+    if (days >= 21) next.earned["secret-timekeeper"] = true;
     if (Object.keys(next.featuredHistory).length >= 5)
         next.earned["secret-many-faces"] = true;
     if (Object.keys(next.eveningDays).length >= 3)
@@ -378,7 +459,9 @@ function clean(value) {
     var active = owned[source.active] && cosmetic(source.active).type === "palette" ? source.active : "";
     var featured = claimed[source.featured] ? source.featured : "";
     var rawCanvas = source.canvas && typeof source.canvas === "object" ? source.canvas : {};
-    var background = owned[rawCanvas.background] && cosmetic(rawCanvas.background).type === "background"
+    var background = rawCanvas.background === completionScene.id && completionSceneUnlocked({ earned: earned })
+        ? completionScene.id :
+        owned[rawCanvas.background] && cosmetic(rawCanvas.background).type === "background"
         ? rawCanvas.background : "";
     var rawFonts = rawCanvas.fonts && typeof rawCanvas.fonts === "object" ? rawCanvas.fonts : {};
     var fonts = {};
@@ -541,7 +624,8 @@ function feature(state, id) {
 
 function background(state, id) {
     var next = clean(state);
-    if (id !== "" && (!next.owned[id] || cosmetic(id).type !== "background"))
+    if (id !== "" && !(id === completionScene.id && completionSceneUnlocked(next)) &&
+        (!next.owned[id] || !cosmetic(id) || cosmetic(id).type !== "background"))
         return { state: next, changed: false };
     if (next.canvas.background === id)
         return { state: next, changed: false };

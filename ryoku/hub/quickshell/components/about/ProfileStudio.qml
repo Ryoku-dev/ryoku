@@ -200,6 +200,52 @@ Column {
         }
     }
 
+    Item {
+        width: parent.width
+        height: visible ? 195 : 0
+        visible: Progression.completionSceneUnlocked
+
+        CutRect {
+            anchors.fill: parent
+            cut: LithicTokens.cut.large
+            fill: "#0b0b15"
+            strokeColor: Progression.canvas.background === Progression.completionScene.id ?
+                Lithic.gold : Lithic.lapis
+            strokeWidth: 2
+        }
+        BlackPrism {
+            x: 8
+            y: 8
+            width: parent.width * 0.45
+            height: parent.height - 16
+            live: false
+        }
+        Column {
+            x: parent.width * 0.48
+            y: 16
+            width: parent.width * 0.49
+            spacing: LithicTokens.space.s2
+            Label { text: "MASTER COLLECTION / 032"; typeRole: "monoSm"; ink: Lithic.gold }
+            Label { text: I18n.tr("BLACK PRISM"); typeRole: "section"; ink: Lithic.fg }
+            Label {
+                width: parent.width
+                text: I18n.tr("Exclusive animated backdrop. Earned by collecting the complete shop.")
+                typeRole: "detail"
+                ink: Lithic.fg2
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
+            }
+            Plaque {
+                small: true
+                kind: Progression.canvas.background === Progression.completionScene.id ? "gold" : "line"
+                text: Progression.canvas.background === Progression.completionScene.id ?
+                    I18n.tr("Equipped") : I18n.tr("Equip reward")
+                enabled: Progression.canvas.background !== Progression.completionScene.id
+                onClicked: Progression.setBackground(Progression.completionScene.id)
+            }
+        }
+    }
+
     Label { text: I18n.tr("Typography"); typeRole: "section" }
     Plaque {
         small: true
