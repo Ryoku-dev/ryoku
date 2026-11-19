@@ -23,7 +23,22 @@ Hyperion card studio. It does not define battle rules or online account rewards.
 The rarity algorithm is a rough hardware classification, not a benchmark result.
 Adjust its model table only with test coverage and measured comparisons.
 
-## Offline progression
+## Ryoku-wide offline progression
+
+Achievements live under Accounts > Achievements & badges. This is a Ryoku
+profile feature, not a hardware card feature. The first global milestones
+recognise exploring Ryoku's Settings pages and different areas of the desktop,
+while card studio goals are one smaller collection. Profile owners may feature
+one earned badge on their Home identity panel.
+
+The global launch milestones are First Steps (30 credits), Pathfinder
+(5 distinct Settings pages, 80), Voyager (15 pages, 150) and Versatile
+(4 different Settings categories, 100). Visits are deduplicated and stored
+locally. Further gaming, creative and community badges require actual
+application events or verified community participation, not fabricated
+client-side claims.
+
+The original card-studio achievements remain available:
 
 | Achievement | Credits |
 | --- | ---: |
@@ -34,7 +49,9 @@ Adjust its model table only with test coverage and measured comparisons.
 | Art Director | 120 |
 | Showtime | 150 |
 
-All six milestones award exactly once, for a total of 600 credits.
+The six legacy card milestones still award once, for 600 credits total.
+Global achievements add up to 360 additional credits. The complete launch
+catalogue therefore offers 960 earnable credits in total.
 
 | Stock card palette | Cost |
 | --- | ---: |
@@ -42,8 +59,9 @@ All six milestones award exactly once, for a total of 600 credits.
 | Ember | 200 |
 | Jade | 250 |
 
-The catalogue totals 600 credits. There is no grind, daily reset, repeat
-reward, random loot, paid currency or hardware-dependent progression.
+The launch cosmetic catalogue costs 600 credits, while all milestones
+together award 960 credits. There is no daily reset, repeat reward, random
+loot, paid currency or hardware-dependent progression.
 
 The user-owned ledger lives at
 `$XDG_DATA_HOME/ryoku/progression.json` or
@@ -62,6 +80,8 @@ programme is separate and unchanged.
 
 ## Validation
 
-Run `node --test ryoku/hub/quickshell/registry/*.test.mjs` and exercise the
-card studio interactively with one and multiple screens, profile customisation,
-one-time exports, file persistence, palette selection and restart.
+Run `node --test ryoku/hub/quickshell/registry/*.test.mjs` and exercise
+Accounts > Achievements & badges, featured badges on Home, the card studio,
+one-time exports, file persistence, palette selection and restart. Check the
+multi-monitor card scorer separately. All global achievements currently use
+local receipts, not online verification.

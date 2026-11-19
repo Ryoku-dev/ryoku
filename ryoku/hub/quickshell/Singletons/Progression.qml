@@ -19,6 +19,8 @@ Singleton {
     readonly property var achievements: Model.achievements
     readonly property var cosmetics: Model.cosmetics
     readonly property var activePalette: Model.palette(root.data)
+    readonly property var visited: data.visited || ({})
+    readonly property string featuredBadge: data.featured || ""
 
     Process {
         running: true
@@ -100,6 +102,22 @@ Singleton {
         if (!root.ready || root.error !== "")
             return;
         var result = Model.equip(root.data, id);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function visitedPage(page, category) {
+        if (!root.ready)
+            return;
+        var result = Model.visit(root.data, page, category);
+        if (result.changed)
+            root.save(result.state);
+    }
+
+    function featureBadge(id) {
+        if (!root.ready || root.error !== "")
+            return;
+        var result = Model.feature(root.data, id);
         if (result.changed)
             root.save(result.state);
     }

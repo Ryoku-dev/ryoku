@@ -1,13 +1,17 @@
 .pragma library
 
-// Offline cosmetics only. This is user-owned progress, not an online currency.
+// Local Ryoku-wide progression. Badges describe verified user actions, not hardware tier.
 var achievements = [
-    { id: "welcome", title: "First Contact", detail: "Open your card studio", reward: 50 },
-    { id: "explorer", title: "Under the Hood", detail: "Inspect your card's rarity", reward: 80 },
-    { id: "identity", title: "Signature", detail: "Personalise your card's words", reward: 100 },
-    { id: "portrait", title: "A New Face", detail: "Choose your own card artwork", reward: 100 },
-    { id: "layout", title: "Art Director", detail: "Customise your card layout", reward: 120 },
-    { id: "showcase", title: "Showtime", detail: "Successfully copy or save your card", reward: 150 }
+    { id: "ryoku-first-steps", category: "Ryoku", title: "First Steps", detail: "Visit your Ryoku achievements", reward: 30 },
+    { id: "ryoku-pathfinder", category: "Ryoku", title: "Pathfinder", detail: "Explore five different Ryoku settings pages", reward: 80 },
+    { id: "ryoku-voyager", category: "Ryoku", title: "Voyager", detail: "Explore fifteen different Ryoku settings pages", reward: 150 },
+    { id: "ryoku-versatile", category: "Ryoku", title: "Versatile", detail: "Explore four different areas of Ryoku", reward: 100 },
+    { id: "welcome", category: "Card studio", title: "First Contact", detail: "Open your card studio", reward: 50 },
+    { id: "explorer", category: "Card studio", title: "Under the Hood", detail: "Inspect your card's rarity", reward: 80 },
+    { id: "identity", category: "Card studio", title: "Signature", detail: "Personalise your card's words", reward: 100 },
+    { id: "portrait", category: "Card studio", title: "A New Face", detail: "Choose your own card artwork", reward: 100 },
+    { id: "layout", category: "Card studio", title: "Art Director", detail: "Customise your card layout", reward: 120 },
+    { id: "showcase", category: "Card studio", title: "Showtime", detail: "Successfully copy or save your card", reward: 150 }
 ];
 
 var cosmetics = [
@@ -41,8 +45,16 @@ function clean(value) {
         if (owned[cosmetics[c].id])
             balance -= cosmetics[c].price;
     var active = owned[source.active] ? source.active : "";
-    return { version: 1, earned: earned, owned: owned, active: active,
-             balance: balance >= 0 ? balance : 0 };
+    var visited = {};
+    if (source.visited && typeof source.visited === "object")
+        Object.keys(source.visited).slice(0, 150).forEach(function(key) {
+            if (/^[a-z][a-z0-9-]{0,49}$/.test(key) && typeof source.visited[key] === "string"
+                    && /^[a-z][a-z0-9-]{0,49}$/.test(source.visited[key]))
+                visited[key] = source.visited[key];
+        });
+    var featured = earned[source.featured] ? source.featured : "";
+    return { version: 2, earned: earned, owned: owned, active: active,
+             featured: featured, visited: visited, balance: Math.max(0, balance) };
 }
 
 function unlock(state, id) {
@@ -70,6 +82,34 @@ function equip(state, id) {
         return { state: next, changed: false };
     next.active = id;
     return { state: next, changed: true };
+}
+
+function visit(state, page, category) {
+    var next = clean(state);
+    if (!/^[a-z][a-z0-9-]{0,49}$/.test(String(page)) ||
+        !/^[a-z][a-z0-9-]{0,49}$/.test(String(category)) || next.visited[page])
+        return { state: next, changed: false };
+    next.visited[page] = category;
+    var count = Object.keys(next.visited).length;
+    var categories = {};
+    Object.keys(next.visited).forEach(function(key) { categories[next.visited[key]] = true; });
+    if (count >= 5)
+        next.earned["ryoku-pathfinder"] = true;
+    if (count >= 15)
+        next.earned["ryoku-voyager"] = true;
+    if (Object.keys(categories).length >= 4)
+        next.earned["ryoku-versatile"] = true;
+    return { state: clean(next), changed: true };
+}
+
+function feature(state, id) {
+    var next = clean(state);
+    if (id !== "" && !next.earned[id])
+        return { state: next, changed: false };
+    if (next.featured === id)
+        return { state: next, changed: false };
+    next.featured = id;
+    return { state: clean(next), changed: true };
 }
 
 function palette(state) {
