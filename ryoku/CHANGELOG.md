@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+- **The brightness keys move by the step Ryoku Settings names.** The media-key
+  binds on Hyprland, niri and Wayfire pass `up`/`down` instead of a literal 5,
+  so changing the step needs no compositor reload or config rewrite; the
+  explicit `+N`/`-N` forms still work for scripts
+  (`hyprland/modules/binds.lua`, `wm/niri/config_binds.go`,
+  `wm/wayfire/config_binds.go`).
+
 ### Fixed
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first

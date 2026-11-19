@@ -33,33 +33,32 @@ func TestParseBarEdge(t *testing.T) {
 	}
 }
 
-// The audio verb steps volume by the reference literal (5% of the [0,1] range),
-// clamps the rise at 1.0, and toggles mute; those argv are the behaviour, so
-// pin them.
-func TestAudioArgv(t *testing.T) {
-	cases := map[string][]string{
-		"up":   {"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"},
-		"down": {"set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"},
-		"mute": {"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"},
+// The bar's wheel has to land where the key lands, so the volume verbs run the
+// same helper the media keys run, and mute stays a direct sink toggle.
+func TestAudioCmd(t *testing.T) {
+	cases := map[string]struct {
+		name string
+		argv []string
+	}{
+		"up":   {"ryoku-volume", []string{"up"}},
+		"down": {"ryoku-volume", []string{"down"}},
+		"mute": {"wpctl", []string{"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}},
 	}
 	for sub, want := range cases {
-		got, ok := audioArgv(sub)
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("audioArgv(%q) = (%v,%v), want (%v,true)", sub, got, ok, want)
+		name, argv, ok := audioCmd(sub)
+		if !ok || name != want.name || !reflect.DeepEqual(argv, want.argv) {
+			t.Errorf("audioCmd(%q) = (%q,%v,%v), want (%q,%v,true)", sub, name, argv, ok, want.name, want.argv)
 		}
 	}
-	if _, ok := audioArgv("sideways"); ok {
-		t.Errorf("audioArgv(sideways) accepted, want rejection")
+	if _, _, ok := audioCmd("sideways"); ok {
+		t.Errorf("audioCmd(sideways) accepted, want rejection")
 	}
 }
 
-// The brightness verb steps by the reference literal (5 of the [0,100] range).
+// The brightness verb hands the helper its word, so the helper's own setting and
+// clamping are the only ones in play.
 func TestBrightnessArgv(t *testing.T) {
-	cases := map[string][]string{
-		"up":   {"+5"},
-		"down": {"-5"},
-	}
-	for sub, want := range cases {
+	for sub, want := range map[string][]string{"up": {"up"}, "down": {"down"}} {
 		got, ok := brightnessArgv(sub)
 		if !ok || !reflect.DeepEqual(got, want) {
 			t.Errorf("brightnessArgv(%q) = (%v,%v), want (%v,true)", sub, got, ok, want)
