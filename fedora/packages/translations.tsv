@@ -214,7 +214,6 @@ ryoku-desktop	ryoku-desktop	desktop	Ryoku-owned RPM.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a Fedora compositor RPM.
 ryoku-desktop-hyprland	ryoku-desktop-hyprland	hyprland	Ryoku-owned RPM.
 ryoku-desktop-niri	ryoku-desktop-niri	desktop	Ryoku-owned RPM.
-ryoku-desktop-wayfire	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 ryoku-dictation	ryoku-dictation	desktop	Ryoku-owned RPM.
 ryoku-hub	ryoku-hub	desktop	Ryoku-owned RPM.
 ryoku-hypr-plugins	ryoku-hypr-plugins	hyprland	Ryoku-owned RPM.
@@ -289,7 +288,6 @@ vulkan-intel	mesa-vulkan-drivers	hardware:intel
 vulkan-radeon	mesa-vulkan-drivers	hardware:amd	
 vulkan-swrast	mesa-vulkan-drivers	hardware:vm	
 waifu2x-ncnn-vulkan	waifu2x-ncnn-vulkan	desktop	Ryoku-owned RPM.
-wayfire	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku requires 0.11.
 wayland	libwayland-client libwayland-cursor libwayland-egl libwayland-server	desktop	
 webkit2gtk-4.1	webkit2gtk4.1	desktop	
 weston	weston	desktop	
@@ -297,8 +295,6 @@ wireless-regdb	wireless-regdb	desktop
 wireplumber	wireplumber	desktop	
 wl-clip-persist	wl-clip-persist	desktop	Ryoku-owned RPM.
 wl-clipboard	wl-clipboard	desktop	
-wlopm	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
-wlr-randr	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 wlsunset	wlsunset	desktop	
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
@@ -307,7 +303,6 @@ xdg-desktop-portal	xdg-desktop-portal	hyprland
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	xdg-desktop-portal-hyprland	hyprland	Provided by a restricted COPR.
-xdg-desktop-portal-wlr	-	wayfire	Fedora ships Wayfire 0.10.1; Ryoku's Wayfire desktop requires 0.11.
 xdg-user-dirs	xdg-user-dirs	desktop	
 xdg-utils	xdg-utils	desktop	
 xorg-xcursorgen	xcursorgen	desktop	

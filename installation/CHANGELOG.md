@@ -1,6 +1,8 @@
 # Changelog: installation/
 
 ## Unreleased
+- **Removed Wayfire from installation.** The Arch and CachyOS compositor
+  pickers and offline ISOs now offer and bake only Hyprland and niri.
 - **New installs no longer pull Docker.** The Apps step drops its Docker
   component, which existed for the retired Cobalt download engine; downloads
   run in the shell's own `ryoget` now (`installerplan/components.tsv`,

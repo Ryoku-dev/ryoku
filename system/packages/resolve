@@ -17,7 +17,7 @@ usage() {
 
 valid_lane() {
 	case $1 in
-		desktop|dev|system|extra|optional|hyprland|wayfire|hardware:amd|hardware:intel|hardware:nvidia|hardware:vm) return 0 ;;
+		desktop|dev|system|extra|optional|hyprland|hardware:amd|hardware:intel|hardware:nvidia|hardware:vm) return 0 ;;
 		*) return 1 ;;
 	esac
 }
@@ -76,7 +76,7 @@ function package_name(name) {
 BEGIN {
 	header = 0
 	valid["desktop"] = valid["dev"] = valid["system"] = 1
-	valid["extra"] = valid["optional"] = valid["hyprland"] = valid["wayfire"] = 1
+	valid["extra"] = valid["optional"] = valid["hyprland"] = 1
 	valid["hardware:amd"] = valid["hardware:intel"] = 1
 	valid["hardware:nvidia"] = valid["hardware:vm"] = 1
 }

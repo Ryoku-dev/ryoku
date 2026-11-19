@@ -218,7 +218,6 @@ ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
 ryoku-desktop-hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout.
-ryoku-desktop-wayfire	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 ryoku-dictation	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
@@ -294,7 +293,6 @@ vulkan-intel	mesa-vulkan-intel	hardware:intel
 vulkan-radeon	mesa-vulkan-radeon	hardware:amd	
 vulkan-swrast	mesa-vulkan-lavapipe	hardware:vm	
 waifu2x-ncnn-vulkan	waifu2x-ncnn-vulkan	desktop	repo=ryoku
-wayfire	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 wayland	wayland	desktop	
 webkit2gtk-4.1	libwebkit2gtk41	desktop	
 weston	weston	desktop	
@@ -302,8 +300,6 @@ wireless-regdb	wireless-regdb	desktop
 wireplumber	wireplumber	desktop	
 wl-clip-persist	wl-clip-persist	desktop	
 wl-clipboard	wl-clipboard	desktop	
-wlopm	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
-wlr-randr	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 wlsunset	wlsunset	desktop	
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
@@ -312,7 +308,6 @@ xdg-desktop-portal	-	hyprland	Hyprland is not packaged on Void.
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	-	hyprland	Hyprland is not packaged on Void.
-xdg-desktop-portal-wlr	-	wayfire	Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.
 xdg-user-dirs	xdg-user-dirs	desktop	
 xdg-utils	xdg-utils	desktop	
 xorg-xcursorgen	xcursorgen	desktop	

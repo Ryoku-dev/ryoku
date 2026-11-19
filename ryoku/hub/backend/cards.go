@@ -207,7 +207,7 @@ func entryForDesign(d codedDesign, levels [][]int) binderCard {
 		HW: cardHardware{Threads: d.threads, RamGb: d.ramGb, Refresh: d.refresh, Width: d.width,
 			GPUClass: d.gpuClass, IGPU: d.igpu, GPU: d.gpu,
 			Distro: []string{"", "Arch Linux", "CachyOS", "Fedora", "Void", "NixOS"}[d.distro],
-			WM:     []string{"", "Hyprland", "Niri", "Wayfire"}[d.wm]},
+			WM:     []string{"", "Hyprland", "Niri", ""}[d.wm]},
 		Levels:     levels,
 		BadgeCheck: "none",
 	}

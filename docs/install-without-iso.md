@@ -87,8 +87,7 @@ defaults to No and stays off until you turn it on. The run can be resumed if it
 is interrupted.
 
 Ryoku is niri-only on Void because Ryoku's Hyprland build needs GCC 15 while
-Void currently ships GCC 14. Wayfire also stays out because Void ships 0.10 and
-Ryoku needs 0.11.
+Void currently ships GCC 14.
 
 ### 4. What the installer sets up
 
@@ -144,8 +143,8 @@ curl -fsSL https://raw.githubusercontent.com/Ryoku-dev/ryoku/main/ryoku-shell-in
 ```
 
 The installer adds the signed `[ryoku]` repository and installs the selected
-Hyprland, niri or Wayfire desktop package. It can also add the optional CachyOS
-gaming layer while keeping the Arch kernel as a fallback.
+Hyprland or niri desktop package. It can also add the optional CachyOS gaming
+layer while keeping the Arch kernel as a fallback.
 
 ## Existing CachyOS
 
@@ -158,14 +157,14 @@ curl -fsSL https://raw.githubusercontent.com/Ryoku-dev/ryoku/main/ryoku-shell-in
 ```
 
 The pacman path keeps the CachyOS base and repositories. Ryoku adds its signed
-repository, the selected Hyprland, niri or Wayfire package, SDDM and the desktop
+repository, the selected Hyprland or niri package, SDDM and the desktop
 configuration.
 
 ## Existing Fedora 44 or 45
 
 Ryoku supports mutable `x86_64` Fedora 44 and 45 Workstation, KDE Plasma,
 Server and spins. Atomic and other rpm-ostree systems are not supported. Fedora
-uses Hyprland or niri. It does not offer Wayfire.
+uses Hyprland or niri.
 
 Update Fedora and run the installer as a normal user with `sudo`:
 

@@ -99,7 +99,6 @@ Steam uses its own Proton.
 ## Remaining limits
 
 - niri only, because Ryoku's Hyprland needs GCC 15 and Void ships GCC 14
-- no Wayfire, because Void ships 0.10 and Ryoku requires 0.11
 - Zen Browser, LocalSend, and Voxtype are AUR-only
 - no asusctl or adw-gtk-theme package
 - GPU passthrough needs Looking Glass and kvmfr from the AUR

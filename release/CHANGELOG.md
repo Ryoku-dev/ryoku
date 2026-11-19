@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Removed the Wayfire desktop variant.** The package recipe, depthdeck bundle,
+  build-host dependency and ISO package closure are gone; Hyprland and niri
+  remain the shipped compositor variants.
 - **`ryoku-shell` ships `ryoget`, the download engine, and `ryoseek`, the web
   search daemon.** Every edition builds both from one Go module and its
   committed `vendor/` tree with `CGO_ENABLED=0` (`ryoget` with `-tags

@@ -21,6 +21,9 @@ for finer detail.
   Identity > Workspaces (#767).
 
 ### Removed
+- Wayfire support is removed from the compositor choices, desktop packages,
+  ISO closure and edition mappings. Ryoku continues to ship Hyprland and niri
+  on Arch and CachyOS, and each other edition keeps its supported choices.
 - Every bar style and subshell except Orpheus and Kairos left this repository
   for the `Ryoku-dev/ryostore-revamped` catalogue, along with the Shima pinned
   source workflow and the Nomarchy tree. Users install them from Ryostore.

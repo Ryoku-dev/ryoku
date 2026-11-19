@@ -35,8 +35,7 @@ func retiredCompositorTarget() string {
 	return wm.Providers()[0]
 }
 
-func retiredCompositorArtifactsPresent() bool {
-	legacy := wm.RetiredCompositor()
+func retiredCompositorArtifactsPresent(legacy wm.RetiredCompositorArtifacts) bool {
 	if retiredCompositorPackageInstalled(legacy.VariantPackage) {
 		return true
 	}
@@ -60,8 +59,7 @@ func retiredCompositorArtifactsPresent() bool {
 	return false
 }
 
-func retiredCompositorFix(target string, live bool) string {
-	legacy := wm.RetiredCompositor()
+func retiredCompositorFix(legacy wm.RetiredCompositorArtifacts, target string, live bool) string {
 	targetPkg := "ryoku-desktop-" + target
 	if live || !retiredCompositorPackageInstalled(legacy.VariantPackage) {
 		return "sudo pacman -S --needed --noconfirm " + targetPkg
@@ -77,8 +75,7 @@ func retiredCompositorFix(target string, live bool) string {
 	return strings.Join(parts, " && ")
 }
 
-func installReplacementVariant(target string, live bool) error {
-	legacy := wm.RetiredCompositor()
+func installReplacementVariant(legacy wm.RetiredCompositorArtifacts, target string, live bool) error {
 	targetPkg := "ryoku-desktop-" + target
 	if retiredCompositorPackageInstalled(targetPkg) {
 		return nil
@@ -95,8 +92,7 @@ func installReplacementVariant(target string, live bool) error {
 	return retiredCompositorRun("pacman", "-S", "--needed", "--noconfirm", targetPkg)
 }
 
-func removeRetiredCompositor() error {
-	legacy := wm.RetiredCompositor()
+func removeRetiredCompositor(legacy wm.RetiredCompositorArtifacts) error {
 	if retiredCompositorPackageInstalled(legacy.VariantPackage) {
 		if err := retiredCompositorRun("pacman", "-Rdd", "--noconfirm", legacy.VariantPackage); err != nil {
 			return err
@@ -135,23 +131,30 @@ func reconcileRetiredCompositor(checkOnly bool) recResult {
 	if err != nil || manager != host.Pacman {
 		return okRes(i18n.T("retired compositor package migration is not applicable on this host"))
 	}
-	if !retiredCompositorArtifactsPresent() {
-		return okRes(i18n.T("no retired compositor artifacts present"))
-	}
 	target := retiredCompositorTarget()
-	live := wm.RetiredCompositorLive()
-	fix := retiredCompositorFix(target, live)
-	if checkOnly {
-		return wouldRes(i18n.T("retired compositor artifacts need migration to %s"), target).withFix(fix)
+	var result recResult
+	for _, legacy := range wm.RetiredCompositors() {
+		if !retiredCompositorArtifactsPresent(legacy) {
+			continue
+		}
+		live := wm.RetiredCompositorLive(legacy)
+		fix := retiredCompositorFix(legacy, target, live)
+		if checkOnly {
+			return wouldRes(i18n.T("retired compositor artifacts need migration to %s"), target).withFix(fix)
+		}
+		if err := installReplacementVariant(legacy, target, live); err != nil {
+			return failRes(i18n.T("could not install the %s desktop variant: %v"), target, err).withFix(fix)
+		}
+		if live {
+			return warnRes(i18n.T("installed the %s desktop variant; log into it before the retired compositor is removed"), target)
+		}
+		if err := removeRetiredCompositor(legacy); err != nil {
+			return failRes(i18n.T("could not remove the retired compositor: %v"), err).withFix(fix)
+		}
+		result = fixedRes(i18n.T("migrated to the %s desktop variant and removed the retired compositor"), target)
 	}
-	if err := installReplacementVariant(target, live); err != nil {
-		return failRes(i18n.T("could not install the %s desktop variant: %v"), target, err).withFix(fix)
+	if result.status == recFixed {
+		return result
 	}
-	if live {
-		return warnRes(i18n.T("installed the %s desktop variant; log into it before the retired compositor is removed"), target)
-	}
-	if err := removeRetiredCompositor(); err != nil {
-		return failRes(i18n.T("could not remove the retired compositor: %v"), err).withFix(fix)
-	}
-	return fixedRes(i18n.T("migrated to the %s desktop variant and removed the retired compositor"), target)
+	return okRes(i18n.T("no retired compositor artifacts present"))
 }

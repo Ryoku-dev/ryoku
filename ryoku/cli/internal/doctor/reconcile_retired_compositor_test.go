@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"ryoku-cli/internal/host"
@@ -32,8 +33,9 @@ func stubRetiredCompositor(t *testing.T, installed map[string]bool) (*[][]string
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("RYOKU_WM", wm.ProviderNiri)
-	legacy := wm.RetiredCompositor()
-	t.Setenv(legacy.SessionHandle, "")
+	for _, legacy := range wm.RetiredCompositors() {
+		t.Setenv(legacy.SessionHandle, "")
+	}
 	retiredCompositorHome = func() (string, error) { return home, nil }
 	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
 	retiredCompositorPackageInstalled = func(name string) bool { return installed[name] }
@@ -57,7 +59,7 @@ func stubRetiredCompositor(t *testing.T, installed map[string]bool) (*[][]string
 }
 
 func TestReconcileRetiredCompositorSwapsVariantBeforeCleanup(t *testing.T) {
-	legacy := wm.RetiredCompositor()
+	legacy := wm.RetiredCompositors()[0]
 	target := "ryoku-desktop-" + wm.ProviderNiri
 	installed := map[string]bool{legacy.VariantPackage: true, legacy.Packages[0]: true}
 	calls, home := stubRetiredCompositor(t, installed)
@@ -98,7 +100,7 @@ func TestReconcileRetiredCompositorSwapsVariantBeforeCleanup(t *testing.T) {
 }
 
 func TestReconcileRetiredCompositorDefersRemovalForLiveSession(t *testing.T) {
-	legacy := wm.RetiredCompositor()
+	legacy := wm.RetiredCompositors()[0]
 	target := "ryoku-desktop-" + wm.ProviderNiri
 	installed := map[string]bool{legacy.VariantPackage: true, legacy.Packages[0]: true}
 	calls, home := stubRetiredCompositor(t, installed)
@@ -120,6 +122,64 @@ func TestReconcileRetiredCompositorDefersRemovalForLiveSession(t *testing.T) {
 	}
 	if _, err := os.Stat(config); err != nil {
 		t.Fatalf("live session config was removed: %v", err)
+	}
+}
+
+func TestReconcileWayfireUsesInstalledSupportedVariant(t *testing.T) {
+	legacy := wm.RetiredCompositors()[1]
+	installed := map[string]bool{
+		legacy.VariantPackage:                  true,
+		legacy.Packages[0]:                     true,
+		"ryoku-desktop-" + wm.ProviderHyprland: true,
+		"ryoku-desktop-" + wm.ProviderNiri:     true,
+	}
+	calls, _ := stubRetiredCompositor(t, installed)
+	t.Setenv("RYOKU_WM", legacy.ConfigDir)
+	if got := reconcileRetiredCompositor(false); got.status != recFixed ||
+		!strings.Contains(got.detail, wm.ProviderHyprland) {
+		t.Fatalf("result = %+v, want installed Hyprland variant", got)
+	}
+	want := [][]string{
+		{"pacman", "-Rdd", "--noconfirm", legacy.VariantPackage},
+		{"pacman", "-Rns", "--noconfirm", legacy.Packages[0]},
+	}
+	if !reflect.DeepEqual(*calls, want) {
+		t.Fatalf("calls = %v, want %v", *calls, want)
+	}
+	if !installed["ryoku-desktop-"+wm.ProviderNiri] {
+		t.Fatal("other supported variant was removed")
+	}
+}
+
+func TestReconcileWayfireInstallsNiriIfHyprlandAbsent(t *testing.T) {
+	legacy := wm.RetiredCompositors()[1]
+	installed := map[string]bool{legacy.VariantPackage: true}
+	calls, _ := stubRetiredCompositor(t, installed)
+	t.Setenv("RYOKU_WM", legacy.ConfigDir)
+	installed["ryoku-desktop-"+wm.ProviderNiri] = true
+	if got := reconcileRetiredCompositor(false); got.status != recFixed ||
+		!strings.Contains(got.detail, wm.ProviderNiri) {
+		t.Fatalf("result = %+v, want installed niri variant", got)
+	}
+	if len(*calls) != 1 || (*calls)[0][1] != "-Rdd" {
+		t.Fatalf("existing niri variant must stay installed: %v", *calls)
+	}
+}
+
+func TestReconcileWayfireKeepsLiveSessionUntilRelogin(t *testing.T) {
+	legacy := wm.RetiredCompositors()[1]
+	installed := map[string]bool{legacy.VariantPackage: true}
+	calls, home := stubRetiredCompositor(t, installed)
+	t.Setenv("RYOKU_WM", legacy.ConfigDir)
+	t.Setenv(legacy.SessionHandle, filepath.Join(home, "session.sock"))
+	if got := reconcileRetiredCompositor(false); got.status != recWarn {
+		t.Fatalf("result = %+v, want deferred removal", got)
+	}
+	if !installed[legacy.VariantPackage] || !installed["ryoku-desktop-"+wm.ProviderHyprland] {
+		t.Fatalf("live session lost or replacement missing: %v", installed)
+	}
+	if len(*calls) != 1 || (*calls)[0][1] != "-S" {
+		t.Fatalf("live session must only install replacement: %v", *calls)
 	}
 }
 

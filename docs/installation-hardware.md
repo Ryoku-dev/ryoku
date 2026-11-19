@@ -32,13 +32,13 @@ The backend that implements the automatic half lives in
 ## Requirements
 
 Ryoku is `x86_64` only; there is no 32-bit build. Arch and CachyOS sessions
-support Hyprland and niri, with Wayfire 0.11 as an experimental compositor. The
-experimental Void edition requires x86_64 glibc Void with runit and runs niri
-only. The experimental Fedora edition requires mutable Fedora 44 or 45 with
-systemd and supports Hyprland or niri on Workstation, KDE Plasma, Server, and
-spin installs. The Arch and CachyOS ISOs require UEFI; the Void ISO boots on
-legacy BIOS or UEFI, and a legacy BIOS install uses the whole disk (installing
-alongside another system needs UEFI). Every ISO refuses Secure Boot unless you
+support Hyprland and niri. The experimental Void edition requires x86_64 glibc
+Void with runit and runs niri only. The experimental Fedora edition requires
+mutable Fedora 44 or 45 with systemd and supports Hyprland or niri on
+Workstation, KDE Plasma, Server, and spin installs. The Arch and CachyOS ISOs
+require UEFI; the Void ISO boots on legacy BIOS or UEFI, and a legacy BIOS
+install uses the whole disk (installing alongside another system needs UEFI).
+Every ISO refuses Secure Boot unless you
 have enrolled your own keys because Limine ships unsigned. Fedora keeps GRUB and
 refuses Atomic and other rpm-ostree systems.
 

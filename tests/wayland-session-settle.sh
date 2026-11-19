@@ -203,7 +203,7 @@ echo 0 >"$tmp/pglimit"
 env -u LIBVA_DRIVER_NAME -u NVD_BACKEND -u __GLX_VENDOR_LIBRARY_NAME \
   -u __GL_GSYNC_ALLOWED -u __GL_VRR_ALLOWED -u GBM_BACKEND \
   RYOKU_NVIDIA_VERSION_PATH="$tmp/nvidia-version" \
-  RYOKU_DRM_CLASS_DIR="$drm_nvidia" "$wrapper" wayfire
+  RYOKU_DRM_CLASS_DIR="$drm_nvidia" "$wrapper" Hyprland
 [[ "$(env_value LIBVA_DRIVER_NAME)" == nvidia ]] \
   || fail "NVIDIA-driven panel did not select NVIDIA VA-API"
 [[ "$(env_value NVD_BACKEND)" == direct ]] \
@@ -213,7 +213,7 @@ env -u LIBVA_DRIVER_NAME -u NVD_BACKEND -u __GLX_VENDOR_LIBRARY_NAME \
 [[ "$(env_value __GL_GSYNC_ALLOWED)" == 0 && "$(env_value __GL_VRR_ALLOWED)" == 0 ]] \
   || fail "NVIDIA session did not disable driver-side G-SYNC/VRR"
 [[ -z "$(env_value GBM_BACKEND)" ]] \
-  || fail "session wrapper forced GBM_BACKEND on Wayfire"
+  || fail "session wrapper forced GBM_BACKEND on Hyprland"
 
 # ---- iGPU panel: do not poison hybrid decoding with NVIDIA-only hints --------
 drm_hybrid="$tmp/drm-hybrid"
@@ -225,7 +225,7 @@ echo 0 >"$tmp/pglimit"
 env -u LIBVA_DRIVER_NAME -u NVD_BACKEND -u __GLX_VENDOR_LIBRARY_NAME \
   -u __GL_GSYNC_ALLOWED -u __GL_VRR_ALLOWED \
   RYOKU_NVIDIA_VERSION_PATH="$tmp/nvidia-version" \
-  RYOKU_DRM_CLASS_DIR="$drm_hybrid" "$wrapper" wayfire
+  RYOKU_DRM_CLASS_DIR="$drm_hybrid" "$wrapper" niri-session
 [[ -z "$(env_value LIBVA_DRIVER_NAME)" && -z "$(env_value NVD_BACKEND)" ]] \
   || fail "AMD-driven hybrid panel inherited NVIDIA decode hints"
 

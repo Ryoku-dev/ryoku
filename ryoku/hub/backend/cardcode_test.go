@@ -233,7 +233,7 @@ func TestProfileCodeFlags(t *testing.T) {
 		distro, wm string
 		d, w       int
 	}{
-		{"arch", "hyprland", 1, 1}, {"cachyos", "niri", 2, 2}, {"fedora", "wayfire", 3, 3},
+		{"arch", "hyprland", 1, 1}, {"cachyos", "niri", 2, 2}, {"fedora", "unknown", 3, 0},
 		{"void", "unknown", 4, 0}, {"nixos", "", 5, 0}, {"unknown", "", 0, 0},
 	} {
 		out := captureStdout(t, func() {

@@ -117,11 +117,8 @@ func isSeed(rel string) bool {
 	return generatedSeed[rel] || strings.HasPrefix(rel, "nvim/")
 }
 
-// generatedRels are the config files a provider's apply authors, across every
-// provider, so the lay never writes them: the file's own provider owns its
-// bytes. wayfire's generated path is a shipped file too (its baseline is
-// compose's first layer, read from the packaged base directly), which is what
-// makes this set necessary rather than theoretical.
+// generatedRels are the config files a provider authors from the neutral
+// store, so the lay never overwrites them.
 var generatedRels = generatedRelSet()
 
 func generatedRelSet() map[string]bool {
@@ -177,27 +174,12 @@ var providerInstalled = func(name string) bool {
 }
 
 // applyGenerated completes every laid-down provider tree. Packages ship the
-// static half, while each provider owns files rendered from the neutral store.
-// A missing generated file can make the target reject its config at login, and
-// a whole-file render composed from an older shipped baseline can keep an
-// otherwise complete tree on obsolete defaults. Materialize is shared by login
-// bootstrap, switching and updates, so it repairs both states here.
-//
-// Render marks are provider-declared through the seam. They also distinguish a
-// managed user_edits mirror from a whole-file fork: a fork is never replaced
-// merely because the shipped baseline changed. Provider failures remain best
-// effort, so an unavailable binary leaves its tree untouched instead of failing
-// the complete materialize.
-//
-// A missing neutral store is not a reason to skip the first render. The
-// installer only seeds desktop.json for a non-default keyboard, and providers
-// render defaults from an unreadable store path. An unmarked user_edits copy
-// still has an owner, so without a store it is left alone rather than replaced
-// with provider defaults.
+// static config, and the provider authors generated files from the neutral
+// store. Missing generated files can make a session fail to start. An
+// untracked user_edits copy with no store stays untouched.
 func applyGenerated(configHome string) {
 	store := filepath.Join(configHome, "ryoku", "desktop.json")
 	hasStore := sys.Exists(store)
-	base := sys.BaseConfigDir()
 	for _, name := range wm.Providers() {
 		dir := wm.ConfigDir(name)
 		if dir == "" || !sys.Exists(filepath.Join(configHome, dir)) {
@@ -210,14 +192,10 @@ func applyGenerated(configHome string) {
 		authored := false
 		for _, rel := range wm.GeneratedConfig(name) {
 			if d, _, ok := strings.Cut(rel, "/"); !ok || d != dir {
-				// A provider render in user_edits is its managed mirror. Anything
-				// else is a fork whose bytes materialize must not replace.
-				path := filepath.Join(configHome, rel)
-				if sys.Exists(path) {
-					body, err := os.ReadFile(path)
-					if err != nil || !wm.GeneratedConfigIsRender(name, body) {
-						authored = true
-					}
+				// A user-edited overlay with no store has an owner, so do not
+				// replace it with defaults on the first materialize.
+				if sys.Exists(filepath.Join(configHome, rel)) {
+					authored = true
 				}
 				continue
 			}
@@ -225,11 +203,7 @@ func applyGenerated(configHome string) {
 				missing = true
 			}
 		}
-		stale := wm.GeneratedConfigStale(name, base, configHome)
-		if !missing && !stale {
-			continue
-		}
-		if authored && (!hasStore || stale) {
+		if !missing || (authored && !hasStore) {
 			continue
 		}
 		if err := applyProvider(name, store); err != nil {
@@ -369,11 +343,8 @@ func Materialize() error {
 		managed = append(managed, rel)
 	}
 
-	// A provider's live tree can be all generated state: wayfire ships no
-	// static file under wayfire/ at all, its baseline being read from this base
-	// at compose time. Laying files alone would leave ~/.config/wayfire absent
-	// and applyGenerated would read "no tree laid down" and skip the render,
-	// so the tree directory itself is part of the lay.
+	// Ensure each shipped provider's config directory exists before its
+	// generated files are rendered.
 	for _, name := range wm.Providers() {
 		if dir := wm.ConfigDir(name); dir != "" && sys.Exists(filepath.Join(base, dir)) {
 			if err := os.MkdirAll(filepath.Join(dest, dir), 0o755); err != nil {

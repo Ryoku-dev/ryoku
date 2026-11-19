@@ -258,62 +258,85 @@ func TestMoveRyokuSetAddsPackagedBaseWhenMigrating(t *testing.T) {
 }
 
 func TestMoveRyokuSetMigratesRetiredVariant(t *testing.T) {
+	for _, legacy := range wm.RetiredCompositors() {
+		t.Run(legacy.VariantPackage, func(t *testing.T) {
+			t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
+			t.Setenv(legacy.SessionHandle, "")
+			stubMoveRepoSync(t, func(bool) error { return nil })
+			var movedSet, dropped []string
+
+			oldPriv := privileged
+			privileged = func(...string) error { return nil }
+			t.Cleanup(func() { privileged = oldPriv })
+
+			oldMove := runRyokuMove
+			runRyokuMove = func(set []string) error {
+				movedSet = append([]string(nil), set...)
+				return nil
+			}
+			t.Cleanup(func() { runRyokuMove = oldMove })
+
+			oldSet, oldServed, oldPkg, oldDetect :=
+				ryokuSetForMove, servedSetForMove, pkgInstalledForMove, detectCompositorForMove
+			ryokuSetForMove = func() ([]string, error) {
+				return []string{ryokuRepo + "/" + ryokuDesktopPkg, ryokuRepo + "/ryogami"}, nil
+			}
+			servedSetForMove = func() map[string]bool {
+				return map[string]bool{
+					ryokuDesktopPkg:                         true,
+					ryokuDesktopPkg + "-" + wm.ProviderNiri: true,
+					"ryogami":                               true,
+				}
+			}
+			pkgInstalledForMove = func(name string) bool { return name == ryokuDesktopPkg }
+			detectCompositorForMove = func() string { return wm.ProviderNiri }
+			t.Cleanup(func() {
+				ryokuSetForMove, servedSetForMove, pkgInstalledForMove, detectCompositorForMove =
+					oldSet, oldServed, oldPkg, oldDetect
+			})
+
+			oldInstalled, oldRemove := splitMetaInstalled, splitMetaRemove
+			splitMetaInstalled = func(name string) bool { return name == legacy.VariantPackage }
+			splitMetaRemove = func(name string) error {
+				dropped = append(dropped, name)
+				return nil
+			}
+			t.Cleanup(func() { splitMetaInstalled, splitMetaRemove = oldInstalled, oldRemove })
+
+			set, err := moveRyokuSetToChannel()
+			if err != nil {
+				t.Fatalf("move: %v", err)
+			}
+			wantSet := []string{
+				ryokuRepo + "/" + ryokuDesktopPkg + "-" + wm.ProviderNiri,
+				ryokuRepo + "/" + ryokuDesktopPkg,
+				ryokuRepo + "/ryogami",
+			}
+			if !reflect.DeepEqual(set, wantSet) || !reflect.DeepEqual(movedSet, wantSet) {
+				t.Fatalf("moved set = %v, returned set = %v, want %v", movedSet, set, wantSet)
+			}
+			if want := []string{legacy.VariantPackage}; !reflect.DeepEqual(dropped, want) {
+				t.Fatalf("dropped variants = %v, want %v", dropped, want)
+			}
+		})
+	}
+}
+
+func TestMoveRyokuSetKeepsLiveRetiredSession(t *testing.T) {
 	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
+	legacy := wm.RetiredCompositors()[1]
+	t.Setenv(legacy.SessionHandle, "/tmp/retired-compositor-test")
 	stubMoveRepoSync(t, func(bool) error { return nil })
-	legacy := wm.RetiredCompositor()
-	var movedSet, dropped []string
-
-	oldPriv := privileged
-	privileged = func(...string) error { return nil }
-	t.Cleanup(func() { privileged = oldPriv })
-
-	oldMove := runRyokuMove
-	runRyokuMove = func(set []string) error {
-		movedSet = append([]string(nil), set...)
-		return nil
-	}
-	t.Cleanup(func() { runRyokuMove = oldMove })
-
-	oldSet, oldServed, oldPkg, oldDetect :=
-		ryokuSetForMove, servedSetForMove, pkgInstalledForMove, detectCompositorForMove
-	ryokuSetForMove = func() ([]string, error) {
-		return []string{ryokuRepo + "/" + ryokuDesktopPkg, ryokuRepo + "/ryogami"}, nil
-	}
-	servedSetForMove = func() map[string]bool {
-		return map[string]bool{
-			ryokuDesktopPkg:                         true,
-			ryokuDesktopPkg + "-" + wm.ProviderNiri: true,
-			"ryogami":                               true,
-		}
-	}
-	pkgInstalledForMove = func(name string) bool { return name == ryokuDesktopPkg }
-	detectCompositorForMove = func() string { return wm.ProviderNiri }
+	oldSet, oldInstalled, oldMove, oldRemove := ryokuSetForMove, splitMetaInstalled, runRyokuMove, splitMetaRemove
 	t.Cleanup(func() {
-		ryokuSetForMove, servedSetForMove, pkgInstalledForMove, detectCompositorForMove =
-			oldSet, oldServed, oldPkg, oldDetect
+		ryokuSetForMove, splitMetaInstalled, runRyokuMove, splitMetaRemove =
+			oldSet, oldInstalled, oldMove, oldRemove
 	})
-
-	oldInstalled, oldRemove := splitMetaInstalled, splitMetaRemove
+	ryokuSetForMove = func() ([]string, error) { return []string{"ryoku/ryoku-desktop"}, nil }
 	splitMetaInstalled = func(name string) bool { return name == legacy.VariantPackage }
-	splitMetaRemove = func(name string) error {
-		dropped = append(dropped, name)
-		return nil
-	}
-	t.Cleanup(func() { splitMetaInstalled, splitMetaRemove = oldInstalled, oldRemove })
-
-	set, err := moveRyokuSetToChannel()
-	if err != nil {
-		t.Fatalf("move: %v", err)
-	}
-	wantSet := []string{
-		ryokuRepo + "/" + ryokuDesktopPkg + "-" + wm.ProviderNiri,
-		ryokuRepo + "/" + ryokuDesktopPkg,
-		ryokuRepo + "/ryogami",
-	}
-	if !reflect.DeepEqual(set, wantSet) || !reflect.DeepEqual(movedSet, wantSet) {
-		t.Fatalf("moved set = %v, returned set = %v, want %v", movedSet, set, wantSet)
-	}
-	if want := []string{legacy.VariantPackage}; !reflect.DeepEqual(dropped, want) {
-		t.Fatalf("dropped variants = %v, want %v", dropped, want)
+	runRyokuMove = func([]string) error { t.Fatal("must not move while retired session is live"); return nil }
+	splitMetaRemove = func(string) error { t.Fatal("must not drop live compositor variant"); return nil }
+	if _, err := moveRyokuSetToChannel(); err == nil || !strings.Contains(err.Error(), "TTY") {
+		t.Fatalf("live session migration error = %v, want TTY instruction", err)
 	}
 }

@@ -1,6 +1,9 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Wayfire support was removed.** Ryoku now supports Hyprland and niri;
+  doctor moves an older Wayfire installation to a supported desktop before
+  removing its retired variant.
 - **Alt+Space no longer depends on Rashin.** The `shell.ask` shortcut opens the
   Rashin bar, whose web search and downloads work with Rashin off or absent,
   so it stays bound without `rashind` (`wm/binds.go` and its vendored copies).

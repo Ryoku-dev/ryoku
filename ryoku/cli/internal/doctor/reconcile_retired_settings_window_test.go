@@ -24,7 +24,7 @@ func retiredKeysHome(t *testing.T) string {
 // The strip drops settingsWindow from every provider object, keeps their other
 // leaves and the desktop namespace, and is a no-op on a clean store.
 func TestStripSettingsWindow(t *testing.T) {
-	a, b := wm.ProviderNiri, wm.ProviderWayfire
+	a, b := wm.ProviderNiri, wm.ProviderHyprland
 	raw := []byte(fmt.Sprintf(`{"desktop":{"appearance":{"rounding":8}},"wm":{%q:{"settingsWindow":{"mode":"custom","width":0.5,"height":0.5},"defaultColumnWidth":0.5},%q:{"settingsWindow":{"mode":"full"}}}}`, a, b))
 	out, changed, err := stripSettingsWindow(raw)
 	if err != nil || !changed {

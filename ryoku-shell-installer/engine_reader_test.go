@@ -97,7 +97,6 @@ func TestVoidPackagePlanMatchesResolver(t *testing.T) {
 		"--lane", "hardware:nvidia",
 		"--session",
 		"--drop", "ryoku-desktop-hyprland",
-		"--drop", "ryoku-desktop-wayfire",
 		"--drop", "firefox",
 		"--drop", "zen-browser-bin",
 		"--drop", "fish",

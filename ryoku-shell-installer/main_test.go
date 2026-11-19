@@ -272,7 +272,6 @@ func TestVoidPlanShowsEditionNotice(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Hyprland unavailable: Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.",
-		"Wayfire unavailable: Void ships Wayfire 0.11, but the Ryoku provider and depthdeck variant are not packaged or VM-verified.",
 		"Zen unavailable: Zen ships only as an upstream binary build; Ryoku does not mirror a browser it cannot keep current",
 	} {
 		if !strings.Contains(noticeText, want) {
@@ -283,7 +282,6 @@ func TestVoidPlanShowsEditionNotice(t *testing.T) {
 	for _, want := range []string{
 		"Compositors: niri.",
 		"Hyprland unavailable:",
-		"Wayfire unavailable:",
 		"Zen unavailable:",
 		"snapshot rollback: ready",
 		"ryoku update --system",
@@ -309,7 +307,7 @@ func TestVoidPlanShowsEditionNotice(t *testing.T) {
 	}
 }
 
-func TestExperimentalEditionAndWayfireLabels(t *testing.T) {
+func TestExperimentalEditionAndCompositorChoices(t *testing.T) {
 	loadEdition := func(name string) editionCompositorPlan {
 		t.Helper()
 		data, err := os.ReadFile(filepath.Join("..", name, "packages", "translations.tsv"))
@@ -336,16 +334,16 @@ func TestExperimentalEditionAndWayfireLabels(t *testing.T) {
 		if item.label != "Compositor" {
 			continue
 		}
+		keys := make([]string, 0, len(item.options))
 		for _, option := range item.options {
-			if option.key == "wayfire" {
-				if !strings.Contains(option.label, "experimental") {
-					t.Fatalf("Wayfire label = %q, want experimental marker", option.label)
-				}
-				return
-			}
+			keys = append(keys, option.key)
 		}
+		if got := strings.Join(keys, ","); got != "hyprland,niri" {
+			t.Fatalf("Arch compositor options = %q, want hyprland,niri", got)
+		}
+		return
 	}
-	t.Fatal("Wayfire compositor option missing")
+	t.Fatal("Compositor choice missing")
 }
 
 func TestEditionBrowserChoicesFollowPackageTables(t *testing.T) {

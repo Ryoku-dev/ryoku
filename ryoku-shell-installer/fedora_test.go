@@ -166,7 +166,6 @@ func TestFedoraPackagePlanUsesTranslationsAndAllRepos(t *testing.T) {
 		"ryoku-desktop\tryoku-desktop\tdesktop\tRyoku-owned RPM.\n" +
 		"ryoku-desktop-hyprland\t-\thyprland\tUnavailable in this fixture.\n" +
 		"ryoku-desktop-niri\tryoku-desktop-niri\tdesktop\tRyoku-owned RPM.\n" +
-		"ryoku-desktop-wayfire\t-\tdesktop\tUnavailable in this fixture.\n" +
 		"zsh\tzsh\tdesktop\t\n" +
 		"zsh-autosuggestions\tzsh-autosuggestions\tdesktop\t\n" +
 		"zsh-history-substring-search\t-\tdesktop\tNot packaged.\n" +
@@ -392,8 +391,7 @@ func TestFedoraCompositorsComeFromEditionTable(t *testing.T) {
 		"dolphin\tdolphin\toptional\tFedora package.\n" +
 		"thunar\tthunar\toptional\tFedora package.\n" +
 		"ryoku-desktop-hyprland\tryoku-desktop-hyprland\thyprland\tRyoku-owned RPM.\n" +
-		"ryoku-desktop-niri\tryoku-desktop-niri\tdesktop\tRyoku-owned RPM.\n" +
-		"ryoku-desktop-wayfire\t-\tdesktop\tFedora ships Wayfire 0.10.1; Ryoku requires 0.11.\n")
+		"ryoku-desktop-niri\tryoku-desktop-niri\tdesktop\tRyoku-owned RPM.\n")
 	plan, err := parseEditionCompositors(table)
 	if err != nil {
 		t.Fatal(err)
@@ -405,8 +403,8 @@ func TestFedoraCompositorsComeFromEditionTable(t *testing.T) {
 	if got := strings.Join(plan.choices.AvailableIDs(installerplan.Browser), ","); got != "firefox,chromium,none" {
 		t.Fatalf("Fedora browsers = %q, want firefox,chromium", got)
 	}
-	if got := strings.Join(unavailableChoiceNotices(plan, installerplan.Compositor), "\n"); !strings.Contains(got, "Wayfire unavailable") || !strings.Contains(got, "requires 0.11") {
-		t.Fatalf("Wayfire omission was not explained: %s", got)
+	if got := unavailableChoiceNotices(plan, installerplan.Compositor); len(got) != 0 {
+		t.Fatalf("unexpected unavailable compositor notices: %v", got)
 	}
 }
 

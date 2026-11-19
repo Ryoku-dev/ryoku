@@ -923,36 +923,6 @@ if command -v sudo >/dev/null 2>&1; then
       /usr/lib/systemd/system/ryoku-greeter-guard.service 644
     sudo systemctl enable --quiet ryoku-greeter-guard.service || true
   fi
-  # Wayfire composes its whole config from the shipped baseline, so every later
-  # apply (a Hub save, materialize) reads it from the config base the variant
-  # package installs. A checkout box has no variant package: lay the baseline
-  # and the portal routing the doctor reads where the package would.
-  _priv_install "$here/../wayfire/wayfire.ini" \
-    /usr/share/ryoku/config/wayfire/wayfire.ini 644
-  _priv_install "$here/../wayfire/wayfire-portals.conf" \
-    /usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf 644
-  # Wayfire's rounded corners, borders and shadows come from Ryoku's own window
-  # decor plugin, which the variant package builds. A checkout box builds it
-  # here; a failed build leaves square corners, never a stopped deploy.
-  decor_src="$here/../wm/wayfire/decor"
-  decor_build="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/build/wayfire-decor"
-  if command -v meson >/dev/null 2>&1 && pkg-config --exists wayfire 2>/dev/null; then
-    mkdir -p "$(dirname "$decor_build")"
-    decor_setup=(meson setup --buildtype=release)
-    [[ -d $decor_build/meson-private ]] && decor_setup+=(--reconfigure)
-    if "${decor_setup[@]}" "$decor_build" "$decor_src" >"$decor_build.log" 2>&1 &&
-      meson compile -C "$decor_build" >>"$decor_build.log" 2>&1; then
-      _priv_install "$decor_build/libryoku-decor.so" \
-        /usr/lib/wayfire/libryoku-decor.so 755
-      _priv_install "$decor_src/metadata/ryoku-decor.xml" \
-        /usr/share/wayfire/metadata/ryoku-decor.xml 644
-      say "installed the Wayfire window decor plugin"
-    else
-      say "the Wayfire window decor plugin did not build (see $decor_build.log)" >&2
-    fi
-  else
-    say "skipped the Wayfire window decor plugin (meson or Wayfire's development files missing)"
-  fi
   _priv_install "$netdir/ryoku-dns" /usr/bin/ryoku-dns 755
   _priv_install "$netdir/50-ryoku-dns.rules" /usr/share/polkit-1/rules.d/50-ryoku-dns.rules 644
   _priv_install "$netdir/ryoku-wifi-powersave" /usr/bin/ryoku-wifi-powersave 755
@@ -1281,7 +1251,7 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   # the boot configs); once ryoku-desktop packages them an unowned copy otherwise
   # aborts the whole -Syu with "exists in filesystem" and nothing upgrades.
   # Mirrors updater.RyokuOverwriteGlob / the doctor's ryokuSystemGlobs.
-  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/lib/wayfire/libryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/usr/share/ryoku/config/wayfire/*,/usr/share/ryoku/config/xdg-desktop-portal/wayfire-portals.conf,/usr/share/wayfire/metadata/ryoku-*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*,/usr/share/ryoku/brand/*,/usr/share/ryoku/npmrc,/usr/local/share/applications/mimeapps.list'
+  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/lib/environment.d/*ryoku*,/usr/share/ryoku/xdg/dbus-1/services/*,/usr/share/ryoku/brand/*,/usr/share/ryoku/npmrc,/usr/local/share/applications/mimeapps.list'
   # LC_ALL=C: the stray parse below reads pacman's English "exists in filesystem"
   _pac_ryotunes() { sudo env LC_ALL=C pacman -Syu --needed --noconfirm --overwrite "$_rovw" ryotunes; }
   # shellcheck disable=SC2024
@@ -1343,7 +1313,6 @@ piece config "configuration files"
 # portal reads the one named for the running desktop.
 install -Dm644 "$here/../hyprland/hyprland-portals.conf" "$cfg/xdg-desktop-portal/hyprland-portals.conf"
 install -Dm644 "$here/../niri/niri-portals.conf" "$cfg/xdg-desktop-portal/niri-portals.conf"
-install -Dm644 "$here/../wayfire/wayfire-portals.conf" "$cfg/xdg-desktop-portal/wayfire-portals.conf"
 
 # Seed the decor art beside wallpapers and livewalls. Missing-only keeps local
 # replacements and additions intact across deploys.

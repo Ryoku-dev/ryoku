@@ -64,11 +64,7 @@ const (
 	CapPerWorkspaceLayout Capability = "perWorkspaceLayout"
 	// CapColumnFill is set when the provider can tell the active window spans
 	// its output's width, the full-width column a scrolling tiler makes.
-	CapColumnFill Capability = "columnFill"
-	// CapDeckLayout is set when the compositor can arrange a workspace as an
-	// overlapping deck with the focused card raised. It gates the deck controls
-	// without exposing which compositor plugin supplies that behaviour.
-	CapDeckLayout  Capability = "deckLayout"
+	CapColumnFill  Capability = "columnFill"
 	CapSessionExit Capability = "sessionExit"
 	// CapNightLight is set when the provider can warm the screen to a colour
 	// temperature and restore it, through the nightlight.on and nightlight.off
@@ -107,11 +103,6 @@ const (
 	// toolbar and catalogue) asks for on-demand focus there instead, and takes
 	// the keyboard as the pointer crosses it.
 	CapKeyboardGrabSharesPointer Capability = "keyboardGrabSharesPointer"
-	// CapSystemLidEdgeSource is set when the compositor receives switch devices
-	// but exposes no ordered lid binding or IPC event. The active session's
-	// clamshell owner then watches physical state and routes both edges through
-	// the neutral output action.
-	CapSystemLidEdgeSource Capability = "systemLidEdgeSource"
 	// CapNestedSession is set when the provider can run a session of its
 	// compositor inside a hidden parent through the nest verb: a screen of
 	// its own for a program such as an agent that drives apps, which the
@@ -140,9 +131,9 @@ func All() []Capability {
 		CapOverviewState, CapOutputPower,
 		CapKeyboardLayoutSwitch, CapMonitorConfig, CapOutputMirror,
 		CapOutputHdr, CapWindowFloat,
-		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapDeckLayout, CapSessionExit, CapNightLight,
+		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,
-		CapKeyboardGrabSharesPointer, CapSystemLidEdgeSource, CapNestedSession, CapPointerPosition,
+		CapKeyboardGrabSharesPointer, CapNestedSession, CapPointerPosition,
 	}
 }
 

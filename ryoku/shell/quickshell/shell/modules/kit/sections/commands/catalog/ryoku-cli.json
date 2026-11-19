@@ -18,8 +18,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true,
       "privileged": true
@@ -40,8 +39,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -61,8 +59,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -81,8 +78,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -102,8 +98,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -122,8 +117,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -142,8 +136,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -163,8 +156,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -183,8 +175,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true
     },
@@ -204,8 +195,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -224,8 +214,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -244,8 +233,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -264,8 +252,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -284,8 +271,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -305,8 +291,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -326,8 +311,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -347,8 +331,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -368,8 +351,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true,
       "privileged": true,
@@ -391,8 +373,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true,
       "danger": true
@@ -412,8 +393,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true,
       "danger": true
@@ -433,8 +413,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -453,8 +432,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true,
       "danger": true
@@ -475,8 +453,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -495,8 +472,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -516,8 +492,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -537,8 +512,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -557,8 +531,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -577,8 +550,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -597,8 +569,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -617,8 +588,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true,
       "privileged": true
@@ -639,8 +609,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -659,8 +628,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -679,8 +647,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -699,8 +666,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -719,8 +685,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -739,8 +704,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -759,8 +723,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -779,8 +742,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -794,8 +756,7 @@
       "featured": true,
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -808,8 +769,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -822,8 +782,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -836,8 +795,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -850,8 +808,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -864,8 +821,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -878,8 +834,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -892,8 +847,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -906,8 +860,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -920,8 +873,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -935,8 +887,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -950,8 +901,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true
     },
@@ -965,8 +915,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -979,8 +928,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -993,8 +941,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1007,8 +954,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1385,8 +1331,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1405,8 +1350,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1425,8 +1369,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1445,8 +1388,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -1466,8 +1408,7 @@
       ],
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -1481,8 +1422,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1495,8 +1435,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1509,8 +1448,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1523,8 +1461,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1537,8 +1474,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1551,8 +1487,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1565,8 +1500,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1579,8 +1513,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1593,8 +1526,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1607,8 +1539,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -1622,8 +1553,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true,
       "danger": true
@@ -1638,8 +1568,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -1653,8 +1582,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1667,8 +1595,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1681,8 +1608,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1695,8 +1621,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1709,8 +1634,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1723,8 +1647,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1737,8 +1660,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1751,8 +1673,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1765,8 +1686,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1779,8 +1699,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1793,8 +1712,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1807,8 +1725,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1821,8 +1738,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1835,8 +1751,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1849,8 +1764,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1863,8 +1777,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1877,8 +1790,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1891,8 +1803,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1905,8 +1816,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1919,8 +1829,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1933,8 +1842,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1947,8 +1855,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -1960,8 +1867,7 @@
       "tool": "ryoku",
       "level": "advanced",
       "compositors": [
-        "hyprland",
-        "wayfire"
+        "hyprland"
       ]
     },
     {
@@ -1973,8 +1879,7 @@
       "tool": "ryoku",
       "level": "advanced",
       "compositors": [
-        "hyprland",
-        "wayfire"
+        "hyprland"
       ]
     },
     {
@@ -1986,8 +1891,7 @@
       "tool": "ryoku",
       "level": "advanced",
       "compositors": [
-        "hyprland",
-        "wayfire"
+        "hyprland"
       ]
     },
     {
@@ -2099,150 +2003,6 @@
       ]
     },
     {
-      "id": "ryoku.ryoku.wm.act.window.focusDirection",
-      "group": "ryoku-wm",
-      "title": "Focus a directional window",
-      "command": "ryoku wm act window.focusDirection <direction>",
-      "description": "Focuses the nearest window in the requested direction.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.focusEdge",
-      "group": "ryoku-wm",
-      "title": "Focus an edge window",
-      "command": "ryoku wm act window.focusEdge <edge>",
-      "description": "Focuses the window at the requested horizontal edge.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.moveBy",
-      "group": "ryoku-wm",
-      "title": "Move a window directionally",
-      "command": "ryoku wm act window.moveBy <direction>",
-      "description": "Moves the focused window one step in the requested direction.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.resizeBy",
-      "group": "ryoku-wm",
-      "title": "Resize the focused window",
-      "command": "ryoku wm act window.resizeBy <step>",
-      "description": "Resizes the focused window by one configured step.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.presetHeight",
-      "group": "ryoku-wm",
-      "title": "Cycle window heights",
-      "command": "ryoku wm act window.presetHeight",
-      "description": "Cycles the focused window through preset heights.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.presetWidth",
-      "group": "ryoku-wm",
-      "title": "Cycle window widths",
-      "command": "ryoku wm act window.presetWidth",
-      "description": "Cycles the focused window through preset widths.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.center",
-      "group": "ryoku-wm",
-      "title": "Center the focused window",
-      "command": "ryoku wm act window.center",
-      "description": "Centers the focused floating window on its output.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.maximize",
-      "group": "ryoku-wm",
-      "title": "Maximize the focused window",
-      "command": "ryoku wm act window.maximize",
-      "description": "Toggles maximized placement for the focused window.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.moveToWorkspaceBy",
-      "group": "ryoku-wm",
-      "title": "Move a window by workspace",
-      "command": "ryoku wm act window.moveToWorkspaceBy <delta>",
-      "description": "Moves the focused window forward or backward through workspace order.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.output.focusDirection",
-      "group": "ryoku-wm",
-      "title": "Focus a directional output",
-      "command": "ryoku wm act output.focusDirection <direction>",
-      "description": "Moves focus to the nearest output in the requested direction.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.window.moveToOutputBy",
-      "group": "ryoku-wm",
-      "title": "Move a window to another output",
-      "command": "ryoku wm act window.moveToOutputBy <direction>",
-      "description": "Moves the focused window to the neighboring output in that direction.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku.wm.act.workspace.moveToOutputBy",
-      "group": "ryoku-wm",
-      "title": "Move a workspace to an output",
-      "command": "ryoku wm act workspace.moveToOutputBy <direction>",
-      "description": "Moves the current workspace cell to the neighboring output.",
-      "tool": "ryoku",
-      "level": "advanced",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
       "id": "ryoku.ryoku-shell.launcher",
       "group": "ryoku-shell",
       "title": "Open the app launcher",
@@ -2252,8 +2012,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2266,8 +2025,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2280,8 +2038,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2294,8 +2051,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2308,8 +2064,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2322,8 +2077,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2336,8 +2090,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2350,8 +2103,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2364,8 +2116,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -2379,8 +2130,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2393,8 +2143,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2407,8 +2156,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2421,8 +2169,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2435,8 +2182,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2449,8 +2195,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2499,8 +2244,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2513,8 +2257,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2528,8 +2271,7 @@
       "featured": true,
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2543,8 +2285,7 @@
       "featured": true,
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2557,8 +2298,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2571,8 +2311,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2585,8 +2324,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2599,8 +2337,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2613,8 +2350,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2627,8 +2363,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2641,8 +2376,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2655,8 +2389,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2669,8 +2402,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2683,8 +2415,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2697,8 +2428,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2711,8 +2441,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2725,8 +2454,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2739,8 +2467,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2753,8 +2480,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2767,8 +2493,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2781,8 +2506,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2795,8 +2519,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2809,8 +2532,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2823,8 +2545,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2837,8 +2558,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2851,8 +2571,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2865,8 +2584,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2879,8 +2597,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2893,8 +2610,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2907,8 +2623,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2921,8 +2636,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2935,8 +2649,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2949,8 +2662,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2963,8 +2675,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2977,8 +2688,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -2991,8 +2701,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3005,8 +2714,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3019,8 +2727,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3033,8 +2740,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3047,8 +2753,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3061,8 +2766,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3075,8 +2779,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3089,8 +2792,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3103,8 +2805,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3117,8 +2818,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3131,8 +2831,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3145,8 +2844,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3159,8 +2857,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3173,8 +2870,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3187,8 +2883,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3201,8 +2896,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3215,8 +2909,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3229,8 +2922,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3243,8 +2935,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3257,8 +2948,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3271,8 +2961,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -3286,8 +2975,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3300,8 +2988,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3314,8 +3001,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3328,8 +3014,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3342,8 +3027,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3356,8 +3040,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3370,8 +3053,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -3385,8 +3067,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3399,8 +3080,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3413,8 +3093,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3427,8 +3106,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3441,8 +3119,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3455,8 +3132,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3469,8 +3145,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3483,8 +3158,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3497,8 +3171,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3511,8 +3184,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3525,8 +3197,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3539,8 +3210,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3553,8 +3223,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3567,8 +3236,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3581,8 +3249,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3595,8 +3262,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3609,8 +3275,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3623,8 +3288,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3637,8 +3301,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3651,8 +3314,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3665,8 +3327,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3679,8 +3340,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3693,8 +3353,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3707,8 +3366,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3721,8 +3379,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3735,8 +3392,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3749,8 +3405,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3763,8 +3418,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3777,8 +3431,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3791,8 +3444,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3805,8 +3457,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3819,8 +3470,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3833,8 +3483,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3847,8 +3496,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3861,8 +3509,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3875,8 +3522,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -3890,8 +3536,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -3905,8 +3550,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3919,8 +3563,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3933,8 +3576,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3947,8 +3589,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3961,8 +3602,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3975,8 +3615,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -3989,8 +3628,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4003,8 +3641,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4017,8 +3654,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4031,8 +3667,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4045,8 +3680,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4059,8 +3693,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4073,8 +3706,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4087,8 +3719,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4101,8 +3732,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4115,8 +3745,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4129,8 +3758,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4143,8 +3771,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4157,8 +3784,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4171,8 +3797,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4185,8 +3810,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4199,8 +3823,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4213,8 +3836,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4227,8 +3849,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4241,8 +3862,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4255,8 +3875,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4269,8 +3888,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true
     },
@@ -4284,8 +3902,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4298,8 +3915,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4312,8 +3928,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4326,8 +3941,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4340,8 +3954,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4354,8 +3967,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4368,8 +3980,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4382,8 +3993,7 @@
       "level": "basic",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "featured": true
     },
@@ -4397,8 +4007,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4411,8 +4020,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4425,8 +4033,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4439,8 +4046,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4453,8 +4059,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4467,8 +4072,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4481,8 +4085,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4495,8 +4098,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4509,8 +4111,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4523,8 +4124,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4537,8 +4137,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4551,8 +4150,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4565,8 +4163,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4579,8 +4176,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4593,8 +4189,7 @@
       "level": "internal",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4616,8 +4211,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4752,8 +4346,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4766,8 +4359,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4780,8 +4372,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4794,8 +4385,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4808,8 +4398,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4822,8 +4411,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4836,8 +4424,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4850,8 +4437,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4864,8 +4450,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4878,8 +4463,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4892,8 +4476,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4906,8 +4489,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4920,8 +4502,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4934,8 +4515,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4948,8 +4528,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4962,8 +4541,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -4976,8 +4554,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5039,8 +4616,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5053,8 +4629,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5067,8 +4642,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5081,8 +4655,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5095,8 +4668,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5109,8 +4681,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5123,8 +4694,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5137,8 +4707,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -5152,8 +4721,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -5166,8 +4734,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "privileged": true
     },
@@ -6005,8 +5572,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6019,8 +5585,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6033,8 +5598,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6047,8 +5611,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6061,8 +5624,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -6076,8 +5638,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -6091,8 +5652,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6105,8 +5665,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6119,8 +5678,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -6134,8 +5692,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6148,8 +5705,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6162,8 +5718,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6176,8 +5731,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6190,8 +5744,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6204,8 +5757,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6218,8 +5770,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6232,8 +5783,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6246,8 +5796,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6260,8 +5809,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6274,8 +5822,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -6288,8 +5835,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -7251,150 +6797,6 @@
       "level": "internal",
       "compositors": [
         "niri"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.caps",
-      "group": "ryoku-internal",
-      "title": "Read provider capabilities",
-      "command": "ryoku-wm-wayfire caps",
-      "description": "Prints the provider capability manifest as JSON.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.act",
-      "group": "ryoku-internal",
-      "title": "Dispatch a neutral action",
-      "command": "ryoku-wm-wayfire act <id>",
-      "description": "Performs one neutral window-manager action.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.watch",
-      "group": "ryoku-internal",
-      "title": "Stream provider state",
-      "command": "ryoku-wm-wayfire watch",
-      "description": "Streams newline-delimited workspace, window, focus, and output frames.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.apply",
-      "group": "ryoku-internal",
-      "title": "Generate provider configuration",
-      "command": "ryoku-wm-wayfire apply <store>",
-      "description": "Writes compositor configuration from the neutral settings store.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.outputs",
-      "group": "ryoku-internal",
-      "title": "Apply a neutral output layout",
-      "command": "ryoku-wm-wayfire outputs <file>",
-      "description": "Applies the neutral display layout in the named file.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.state",
-      "group": "ryoku-internal",
-      "title": "Read one provider state frame",
-      "command": "ryoku-wm-wayfire state",
-      "description": "Prints one complete provider state snapshot as JSON.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.defaults",
-      "group": "ryoku-internal",
-      "title": "Read provider defaults",
-      "command": "ryoku-wm-wayfire defaults",
-      "description": "Prints provider-specific default settings.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.session",
-      "group": "ryoku-internal",
-      "title": "Print the desktop session entry",
-      "command": "ryoku-wm-wayfire session",
-      "description": "Prints the display-manager desktop entry for this provider.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.schema",
-      "group": "ryoku-internal",
-      "title": "Read provider settings rows",
-      "command": "ryoku-wm-wayfire schema",
-      "description": "Prints the exclusive settings rows rendered by Hub.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.binds",
-      "group": "ryoku-internal",
-      "title": "Read provider keybinds",
-      "command": "ryoku-wm-wayfire binds",
-      "description": "Prints compositor-exclusive keybinds for the cheatsheet.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.environment",
-      "group": "ryoku-internal",
-      "title": "Export the session handle",
-      "command": "ryoku-wm-wayfire environment <pid>",
-      "description": "Prints the provider's session handle for one process environment.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.pages",
-      "group": "ryoku-internal",
-      "title": "Fit full-page windows",
-      "command": "ryoku-wm-wayfire pages",
-      "description": "Runs the helper that keeps full-page windows inside the Wayfire work area.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
       ]
     },
     {
@@ -8546,8 +7948,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8617,8 +8018,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ],
       "danger": true
     },
@@ -8727,8 +8127,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8877,8 +8276,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8891,8 +8289,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8905,8 +8302,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8919,8 +8315,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8933,8 +8328,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -8947,8 +8341,7 @@
       "level": "advanced",
       "compositors": [
         "hyprland",
-        "niri",
-        "wayfire"
+        "niri"
       ]
     },
     {
@@ -9118,18 +8511,6 @@
       "level": "internal",
       "compositors": [
         "niri"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-wm-wayfire.binds.store",
-      "group": "ryoku-internal",
-      "title": "Read provider binds from a store",
-      "command": "ryoku-wm-wayfire binds <store>",
-      "description": "Prints compositor-exclusive keybinds resolved from the selected neutral store.",
-      "tool": "ryoku-wm-wayfire",
-      "level": "internal",
-      "compositors": [
-        "wayfire"
       ]
     },
     {

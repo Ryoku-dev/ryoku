@@ -735,8 +735,8 @@ The reader runs only while Rashin is on, Theia is on and a gesture is
 enabled, and never fires on a locked screen. It needs the active-seat
 keyboard access Ryoku already ships (`72-ryoku-keyboard-uaccess.rules`);
 without it the Rashin page says so. No compositor binds these keys, so Alt
-keeps working in shortcuts and as AltGr, and Hyprland, niri and Wayfire
-behave the same. The keys come from a short list of modifiers
+keeps working in shortcuts and as AltGr, and Hyprland and niri behave the same.
+The keys come from a short list of modifiers
 (`wm.GestureKeys`), chosen in Settings > Keyboard shortcuts. On a layout
 where Right Alt is Alt rather than AltGr, apps that show a menu bar on an Alt
 tap (Firefox, VS Code) may toggle it. At the second tap the daemon captures

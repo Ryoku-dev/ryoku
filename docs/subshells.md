@@ -385,7 +385,7 @@ runtime, translations) and `templates/`. Items reach Ryoku's platform through
 `Ryoku.Ui.Singletons`, `Ryoku.Blobs`, `Ryoku.Bus`, `Ryoku.PluginKit` and
 `Ryoku.FrameBars`, plus Qt and Quickshell modules. Window-manager state comes
 only from `Wm` in `Ryoku.Ui.Singletons`, never a compositor module, so an item
-runs on Hyprland, niri and Wayfire alike.
+runs on Hyprland and niri alike.
 
 To change Orpheus or Kairos, edit `ryoku/shell/quickshell/shell/subshells/<id>/`
 here. A new file or import inside a loaded Scene needs a shell restart

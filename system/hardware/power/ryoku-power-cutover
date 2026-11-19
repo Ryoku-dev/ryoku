@@ -859,8 +859,8 @@ discover_session_environment() {
     desktop=${XDG_CURRENT_DESKTOP:-${XDG_SESSION_DESKTOP:-}}
   fi
   provider=${desktop,,}
-  # login1 may qualify the name with its stack ("Wayfire:wlroots"); only the
-  # first component names the provider, the split detect.go already does.
+  # login1 may qualify the name with its stack; only the first component
+  # names the provider, as the split detect.go already does.
   provider=${provider%%:*}
   [[ $provider =~ ^[a-z0-9-]+$ ]] || return 1
   provider_bin="$provider_root/ryoku-wm-$provider"

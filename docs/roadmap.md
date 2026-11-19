@@ -45,8 +45,8 @@ for every other phase, because nothing below can claim a win without it.
 
 **Where it is:** the script exists (`bin/ryoku-dev-perf-baseline`) and the first
 baseline, with the October 2026 before and after, lives in
-`docs/performance.md`. It was recorded on niri only; the Hyprland and Wayfire
-rows are still to take on the reference hardware.
+`docs/performance.md`. It was recorded on niri only; the Hyprland row is still
+to take on the reference hardware.
 
 ## Phase 1: stop paying the parse tax
 
