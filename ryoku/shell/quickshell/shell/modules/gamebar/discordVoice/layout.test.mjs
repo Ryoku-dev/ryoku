@@ -3,7 +3,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { PAD, HEADER, NAME, NAME_SIDE, NAME_MAX, SPACE, avatar, beside, nameWidth, cell, rowHeight, maxRows, columns, size } = require("./layout.js");
+const { PAD, HEADER, NAME, NAME_SIDE, SPACE, avatar, beside, nameWidth, cell, rowHeight, maxRows, columns, size } = require("./layout.js");
 
 test("avatar size is clamped to the setting range", () => {
     assert.equal(avatar(undefined), 52);
@@ -82,6 +82,6 @@ test("row budget includes chrome and spacing", () => {
 test("a higher character limit widens the name box", () => {
     assert.equal(nameWidth(8), NAME_SIDE);
     assert.equal(nameWidth(20), 20 * 6);
-    assert.equal(nameWidth(32), NAME_MAX);
-    assert.equal(cell(52, true, "below", 0, 32), NAME_MAX);
+    assert.equal(nameWidth(32), 32 * 6);
+    assert.equal(cell(52, true, "below", 0, 32), 32 * 6);
 });
