@@ -9,19 +9,26 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const P = vm.createContext({});
 vm.runInContext(readFileSync(join(dir, "progression.js"), "utf8").replace(/^\.(pragma|import).*$/gm, ""), P);
 
-test("each shop sticker has its own vector artwork", () => {
+test("shop stickers use distinct genuine Ryoku artwork instead of generic seals", () => {
     const entries = P.cosmetics.filter(item => item.type === "sticker");
     assert.equal(entries.length, 10);
     const names = entries.map(item => item.art);
     assert.equal(new Set(names).size, entries.length);
     for (const entry of entries) {
-        const path = join(dir, "../assets/stickers", entry.art + ".svg");
-        assert.ok(existsSync(path), entry.id);
-        const svg = readFileSync(path, "utf8");
-        assert.match(svg, /<svg\b/);
-        assert.match(svg, /viewBox="-180 -180 360 360"/);
-        assert.ok(svg.length > 600, entry.id);
+        assert.match(entry.art, /^ryodecors\/[a-z-]+\.png$/);
+        const file = join(dir, "../assets", entry.art);
+        assert.ok(existsSync(file), entry.id);
+        const png = readFileSync(file);
+        assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", entry.id);
         assert.equal(P.stamp(entry.id).art, entry.art);
+    }
+});
+test("backgrounds have actual illustrations and match their own previews", () => {
+    const scenes = P.cosmetics.filter(item => item.type === "background");
+    assert.equal(scenes.length, 13);
+    for (const scene of scenes) {
+        assert.ok(scene.art, scene.id);
+        assert.ok(existsSync(join(dir, "../assets", scene.art)), scene.id);
     }
 });
 

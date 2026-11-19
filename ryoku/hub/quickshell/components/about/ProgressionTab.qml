@@ -31,7 +31,7 @@ Column {
             }
             Label {
                 text: I18n.tr("%1 of %2 achievements completed").replace("%1",
-                    Object.keys(Progression.data.earned || {}).length).replace("%2", Progression.achievements.filter(a => !a.secret || Progression.data.earned[a.id]).length)
+                    Object.keys(Progression.data.earned || {}).length).replace("%2", Progression.achievements.length)
                 typeRole: "detail"
                 inkRole: "fg2"
             }
@@ -175,7 +175,7 @@ Column {
                 readonly property bool complete: Progression.data.earned[modelData.id] === true
                 readonly property bool claimed: Progression.data.claimed[modelData.id] === true
                 width: (album.width - album.columnSpacing) / 2
-                height: 220
+                height: 236
                 radius: 6
                 color: Lithic.mix(Lithic.ground, Lithic.fg, claimed ? 0.052 : 0.025)
                 border.width: 1
@@ -229,7 +229,12 @@ Column {
                         wrapMode: Text.Wrap
                         elide: Text.ElideRight
                     }
-                    Item { width: 1; height: 1 }
+                    Label {
+                        visible: text !== ""
+                        text: Progression.progressFor(achievementTile.modelData.id)
+                        typeRole: "monoSm"
+                        ink: Progression.rarityColours[achievementTile.modelData.rarity]
+                    }
                     Row {
                         width: parent.width
                         spacing: 8

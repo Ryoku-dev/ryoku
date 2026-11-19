@@ -16,6 +16,7 @@ import "registry/provider-map.js" as ProviderMap
 import "schema/index.js" as Schemas
 import "ShellIndex.js" as ShellIndex
 import "registry/numbering.js" as Numbering
+import "KeepsakeSequence.js" as Keepsake
 
 // the Settings frame: a rail of categories, the category's pages, the page
 FocusScope {
@@ -56,6 +57,22 @@ FocusScope {
     property string usersProfileId: ""
     property bool quitting: false
     property string loadedKey: ""
+    property bool keepsakeOpen: false
+    property int keepsakeIndex: 0
+    property double keepsakeLastAt: 0
+
+    function keepsakeTextFocused() {
+        var window = hub.Window.window;
+        var item = window ? window.activeFocusItem : null;
+        while (item && item !== hub) {
+            var type = String(item).toLowerCase();
+            if (type.indexOf("textinput") >= 0 || type.indexOf("textedit") >= 0 ||
+                type.indexOf("textfield") >= 0)
+                return true;
+            item = item.parent;
+        }
+        return false;
+    }
 
     readonly property string sizeClass: hub.width >= 1180 ? "expanded" : hub.wide ? "medium" : "compact"
     readonly property Item search: sidebar.search
@@ -793,6 +810,11 @@ FocusScope {
     }
 
     Keys.onPressed: event => {
+        if (hub.keepsakeOpen) {
+            if (event.key === Qt.Key_Escape) hub.keepsakeOpen = false;
+            event.accepted = true;
+            return;
+        }
         var ctrl = (event.modifiers & Qt.ControlModifier) !== 0;
         if (ctrl && (event.key === Qt.Key_K || event.key === Qt.Key_F)) {
             hub.focusSearch();
@@ -813,6 +835,21 @@ FocusScope {
         } else if (ctrl && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
             hub.flipPage(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) ? -1 : 1);
             event.accepted = true;
+        } else if (!hub.keepsakeTextFocused()) {
+            var key = event.key === Qt.Key_W ? "W" : event.key === Qt.Key_S ? "S"
+                : event.key === Qt.Key_A ? "A" : event.key === Qt.Key_D ? "D" : "";
+            var next = Keepsake.step(hub.keepsakeIndex, hub.keepsakeLastAt, key,
+                Date.now(), event.modifiers !== Qt.NoModifier, event.isAutoRepeat);
+            hub.keepsakeIndex = next.index;
+            hub.keepsakeLastAt = next.at;
+            if (next.complete) {
+                hub.keepsakeOpen = true;
+                Progression.recordKeepsake();
+                event.accepted = true;
+            }
+        } else {
+            hub.keepsakeIndex = 0;
+            hub.keepsakeLastAt = 0;
         }
     }
 
@@ -848,6 +885,7 @@ FocusScope {
     }
 
     Component.onCompleted: {
+        Progression.openedHub();
         // a deep link from the launcher arrives with the process, so Home is never built first
         hub.pendingStart = Quickshell.env("RYOKU_HUB_START") || "";
         var startId = hub.pendingStart === "" ? "" : Registry.resolve(hub.pendingStart);
@@ -1217,6 +1255,40 @@ FocusScope {
                     card.destroy();
                 }
             }
+        }
+    }
+
+    // Hidden keepsake is local to Settings, never appears in the navigation.
+    Item {
+        id: keepsakeOverlay
+        anchors.fill: parent
+        z: 1100
+        visible: hub.keepsakeOpen
+        focus: visible
+
+        onVisibleChanged: {
+            if (visible) forceActiveFocus();
+            else {
+                hub.keepsakeIndex = 0;
+                hub.keepsakeLastAt = 0;
+                hub.forceActiveFocus();
+            }
+        }
+        Keys.onEscapePressed: event => {
+            hub.keepsakeOpen = false;
+            event.accepted = true;
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: Lithic.ground
+            MouseArea { anchors.fill: parent }
+        }
+        Loader {
+            anchors.fill: parent
+            active: hub.keepsakeOpen
+            source: "pages/KeepsakePage.qml"
+            onLoaded: if (item) item.hub = hub
         }
     }
 

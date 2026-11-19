@@ -14,7 +14,8 @@ Item {
     Image {
         id: illustration
         anchors.fill: parent
-        source: root.artwork ? Qt.resolvedUrl("../../assets/stickers/" + root.artwork + ".svg") : ""
+        source: root.artwork ? Qt.resolvedUrl("../../assets/" +
+            (root.artwork.indexOf(".") >= 0 ? root.artwork : "stickers/" + root.artwork + ".svg")) : ""
         fillMode: Image.PreserveAspectFit
         sourceSize.width: 512
         sourceSize.height: 512
