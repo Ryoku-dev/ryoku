@@ -24,6 +24,7 @@ Dialog {
     property var binderOpener: null
     // the tab to open on
     property string tab: "picture"
+    property bool badgePickerOpen: false
     readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge"]
     Connections {
         target: ProfileStore
@@ -43,6 +44,7 @@ Dialog {
 
     function openOn(tab) {
         root.tab = root.tabs.indexOf(tab) >= 0 ? tab : "picture";
+        root.badgePickerOpen = false;
         CardCode.updateDisplays();
         Progression.award("welcome");
         Progression.inspectProfile(ProfileStore.data);
@@ -692,6 +694,106 @@ Dialog {
                                             else
                                                 root.put(wordRow.modelData.key, "", text, wordRow.modelData.label);
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Profile controls belong in Customise, not on the profile itself
+                    Slab {
+                        visible: root.tab === "layout"
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: LithicTokens.space.s3
+                            Label {
+                                text: I18n.tr("Profile")
+                                typeRole: "section"
+                            }
+                            SettingRow {
+                                width: parent.width
+                                title: I18n.tr("Featured badge")
+                                detail: {
+                                    var badge = Progression.achievements.find(a => a.id === Progression.featuredBadge);
+                                    return badge ? I18n.tr(badge.title) : I18n.tr("None selected");
+                                }
+                                Row {
+                                    spacing: LithicTokens.space.s2
+                                    Plaque {
+                                        small: true
+                                        kind: root.badgePickerOpen ? "gold" : "line"
+                                        text: Progression.featuredBadge ? I18n.tr("Change") : I18n.tr("Choose")
+                                        onClicked: root.badgePickerOpen = !root.badgePickerOpen
+                                    }
+                                    Plaque {
+                                        visible: Progression.featuredBadge !== ""
+                                        small: true
+                                        kind: "quiet"
+                                        text: I18n.tr("Clear")
+                                        onClicked: Progression.featureBadge("")
+                                    }
+                                }
+                            }
+                            Flow {
+                                visible: root.badgePickerOpen
+                                width: parent.width
+                                spacing: LithicTokens.space.s2
+                                Repeater {
+                                    model: Progression.achievements.filter(a => Progression.data.claimed[a.id] === true)
+                                    delegate: Item {
+                                        id: badgeChoice
+                                        required property var modelData
+                                        width: 94
+                                        height: 105
+                                        ArchiveSeal {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            width: 70
+                                            height: 70
+                                            title: badgeChoice.modelData.title
+                                            sigil: badgeChoice.modelData.sigil
+                                            rarity: badgeChoice.modelData.rarity
+                                            category: badgeChoice.modelData.category
+                                        }
+                                        Label {
+                                            y: 76
+                                            width: parent.width
+                                            text: I18n.tr(badgeChoice.modelData.title)
+                                            typeRole: "monoSm"
+                                            horizontalAlignment: Text.AlignHCenter
+                                            elide: Text.ElideRight
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                Progression.featureBadge(badgeChoice.modelData.id);
+                                                root.badgePickerOpen = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Label {
+                                visible: root.badgePickerOpen &&
+                                    Progression.achievements.every(a => Progression.data.claimed[a.id] !== true)
+                                text: I18n.tr("Claim a badge in Achievements to feature it here.")
+                                typeRole: "detail"
+                                inkRole: "fg2"
+                            }
+                            SettingRow {
+                                width: parent.width
+                                title: I18n.tr("Decorate profile")
+                                detail: I18n.tr("Drag and resize stickers directly on Home")
+                                Plaque {
+                                    small: true
+                                    kind: "gold"
+                                    glyph: "draw"
+                                    text: I18n.tr("Decorate")
+                                    onClicked: {
+                                        Progression.selectedSticker = "";
+                                        Progression.editMode = true;
+                                        root.close();
                                     }
                                 }
                             }

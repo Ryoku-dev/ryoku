@@ -27,10 +27,10 @@ and do not appear in the Accounts navigation tree.
 - Claiming issues one-time credits and a collectible badge sticker.
 - Previously earned v1/v2 achievements are migrated as *claimed*, preserving
   their existing rewards and unlocks.
-- A claimed badge can be featured on Home and placed as a canvas sticker.
-  **Change featured seal** is immediately accessible from Home, with a
-  horizontal gallery of claimed badges. A **Feature** control also appears
-  on each claimed achievement in the book.
+- A claimed achievement badge can be featured on Home or placed as a sticker.
+  To choose one, open **Customise > Layout > Featured badge** or click the
+  current badge on Home. The selection gallery lists only claimed badges.
+  Claimed achievements also have a **Feature** action in the archive.
 
 ### Points Shop
 
@@ -48,8 +48,9 @@ inside Achievements.
   recolours.
 - Stickers may be earned badges or decorative shop items. Up to 24 may be placed
   at once, with independently saved position, rotation and size.
-- Home's **Decorate** control enables sticker drag mode. Editing is off by
-  default. Select any placed asset and drag its corner handle to resize
+- **Customise > Layout > Decorate profile** starts the canvas editor and
+  returns to Home. The top-right action changes to **Finish** until editing
+  is complete. Select any placed asset and drag its corner handle to resize
   directly on the profile, or scroll over it to scale in 14-pixel steps.
   The size range is 36 to 300 pixels. The shop also has size and rotation
   controls for every placed decoration.

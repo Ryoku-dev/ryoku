@@ -36,11 +36,20 @@ test("owned artwork cannot be placed until purchased and resizes within bounds",
     assert.equal(P.moveSticker(state, "st1", 0.2, 0.4, 999, 0).state.canvas.stickers[0].size, 300);
 });
 
-test("Home exposes both profile destinations and inline featured-seal controls", () => {
+test("Home keeps profile identity clear and delegates editing to Customise", () => {
     const home = readFileSync(join(dir, "../components/Home.qml"), "utf8");
+    const studio = readFileSync(join(dir, "../components/about/CardEditor.qml"), "utf8");
     assert.ok(home.indexOf("id: achievementsPlaque") < home.indexOf("id: shopPlaque"));
     assert.ok(home.indexOf("id: shopPlaque") < home.indexOf("id: binderPlaque"));
-    assert.match(home, /Change featured seal/);
+    assert.match(home, /FEATURED BADGE/);
+    assert.match(home, /root\.customise\("layout"\)/);
+    assert.match(home, /id !== "achievements" && id !== "points-shop"/);
+    assert.doesNotMatch(home, /Change featured seal|Choose featured seal|root\.choosingBadge/);
+    assert.equal(home.match(/I18n\.tr\("Points Shop"\)/g)?.length, 1);
+    assert.match(studio, /title: I18n\.tr\("Featured badge"\)/);
+    assert.match(studio, /title: I18n\.tr\("Decorate profile"\)/);
+    assert.match(studio, /Progression\.featureBadge\(badgeChoice\.modelData\.id\)/);
+    assert.match(studio, /Progression\.editMode = true/);
     assert.match(home, /id: resizeGrip/);
     assert.match(home, /StickerArtwork \{/);
 });
