@@ -19,6 +19,8 @@ Item {
         id: matter
         anchors.fill: parent
         source: Qt.resolvedUrl("../../assets/rewards/black-prism.gif")
+        sourceSize.width: Math.min(1024, Math.max(1, Math.round(width * 2)))
+        sourceSize.height: Math.min(640, Math.max(1, Math.round(height * 2)))
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
         smooth: true

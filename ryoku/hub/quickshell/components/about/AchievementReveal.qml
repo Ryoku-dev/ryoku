@@ -51,7 +51,7 @@ FocusScope {
 
     Rectangle {
         anchors.fill: parent
-        color: "#07090d"
+        color: Lithic.ground
         opacity: 0.93
         MouseArea {
             anchors.fill: parent
@@ -69,7 +69,7 @@ FocusScope {
         CutRect {
             anchors.fill: parent
             cut: 30
-            fill: "#10131a"
+            fill: Lithic.mix(Lithic.ground, reveal.metal, 0.055)
             strokeColor: reveal.metal
             strokeWidth: 2
         }

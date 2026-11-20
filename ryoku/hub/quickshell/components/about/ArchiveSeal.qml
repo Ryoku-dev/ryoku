@@ -60,8 +60,8 @@ Item {
         x: -width * 2
         gradient: Gradient {
             GradientStop { position: 0; color: "transparent" }
-            GradientStop { position: 0.45; color: "#86b8cb" }
-            GradientStop { position: 0.6; color: "#f4b8c4" }
+            GradientStop { position: 0.45; color: Lithic.mix(Lithic.lapis, Lithic.gold, 0.20) }
+            GradientStop { position: 0.6; color: Lithic.mix(Lithic.gold, Lithic.fg, 0.38) }
             GradientStop { position: 1; color: "transparent" }
         }
 

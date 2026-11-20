@@ -117,3 +117,48 @@ test("Hub changelog records the new feature scope", () => {
     const s = fs.readFileSync(path.join(hub, "../CHANGELOG.md"), "utf8");
     assert.match(s, /Hyperion adds Ryoku-wide achievements and a cosmetic Points Shop/);
 });
+
+test("date accounting saves a new day even when history is capped at 366", () => {
+    const state = P.clean({});
+    const dates = {};
+    for (let index = 0; index < 366; index++) {
+        const day = new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10);
+        dates[day] = true;
+    }
+    const previous = P.clean({ ...state, days: dates, shopDays: dates, customDays: dates });
+    const newDate = "2026-01-05T12:00:00";
+    const entered = P.visit(previous, "points-shop", "accounts", newDate);
+    assert.equal(entered.changed, true);
+    assert.equal(entered.state.days["2026-01-05"], true);
+    assert.equal(entered.state.shopDays["2026-01-05"], true);
+    assert.equal(Object.keys(entered.state.shopDays).length, 366);
+    const next = P.startDay(previous, newDate);
+    assert.equal(next.changed, true);
+});
+
+test("display contributions already sum to the rounded capped total", () => {
+    const R = load("registry/rarity.js");
+    for (const count of [1, 2, 3, 5, 6, 8]) {
+        const displays = Array.from({ length: count }, (_, i) => ({
+            name: "monitor-" + i,
+            width: i % 3 ? 1920 : 2560,
+            height: i % 3 ? 1080 : 1440,
+            refresh: i % 2 ? 60 : 165
+        }));
+        const scored = R.displayStats({ displays });
+        assert.equal(scored.screens.reduce((sum, screen) => sum + screen.points, 0),
+            scored.points, String(count) + " displays");
+        assert.equal(scored.screens.filter(s => !s.primary)
+            .reduce((sum, screen) => sum + screen.points, 0),
+            scored.extras);
+    }
+});
+
+test("claim reveal follows the theme and animation decoding is bounded", () => {
+    const reveal = read("components/about/AchievementReveal.qml");
+    const prism = read("components/about/BlackPrism.qml");
+    assert.match(reveal, /color: Lithic\.ground/);
+    assert.match(reveal, /fill: Lithic\.mix\(Lithic\.ground, reveal\.metal,/);
+    assert.match(prism, /sourceSize\.width: Math\.min\(1024,/);
+    assert.match(prism, /sourceSize\.height: Math\.min\(640,/);
+});

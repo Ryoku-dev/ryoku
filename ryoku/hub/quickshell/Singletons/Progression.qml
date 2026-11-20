@@ -12,6 +12,9 @@ Singleton {
         ((Quickshell.env("HOME") || "") + "/.local/share")) + "/ryoku"
     property var data: Model.clean({})
     property var lastRead: Model.clean({})
+    property var writingState: null
+    property var pendingState: null
+    property bool writeInFlight: false
     property bool saveBlocked: false
     property bool ready: false
     property bool directoryReady: false
@@ -65,11 +68,12 @@ Singleton {
                 root.lastRead = loaded;
                 root.data = loaded;
                 if (!root.saveBlocked) root.error = "";
+                root.ready = root.directoryReady;
+                Qt.callLater(root.flushPending);
             } catch (e) {
+                root.ready = false;
                 root.error = "Progression data is invalid. Restore it before continuing.";
             }
-            root.ready = root.directoryReady;
-            root.flushPending();
         }
         onLoadFailed: (loadError) => {
             if (!root.directoryReady)
@@ -77,14 +81,24 @@ Singleton {
             if (!root.ready && loadError === FileViewError.FileNotFound) {
                 root.data = Model.clean({});
                 root.lastRead = root.data;
+                root.error = "";
                 root.ready = true;
-                root.flushPending();
+                Qt.callLater(root.flushPending);
             } else {
                 root.error = "Could not load progression data. The existing save has not been changed.";
             }
         }
+        onSaved: {
+            root.lastRead = root.writingState;
+            root.writingState = null;
+            root.writeInFlight = false;
+            Qt.callLater(root.writePending);
+        }
         onSaveFailed: (saveError) => {
             root.saveBlocked = true;
+            root.pendingState = null;
+            root.writingState = null;
+            root.writeInFlight = false;
             root.data = root.lastRead;
             root.error = "Could not save progression data. Check disk space and permissions, then restart Ryoku Settings.";
         }
@@ -133,12 +147,22 @@ Singleton {
         if (result.changed) root.save(result.state);
     }
 
+    function writePending() {
+        if (!root.ready || root.error !== "" || root.writeInFlight || !root.pendingState)
+            return;
+        root.writingState = root.pendingState;
+        root.pendingState = null;
+        root.writeInFlight = true;
+        file.setText(JSON.stringify(root.writingState, null, 2) + "\n");
+    }
+
     function save(state) {
         if (!root.ready || root.error !== "")
             return;
         var next = Model.clean(state);
         root.data = next;
-        file.setText(JSON.stringify(next, null, 2) + "\n");
+        root.pendingState = next;
+        Qt.callLater(root.writePending);
     }
 
     function award(id) {

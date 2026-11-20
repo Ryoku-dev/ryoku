@@ -12,6 +12,12 @@ test("save errors keep last confirmed data and prevent further writes", () => {
     const progression = read("Singletons/Progression.qml");
     assert.match(progression, /property var lastRead: Model\.clean\(\{\}\)/);
     assert.match(progression, /property bool saveBlocked: false/);
+    assert.match(progression, /property bool writeInFlight: false/);
+    assert.match(progression, /property var pendingState: null/);
+    assert.match(progression, /onSaved: \{/);
+    assert.match(progression, /root\.lastRead = root\.writingState/);
+    assert.match(progression, /root\.pendingState = next/);
+    assert.match(progression, /Qt\.callLater\(root\.writePending\)/);
     assert.match(progression, /root\.lastRead = loaded/);
     assert.match(progression, /onSaveFailed: \(saveError\) => \{/);
     assert.match(progression, /root\.saveBlocked = true/);
@@ -19,6 +25,18 @@ test("save errors keep last confirmed data and prevent further writes", () => {
     assert.match(progression, /root\.error = "Could not save progression data/);
     assert.match(progression, /if \(!root\.saveBlocked\) root\.error = ""/);
     assert.match(progression, /function save\(state\) \{\s*if \(!root\.ready \|\| root\.error !== ""\)/);
+});
+
+test("an invalid initial save is not treated as a loaded state", () => {
+    const progression = read("Singletons/Progression.qml");
+    assert.match(progression, /root\.ready = false;\s*root\.error = "Progression data is invalid/);
+    assert.match(progression, /root\.error = "";\s*root\.ready = true;\s*Qt\.callLater\(root\.flushPending\)/);
+});
+
+test("the holographic badge finish follows Lithic colours", () => {
+    const seal = read("components/about/ArchiveSeal.qml");
+    assert.match(seal, /GradientStop \{ position: 0\.45; color: Lithic\.mix\(Lithic\.lapis, Lithic\.gold/);
+    assert.match(seal, /GradientStop \{ position: 0\.6; color: Lithic\.mix\(Lithic\.gold, Lithic\.fg/);
 });
 
 test("progression errors are visibly surfaced across Hub pages", () => {
