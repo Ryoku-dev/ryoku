@@ -18,8 +18,30 @@ Singleton {
     function num(re, s) { var m = re.exec(String(s || "")); return m ? parseInt(m[1]) : 0; }
     readonly property int threads: root.num(/(\d+)\s*T/, SysInfo.sysCpuCores) || root.num(/(\d+)/, SysInfo.sysCpuCores)
     readonly property int ramGb: root.num(/\/\s*(\d+)/, SysInfo.sysRam) || Math.round(SysInfo.memoryKb / 1048576)
-    readonly property int refreshRate: root.num(/(\d+)/, SysInfo.sysRefresh)
-    readonly property int displayWidth: root.num(/^(\d+)/, SysInfo.sysResolution)
+    property var displays: []
+    readonly property var bestDisplay: Rarity.displayStats({ displays: root.displays }).best
+    readonly property int refreshRate: root.displays.length ? Math.round(Number(root.bestDisplay.refresh) || 0) : root.num(/(\d+)/, SysInfo.sysRefresh)
+    readonly property int displayWidth: root.displays.length ? Number(root.bestDisplay.width) || 0 : root.num(/^(\d+)/, SysInfo.sysResolution)
+    function updateDisplays() {
+        if (!displayReader.running)
+            displayReader.running = true;
+    }
+    Process {
+        id: displayReader
+        running: true
+        command: ["ryoku-hub", "outputs"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var rows = JSON.parse(text);
+                    if (Array.isArray(rows))
+                        root.displays = rows.filter(o => o && !o.disabled && Number(o.width) > 0 && Number(o.height) > 0);
+                } catch (e) {
+                    root.displays = [];
+                }
+            }
+        }
+    }
     readonly property string strongestGpu: Rarity.strongest([SysInfo.sysGpu, SysInfo.sysGpu2])
     readonly property int graphicsClass: Rarity.gpuClass(root.strongestGpu)
     readonly property bool builtInBeside: Rarity.bothGraphics([SysInfo.sysGpu, SysInfo.sysGpu2])

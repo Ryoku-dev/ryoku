@@ -13,8 +13,8 @@ import "../../registry/rarity.js" as Rarity
 // design size (63 x 88 mm, a playing card's) and scaled by whoever shows it. The figure stands
 // in a holo window, the parts are its moves, the machine's power is its number, and the
 // motto is its flavour text. The machine sets its rarity (registry/rarity.js): a Common
-// card is plain paper, and each tier up shines more, to the gilded, rainbow-edged Secret
-// rare. `foil` (-1..1 each way) slides the holo as the card tilts, and `live` lets its
+// card is plain stone and each tier adds metal, ink and light. Holographic and
+// Master retain the original prismatic diamond shader. `foil` (-1..1 each way) slides the holo as the card tilts, and `live` lets its
 // sparkles twinkle. Saved or copied, the picture carries the card's design
 // (ryoku-hub profile card)
 Item {
@@ -37,7 +37,7 @@ Item {
     property var design: card.traded ? (card.badgeVerified ? card.traded.design || null : null) : Badge.ownDesign
     readonly property var designSpec: card.design ? card.design.spec || card.design : null
     readonly property var cardSpec: card.designSpec && card.designSpec.card ? card.designSpec.card : null
-    readonly property var palette: card.cardSpec ? card.cardSpec.palette : null
+    readonly property var palette: card.cardSpec ? card.cardSpec.palette : card.traded ? null : Progression.activePalette
     readonly property color ink: card.palette ? card.palette.ink : Lithic.fg
     readonly property color mutedInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.72) : Lithic.fg2
     readonly property color quietInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.58) : Lithic.fg3
@@ -73,7 +73,8 @@ Item {
     property int showLevel: -1
     // the figure, for whoever lets the reader drag it to frame it
     readonly property Item figure: standFace.item ? standFace.item.figure : cardFigure
-    readonly property bool secret: card.level >= 5
+    readonly property bool secret: card.level >= 7
+    readonly property bool master: card.level === 8
     // One clock drives all live effects. Still renders always read phase zero.
     property real elapsed: 0
     readonly property real clock: card.classicMoving ? card.elapsed : 0
@@ -119,16 +120,27 @@ Item {
     readonly property bool discrete: card.hw ? Rarity.discrete(card.hw.gpuClass, card.hw.gpu)
         : Rarity.discrete(CardCode.graphicsClass, CardCode.strongestGpu)
     readonly property int screenWidth: card.hw ? card.hw.width : card.num(/^(\d+)/, SysInfo.sysResolution)
-    readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
-                                              refresh: card.refresh, width: card.screenWidth })
+    readonly property var rarity: Rarity.of(card.hw || { threads: card.threads, cpu: SysInfo.sysCpu,
+                                              ramGb: card.ramGb, gpus: [SysInfo.sysGpu, SysInfo.sysGpu2],
+                                              displays: CardCode.displays, refresh: card.refresh, width: card.screenWidth })
     readonly property int level: card.showLevel >= 0 ? card.showLevel : card.rarity.level
     readonly property var tier: Rarity.tiers[card.level]
-    // each tier's shine: how strong the window's holo is, and the face's
-    readonly property real windowFoil: [0, 0.2, 0.42, 0.62, 0.7, 0.8][card.level]
-    readonly property real faceFoil: [0, 0, 0.06, 0.12, 0.16, 0.2][card.level]
-    // the border: bone for the plain tiers, the sun for the rare ones, gold from Ultra rare
-    readonly property color rim: card.palette ? card.palette.rim : card.level >= 4 ? Lithic.gold : card.level >= 2 ? Lithic.sel : Lithic.mix(Lithic.ground, Lithic.fg, 0.55)
-    readonly property color shine: card.palette ? card.palette.accent : card.level >= 4 ? Lithic.gold : Lithic.fg
+    // Derived only from established Lithic minerals, not arbitrary per-tier hex colours.
+    // Rare inherits the original selection metal. Legendary inherits the original gold.
+    // Holographic / Master reuse the existing prismatic shader.
+    readonly property color tierMetal: card.level === 0 ? Lithic.mix(Lithic.ground, Lithic.fg, 0.55)
+        : card.level === 1 ? Lithic.mix(Lithic.fg, Lithic.jade, 0.40)
+        : card.level === 2 ? Lithic.sel
+        : card.level === 3 ? Lithic.mix(Lithic.sel, Lithic.gold, 0.22)
+        : card.level === 4 ? Lithic.mix(Lithic.sel, Lithic.lapis, 0.55)
+        : card.level === 5 ? Lithic.gold
+        : card.level === 6 ? Lithic.jasper
+        : card.level === 7 ? Lithic.mix(Lithic.lapis, Lithic.sel, 0.42)
+        : Lithic.mix(Lithic.gold, Lithic.fg, 0.60)
+    readonly property real windowFoil: [0, 0.14, 0.28, 0.40, 0.52, 0.66, 0.75, 0.86, 0.96][card.level]
+    readonly property real faceFoil: [0, 0, 0.03, 0.06, 0.10, 0.14, 0.18, 0.23, 0.30][card.level]
+    readonly property color rim: card.palette ? card.palette.rim : card.tierMetal
+    readonly property color shine: card.palette ? card.palette.accent : card.level >= 2 ? card.tierMetal : Lithic.fg
     readonly property int power: Rarity.power(card.threads, card.ramGb, card.discrete)
     readonly property string serial: {
         var id = String(card.traded ? card.traded.id : Badge.status.cardId || (CardCode.code ? CardCode.code.cardId : "") || "");
@@ -174,6 +186,15 @@ Item {
             cut: 22
             fill: card.rim
         }
+        CutRect {
+            visible: card.master && !card.cardSpec
+            anchors.fill: parent
+            anchors.margins: 6
+            cut: 18
+            fill: "transparent"
+            strokeWidth: 2
+            strokeColor: Lithic.mix(Lithic.gold, Lithic.fg, 0.65)
+        }
         ShaderEffect {
             visible: card.secret && !card.cardSpec
             anchors.fill: parent
@@ -207,7 +228,7 @@ Item {
             fill: card.plate
             // from Holo rare the face is edged in gold
             strokeWidth: card.level >= 3 ? 2 : 1
-            strokeColor: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.alpha(Lithic.fg, 0.2)
+            strokeColor: card.palette ? card.accent : card.level >= 3 ? card.tierMetal : Lithic.alpha(Lithic.fg, 0.2)
             clip: true
 
             DesignImage {
@@ -220,9 +241,9 @@ Item {
             ShaderEffect {
                 visible: card.faceFoil > 0 && !card.cardSpec
                 anchors.fill: parent
-                property color c1: card.secret ? Lithic.jasper : Lithic.sel
+                property color c1: card.secret ? Lithic.jasper : card.tierMetal
                 property color c2: Lithic.gold
-                property color c3: card.secret ? Lithic.jade : Lithic.lapis
+                property color c3: card.secret ? Lithic.jade : card.tierMetal
                 property color c4: card.secret ? Lithic.lapis : Lithic.jade
                 property vector2d size: Qt.vector2d(width, height)
                 property vector2d shift: card.tilt
@@ -318,16 +339,16 @@ Item {
             cut: 8
             fill: card.palette ? card.plate : Lithic.ground
             strokeWidth: 3
-            strokeColor: card.palette ? card.rim : card.level >= 4 ? Lithic.gold : Lithic.mix(card.rim, Lithic.fg, 0.35)
+            strokeColor: card.palette ? card.rim : card.level >= 3 ? card.tierMetal : Lithic.mix(card.rim, Lithic.fg, 0.35)
             clip: true
 
             ShaderEffect {
                 visible: card.windowFoil > 0 && !card.cardSpec
                 anchors.fill: parent
                 anchors.margins: 3
-                property color c1: card.secret ? Lithic.jasper : Lithic.sel
+                property color c1: card.secret ? Lithic.jasper : card.tierMetal
                 property color c2: Lithic.gold
-                property color c3: card.secret ? Lithic.jade : Lithic.lapis
+                property color c3: card.secret ? Lithic.jade : card.tierMetal
                 property color c4: card.secret ? Lithic.lapis : Lithic.jade
                 property vector2d size: Qt.vector2d(width, height)
                 property vector2d shift: card.tilt
@@ -363,7 +384,7 @@ Item {
                 // your own picture fills the window, as a photo card's art does; a figure stands
                 // in it, and from Ultra rare fills it, a full art
                 readonly property bool fills: card.heroKind === "custom"
-                height: fills ? parent.height - 6 : card.level >= 4 ? parent.height + 20 : parent.height - 18
+                height: fills ? parent.height - 6 : card.level >= 5 ? parent.height + 20 : parent.height - 18
                 width: fills ? parent.width - 6 : Math.round(height * aspect)
                 soft: true
                 ink: Lithic.dark ? Lithic.fg : Lithic.stone4
@@ -628,7 +649,7 @@ Item {
                 typeRole: "monoSm"
                 font.pixelSize: 10
                 font.letterSpacing: 1.2
-                ink: card.palette ? card.accent : card.level >= 3 ? Lithic.gold : Lithic.fg2
+                ink: card.palette ? card.accent : card.level >= 3 ? card.tierMetal : Lithic.fg2
             }
             Label {
                 renderType: Text.QtRendering
@@ -636,7 +657,7 @@ Item {
                 text: card.tier.mark
                 typeRole: "label"
                 font.pixelSize: 15
-                ink: card.palette ? card.accent : card.level >= 2 ? Lithic.gold : Lithic.fg2
+                ink: card.palette ? card.accent : card.level >= 2 ? card.tierMetal : Lithic.fg2
                 property real beat: 1
                 scale: card.classicMoving ? beat : 1
                 // a Secret rare's stars beat while it is live
@@ -726,7 +747,7 @@ Item {
                     x: index * card.code.pitch
                     width: card.code.tick
                     height: (ruler.levels[index] + 1) * card.code.unit
-                    color: standFace.item ? standFace.item.ink : card.palette ? card.ink : card.level >= 4 ? Lithic.gold : Lithic.fg2
+                    color: standFace.item ? standFace.item.ink : card.palette ? card.ink : card.level >= 5 ? card.tierMetal : Lithic.fg2
                     // the share still is drawn at twice the display scale: at 133% a 2-unit tick
                     // spans 5.33 pixels, and snapped edges made some ticks 5 wide and some 6, so a
                     // wide tick read as the level above. Blended edges keep each tick's ink exact

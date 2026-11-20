@@ -43,6 +43,8 @@ prepare_prebuilt() {
     ryoku-shell)
       fake_binary "$dir/ryoku-shell"
       fake_binary "$dir/ryoku-livewall"
+      fake_binary "$dir/ryoget"
+      fake_binary "$dir/ryoseek"
       ;;
     ryoku-rashin)
       fake_binary "$dir/rashind"

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+<title>The Hoarder</title><defs>
+<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
+<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
+<clipPath id="cut"><path d="M100 8L191 67V135L100 192L9 135V67Z"/></clipPath></defs>
+<path d="M100 8L191 67V135L100 192L9 135V67Z" fill="url(#stone)" stroke="#ea8a68" stroke-width="2.6"/>
+<path d="M100 8L191 67V135L100 192L9 135V67Z" fill="none" stroke="#ea8a68" stroke-opacity=".2" stroke-width="9"/>
+<g clip-path="url(#cut)"><path d="M0 59L200 138" stroke="#ea8a68" stroke-opacity=".11" stroke-width="2"/>
+<path d="M39 -10L164 210" stroke="#ea8a68" stroke-opacity=".10" stroke-width="1"/></g>
+<g transform="translate(100 100)" fill="none" stroke="#ea8a68" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-43 -41H43V41H-43Z M-43 -13H43 M-43 15H43 M-28 -33V-15 M-8 -33V-15 M15 -33V-15 M-20 -5V13 M15 -5V13 M-25 23V39 M8 23V39"/></g>
+<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#ea8a68" stroke-opacity=".4" stroke-width="2"/>
+</svg>

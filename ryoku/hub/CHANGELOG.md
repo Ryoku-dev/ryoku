@@ -3,6 +3,16 @@
 ## Unreleased
 ### Added
 
+- **Hyperion adds Ryoku-wide achievements and a cosmetic Points Shop.** Earn and claim
+  category and secret badges for points, collect stickers, backgrounds and fonts, and
+  customise the profile canvas and hardware card. Card rarity now uses generation-aware
+  hardware scoring and all connected displays, with nine tiers calibrated around a Steam
+  Hardware Survey reference. The archive has distinct vector badges and mastery goals,
+  while the complete shop unlocks the animated Black Prism background. Progress is stored
+  locally, with startup load failures protected against overwriting existing saves
+  (quickshell/registry/rarity.js, quickshell/registry/progression.js,
+  quickshell/Singletons/Progression.qml, quickshell/components/about/).
+
 - **Hub Credits now names oh-my-pi as the source of Rashin's native agent
   engine and self-improvement workflows (MIT).** The About page links to
   the project and names Can Bölük and Mario Zechner
