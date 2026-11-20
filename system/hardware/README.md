@@ -109,7 +109,7 @@ in the machine, and do not waste power doing it.
   - `ryoku-volume` Steps the default sink for the `XF86AudioRaiseVolume` /
     `XF86AudioLowerVolume` keys and shared by discrete volume controls across
     bars, docks and subshells. Its interval is configurable in Ryoku Hub >
-    General > Sounds as `audio.volumeStep` in `shell.json` (1–20 percentage
+    General > Sounds as `audio.volumeStep` in `shell.json` (1-20 percentage
     points, default 5); `ryoku-volume set-step <1-20>` changes it through the
     settings daemon, and `ryoku-volume --help` describes the commands.
     The default retains the five-point grid and its existing 65/67/70 transitions;
