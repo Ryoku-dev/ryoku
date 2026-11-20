@@ -69,10 +69,8 @@ Dialog {
         ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
     // moving pictures are a badge holder's, the rule the backend keeps too
     readonly property bool movingAllowed: !!Badge.ownBadge
-    // a card style is one badge holder's own look, set up for them rather than picked here: the
-    // studio offers no choice of style, only the controls of a style the card already wears and
-    // the badge's login owns. Everyone else's look is their own card design
-    readonly property var styleNames: ({ stand: I18n.tr("Stand") })
+    // Built-in styles are owned by verified badge logins. Only authorized styles are selectable.
+    readonly property var styleNames: ({ stand: I18n.tr("Stand"), eidolon: "EIDOLON" })
     readonly property var ownStyles: Badge.ownStyles.filter(style => root.styleNames[style] !== undefined)
     readonly property bool standStyle: root.ownStyles.indexOf("stand") >= 0 && root.val("style", "classic") === "stand"
     property string cutoutError: ""
@@ -964,6 +962,22 @@ Dialog {
                                     }
                                     accessibleName: I18n.tr("Home shows")
                                     onActivated: index => root.put("homeView", "plate", index === 1 ? "card" : "plate", I18n.tr("Home view"))
+                                }
+                            }
+                            SettingRow {
+                                width: parent.width
+                                visible: root.ownStyles.length > 0
+                                title: I18n.tr("Owned card style")
+                                detail: I18n.tr("Available to your verified badge; your choice is saved")
+                                Segmented {
+                                    model: [I18n.tr("Classic")].concat(root.ownStyles.map(style => root.styleNames[style]))
+                                    Binding on currentIndex {
+                                        value: root.ownStyles.indexOf(root.val("style", "classic")) + 1
+                                    }
+                                    accessibleName: I18n.tr("Owned card style")
+                                    onActivated: index => root.put("style", "classic",
+                                        index === 0 ? "classic" : root.ownStyles[index - 1],
+                                        I18n.tr("Card style"))
                                 }
                             }
                             SettingRow {

@@ -18,11 +18,27 @@ async function publish(state, login, device = state.device) {
 }
 
 test('a style belongs to its logins, matched without case', () => {
-  assert.deepEqual(CARD_STYLE_OWNERS, { stand: ['neur0map'] });
+  assert.deepEqual(CARD_STYLE_OWNERS, { eidolon: ['aethctl'], stand: ['neur0map'] });
+  for (const login of ['aethctl', 'AETHCTL', 'Aethctl']) assert.equal(styleOwnedBy('eidolon', login), true, login);
+  for (const login of ['neur0map', 'friend', '']) assert.equal(styleOwnedBy('eidolon', login), false, login);
   for (const login of ['neur0map', 'Neur0map', 'NEUR0MAP']) assert.equal(styleOwnedBy('stand', login), true, login);
   for (const [style, login] of [['stand', 'friend'], ['stand', 'neur0map2'], ['stand', ''], ['stand', undefined], ['gold', 'neur0map'], ['__proto__', 'neur0map'], ['toString', 'neur0map']]) {
     assert.equal(styleOwnedBy(style, login), false, `${style} ${login}`);
   }
+});
+
+test('EIDOLON belongs only to aethctl and cannot be submitted by a different badge', async () => {
+  const owner = await setup();
+  await publish(owner, 'AETHCTL');
+  const card = await styledRecord(owner.device, { style: 'eidolon' });
+  assert.equal((await putCard(owner, card)).status, 200);
+  assert.deepEqual(await (await get(owner)).json(), card);
+
+  const other = await setup();
+  await publish(other, 'neur0map');
+  const forged = await styledRecord(other.device, { style: 'eidolon' });
+  assert.deepEqual(await outcome(await putCard(other, forged)), [403, NOT_YOURS]);
+  assert.equal(stored(other), false);
 });
 
 test('the style\'s owner stores it, another active holder may not, but their words pass', async () => {
