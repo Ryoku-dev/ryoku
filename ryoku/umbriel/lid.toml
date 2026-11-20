@@ -1,0 +1,7 @@
+# Umbriel owns the internal panel's output topology. Ryoku adds only the shared
+# docked-or-secure-suspend policy at the physical lid edge; the open event
+# cancels a close still waiting on dock or power state. Both edges go through
+# the neutral clamshell owner, never through a compositor name in the shell.
+[events]
+lid_close = "ryoku-clamshell policy close"
+lid_open = "ryoku-clamshell policy open"

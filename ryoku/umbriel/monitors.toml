@@ -1,0 +1,6 @@
+# Written at runtime by the display tooling: one output section per connected
+# screen, with mode, scale and layout resolved.
+#
+# Empty means Umbriel uses each monitor's preferred mode at its own scale. Hand
+# edits are lost on the next hotplug; put lasting display pins in user.toml,
+# which loads after this file.

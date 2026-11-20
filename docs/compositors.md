@@ -4,8 +4,9 @@ Ryoku is one desktop that runs on more than one window manager. The shell, the
 Hub, the CLI and the lockscreen are the same code on every compositor; only a
 provider underneath differs.
 
-Today there are two: Hyprland and niri. A third is a new provider and a new
-package, and nothing else.
+Today there are two supported compositors, Hyprland and niri, plus an
+experimental Umbriel provider that is not shipped in releases yet. Adding one
+more is a new provider and a new package, and nothing else.
 
 This page is the contract in table form. The same job as a walkthrough, with the
 traps that cost time on the second compositor, is in
