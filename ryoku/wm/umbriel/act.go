@@ -32,7 +32,10 @@ func runAct(args []string) error {
 		return action("window-close", rest[0])
 
 	case wm.ActionWindowFullscreen:
-		return action("window-toggle-fullscreen", "")
+		if len(rest) < 1 {
+			return fmt.Errorf("window.fullscreen: missing window id")
+		}
+		return action("window-toggle-fullscreen", rest[0])
 
 	case wm.ActionWindowFloat:
 		if len(rest) < 1 {
@@ -62,20 +65,48 @@ func runAct(args []string) error {
 		if err := json.Unmarshal(raw, &ws); err != nil {
 			return err
 		}
+		focus := ""
+		rawOut, err := query("outputs")
+		if err != nil {
+			return err
+		}
+		var outs []uOutput
+		if err := json.Unmarshal(rawOut, &outs); err != nil {
+			return err
+		}
+		for _, o := range outs {
+			if o.Focused {
+				focus = o.Name
+				break
+			}
+		}
+		// Cycle only within the focused output's workspaces. Names repeat
+		// across outputs, so a global index can step the wrong screen.
+		mine := make([]uWorkspace, 0, len(ws))
+		for _, w := range ws {
+			if focus == "" || w.Output == focus {
+				mine = append(mine, w)
+			}
+		}
 		at := -1
-		for i, w := range ws {
+		for i, w := range mine {
 			if w.Active {
 				at = i
 				break
 			}
 		}
 		if at < 0 {
-			return fmt.Errorf("workspace.cycle: no active workspace")
+			return fmt.Errorf("workspace.cycle: no active workspace on the focused output")
 		}
-		if at+n < 0 || at+n >= len(ws) {
+		if at+n < 0 || at+n >= len(mine) {
 			return fmt.Errorf("workspace.cycle: no workspace %d steps away", n)
 		}
-		return action("workspace-switch", ws[at+n].Name)
+		target := mine[at+n]
+		value := target.Name
+		if target.Output != "" {
+			value += "/" + target.Output
+		}
+		return action("workspace-switch", value)
 
 	case wm.ActionSessionExit:
 		return action("session-quit", "skip-confirmation")
@@ -133,6 +164,22 @@ func runAct(args []string) error {
 
 	case wm.ActionOutputCycle:
 		return cycleOutputs()
+
+	case wm.ActionKeyboardCycleLayout:
+		return action("keyboard-layout-next", "")
+
+	case wm.ActionWindowMoveToWorkspace:
+		if len(rest) < 2 {
+			return fmt.Errorf("window.moveToWorkspace: missing window id or workspace")
+		}
+		// Umbriel moves the focused window only, so focus the target first.
+		if err := action("window-focus", rest[0]); err != nil {
+			return err
+		}
+		return action("window-move-to-workspace", rest[1])
+
+	case wm.ActionOutputRefresh:
+		return refreshOutput(rest)
 
 	case wm.ActionInputTouchpad:
 		return touchpadAction(rest)
@@ -270,4 +317,71 @@ func summon(title string) error {
 		}
 	}
 	return fmt.Errorf("window.summon: no window titled %q", title)
+}
+
+// refreshOutput picks the advertised mode closest to the requested refresh and
+// publishes it through monitors.toml, the file Umbriel watches for layout
+// changes. There is no live refresh action in Umbriel 0.1.0's IPC.
+func refreshOutput(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("output.refresh: expected <output> <hz>")
+	}
+	hz, err := strconv.ParseFloat(strings.TrimSpace(args[1]), 64)
+	if err != nil || hz <= 0 {
+		return fmt.Errorf("output.refresh: bad refresh %q", args[1])
+	}
+	raw, err := query("outputs")
+	if err != nil {
+		return err
+	}
+	var outs []uOutput
+	if err := json.Unmarshal(raw, &outs); err != nil {
+		return err
+	}
+	found := false
+	layout := make([]wm.OutputLayout, 0, len(outs))
+	for _, o := range outs {
+		mode := ""
+		for _, m := range o.Modes {
+			full := fmt.Sprintf("%dx%d", m.Width, m.Height)
+			if m.RefreshMHz > 0 {
+				full += fmt.Sprintf("@%g", float64(m.RefreshMHz)/1000)
+			}
+			if m.Current {
+				mode = full
+			}
+		}
+		item := wm.OutputLayout{
+			Name: o.Name, Enabled: o.Enabled, Mode: mode, Scale: o.Scale,
+			X: o.Position.X, Y: o.Position.Y,
+		}
+		if o.Name == args[0] {
+			found = true
+			modes := make([]string, 0, len(o.Modes))
+			for _, m := range o.Modes {
+				full := fmt.Sprintf("%dx%d", m.Width, m.Height)
+				if m.RefreshMHz > 0 {
+					full += fmt.Sprintf("@%g", float64(m.RefreshMHz)/1000)
+				}
+				modes = append(modes, full)
+			}
+			best, ok := wm.ClosestRefreshMode(mode, modes, hz)
+			if !ok {
+				return fmt.Errorf("output.refresh: output %q has no mode near %g Hz", args[0], hz)
+			}
+			item.Mode = best
+		}
+		layout = append(layout, item)
+	}
+	if !found {
+		return fmt.Errorf("output.refresh: output %q does not exist", args[0])
+	}
+	dir := umbrielConfigDir()
+	if dir == "" {
+		return fmt.Errorf("output.refresh: no Umbriel config dir")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return atomicWrite(filepath.Join(dir, "monitors.toml"), monitorsToml(layout), 0o644)
 }

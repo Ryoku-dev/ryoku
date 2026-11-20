@@ -24,6 +24,7 @@ func runWatch() error {
 
 	var state uState
 	haveOutputs := false
+	ready := false
 	reader := bufio.NewReader(conn)
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -37,6 +38,15 @@ func runWatch() error {
 		if json.Unmarshal(line, &ev) != nil {
 			continue
 		}
+		// The first decoded event completes the initial picture. The daemon
+		// needs FrameReady to mark this connection live; it learns the focused
+		// screen only from FrameFocus, not from the focused field on outputs.
+		if !ready {
+			ready = true
+			if err := emit(wm.Frame{Kind: wm.FrameReady}); err != nil {
+				return err
+			}
+		}
 		switch ev.Event {
 		case "outputs":
 			if json.Unmarshal(ev.Data, &state.Outputs) == nil {
@@ -49,6 +59,11 @@ func runWatch() error {
 			if json.Unmarshal(ev.Data, &state.Workspaces) == nil {
 				if err := emit(wm.Frame{Kind: wm.FrameWorkspaces, Workspaces: workspacesOf(state)}); err != nil {
 					return err
+				}
+				if focus := focusedWorkspaceOutput(state); focus != "" {
+					if err := emit(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: focus}); err != nil {
+						return err
+					}
 				}
 				// Outputs carry their active workspace as a name resolved from
 				// this list. Refresh them only once an outputs event has supplied
@@ -77,6 +92,17 @@ func runWatch() error {
 			}
 		}
 	}
+}
+
+// focusedWorkspaceOutput names the output of the active workspace, which is
+// how the shell learns which screen has focus.
+func focusedWorkspaceOutput(s uState) string {
+	for _, w := range s.Workspaces {
+		if w.Active {
+			return w.Output
+		}
+	}
+	return ""
 }
 
 // emit writes one frame. A failed write or flush means the consumer went away,

@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -214,5 +216,47 @@ func TestUnconsumedLeavesReported(t *testing.T) {
 	}
 	if !keys["desktop.input.swipeInvert"] || !keys["desktop.cursor.size"] {
 		t.Fatalf("missing expected keys: %+v", keys)
+	}
+}
+
+func TestPreviewDoesNotWrite(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	store := t.TempDir() + "/store.json"
+	if err := os.WriteFile(store, []byte(`{"desktop":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runApply([]string{"--preview", store}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "umbriel", "settings.toml")); !os.IsNotExist(err) {
+		t.Fatalf("preview wrote settings.toml: %v", err)
+	}
+}
+
+func TestResolvedBindsDisabledRebindStaysDisabled(t *testing.T) {
+	// The Hub records a disabled chord under its shipped key even after a rebind.
+	lines, _ := resolvedBinds(
+		map[string]string{"SUPER + Q": "SUPER + Z"},
+		[]string{"SUPER + Q"},
+	)
+	for _, l := range lines {
+		if l.chord == "Mod+Z" {
+			t.Fatal("disabled rebind target was emitted")
+		}
+	}
+}
+
+func TestResolvedBindsStableCollisionWinner(t *testing.T) {
+	rebinds := map[string]string{
+		"SUPER + Q": "SUPER + Z",
+		"SUPER + W": "SUPER + Z",
+	}
+	first, _ := renderBinds(rebinds, nil)
+	for i := 0; i < 20; i++ {
+		got, _ := renderBinds(rebinds, nil)
+		if got != first {
+			t.Fatal("collision winner changed between applies")
+		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 
 	wm "ryoku-wm"
 )
@@ -45,10 +44,21 @@ func writeGenerated(input, binds string) error {
 }
 
 func runApply(args []string) error {
-	if len(args) < 1 {
+	preview := false
+	path := ""
+	for _, a := range args {
+		if a == "--preview" {
+			preview = true
+			continue
+		}
+		if path == "" {
+			path = a
+		}
+	}
+	if path == "" {
 		return fmt.Errorf("apply: missing store path")
 	}
-	store, err := readStore(args[0])
+	store, err := readStore(path)
 	if err != nil {
 		return err
 	}
@@ -67,8 +77,10 @@ func runApply(args []string) error {
 	}
 	rebinds, disabled := storeBinds(store)
 	bindsTable, bindUnhonored := renderBinds(rebinds, disabled)
-	if err := writeGenerated(renderInputToml(sections), bindsTable); err != nil {
-		return err
+	if !preview {
+		if err := writeGenerated(renderInputToml(sections), bindsTable); err != nil {
+			return err
+		}
 	}
 	allMapped := map[string]bool{}
 	for k := range inputMapped {
@@ -81,16 +93,10 @@ func runApply(args []string) error {
 	unhonored = append(unhonored, unconsumedLeaves(store, allMapped)...)
 	report := wm.ApplyReport{
 		Provider:  "umbriel",
-		Written:   []string{"umbriel/settings.toml", "umbriel/rebinds.toml"},
 		Unhonored: unhonored,
 	}
-	return json.NewEncoder(stdout).Encode(report)
-}
-
-func printReport(keys []string, reason string) error {
-	report := wm.ApplyReport{Provider: "umbriel"}
-	for _, k := range keys {
-		report.Unhonored = append(report.Unhonored, wm.Unhonored{Key: k, Reason: reason})
+	if !preview {
+		report.Written = []string{"umbriel/settings.toml", "umbriel/rebinds.toml"}
 	}
 	return json.NewEncoder(stdout).Encode(report)
 }
@@ -174,53 +180,4 @@ func readStore(path string) (map[string]any, error) {
 		return nil, err
 	}
 	return store, nil
-}
-
-func storeKeys(path string) ([]string, error) {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var value any
-	if err := json.Unmarshal(body, &value); err != nil {
-		return nil, err
-	}
-	var out []string
-	flatten(value, "", &out)
-	sort.Strings(out)
-	return out, nil
-}
-
-func flatten(value any, prefix string, out *[]string) {
-	switch v := value.(type) {
-	case map[string]any:
-		for _, k := range sortedKeys(v) {
-			key := k
-			if prefix != "" {
-				key = prefix + "." + k
-			}
-			flatten(v[k], key, out)
-		}
-	case []any:
-		for i, item := range v {
-			key := strconv.Itoa(i)
-			if prefix != "" {
-				key = prefix + "." + key
-			}
-			flatten(item, key, out)
-		}
-	default:
-		if prefix != "" {
-			*out = append(*out, prefix)
-		}
-	}
-}
-
-func sortedKeys(m map[string]any) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

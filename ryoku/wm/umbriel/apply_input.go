@@ -28,6 +28,8 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 		if v, ok := val(key); ok {
 			if rendered := format(v); rendered != "" {
 				put(table, out, rendered)
+			} else {
+				unhonored = append(unhonored, wm.Unhonored{Key: key, Reason: "Umbriel cannot express the saved value for this input setting."})
 			}
 			mapped[key] = true
 		}

@@ -78,13 +78,9 @@ func activeWorkspaceName(s uState, id string) string {
 func outputsOf(s uState) []wm.Output {
 	out := make([]wm.Output, 0, len(s.Outputs))
 	for _, o := range s.Outputs {
-		active := activeWorkspaceName(s, o.ActiveWorkspace)
-		if active == "" {
-			active = o.ActiveWorkspace
-		}
 		v := wm.Output{
 			Name: o.Name, Width: o.LogicalSize.Width, Height: o.LogicalSize.Height,
-			Scale: o.Scale, Focused: o.Focused, ActiveWorkspace: active,
+			Scale: o.Scale, Focused: o.Focused, ActiveWorkspace: o.ActiveWorkspace,
 			X: o.Position.X, Y: o.Position.Y, Disabled: !o.Enabled,
 			Transform: transformOf(o.Transform),
 		}
@@ -132,15 +128,11 @@ func workspacesOf(s uState) []wm.Workspace {
 
 func windowsOf(s uState) []wm.Window {
 	out := make([]wm.Window, 0, len(s.Windows))
-	for _, w := range s.Windows {
-		order := 0
-		if !w.Focused {
-			order = 1
-		}
+	for i, w := range s.Windows {
 		out = append(out, wm.Window{
 			ID: w.ID, AppID: w.AppID, Title: w.Title, Workspace: w.Workspace,
 			Output: w.Output, Pid: w.Pid, X: w.X, Y: w.Y, Width: w.W, Height: w.H,
-			Floating: w.Floating, FocusOrder: order,
+			Floating: w.Floating, FocusOrder: i,
 		})
 	}
 	return out

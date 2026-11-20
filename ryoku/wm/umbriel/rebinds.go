@@ -67,10 +67,8 @@ func umbrielChord(chord string) (string, bool) {
 			out = append(out, "Comma")
 		case "period":
 			out = append(out, "Period")
-		case "equal":
-			out = append(out, "Equal")
-		case "minus":
-			out = append(out, "Minus")
+		case "equal", "minus":
+			out = append(out, tok)
 		default:
 			if strings.HasPrefix(tok, "mouse:") {
 				return "", false
@@ -120,11 +118,11 @@ type bindLine struct {
 	value string
 }
 
-// renderBinds applies the store's rebinds and disabled list to the shipped bind
-// template. Unhonoured rows name a rebind that Umbriel cannot express or that
-// would collide with another chord, so the Hub never shows a change that did
-// not reach the compositor.
-func renderBinds(rebinds map[string]string, disabled []string) (string, []wm.Unhonored) {
+// resolvedBinds applies the store's rebinds and disabled list to the shipped
+// bind template and returns the effective table plus the rows Umbriel cannot
+// honour. Both the generated rebinds.toml and the keybind legend are built from
+// this one resolution, so a rejected rebind never shows as effective in the Hub.
+func resolvedBinds(rebinds map[string]string, disabled []string) ([]bindLine, []wm.Unhonored) {
 	// Parse the shipped table first so a rebind onto an existing chord is
 	// rejected before it can produce two bindings for the same key.
 	var shipped []bindLine
@@ -146,10 +144,31 @@ func renderBinds(rebinds map[string]string, disabled []string) (string, []wm.Unh
 	remap := map[string]string{}
 	claimed := map[string]bool{}
 	var unhonored []wm.Unhonored
-	for from, to := range rebinds {
+	// Go map order is random; resolve sources in a stable order so two rebinds
+	// competing for one target always produce the same winner.
+	sources := make([]string, 0, len(rebinds))
+	for from := range rebinds {
+		sources = append(sources, from)
+	}
+	sort.Strings(sources)
+	for _, from := range sources {
+		to := rebinds[from]
 		froms, tos := chordAliases(from), chordAliases(to)
 		if len(froms) == 0 || len(tos) == 0 || len(froms) != len(tos) {
 			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.keybindRebinds." + from, Reason: "Umbriel cannot express this chord, or the new chord does not match the old one's key."})
+			continue
+		}
+		// A source that is not shipped cannot be rebound; reject it so it does
+		// not reserve a target another rebind needs.
+		missing := false
+		for _, chord := range froms {
+			if !base[chord] {
+				missing = true
+				break
+			}
+		}
+		if missing {
+			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.keybindRebinds." + from, Reason: "The original chord is not bound on Umbriel."})
 			continue
 		}
 		// A family is one row in the Hub, so a single collision rejects the
@@ -179,18 +198,27 @@ func renderBinds(rebinds map[string]string, disabled []string) (string, []wm.Unh
 
 	var lines []bindLine
 	for _, l := range shipped {
+		// The Hub records a disabled chord under its shipped key even after a
+		// rebind, so check the original before remapping it.
+		if off[l.chord] {
+			continue
+		}
 		if to, ok := remap[l.chord]; ok {
 			l.chord = to
 		}
-		// A target that is also disabled must not be emitted. Check after the
-		// remap so a rebind onto a disabled chord cannot resurrect it.
+		// A rebind target that is itself disabled must not be emitted.
 		if off[l.chord] {
 			continue
 		}
 		lines = append(lines, l)
 	}
 	sort.Slice(lines, func(i, j int) bool { return lines[i].chord < lines[j].chord })
+	return lines, unhonored
+}
 
+// renderBinds renders the resolved table as a TOML keybind section.
+func renderBinds(rebinds map[string]string, disabled []string) (string, []wm.Unhonored) {
+	lines, unhonored := resolvedBinds(rebinds, disabled)
 	var b strings.Builder
 	b.WriteString("[keybinds]\n")
 	for _, l := range lines {

@@ -26,15 +26,11 @@ var capsManifest = []wm.Capability{
 }
 
 func runCaps() error {
-	supports := append([]wm.Capability(nil), capsManifest...)
-	if outputsSupportVrr() {
-		supports = append(supports, wm.CapOutputVrr)
-	}
 	caps := wm.Caps{
 		Name:           "umbriel",
 		Version:        probeVersion(),
 		Instance:       instanceHandle(),
-		Supports:       supports,
+		Supports:       capsManifest,
 		WorkspaceModel: wm.WorkspaceModelDynamic,
 		SettingDomains: []string{"desktop", "wm.umbriel"},
 		ConfigFiles:    wm.ConfigFiles("umbriel"),
@@ -50,37 +46,10 @@ func runCaps() error {
 	return enc.Encode(caps)
 }
 
-// outputsSupportVrr checks Umbriel's own state. adaptive_sync is null when the
-// output cannot use variable refresh, so the setting is claimed only when an
-// output actually reports it.
-func outputsSupportVrr() bool {
-	raw, err := query("outputs")
-	if err != nil {
-		return false
-	}
-	var outputs []struct {
-		AdaptiveSync json.RawMessage `json:"adaptive_sync"`
-	}
-	if json.Unmarshal(raw, &outputs) != nil {
-		return false
-	}
-	for _, o := range outputs {
-		value := strings.TrimSpace(string(o.AdaptiveSync))
-		if value != "" && value != "null" {
-			return true
-		}
-	}
-	return false
-}
-
 func probeVersion() string {
 	out, err := exec.Command("umbriel", "--version").Output()
 	if err != nil {
 		return ""
 	}
-	f := strings.Fields(string(out))
-	if len(f) < 3 {
-		return ""
-	}
-	return f[2]
+	return strings.TrimSpace(string(out))
 }
