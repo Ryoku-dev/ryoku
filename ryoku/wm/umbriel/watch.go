@@ -99,15 +99,11 @@ func runWatch() error {
 	}
 }
 
-// focusedWorkspaceOutput names the output of the active workspace, which is
-// how the shell learns which screen has focus.
+// focusedWorkspaceOutput returns the compositor's focused output. Each monitor
+// has its own active workspace, so deriving focus from the first active
+// workspace would point the shell at the wrong screen on a multi-monitor box.
 func focusedWorkspaceOutput(s uState) string {
-	for _, w := range s.Workspaces {
-		if w.Active {
-			return w.Output
-		}
-	}
-	return ""
+	return focusedOutput(s)
 }
 
 // emit writes one frame. A failed write or flush means the consumer went away,

@@ -10,7 +10,6 @@ import (
 
 var capsManifest = []wm.Capability{
 	wm.CapWorkspaces,
-	wm.CapFocusHistory,
 	wm.CapWindowGeometry,
 	wm.CapWindowFloat,
 	wm.CapOutputPower,

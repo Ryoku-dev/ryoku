@@ -175,6 +175,10 @@ func resolvedBinds(rebinds map[string]string, disabled []string) ([]bindLine, []
 		// whole rebind rather than silently remapping its other members.
 		collides := false
 		for i := range froms {
+			if _, exists := remap[froms[i]]; exists {
+				collides = true
+				break
+			}
 			if tos[i] != froms[i] && (base[tos[i]] || claimed[tos[i]]) {
 				collides = true
 				break

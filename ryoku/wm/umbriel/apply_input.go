@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,15 +35,13 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 			mapped[key] = true
 		}
 	}
-	num := func(v any) string {
-		switch x := v.(type) {
-		case float64:
-			return strconv.FormatFloat(x, 'f', -1, 64)
-		case int:
-			return strconv.Itoa(x)
-		default:
+	// boundedNum validates an integer setting against the compositor's range.
+	boundedNum := func(v any, lo, hi float64) string {
+		f, ok := v.(float64)
+		if !ok || math.IsNaN(f) || math.IsInf(f, 0) || f != math.Trunc(f) || f < lo || f > hi {
 			return ""
 		}
+		return strconv.Itoa(int(f))
 	}
 	boolean := func(v any) string {
 		if b, ok := v.(bool); ok {
@@ -64,13 +63,20 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 	consume("desktop.input.kbLayout", "input.keyboard", "layout", quoted)
 	consume("desktop.input.kbVariant", "input.keyboard", "variant", quoted)
 	consume("desktop.input.kbOptions", "input.keyboard", "options", quoted)
-	consume("desktop.input.repeatRate", "input.keyboard", "repeat_rate", num)
-	consume("desktop.input.repeatDelay", "input.keyboard", "repeat_delay", num)
+	consume("desktop.input.repeatRate", "input.keyboard", "repeat_rate", func(v any) string { return boundedNum(v, 0, 1000) })
+	consume("desktop.input.repeatDelay", "input.keyboard", "repeat_delay", func(v any) string { return boundedNum(v, 0, 10000) })
 	consume("desktop.input.numlockByDefault", "input.keyboard", "numlock_toggle", boolean)
 
 	// Mouse.
-	consume("desktop.input.sensitivity", "input.mouse", "sensitivity", num)
-	consume("desktop.input.sensitivity", "input.touchpad", "sensitivity", num)
+	sensitivity := func(v any) string {
+		f, ok := v.(float64)
+		if !ok || math.IsNaN(f) || math.IsInf(f, 0) || f < -1 || f > 1 {
+			return ""
+		}
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	consume("desktop.input.sensitivity", "input.mouse", "sensitivity", sensitivity)
+	consume("desktop.input.sensitivity", "input.touchpad", "sensitivity", sensitivity)
 	if v, ok := val("desktop.input.accelProfile"); ok {
 		s, _ := v.(string)
 		if s == "flat" || s == "adaptive" {
@@ -91,7 +97,13 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 	consume("desktop.input.tapToClick", "input.touchpad", "tap", boolean)
 	consume("desktop.input.tapAndDrag", "input.touchpad", "tap_and_drag", boolean)
 	consume("desktop.input.disableWhileTyping", "input.touchpad", "disable_while_typing", boolean)
-	consume("desktop.input.touchScrollFactor", "input.touchpad", "scroll_factor", num)
+	consume("desktop.input.touchScrollFactor", "input.touchpad", "scroll_factor", func(v any) string {
+		f, ok := v.(float64)
+		if !ok || math.IsNaN(f) || math.IsInf(f, 0) || f < 0.1 || f > 10 {
+			return ""
+		}
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	})
 	if v, ok := val("desktop.input.clickfinger"); ok {
 		if b, ok := v.(bool); ok {
 			if b {
@@ -110,8 +122,10 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 	// Pointer.
 	consume("desktop.cursor.hideOnKeyPress", "input.cursor", "hide_when_typing", boolean)
 	if v, ok := val("desktop.cursor.inactiveTimeout"); ok {
-		if f, ok := v.(float64); ok && f >= 0 && f <= 3600000 {
+		if f, ok := v.(float64); ok && !math.IsNaN(f) && !math.IsInf(f, 0) && f >= 0 && f <= 3600000 {
 			put("input.cursor", "hide_timeout_ms", strconv.Itoa(int(f*1000+0.5)))
+		} else {
+			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.cursor.inactiveTimeout", Reason: "Umbriel cannot express the saved cursor timeout."})
 		}
 		mapped["desktop.cursor.inactiveTimeout"] = true
 	}
