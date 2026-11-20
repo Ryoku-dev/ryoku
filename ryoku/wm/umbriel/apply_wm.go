@@ -18,48 +18,41 @@ func wmSettings(store map[string]any) (map[string]map[string]string, []wm.Unhono
 		}
 		sections[table][key] = value
 	}
+	var unhonored []wm.Unhonored
+	// value writes a rendered setting, or reports an invalid saved value.
+	value := func(key, table, out, rendered string) {
+		if rendered != "" {
+			put(table, out, rendered)
+		} else {
+			unhonored = append(unhonored, wm.Unhonored{Key: key, Reason: "Umbriel cannot express the saved value for this setting."})
+		}
+		mapped[key] = true
+	}
 
 	if v, ok := storeGet(store, "wm.umbriel.warpMouseToFocus"); ok {
-		if s := tomlBool(v); s != "" {
-			put("input.cursor", "follows_focus", s)
-		}
-		mapped["wm.umbriel.warpMouseToFocus"] = true
+		value("wm.umbriel.warpMouseToFocus", "input.cursor", "follows_focus", tomlBool(v))
 	}
 	if v, ok := storeGet(store, "wm.umbriel.focusFollowsMouseScroll"); ok {
-		if n := tomlNumber(v); n != "" {
-			put("input.focus", "follows_mouse_max_scroll", n)
-		}
-		mapped["wm.umbriel.focusFollowsMouseScroll"] = true
+		value("wm.umbriel.focusFollowsMouseScroll", "input.focus", "follows_mouse_max_scroll", tomlNumber(v))
 	}
 	if v, ok := storeGet(store, "wm.umbriel.workspaceAutoBackAndForth"); ok {
-		if s := tomlBool(v); s != "" {
-			put("workspaces", "back_and_forth", s)
-		}
-		mapped["wm.umbriel.workspaceAutoBackAndForth"] = true
+		value("wm.umbriel.workspaceAutoBackAndForth", "workspaces", "back_and_forth", tomlBool(v))
 	}
 	if v, ok := storeGet(store, "wm.umbriel.modKey"); ok {
-		if s, ok := v.(string); ok && s != "" {
-			put("general", "mod_key", strconv.Quote(s))
+		s, _ := v.(string)
+		if s != "" {
+			s = strconv.Quote(s)
 		}
-		mapped["wm.umbriel.modKey"] = true
+		value("wm.umbriel.modKey", "general", "mod_key", s)
 	}
 	if v, ok := storeGet(store, "wm.umbriel.dndEdgeViewScrollTriggerWidth"); ok {
-		if n := tomlNumber(v); n != "" {
-			put("input.drag_edge_scroll", "trigger_zone", n)
-		}
-		mapped["wm.umbriel.dndEdgeViewScrollTriggerWidth"] = true
+		value("wm.umbriel.dndEdgeViewScrollTriggerWidth", "input.drag_edge_scroll", "trigger_zone", tomlNumber(v))
 	}
 	if v, ok := storeGet(store, "wm.umbriel.dndEdgeViewScrollDelayMs"); ok {
-		if n := tomlNumber(v); n != "" {
-			put("input.drag_edge_scroll", "delay_ms", n)
-		}
-		mapped["wm.umbriel.dndEdgeViewScrollDelayMs"] = true
+		value("wm.umbriel.dndEdgeViewScrollDelayMs", "input.drag_edge_scroll", "delay_ms", tomlNumber(v))
 	}
 	if v, ok := storeGet(store, "wm.umbriel.dndEdgeViewScrollMaxSpeed"); ok {
-		if n := tomlNumber(v); n != "" {
-			put("input.drag_edge_scroll", "max_speed", n)
-		}
-		mapped["wm.umbriel.dndEdgeViewScrollMaxSpeed"] = true
+		value("wm.umbriel.dndEdgeViewScrollMaxSpeed", "input.drag_edge_scroll", "max_speed", tomlNumber(v))
 	}
 
 	if v, ok := storeGet(store, "desktop.input.followMouse"); ok {
@@ -68,8 +61,6 @@ func wmSettings(store map[string]any) (map[string]map[string]string, []wm.Unhono
 		put("input.focus", "follows_mouse", fmt.Sprint(follows))
 		mapped["desktop.input.followMouse"] = true
 	}
-
-	unhonored := []wm.Unhonored{}
 
 	return sections, unhonored, mapped
 }

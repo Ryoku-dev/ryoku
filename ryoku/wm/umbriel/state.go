@@ -63,18 +63,6 @@ type uState struct {
 	Windows    []uWindow    `json:"windows"`
 }
 
-// activeWorkspaceName maps Umbriel's workspace id (e.g. "eDP-1:1") to its
-// display name (e.g. "1"). Consumers such as the shell overview key the active
-// workspace numerically, so publishing the id there makes it resolve to -1.
-func activeWorkspaceName(s uState, id string) string {
-	for _, w := range s.Workspaces {
-		if w.ID == id {
-			return w.Name
-		}
-	}
-	return ""
-}
-
 func outputsOf(s uState) []wm.Output {
 	out := make([]wm.Output, 0, len(s.Outputs))
 	for _, o := range s.Outputs {

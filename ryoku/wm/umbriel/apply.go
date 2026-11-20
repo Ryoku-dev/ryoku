@@ -101,37 +101,49 @@ func runApply(args []string) error {
 	return json.NewEncoder(stdout).Encode(report)
 }
 
-// unconsumedLeaves reports input and cursor keys present in the store that no
-// writer consumed. Without this a stored setting would be silently dropped and
-// the Hub would have no way to tell the user it did not reach Umbriel.
+// unconsumedLeaves reports stored settings no writer consumed. Without this a
+// stored appearance or window-rule section would be silently dropped in a
+// switch preview and the Hub could not tell the user what would not apply.
 func unconsumedLeaves(store map[string]any, mapped map[string]bool) []wm.Unhonored {
 	var out []wm.Unhonored
-	desktop, ok := store["desktop"].(map[string]any)
-	if !ok {
-		return out
-	}
-	for _, section := range []string{"input", "cursor"} {
-		obj, ok := desktop[section].(map[string]any)
+	for _, group := range []string{"desktop", "wm"} {
+		obj, ok := store[group].(map[string]any)
 		if !ok {
 			continue
 		}
-		keys := make([]string, 0, len(obj))
-		for k := range obj {
-			full := "desktop." + section + "." + k
-			if !mapped[full] {
-				keys = append(keys, k)
-			}
+		sections := make([]string, 0, len(obj))
+		for section := range obj {
+			sections = append(sections, section)
 		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			reason := "Umbriel has no matching setting for this input option."
-			if section == "input" {
-				switch k {
-				case "workspaceSwipe", "swipeFingers", "swipeInvert", "swipeCreateNew", "swipeDistance":
-					reason = "Umbriel's touchpad workspace swipe is built in, with no setting for fingers, distance, direction or new workspaces."
+		sort.Strings(sections)
+		for _, section := range sections {
+			// Rebinds are consumed by storeBinds and reported through the
+			// keybind resolver; other desktop maps are leaf settings.
+			if group == "desktop" && (section == "keybindRebinds" || section == "keybindDisabled") {
+				continue
+			}
+			leaves, ok := obj[section].(map[string]any)
+			if !ok {
+				continue
+			}
+			keys := make([]string, 0, len(leaves))
+			for k := range leaves {
+				full := group + "." + section + "." + k
+				if !mapped[full] {
+					keys = append(keys, k)
 				}
 			}
-			out = append(out, wm.Unhonored{Key: "desktop." + section + "." + k, Reason: reason})
+			sort.Strings(keys)
+			for _, k := range keys {
+				reason := "Umbriel has no matching setting for this option."
+				if group == "desktop" && section == "input" {
+					switch k {
+					case "workspaceSwipe", "swipeFingers", "swipeInvert", "swipeCreateNew", "swipeDistance":
+						reason = "Umbriel's touchpad workspace swipe is built in, with no setting for fingers, distance, direction or new workspaces."
+					}
+				}
+				out = append(out, wm.Unhonored{Key: group + "." + section + "." + k, Reason: reason})
+			}
 		}
 	}
 	return out

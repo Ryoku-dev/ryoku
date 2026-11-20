@@ -76,6 +76,8 @@ func inputSettings(store map[string]any) (map[string]map[string]string, []wm.Unh
 		if s == "flat" || s == "adaptive" {
 			put("input.mouse", "accel_profile", quoted(v))
 			put("input.touchpad", "accel_profile", quoted(v))
+		} else if s != "" {
+			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.input.accelProfile", Reason: "Umbriel cannot express the saved acceleration profile."})
 		}
 		mapped["desktop.input.accelProfile"] = true
 	}

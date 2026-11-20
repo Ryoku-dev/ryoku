@@ -98,7 +98,7 @@ func runAct(args []string) error {
 		if at < 0 {
 			return fmt.Errorf("workspace.cycle: no active workspace on the focused output")
 		}
-		if at+n < 0 || at+n >= len(mine) {
+		if n < -at || n >= len(mine)-at {
 			return fmt.Errorf("workspace.cycle: no workspace %d steps away", n)
 		}
 		target := mine[at+n]
@@ -353,7 +353,7 @@ func refreshOutput(args []string) error {
 		}
 		item := wm.OutputLayout{
 			Name: o.Name, Enabled: o.Enabled, Mode: mode, Scale: o.Scale,
-			X: o.Position.X, Y: o.Position.Y,
+			X: o.Position.X, Y: o.Position.Y, Transform: transformOf(o.Transform),
 		}
 		if o.Name == args[0] {
 			found = true

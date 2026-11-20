@@ -72,6 +72,9 @@ func outputsUnhonored(layout []wm.OutputLayout) []wm.Unhonored {
 		if o.VRR {
 			out = append(out, wm.Unhonored{Key: "output." + o.Name + ".vrr", Reason: "Umbriel reports no adaptive sync for this output."})
 		}
+		if o.Transform < 0 || o.Transform > 3 {
+			out = append(out, wm.Unhonored{Key: "output." + o.Name + ".transform", Reason: "Umbriel cannot apply a flipped output transform."})
+		}
 	}
 	return out
 }

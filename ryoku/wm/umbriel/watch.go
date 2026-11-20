@@ -51,8 +51,13 @@ func runWatch() error {
 		case "outputs":
 			if json.Unmarshal(ev.Data, &state.Outputs) == nil {
 				haveOutputs = true
-				if err := emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)}); err != nil {
+				if err := emit(wm.Frame{Kind: wm.FrameOutputs, Outputs: outputsOf(state)}); err != nil {
 					return err
+				}
+				if focus := focusedOutput(state); focus != "" {
+					if err := emit(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: focus}); err != nil {
+						return err
+					}
 				}
 			}
 		case "workspaces":
@@ -70,7 +75,7 @@ func runWatch() error {
 				// the output set, or a workspace-first stream would publish an
 				// empty frame that tells consumers all outputs disappeared.
 				if haveOutputs {
-					if err := emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)}); err != nil {
+					if err := emit(wm.Frame{Kind: wm.FrameOutputs, Outputs: outputsOf(state)}); err != nil {
 						return err
 					}
 				}
