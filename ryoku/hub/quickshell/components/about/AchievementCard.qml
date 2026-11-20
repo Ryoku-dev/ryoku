@@ -49,7 +49,7 @@ Item {
         spacing: 9
         Label {
             width: parent.width
-            text: card.badge.title
+            text: I18n.tr(card.badge.title)
             typeRole: "section"
             wrapMode: Text.Wrap
             elide: Text.ElideRight
@@ -72,7 +72,7 @@ Item {
         y: 167
         width: parent.width - 40
         height: 43
-        text: card.badge.detail
+        text: I18n.tr(card.badge.detail)
         typeRole: "detail"
         inkRole: card.earned ? "fg" : "fg2"
         wrapMode: Text.Wrap

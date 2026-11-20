@@ -17,8 +17,8 @@ Item {
         source: root.artwork ? Qt.resolvedUrl("../../assets/" +
             (root.artwork.indexOf(".") >= 0 ? root.artwork : "stickers/" + root.artwork + ".svg")) : ""
         fillMode: Image.PreserveAspectFit
-        sourceSize.width: 512
-        sourceSize.height: 512
+        sourceSize.width: Math.min(512, Math.max(1, Math.round(root.width * 2)))
+        sourceSize.height: Math.min(512, Math.max(1, Math.round(root.height * 2)))
         asynchronous: true
         mipmap: true
     }

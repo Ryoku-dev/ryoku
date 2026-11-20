@@ -164,6 +164,8 @@ Item {
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
                         source: contributor.modelData.avatar
+                        sourceSize.width: Math.max(1, Math.round(width * 2))
+                        sourceSize.height: Math.max(1, Math.round(height * 2))
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                     }

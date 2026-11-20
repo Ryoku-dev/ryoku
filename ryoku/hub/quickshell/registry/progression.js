@@ -500,9 +500,11 @@ function clean(value) {
     ["days", "customDays", "shopDays", "eveningDays", "signalDays"].forEach(function(kind) {
         dates[kind] = {};
         var raw = source[kind] && typeof source[kind] === "object" ? source[kind] : {};
-        Object.keys(raw).slice(0, 366).forEach(function(day) {
-            if (/^20[0-9]{2}-(0[1-9]|1[0-2])-([012][0-9]|3[01])$/.test(day) &&
-                raw[day] === true) dates[kind][day] = true;
+        Object.keys(raw).filter(function(day) {
+            return /^20[0-9]{2}-(0[1-9]|1[0-2])-([012][0-9]|3[01])$/.test(day) &&
+                raw[day] === true;
+        }).sort().slice(-366).forEach(function(day) {
+            dates[kind][day] = true;
         });
     });
     var featuredHistory = {}, backgroundHistory = {};
@@ -632,7 +634,7 @@ function background(state, id) {
     if (id !== "" && !(id === completionScene.id && completionSceneUnlocked(next)) &&
         (!next.owned[id] || !cosmetic(id) || cosmetic(id).type !== "background"))
         return { state: next, changed: false };
-    if (next.canvas.background === id)
+    if (next.canvas.background === id && !next.canvas.image)
         return { state: next, changed: false };
     next.canvas.background = id;
     next.canvas.image = "";

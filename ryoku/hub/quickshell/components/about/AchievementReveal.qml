@@ -130,7 +130,7 @@ FocusScope {
             }
             Label {
                 width: parent.width
-                text: reveal.badge ? reveal.badge.title : ""
+                text: reveal.badge ? I18n.tr(reveal.badge.title) : ""
                 typeRole: "title"
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap

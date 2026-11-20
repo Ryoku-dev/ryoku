@@ -59,7 +59,7 @@ Column {
             kind: Progression.canvas.background === "" && !Progression.canvas.image ? "gold" : "line"
             small: true
             text: I18n.tr("Original Lithic background")
-            onClicked: Progression.setCustomImage("")
+            onClicked: Progression.setBackground("")
         }
         Plaque {
             kind: Progression.canvas.image ? "gold" : "line"
@@ -91,18 +91,9 @@ Column {
                 required property int index
                 readonly property bool owned: Progression.data.owned[modelData.id] === true
                 readonly property bool active: Progression.canvas.background === modelData.id
-                readonly property color tint: modelData.id === "bg-blueprint" ? "#7395bc" :
-                    modelData.id === "bg-ember" ? "#f1a17e" :
-                    modelData.id === "bg-archive" ? "#cfba96" :
-                    modelData.id === "bg-obsidian" ? "#a1bbc4" :
-                    modelData.id === "bg-sutra" ? "#acd2c1" :
-                    modelData.id === "bg-signal" ? "#76b8df" : "#a3aabc"
-                readonly property color ground: modelData.id === "bg-blueprint" ? "#122437" :
-                    modelData.id === "bg-ember" ? "#2c1c1c" :
-                    modelData.id === "bg-archive" ? "#29241e" :
-                    modelData.id === "bg-obsidian" ? "#11191e" :
-                    modelData.id === "bg-sutra" ? "#1c2524" :
-                    modelData.id === "bg-signal" ? "#13202b" : "#22242b"
+                readonly property color tint: modelData.id === "bg-ember" ||
+                    modelData.id === "bg-archive" ? Lithic.gold : Lithic.lapis
+                readonly property color ground: Lithic.mix(Lithic.ground, tint, 0.07)
                 width: (backdropGallery.width - backdropGallery.columnSpacing * 2) / 3
                 height: 217
 
