@@ -56,7 +56,7 @@ jobs:
                 echo "::error file=$md::broken relative link: $target"
                 status=1
               fi
-            done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
+            done < <(sed -E 's/`[^`]*`//g' "$md" | grep -oE '\]\([^)]+\)' | sed -E 's/^\]\(//; s/\)$//')
           done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**' \
             ':(exclude)ryoku/rashin/internal/skills/sets')
 
