@@ -102,7 +102,7 @@ if [[ -n $input_file ]]; then
   [[ -r $input_file ]] || { notify-send -u critical "$app" "Cannot read image at $input_file"; exit 1; }
   source_img="$input_file"
 else
-  for c in slurp; do need "$c"; done
+  need slurp
   # slurp non-zero is a cancel (Esc); leave quietly.
   geometry="$(slurp 2>/dev/null)" || exit 130
   [[ -n $geometry ]] || exit 0
@@ -151,9 +151,6 @@ if ! $is_qr; then
   fi
 
   psm="6"
-  if (( h > 0 && (h < 50 || w / h > 10) )); then
-    psm="7"
-  fi
 
   magick "$source_img" $upscale -colorspace Gray -contrast-stretch 0.5%x0.5% -sharpen 0x1 -depth 8 "$pnm_tmp"
 
@@ -201,7 +198,6 @@ if ! $is_qr; then
       line[n] = $3 "_" $4 "_" $5
       total_w += $9 + 0
       total_len += length(txt)
-      keep[n] = 1
 
       l = line[n]
       if (!(l in line_first_orig)) {
@@ -212,46 +208,10 @@ if ! $is_qr; then
     END {
       if (n == 0) exit
 
-      # Edge-chopped neighbor fragments on line boundaries
-      delete line_first
-      delete line_last
-      for (i = 1; i <= n; i++) {
-        l = line[i]
-        if (!(l in line_first)) line_first[l] = i
-        line_last[l] = i
-      }
-
-      for (l in line_first) {
-        fi = line_first[l]
-        li = line_last[l]
-
-        if (keep[fi]) {
-          word = words[fi]
-          wlen = length(word)
-          dist_left = left[fi]
-          if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_left <= 10) {
-            keep[fi] = 0
-          }
-        }
-
-        if (keep[li]) {
-          word = words[li]
-          wlen = length(word)
-          dist_right = img_w - (left[li] + w[li])
-          if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_right <= 10) {
-            keep[li] = 0
-          }
-        }
-      }
-
       avg_char_w = (total_len > 0) ? (total_w / total_len) : 10
       out = ""
       cur_line = -1
-      kept_count = 0
-      prev_k = -1
       for (i = 1; i <= n; i++) {
-        if (!keep[i]) continue
-        kept_count++
         if (line[i] != cur_line) {
           if (out != "") out = out "\n"
           cur_line = line[i]
@@ -263,7 +223,7 @@ if ! $is_qr; then
           }
         } else {
           # Preserve multi-space gaps
-          gap = (prev_k != -1) ? (left[i] - (left[prev_k] + w[prev_k])) : 0
+          gap = left[i] - (left[i-1] + w[i-1])
           if (gap >= avg_char_w * 1.8) {
             num_sp = int((gap / avg_char_w) + 0.5)
             for (s = 0; s < num_sp; s++) out = out " "
@@ -272,33 +232,17 @@ if ! $is_qr; then
           }
         }
         out = out words[i]
-        prev_k = i
-      }
-
-      # Safety fallback if all words were pruned
-      if (kept_count == 0) {
-        out = ""
-        cur_line = -1
-        for (i = 1; i <= n; i++) {
-          if (line[i] != cur_line) {
-            if (out != "") out = out "\n"
-            cur_line = line[i]
-          } else {
-            out = out " "
-          }
-          out = out words[i]
-        }
       }
       print out
     }
     ')"
   fi
 
-  if $single_line; then
-    text="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
-  else
-    text="$(printf '%s' "$text" | sed 's/[[:space:]]*$//' | awk 'NF {p=1} p' | awk '/^[[:space:]]*$/ {if (++b <= 1) print ""; next} {b=0; print}')"
-  fi
+  text="$(printf '%s' "$text" | sed 's/[[:space:]]*$//' | awk 'NF {p=1} p' | awk '/^[[:space:]]*$/ {if (++b <= 1) print ""; next} {b=0; print}')"
+fi
+
+if $single_line; then
+  text="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
 fi
 
 if [[ -z ${text//[[:space:]]/} ]]; then
