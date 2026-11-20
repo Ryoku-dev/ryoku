@@ -253,7 +253,17 @@ fi
 is_url=false
 url_target=""
 if [[ $text =~ ^(https?://[^[:space:]]+|www\.[^[:space:]]+)$ ]]; then
-  clean_url="$(sed -E 's/[.,;:!?)>"'\''\x60]+$//' <<< "$text")"
+  clean_url="$(sed -E 's/[.,;:!?>"'\''\x60]+$//' <<< "$text")"
+  while [[ $clean_url == *")" ]]; do
+    open_count="$(grep -o '(' <<< "$clean_url" | wc -l)"
+    close_count="$(grep -o ')' <<< "$clean_url" | wc -l)"
+    if (( close_count > open_count )); then
+      clean_url="${clean_url%)}"
+      clean_url="$(sed -E 's/[.,;:!?>"'\''\x60]+$//' <<< "$clean_url")"
+    else
+      break
+    fi
+  done
   if [[ $clean_url =~ ^www\. ]]; then
     url_target="https://$clean_url"
   else
@@ -297,6 +307,14 @@ copy_to_clip() {
 
 copy_to_clip "$text"
 
+escape_markup() {
+  local s="$1"
+  s="${s//&/&amp;}"
+  s="${s//</&lt;}"
+  s="${s//>/&gt;}"
+  printf '%s' "$s"
+}
+
 preview="$(printf '%s' "$text" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
 if (( ${#preview} > 110 )); then
   preview_body="${preview:0:110}..."
@@ -314,6 +332,9 @@ elif $is_color; then
   notif_title="Color Copied"
   preview_body="$text"
 fi
+
+preview_body="$(escape_markup "$preview_body")"
+notif_title="$(escape_markup "$notif_title")"
 
 (
   action_args=()
@@ -334,7 +355,7 @@ fi
       ;;
     copy_ans)
       copy_to_clip "$math_result"
-      notify-send -u low "Answer Copied" "$math_result" -t 2000 2>/dev/null || true
+      notify-send -u low "Answer Copied" "$(escape_markup "$math_result")" -t 2000 2>/dev/null || true
       ;;
     search)
       q=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$text" 2>/dev/null || true)
