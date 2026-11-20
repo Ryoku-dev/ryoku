@@ -180,7 +180,7 @@ fi
 
 if ! $is_qr; then
   if $raw_mode; then
-    text="$(printf '%s' "$tsv_data" | awk -F'\t' '$1 == "5" {k = $3 "_" $4 "_" $5; printf "%s%s", (line != "" && line != k ? "\n" : (NR > 2 ? " " : "")), $12; line = k} END {print ""}')"
+    text="$(printf '%s' "$tsv_data" | awk -F'\t' '$1 == "5" {k = $3 "_" $4 "_" $5; printf "%s%s", (line == "" ? "" : (line != k ? "\n" : " ")), $12; line = k} END {print ""}')"
   else
     text="$(printf '%s' "$tsv_data" | awk -F'\t' '
     NR == 2 && $1 == "1" {
@@ -229,9 +229,6 @@ if ! $is_qr; then
           word = words[fi]
           wlen = length(word)
           dist_left = left[fi]
-          if (dist_left <= 5 && wlen <= 2 && !(word ~ /^(a|A|I|[0-9])$/)) {
-            keep[fi] = 0
-          }
           if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_left <= 10) {
             keep[fi] = 0
           }
@@ -241,9 +238,6 @@ if ! $is_qr; then
           word = words[li]
           wlen = length(word)
           dist_right = img_w - (left[li] + w[li])
-          if (dist_right <= 5 && wlen <= 2 && !(word ~ /^(a|A|I|[0-9])$/)) {
-            keep[li] = 0
-          }
           if (wlen == 1 && word ~ /^[|_\/~\\:;,-]$/ && dist_right <= 10) {
             keep[li] = 0
           }
@@ -254,6 +248,7 @@ if ! $is_qr; then
       out = ""
       cur_line = -1
       kept_count = 0
+      prev_k = -1
       for (i = 1; i <= n; i++) {
         if (!keep[i]) continue
         kept_count++
@@ -268,7 +263,7 @@ if ! $is_qr; then
           }
         } else {
           # Preserve multi-space gaps
-          gap = left[i] - (left[i-1] + w[i-1])
+          gap = (prev_k != -1) ? (left[i] - (left[prev_k] + w[prev_k])) : 0
           if (gap >= avg_char_w * 1.8) {
             num_sp = int((gap / avg_char_w) + 0.5)
             for (s = 0; s < num_sp; s++) out = out " "
@@ -277,6 +272,7 @@ if ! $is_qr; then
           }
         }
         out = out words[i]
+        prev_k = i
       }
 
       # Safety fallback if all words were pruned
