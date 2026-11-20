@@ -678,6 +678,7 @@ Item {
         readonly property bool ready: level.moduleId === "brightness" ? Boolean(root.monitor?.ready) && Number.isFinite(level.brightness)
             : level.moduleId === "microphone" ? Audio.source !== null : true
         vertical: level.height > level.width
+        wheelStep: level.moduleId === "volume" ? Audio.volumeStep / 100 : 0.05
         readout: level.ready && level.span >= Math.round(96 * root.d)
         fillColor: IrisControlOptions.accentSliders ? IrisStyle.accent : IrisStyle.fillStrong
         cornerCap: level.thickness / 2

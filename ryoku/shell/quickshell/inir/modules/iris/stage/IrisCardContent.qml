@@ -305,6 +305,7 @@ Item {
             icon: level.input ? (level.muted ? "mic_off" : "mic")
                 : level.muted ? "volume_off" : level.value < 0.34 ? "volume_mute" : level.value < 0.67 ? "volume_down" : "volume_up"
             value: level.value
+            wheelStep: level.input ? 0.05 : Audio.volumeStep / 100
             Accessible.name: level.input ? Translation.tr("Microphone") : Translation.tr("Volume")
             onMoved: next => level.input ? Audio.setSourceVolume(next) : Audio.setSinkVolume(next)
             onIconClicked: level.input ? Audio.toggleMicMute() : Audio.toggleMute()

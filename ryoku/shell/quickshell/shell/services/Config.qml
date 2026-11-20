@@ -60,6 +60,7 @@ Singleton {
     property alias barStyle: adapter.barStyle
     property alias notifications: adapter.notifications
     readonly property var sounds: adapter.sounds
+    property alias audio: adapter.audio
     readonly property var themeSizing: adapter.theme?.attributes?.sizing ?? ({})
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
@@ -383,6 +384,7 @@ Singleton {
                 "show_images": false
             })
             property var sounds: ({})
+            property var audio: ({ "volumeStep": 5 })
             property string barStyle: "orpheus"
             property string launcherTarget: "studio"
             property var obi: ({})

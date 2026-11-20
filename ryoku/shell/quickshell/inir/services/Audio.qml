@@ -17,6 +17,7 @@ Singleton {
     // Misc props
     property bool ready: sink?.ready ?? rawSink?.ready ?? false
     readonly property PwNode rawSink: Pipewire.defaultAudioSink
+    readonly property int volumeStep: Ryoku.Audio.volumeStep
     property PwNode _pendingSink: null
     readonly property PwNode defaultSink: root._pendingSink ?? rawSink
     property PwNode sink: root._pendingSink ?? root.resolveControllableSink(rawSink)
@@ -344,15 +345,19 @@ Singleton {
     function incrementVolume() {
         root.lastUserChange = Date.now()
         // Fire wpctl relative increment first — works even when sink?.audio is not yet tracked.
-        if (!wpctlIncrementSinkVolume.running)
+        if (!wpctlIncrementSinkVolume.running) {
+            wpctlIncrementSinkVolume.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", String(root.volumeStep) + "%+"]
             wpctlIncrementSinkVolume.running = true
+        }
     }
 
     function decrementVolume() {
         root.lastUserChange = Date.now()
         // Fire wpctl relative decrement first — works even when sink?.audio is not yet tracked.
-        if (!wpctlDecrementSinkVolume.running)
+        if (!wpctlDecrementSinkVolume.running) {
+            wpctlDecrementSinkVolume.command = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", String(root.volumeStep) + "%-"]
             wpctlDecrementSinkVolume.running = true
+        }
     }
 
     function setDefaultNode(node, isSink: bool): void {

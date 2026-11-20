@@ -521,7 +521,7 @@ func TestMalformedFileFirstLoad(t *testing.T) {
 		}
 		for _, k := range []string{
 			"deckFrostEnabled", "deckFrost", "showJapaneseGloss", "general", "theme", "bars", "menus",
-			"notifications", "wallpaper", "ask", "controls", "batteryAlerts",
+			"notifications", "wallpaper", "ask", "controls", "batteryAlerts", "audio",
 		} {
 			if _, ok := s.raw[k]; !ok {
 				t.Fatalf("first-load fallback missing schema root %q", k)

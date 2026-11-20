@@ -15,6 +15,7 @@ Item {
     property bool vertical: false
     property color fillColor: IrisStyle.fillStrong
     property bool readout: false
+    property real wheelStep: 0.05
     property real cornerCap: IrisStyle.radiusSheet
     signal moved(real value)
     signal iconClicked()
@@ -113,7 +114,7 @@ Item {
             const steps = Math.trunc(pointer.wheelAccumulator / 120)
             if (steps === 0) return
             pointer.wheelAccumulator -= steps * 120
-            root.moved(Math.max(0, Math.min(1, root.value + steps * 0.05)))
+            root.moved(Math.max(0, Math.min(1, root.value + steps * root.wheelStep)))
         }
     }
 

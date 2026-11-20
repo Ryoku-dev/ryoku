@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	wm "ryoku-wm"
@@ -14,8 +16,8 @@ import (
 // verbs. Each mirrors one reference control method (menu <name> / close-all,
 // per-edge bar toggle and the toggle/reveal/hide-all trio, audio
 // volume-up/down/mute, brightness up/down, lock check, settings open/close).
-// The volume and brightness steps are the reference literals: 5% of the [0,1]
-// output-volume range and 5 of the [0,100] brightness range.
+// Brightness keeps its reference step of 5 on the [0,100] range. Output volume
+// uses the shared ryoku-volume helper so every surface reads the same setting.
 
 // barEdges are the four frame edges plus "all". The reference offered per-edge
 // toggles and a toggle/reveal/hide-all trio whose -x flag excluded bars marked
@@ -36,18 +38,16 @@ func parseBarEdge(args []string) (edge, action string, ok bool) {
 	return args[0], args[1], true
 }
 
-// audioArgv maps an audio subcommand to the wpctl invocation that carries it
-// out: up/down step 5% of the sink volume, up clamps at 1.0 (100%) to match the
-// reference's [0,1] clamp, and mute toggles. These match the media-key binds, so
-// the keybind and the IPC verb drive one behaviour.
+// audioArgv validates audio subcommands and returns the shared command for each.
+// Volume steps go through ryoku-volume so every surface reads the same setting.
 func audioArgv(sub string) ([]string, bool) {
 	switch sub {
 	case "up":
-		return []string{"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"}, true
+		return []string{"ryoku-volume", "up"}, true
 	case "down":
-		return []string{"set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"}, true
+		return []string{"ryoku-volume", "down"}, true
 	case "mute":
-		return []string{"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}, true
+		return []string{"wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"}, true
 	}
 	return nil, false
 }
@@ -76,7 +76,24 @@ func (d *daemon) audio(sub string) string {
 	// The output cue fires for every up/down/mute, even when the sink change
 	// itself fails; input volume/mute have no verb here and stay silent.
 	d.playSound(soundVolumeChange)
-	if err := exec.Command("wpctl", argv...).Run(); err != nil {
+	if err := exec.Command(argv[0], argv[1:]...).Run(); err != nil {
+		return "err audio: " + err.Error()
+	}
+	return "ok"
+}
+
+// setAudioStep persists the shared volume increment through the settings
+// daemon, the sole writer of shell.json. It changes only future volume steps.
+func (d *daemon) setAudioStep(raw string) string {
+	step, err := strconv.Atoi(raw)
+	if err != nil || step < 1 || step > 20 {
+		return "err audio: volume step must be an integer from 1 to 20"
+	}
+	if d.settings == nil {
+		return "err audio: settings are not ready"
+	}
+	value, _ := json.Marshal(step)
+	if err := d.settings.patch("audio.volumeStep", value); err != nil {
 		return "err audio: " + err.Error()
 	}
 	return "ok"

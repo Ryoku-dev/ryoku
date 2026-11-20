@@ -74,7 +74,7 @@ Item {
     function stepVolume(steps) {
         if (!sinkAudio || steps === 0)
             return;
-        sinkAudio.volume = Math.max(0, Math.min(1, volume + steps * 0.05));
+        sinkAudio.volume = Math.max(0, Math.min(1, volume + steps * Audio.volumeStep / 100));
     }
 
     function hit(item, pointX) {

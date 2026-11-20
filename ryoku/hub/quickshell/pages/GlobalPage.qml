@@ -3,6 +3,7 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import ".."
+import "../Singletons"
 import "../schema/GlobalPage.js" as GlobalSchema
 import "users" as Users
 
@@ -28,6 +29,7 @@ Item {
             if (key && pg.hub.defs[key] !== undefined)
                 pg.hub.edit(key, JSON.parse(JSON.stringify(pg.hub.defs[key])));
         }
+        Settings.reset("audio.volumeStep");
     }
 
     // Installed font families, read live so both font drawers offer exactly what

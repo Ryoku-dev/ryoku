@@ -55,6 +55,7 @@ var contractKeys = map[string]bool{
 	"phone":             true,
 	"controls":          true,
 	"batteryAlerts":     true,
+	"audio":             true,
 	"sounds":            true,
 	"gamebar":           true,
 }
@@ -138,6 +139,7 @@ type settings struct {
 	Phone             phoneSettings         `json:"phone"`
 	Controls          controlsSettings      `json:"controls"`
 	BatteryAlerts     batteryAlertsSettings `json:"batteryAlerts"`
+	Audio             audioSettings         `json:"audio"`
 	Sounds            soundsSettings        `json:"sounds"`
 	GameBar           gameBarSettings       `json:"gamebar"`
 }
@@ -174,6 +176,16 @@ type generalSettings struct {
 	ClockFormat24H       bool          `json:"clock_format_24_h"`
 	WeatherLocationQuery locationQuery `json:"weather_location_query"`
 	TemperatureUnit      string        `json:"temperature_unit"`
+}
+
+// audioSettings are global output controls shared by every shell surface and
+// compositor binding, rather than a preference owned by one bar style.
+type audioSettings struct {
+	VolumeStep int `json:"volumeStep"`
+}
+
+func (a *audioSettings) normalize(v *validator) {
+	v.rangeI("audio.volumeStep", &a.VolumeStep, 1, 20)
 }
 
 // locationQuery is the reference's tagged Coordinates|City union flattened to one
@@ -508,6 +520,7 @@ func defaultSettings() *settings {
 			Hidden:   []string{},
 		},
 		BatteryAlerts: batteryAlertsSettings{Enabled: true, WarningEnabled: true, CriticalEnabled: true, WarningPercent: 25, CriticalPercent: 10},
+		Audio:         audioSettings{VolumeStep: 5},
 		Sounds:        defaultSoundsSettings(),
 		GameBar: gameBarSettings{
 			Enabled:         true,
@@ -618,6 +631,7 @@ func (s *settings) normalize(strict bool) error {
 	s.Phone.normalize(v)
 	s.Controls.normalize(v)
 	s.BatteryAlerts.normalize(v)
+	s.Audio.normalize(v)
 	s.Sounds.normalize(v)
 	s.GameBar.normalize(v)
 	return v.err
@@ -1063,6 +1077,7 @@ func buildSettings(raw map[string]any, strict bool) (*settings, error) {
 		"phone":             &s.Phone,
 		"controls":          &s.Controls,
 		"batteryAlerts":     &s.BatteryAlerts,
+		"audio":             &s.Audio,
 		"sounds":            &s.Sounds,
 		"gamebar":           &s.GameBar,
 	}

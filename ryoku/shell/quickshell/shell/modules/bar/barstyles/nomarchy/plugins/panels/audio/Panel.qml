@@ -662,7 +662,7 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      var volume = root.setOutputVolume(root.outputVolume + wheel.steps * 0.05)
+      var volume = root.setOutputVolume(root.outputVolume + wheel.steps * Ryoku.Audio.volumeStep / 100)
       root.showVolumeOsd(volume)
     }
   }
@@ -683,7 +683,10 @@ Panel {
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         if (dy !== 0) root.moveCursor(dy)
-        else if (dx !== 0) root.adjustVolume(dx * 0.05)
+        else if (dx !== 0) {
+          var step = root.focusSection === "output" ? Ryoku.Audio.volumeStep : 5
+          root.adjustVolume(dx * step / 100)
+        }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()

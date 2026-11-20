@@ -868,7 +868,7 @@ Item {
         } else if (level === "mic") {
             Audio.setSourceVolume(Math.max(0, Math.min(1, (Audio.micVolume ?? 0) + steps * 0.05)))
         } else {
-            Audio.setSinkVolume(Math.max(0, Math.min(Math.max(1, Audio.ceiling), (Audio.value ?? 0) + steps * 0.05)))
+            Audio.setSinkVolume(Math.max(0, Math.min(Math.max(1, Audio.ceiling), (Audio.value ?? 0) + steps * Audio.volumeStep / 100)))
         }
     }
     function applyWheel(event): void {

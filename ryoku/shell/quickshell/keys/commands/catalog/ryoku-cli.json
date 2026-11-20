@@ -3653,7 +3653,7 @@
       "group": "ryoku-audio",
       "title": "Raise output volume",
       "command": "ryoku-shell audio up",
-      "description": "Raises the default output volume by the shell's standard step.",
+      "description": "Raises the default output volume by the shared key step configured in Ryoku Hub > General > Sounds.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -3667,7 +3667,21 @@
       "group": "ryoku-audio",
       "title": "Lower output volume",
       "command": "ryoku-shell audio down",
-      "description": "Lowers the default output volume by the shell's standard step.",
+      "description": "Lowers the default output volume by the shared key step configured in Ryoku Hub > General > Sounds.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.audio.set-step",
+      "group": "ryoku-audio",
+      "title": "Set the volume key step",
+      "command": "ryoku-shell audio set-step <1-20>",
+      "description": "Saves the shared volume key step in Ryoku settings without changing the current output volume.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [

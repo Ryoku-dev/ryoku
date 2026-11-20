@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **Volume key steps are configurable in General > Sounds.** The value saves
+  immediately across bars, docks and shell controls, and its revert button
+  restores the default 5% step (`pages/SoundsSettings.qml`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed

@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- `audio/ryoku-volume`: **the shared output-volume step is configurable.** The
+  helper reads the Hub's 1-20% setting, keeps the existing five-point curve by
+  default, and saves changes through `ryoku-shell`. Covered by
+  `tests/ryoku-volume.sh`.
 - `bluetooth/ryoku-bt-agent`: **the pairing agent no longer floods the journal
   (#869).** The agent unit ran an interactive `bluetoothctl`, so every
   advertising packet from every nearby device during a scan became a journal

@@ -25,6 +25,11 @@ Column {
         var v = Settings.get("sounds.volume");
         return typeof v === "number" ? Math.max(0, Math.min(100, Math.round(v))) : 100;
     }
+    readonly property int volumeStep: {
+        Settings.revision;
+        var v = Settings.get("audio.volumeStep");
+        return typeof v === "number" ? Math.max(1, Math.min(20, Math.round(v))) : 5;
+    }
     // the slider's own value while it is dragged, written once it rests
     property int pendingVolume: -1
 
@@ -104,6 +109,32 @@ Column {
                     root.pendingVolume = Math.round(v);
                     volumeSettle.restart();
                 }
+            }
+        }
+
+        SettingRow {
+            width: parent.width
+            divider: true
+            label: I18n.tr("Volume key step")
+            desc: root.feedback !== "" ? root.feedback
+                : I18n.tr("Saves immediately. Use the revert arrow to restore 5%. Sets discrete output-volume controls across bars, docks, shell surfaces and media keys.")
+            value: String(root.volumeStep)
+            unit: "%"
+            def: "5"
+            changed: root.volumeStep !== 5
+            controlWidth: 78
+            enabled: Settings.ready
+            onResetRequested: Settings.reset("audio.volumeStep", function(ok, error) {
+                root.feedback = ok ? "" : I18n.tr(error);
+            })
+            Step {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                from: 1
+                to: 20
+                stepBy: 1
+                value: root.volumeStep
+                onModified: v => root.save("audio.volumeStep", Math.round(v))
             }
         }
     }

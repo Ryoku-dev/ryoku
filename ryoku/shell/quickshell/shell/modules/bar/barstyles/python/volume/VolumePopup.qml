@@ -6,6 +6,7 @@ import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
+import shell.services as Ryoku
 import "../"
 import "../reusables"
 
@@ -402,7 +403,8 @@ Item {
                                 }
                                 onWheel: (wheel) => {
                                     if (!window.activeNode) return;
-                                    let delta = wheel.angleDelta.y > 0 ? 5 : -5;
+                                    let step = window.activeTab === "outputs" ? Ryoku.Audio.volumeStep : 5;
+                                    let delta = (wheel.angleDelta.y > 0 ? 1 : -1) * step;
                                     let newVol = Math.max(0, Math.min(100, window.activeVol + delta));
                                     if (newVol > 0 && window.activeMute) {
                                         Audio.toggleMute(window.activeNode);
