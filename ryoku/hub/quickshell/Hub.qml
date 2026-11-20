@@ -22,6 +22,28 @@ import "KeepsakeSequence.js" as Keepsake
 FocusScope {
     id: hub
     Binding { target: Badge; property: "settingsOpen"; value: hub.visible }
+    Rectangle {
+        z: 1600
+        visible: Progression.error !== ""
+        anchors.top: parent.top
+        anchors.topMargin: LithicTokens.space.s3
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.max(0, Math.min(640, parent.width - 32))
+        height: Math.max(48, progressionWarning.implicitHeight + 24)
+        color: Lithic.mix(Lithic.ground, Lithic.gold, 0.15)
+        border.color: Lithic.gold
+        border.width: 1
+        Label {
+            id: progressionWarning
+            anchors.fill: parent
+            anchors.margins: 12
+            text: I18n.tr(Progression.error)
+            typeRole: "detail"
+            wrapMode: Text.Wrap
+            elide: Text.ElideNone
+        }
+    }
+
     // an online card's custom picture is published from a fresh still of the card, rendered here
     CardShare {
         id: badgeCapture

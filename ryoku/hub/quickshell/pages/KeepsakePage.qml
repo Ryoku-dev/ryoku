@@ -9,7 +9,8 @@ Item {
     readonly property bool fullBleed: true
     property real reveal: 0
     Component.onCompleted: {
-        enter.start();
+        if (Lithic.reduceMotion) pg.reveal = 1;
+        else enter.start();
         Qt.callLater(() => scroll.contentY = 0);
     }
 
@@ -95,19 +96,19 @@ Item {
             opacity: pg.reveal
 
             Label {
-                text: "RYOKU / KEEPSAKE 01"
+                text: I18n.tr("RYOKU / KEEPSAKE 01")
                 typeRole: "mono"
                 ink: Lithic.gold
             }
             Label {
                 width: parent.width
-                text: "The Human Side of Ryoku"
+                text: I18n.tr("The Human Side of Ryoku")
                 typeRole: "title"
                 wrapMode: Text.Wrap
                 elide: Text.ElideNone
             }
             Label {
-                text: "Behind every line of code, there was a person."
+                text: I18n.tr("Behind every line of code, there was a person.")
                 typeRole: "detail"
                 inkRole: "fg2"
             }
@@ -117,12 +118,12 @@ Item {
                 color: Lithic.mix(Lithic.gold, Lithic.ground, 0.4)
             }
             Label {
-                text: "How Ryoku on NixOS was made"
+                text: I18n.tr("How Ryoku on NixOS was made")
                 typeRole: "section"
             }
             Text {
                 width: parent.width
-                text: pg.beginning
+                text: I18n.tr(pg.beginning)
                 color: Lithic.fg2
                 font.pixelSize: 13
                 font.weight: Font.Normal
@@ -130,12 +131,12 @@ Item {
                 wrapMode: Text.WordWrap
             }
             Label {
-                text: "The people behind Ryoku on NixOS"
+                text: I18n.tr("The people behind Ryoku on NixOS")
                 typeRole: "section"
             }
             Label {
                 width: parent.width
-                text: pg.people
+                text: I18n.tr(pg.people)
                 typeRole: "detail"
                 inkRole: "fg2"
                 wrapMode: Text.Wrap
@@ -175,14 +176,14 @@ Item {
                         width: Math.max(20, parent.width - 126)
                         spacing: 8
                         Label {
-                            text: contributor.modelData.name + "  /  " + contributor.modelData.role
+                            text: contributor.modelData.name + "  /  " + I18n.tr(contributor.modelData.role)
                             typeRole: "mono"
                             ink: Lithic.gold
                         }
                         Text {
                             id: quote
                             width: parent.width
-                            text: "“" + contributor.modelData.quote + "”"
+                            text: "“" + I18n.tr(contributor.modelData.quote) + "”"
                             color: Lithic.fg
                             font.pixelSize: 15
                             font.italic: true
@@ -193,13 +194,13 @@ Item {
                 }
             }
             Label {
-                text: "A note to you"
+                text: I18n.tr("A note to you")
                 typeRole: "section"
                 ink: Lithic.gold
             }
             Text {
                 width: parent.width
-                text: pg.letter
+                text: I18n.tr(pg.letter)
                 color: Lithic.fg
                 font.pixelSize: 16
                 font.italic: true
@@ -207,7 +208,7 @@ Item {
                 wrapMode: Text.WordWrap
             }
             Label {
-                text: "EARLY ADOPTERS"
+                text: I18n.tr("EARLY ADOPTERS")
                 typeRole: "mono"
                 ink: Lithic.gold
             }
@@ -235,7 +236,7 @@ Item {
                 }
             }
             Label {
-                text: "ESC TO RETURN"
+                text: I18n.tr("ESC TO RETURN")
                 typeRole: "monoSm"
                 inkRole: "fg2"
             }

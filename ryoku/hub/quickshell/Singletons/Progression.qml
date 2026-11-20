@@ -11,6 +11,8 @@ Singleton {
     readonly property string directory: (Quickshell.env("XDG_DATA_HOME") ||
         ((Quickshell.env("HOME") || "") + "/.local/share")) + "/ryoku"
     property var data: Model.clean({})
+    property var lastRead: Model.clean({})
+    property bool saveBlocked: false
     property bool ready: false
     property bool directoryReady: false
     property string error: ""
@@ -59,8 +61,10 @@ Singleton {
         onFileChanged: reload()
         onLoaded: {
             try {
-                root.data = Model.clean(JSON.parse(text()));
-                root.error = "";
+                var loaded = Model.clean(JSON.parse(text()));
+                root.lastRead = loaded;
+                root.data = loaded;
+                if (!root.saveBlocked) root.error = "";
             } catch (e) {
                 root.error = "Progression data is invalid. Restore it before continuing.";
             }
@@ -72,11 +76,17 @@ Singleton {
                 return;
             if (!root.ready && loadError === FileViewError.FileNotFound) {
                 root.data = Model.clean({});
+                root.lastRead = root.data;
                 root.ready = true;
                 root.flushPending();
             } else {
                 root.error = "Could not load progression data. The existing save has not been changed.";
             }
+        }
+        onSaveFailed: (saveError) => {
+            root.saveBlocked = true;
+            root.data = root.lastRead;
+            root.error = "Could not save progression data. Check disk space and permissions, then restart Ryoku Settings.";
         }
     }
 
