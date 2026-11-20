@@ -69,6 +69,9 @@ func runAct(args []string) error {
 				break
 			}
 		}
+		if at < 0 {
+			return fmt.Errorf("workspace.cycle: no active workspace")
+		}
 		if at+n < 0 || at+n >= len(ws) {
 			return fmt.Errorf("workspace.cycle: no workspace %d steps away", n)
 		}
@@ -182,6 +185,20 @@ func touchpadAction(args []string) error {
 		}
 		return nil
 	case "restore":
+		// A caller that saved `status` can pass that value back so a temporary
+		// change cannot leave the pad in the wrong state after a restore.
+		if len(args) > 1 {
+			switch args[1] {
+			case "on":
+				current = true
+			case "off":
+				current = false
+			default:
+				return fmt.Errorf("input.touchpad: restore state must be on|off, got %q", args[1])
+			}
+			body := fmt.Sprintf("# Written by ryoku wm act input.touchpad. Do not edit.\n[input.touchpad]\nenabled = %t\n", current)
+			return os.WriteFile(path, []byte(body), 0o644)
+		}
 		return nil
 	case "on":
 		current = true

@@ -152,11 +152,20 @@ func renderBinds(rebinds map[string]string, disabled []string) (string, []wm.Unh
 			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.keybindRebinds." + from, Reason: "Umbriel cannot express this chord, or the new chord does not match the old one's key."})
 			continue
 		}
+		// A family is one row in the Hub, so a single collision rejects the
+		// whole rebind rather than silently remapping its other members.
+		collides := false
 		for i := range froms {
 			if tos[i] != froms[i] && (base[tos[i]] || claimed[tos[i]]) {
-				unhonored = append(unhonored, wm.Unhonored{Key: "desktop.keybindRebinds." + from, Reason: "That chord is already bound on Umbriel."})
-				continue
+				collides = true
+				break
 			}
+		}
+		if collides {
+			unhonored = append(unhonored, wm.Unhonored{Key: "desktop.keybindRebinds." + from, Reason: "That chord is already bound on Umbriel."})
+			continue
+		}
+		for i := range froms {
 			remap[froms[i]] = tos[i]
 			claimed[tos[i]] = true
 		}

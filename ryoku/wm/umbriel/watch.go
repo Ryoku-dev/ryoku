@@ -23,6 +23,7 @@ func runWatch() error {
 	defer conn.Close()
 
 	var state uState
+	haveOutputs := false
 	reader := bufio.NewReader(conn)
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -39,31 +40,51 @@ func runWatch() error {
 		switch ev.Event {
 		case "outputs":
 			if json.Unmarshal(ev.Data, &state.Outputs) == nil {
-				emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)})
+				haveOutputs = true
+				if err := emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)}); err != nil {
+					return err
+				}
 			}
 		case "workspaces":
 			if json.Unmarshal(ev.Data, &state.Workspaces) == nil {
-				emit(wm.Frame{Kind: wm.FrameWorkspaces, Workspaces: workspacesOf(state)})
-				// Refresh outputs too: their active-workspace field is published as
-				// a display name derived from this workspace list.
-				emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)})
+				if err := emit(wm.Frame{Kind: wm.FrameWorkspaces, Workspaces: workspacesOf(state)}); err != nil {
+					return err
+				}
+				// Outputs carry their active workspace as a name resolved from
+				// this list. Refresh them only once an outputs event has supplied
+				// the output set, or a workspace-first stream would publish an
+				// empty frame that tells consumers all outputs disappeared.
+				if haveOutputs {
+					if err := emit(wm.Frame{Kind: wm.FrameOutputs, FocusedOutput: focusedOutput(state), Outputs: outputsOf(state)}); err != nil {
+						return err
+					}
+				}
 			}
 		case "windows":
 			if json.Unmarshal(ev.Data, &state.Windows) == nil {
-				emit(wm.Frame{Kind: wm.FrameWindows, Windows: windowsOf(state)})
+				if err := emit(wm.Frame{Kind: wm.FrameWindows, Windows: windowsOf(state)}); err != nil {
+					return err
+				}
 			}
 		case "overview":
 			var o struct {
 				Open bool `json:"open"`
 			}
 			if json.Unmarshal(ev.Data, &o) == nil {
-				emit(wm.Frame{Kind: wm.FrameOverview, OverviewOpen: o.Open})
+				if err := emit(wm.Frame{Kind: wm.FrameOverview, OverviewOpen: o.Open}); err != nil {
+					return err
+				}
 			}
 		}
 	}
 }
 
-func emit(f wm.Frame) {
-	_ = json.NewEncoder(stdout).Encode(f)
-	_ = stdout.Flush()
+// emit writes one frame. A failed write or flush means the consumer went away,
+// so return the error and let runWatch stop reading compositor events instead
+// of spinning on a pipe nobody reads.
+func emit(f wm.Frame) error {
+	if err := json.NewEncoder(stdout).Encode(f); err != nil {
+		return err
+	}
+	return stdout.Flush()
 }

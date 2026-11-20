@@ -36,6 +36,8 @@ package() {
       "$unit/ryoku-bootstrap.conf"
     install -Dm644 "$_repo/ryoku/shell/systemd/user/umbriel.service.d/ryoku-session.conf" \
       "$unit/ryoku-session.conf"
+    install -Dm644 "$_repo/ryoku/shell/systemd/user/umbriel.service.d/ryoku-wm-env.conf" \
+      "$unit/ryoku-wm-env.conf"
   fi
 }
 

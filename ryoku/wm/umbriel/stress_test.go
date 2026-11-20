@@ -186,3 +186,33 @@ func TestWrongTypesAreDropped(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeModeRejectsNonFinite(t *testing.T) {
+	for _, mode := range []string{"1920x1080@NaN", "1920x1080@+Inf", "1920x1080@Inf", "1920x1080@-Inf"} {
+		if got := normalizeMode(mode); got != "" {
+			t.Fatalf("normalizeMode(%q) = %q, want empty", mode, got)
+		}
+	}
+}
+
+func TestUnconsumedLeavesReported(t *testing.T) {
+	store := map[string]any{"desktop": map[string]any{
+		"input":  map[string]any{"swipeInvert": true, "sensitivity": 0.0},
+		"cursor": map[string]any{"size": 24.0},
+	}}
+	mapped := map[string]bool{"desktop.input.sensitivity": true}
+	rows := unconsumedLeaves(store, mapped)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 unhonoured rows, got %+v", rows)
+	}
+	keys := map[string]bool{}
+	for _, r := range rows {
+		keys[r.Key] = true
+		if r.Reason == "" {
+			t.Fatalf("empty reason for %q", r.Key)
+		}
+	}
+	if !keys["desktop.input.swipeInvert"] || !keys["desktop.cursor.size"] {
+		t.Fatalf("missing expected keys: %+v", keys)
+	}
+}

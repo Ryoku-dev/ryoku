@@ -68,9 +68,6 @@ radius = 3
 # ==============================================================================
 # Input
 # ==============================================================================
-[input.keyboard]
-numlock_toggle = true
-
 # Leave focus-follows-mouse at Umbriel's default: the launcher suppresses it
 # through the seam on compositors that can do that live.
 

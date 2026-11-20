@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -117,7 +118,7 @@ func normalizeMode(mode string) string {
 		return parts[0]
 	}
 	hz, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil || hz <= 0 {
+	if err != nil || hz <= 0 || math.IsNaN(hz) || math.IsInf(hz, 0) {
 		return ""
 	}
 	if hz > 1000 {
