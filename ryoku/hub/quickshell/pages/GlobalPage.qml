@@ -3,6 +3,7 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import ".."
+import "../Singletons"
 import "../schema/GlobalPage.js" as GlobalSchema
 import "users" as Users
 

@@ -683,7 +683,10 @@ Panel {
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         if (dy !== 0) root.moveCursor(dy)
-        else if (dx !== 0) root.adjustVolume(dx * Ryoku.Audio.volumeStep / 100)
+        else if (dx !== 0) {
+          var step = root.focusSection === "output" ? Ryoku.Audio.volumeStep : 5
+          root.adjustVolume(dx * step / 100)
+        }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.close()

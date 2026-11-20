@@ -140,7 +140,15 @@ fi
 
 # Nomarchy has no headless QML runtime test, so pin its keyboard path to the
 # shared setting alongside the helper's executable behavior tests above.
-grep -Eq 'root\.adjustVolume\(dx[[:space:]]*\*[[:space:]]*Ryoku\.Audio\.volumeStep[[:space:]]*/[[:space:]]*100\)' "$nomarchy" \
-	|| fail 'Nomarchy keyboard volume adjustment is not using the shared step'
+grep -Eq 'root\.focusSection[[:space:]]*===[[:space:]]*"output"[[:space:]]*\?[[:space:]]*Ryoku\.Audio\.volumeStep[[:space:]]*:[[:space:]]*5' "$nomarchy" \
+	|| fail 'Nomarchy keyboard adjustment must use the shared step only for output rows'
 
-echo 'ryoku-volume-test: helper behavior and bar keyboard step passed'
+python_popup="$repo_root/ryoku/shell/quickshell/shell/modules/bar/barstyles/python/volume/VolumePopup.qml"
+grep -Eq 'window\.activeTab[[:space:]]*===[[:space:]]*"outputs"[[:space:]]*\?[[:space:]]*Ryoku\.Audio\.volumeStep[[:space:]]*:[[:space:]]*5' "$python_popup" \
+	|| fail 'Python volume popup must use the shared step only for output controls'
+
+global_page="$repo_root/ryoku/hub/quickshell/pages/GlobalPage.qml"
+grep -Fqx 'import "../Singletons"' "$global_page" \
+	|| fail 'Hub Global page must import the Settings singleton used by resetDefaults'
+
+echo 'ryoku-volume-test: helper behavior and volume settings paths passed'
