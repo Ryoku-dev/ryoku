@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Volume key steps can be changed across bars, docks and shell controls.** Set
+  the shared 1–20% step in Hub > General > Sounds; the default keeps Ryoku's
+  existing five-point volume curve (`ipc/control.go`, `quickshell/shell/services/Audio.qml`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

@@ -28,6 +28,7 @@ Item {
             if (key && pg.hub.defs[key] !== undefined)
                 pg.hub.edit(key, JSON.parse(JSON.stringify(pg.hub.defs[key])));
         }
+        Settings.reset("audio.volumeStep");
     }
 
     // Installed font families, read live so both font drawers offer exactly what

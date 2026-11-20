@@ -65,9 +65,12 @@ Item {
         if (!s || !s.audio) return
         var max = root.audioBoost ? 1.5 : 1.0
         var cur = Math.round(s.audio.volume * 100)
-        var next = up
-            ? (cur === 65 ? 67 : cur === 67 ? 70 : Math.floor(cur / 5) * 5 + 5)
-            : (cur === 70 ? 67 : cur === 67 ? 65 : Math.ceil(cur / 5) * 5 - 5)
+        var step = Audio.volumeStep
+        var next = step === 5
+            ? (up
+                ? (cur === 65 ? 67 : cur === 67 ? 70 : Math.floor(cur / 5) * 5 + 5)
+                : (cur === 70 ? 67 : cur === 67 ? 65 : Math.ceil(cur / 5) * 5 - 5))
+            : cur + (up ? step : -step)
         s.audio.volume = Math.max(0, Math.min(max, next / 100))
     }
     function toggleMute() {

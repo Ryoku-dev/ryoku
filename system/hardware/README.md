@@ -107,10 +107,16 @@ in the machine, and do not waste power doing it.
     already at or below unity is left alone. Launched from Hyprland autostart for
     Voxtype dictation and the pill voice visualizer.
   - `ryoku-volume` Steps the default sink for the `XF86AudioRaiseVolume` /
-    `XF86AudioLowerVolume` keys, snapping to a five-point grid and honouring the
-    volume panel's BOOST toggle (`qsbar.audioBoost` in `shell.json`): off caps at
-    100%, on at 150%. The keys go through it rather than calling `wpctl` inline so
-    the stepping lives in one place.
+    `XF86AudioLowerVolume` keys and shared by discrete volume controls across
+    bars, docks and subshells. Its interval is configurable in Ryoku Hub >
+    General > Sounds as `audio.volumeStep` in `shell.json` (1–20 percentage
+    points, default 5); `ryoku-volume set-step <1-20>` changes it through the
+    settings daemon, and `ryoku-volume --help` describes the commands.
+    The default retains the five-point grid and its existing 65/67/70 transitions;
+    custom intervals move by that exact amount. It honours the volume panel's
+    BOOST toggle (`qsbar.audioBoost`): off caps at 100%, on at 150%. The keys go
+    through it rather than calling `wpctl` inline so the stepping lives in one
+    place.
   - `ryoku-media` Runs `playerctl` for the `XF86AudioPlay` (play-pause) and
     `XF86AudioPause` (pause) keys, dropping any second call within 200 ms. Some
     headphones send play and pause together for one tap; without the window the

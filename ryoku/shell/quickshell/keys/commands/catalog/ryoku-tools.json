@@ -966,7 +966,7 @@
       "group": "ryoku-audio",
       "title": "Raise the volume",
       "command": "ryoku-volume up",
-      "description": "Raises the default output volume with Ryoku's stepped volume curve.",
+      "description": "Raises the default output volume by the shared key step configured in Ryoku Hub > General > Sounds.",
       "tool": "ryoku-volume",
       "level": "basic"
     },
@@ -975,7 +975,16 @@
       "group": "ryoku-audio",
       "title": "Lower the volume",
       "command": "ryoku-volume down",
-      "description": "Lowers the default output volume with Ryoku's stepped volume curve.",
+      "description": "Lowers the default output volume by the shared key step configured in Ryoku Hub > General > Sounds.",
+      "tool": "ryoku-volume",
+      "level": "basic"
+    },
+    {
+      "id": "ryoku.ryoku-volume.set-step",
+      "group": "ryoku-audio",
+      "title": "Set the volume key step",
+      "command": "ryoku-volume set-step <1-20>",
+      "description": "Saves the shared volume key step in Ryoku settings without changing the current output volume.",
       "tool": "ryoku-volume",
       "level": "basic"
     },

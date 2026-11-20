@@ -132,5 +132,6 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-shell bar <list|catalog|move|show|hide|set|position|form|defaults|settings>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell powerprofiles <state|set PROFILE>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell dock <show|hide|edge|autohide|pin|unpin|list>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell audio <up|down|mute|set-step 1-20>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <reload|status|ping|quit>")
 }

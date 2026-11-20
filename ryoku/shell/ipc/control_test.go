@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -33,14 +34,13 @@ func TestParseBarEdge(t *testing.T) {
 	}
 }
 
-// The audio verb steps volume by the reference literal (5% of the [0,1] range),
-// clamps the rise at 1.0, and toggles mute; those argv are the behaviour, so
-// pin them.
+// The audio verb delegates volume changes to the shared helper and toggles mute
+// through wpctl; those argv are the behaviour, so pin them.
 func TestAudioArgv(t *testing.T) {
 	cases := map[string][]string{
-		"up":   {"set-volume", "-l", "1", "@DEFAULT_AUDIO_SINK@", "5%+"},
-		"down": {"set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"},
-		"mute": {"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"},
+		"up":   {"ryoku-volume", "up"},
+		"down": {"ryoku-volume", "down"},
+		"mute": {"wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"},
 	}
 	for sub, want := range cases {
 		got, ok := audioArgv(sub)
@@ -51,6 +51,41 @@ func TestAudioArgv(t *testing.T) {
 	if _, ok := audioArgv("sideways"); ok {
 		t.Errorf("audioArgv(sideways) accepted, want rejection")
 	}
+}
+
+func TestSetAudioStepPersistsAndValidates(t *testing.T) {
+	store := newTestStore(t)
+	d := &daemon{settings: store}
+
+	for _, step := range []string{"2", "20"} {
+		if got := d.dispatch("audio set-step " + step); got != "ok" {
+			t.Fatalf("dispatch audio set-step %q = %q, want ok", step, got)
+		}
+		if got := frameNum(t, store.frameLocked(), "audio.volumeStep"); got != float64(mustAtoi(t, step)) {
+			t.Fatalf("audio.volumeStep = %v, want %s", got, step)
+		}
+	}
+
+	for _, step := range []string{"", "0", "21", "2.5", "abc"} {
+		if got := d.dispatch("audio set-step " + step); !strings.HasPrefix(got, "err audio:") {
+			t.Errorf("dispatch audio set-step %q = %q, want audio error", step, got)
+		}
+	}
+
+	// The saved preference survives loading a fresh settings store.
+	reloaded := newSettingsStore(store.path)
+	if got := frameNum(t, reloaded.frameLocked(), "audio.volumeStep"); got != 20 {
+		t.Fatalf("persisted audio.volumeStep = %v, want 20", got)
+	}
+}
+
+func mustAtoi(t *testing.T, value string) int {
+	t.Helper()
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
 
 // The brightness verb steps by the reference literal (5 of the [0,100] range).

@@ -155,6 +155,7 @@ IrisWidgetFace {
             muted: Audio.sink?.audio?.muted ?? false
             icon: muted ? "volume_off" : (Audio.value ?? 0) < 0.34 ? "volume_mute" : (Audio.value ?? 0) < 0.67 ? "volume_down" : "volume_up"
             value: Math.min(1, Audio.value ?? 0)
+            wheelStep: Audio.volumeStep / 100
             Accessible.name: Translation.tr("Volume")
             onMoved: next => Audio.setSinkVolume(next)
             onIconClicked: Audio.toggleMute()

@@ -254,7 +254,7 @@ PanelWindow {
                     onWheel: (w) => {
                         var s = audio.sink
                         if (!s || !s.audio) return
-                        var step = w.angleDelta.y > 0 ? 0.05 : -0.05
+                        var step = (w.angleDelta.y > 0 ? 1 : -1) * Audio.volumeStep / 100
                         s.audio.volume = Math.max(0, Math.min(volSlider.maxPct / 100, s.audio.volume + step))
                     }
                 }

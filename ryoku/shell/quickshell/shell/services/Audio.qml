@@ -20,6 +20,7 @@ Singleton {
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var source: Pipewire.defaultAudioSource
     readonly property var nodes: (Pipewire.nodes && Pipewire.ready) ? Pipewire.nodes.values : []
+    readonly property int volumeStep: Math.max(1, Math.min(20, Number(Config.audio?.volumeStep) || 5))
 
     // node type flags as a string, e.g. "AudioSink" / "AudioSource" /
     // "AudioOutStream". constant, so it reads without tracking, unlike

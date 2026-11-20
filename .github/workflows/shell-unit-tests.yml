@@ -13,6 +13,8 @@ on:
       - 'ryoku/shell/**/*.js'
       - 'ryoku/hub/**/*.mjs'
       - 'ryoku/hub/**/*.js'
+      - 'system/hardware/audio/ryoku-volume'
+      - 'tests/ryoku-volume.sh'
       - 'tests/shell-unit-tests.sh'
       - '.github/workflows/shell-unit-tests.yml'
   push:
@@ -23,6 +25,8 @@ on:
       - 'ryoku/shell/**/*.js'
       - 'ryoku/hub/**/*.mjs'
       - 'ryoku/hub/**/*.js'
+      - 'system/hardware/audio/ryoku-volume'
+      - 'tests/ryoku-volume.sh'
       - 'tests/shell-unit-tests.sh'
       - '.github/workflows/shell-unit-tests.yml'
   workflow_dispatch:
@@ -46,3 +50,14 @@ jobs:
       - name: Run shell unit tests
         shell: bash
         run: RYOKU_PATH="$PWD" tests/shell-unit-tests.sh
+
+  volume-helper:
+    name: ryoku-volume behavior
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run volume helper tests
+        shell: bash
+        run: tests/ryoku-volume.sh

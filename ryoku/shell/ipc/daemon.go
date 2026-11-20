@@ -1550,8 +1550,11 @@ func (d *daemon) dispatch(line string) string {
 		}
 		return "ok"
 	case "audio":
+		if len(args) == 2 && args[0] == "set-step" {
+			return d.setAudioStep(args[1])
+		}
 		if len(args) != 1 {
-			return "err audio: expected up, down, or mute"
+			return "err audio: expected up, down, mute, or set-step <1-20>"
 		}
 		return d.audio(args[0])
 	case "brightness":

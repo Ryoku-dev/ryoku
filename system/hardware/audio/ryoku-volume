@@ -1,38 +1,89 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+	cat <<'EOF'
+Usage: ryoku-volume [up|down]
+       ryoku-volume set-step <1-20>
+       ryoku-volume [--help|-h]
+EOF
+}
+
+case "${1:-}" in
+-h|--help)
+	usage
+	exit 0
+	;;
+set-step)
+	if [ "$#" -ne 2 ]; then
+		usage >&2
+		exit 2
+	fi
+	case "$2" in
+	[1-9]|1[0-9]|20) ;;
+	*)
+		echo "ryoku-volume: step must be an integer from 1 to 20" >&2
+		exit 2
+		;;
+	esac
+	if ! command -v ryoku-shell >/dev/null 2>&1; then
+		echo "ryoku-volume: ryoku-shell is required to save the setting" >&2
+		exit 1
+	fi
+	ryoku-shell audio set-step "$2"
+	printf 'Volume key step set to %s%%.\n' "$2"
+	exit 0
+	;;
+esac
+
+if [ "$#" -gt 1 ]; then
+	usage >&2
+	exit 2
+fi
+
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json"
 lim=1
 if jq -e '.qsbar.audioBoost == true' "$cfg" >/dev/null 2>&1; then
 	lim=1.5
 fi
 
+# This is a user preference stored by Ryoku Hub. Missing or invalid values
+# retain the historical five-point behavior.
+step="$(jq -er '.audio.volumeStep | select(type == "number" and floor == . and . >= 1 and . <= 20)' "$cfg" 2>/dev/null || true)"
+case "$step" in
+[1-9]|1[0-9]|20) ;;
+*) step=5 ;;
+esac
+
 cur="$(wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf "%d", $2 * 100 + 0.5}')"
 max="$(awk -v l="$lim" 'BEGIN{printf "%d", l * 100 + 0.5}')"
 
 case "${1:-up}" in
 up)
-	# if you find this youre brain is rot
-	if [ "$cur" -eq 65 ]; then
+	if [ "$step" -eq 5 ] && [ "$cur" -eq 65 ]; then
 		next=67
-	elif [ "$cur" -eq 67 ]; then
+	elif [ "$step" -eq 5 ] && [ "$cur" -eq 67 ]; then
 		next=70
+	elif [ "$step" -ne 5 ]; then
+		next=$((cur + step))
 	else
 		next=$(((cur / 5) * 5 + 5))
 	fi
 	;;
 down)
-	if [ "$cur" -eq 70 ]; then
+	if [ "$step" -eq 5 ] && [ "$cur" -eq 70 ]; then
 		next=67
-	elif [ "$cur" -eq 67 ]; then
+	elif [ "$step" -eq 5 ] && [ "$cur" -eq 67 ]; then
 		next=65
+	elif [ "$step" -ne 5 ]; then
+		next=$((cur - step))
 	else
 		next=$((((cur + 4) / 5) * 5 - 5))
 	fi
 	;;
 *)
-	echo "usage: ryoku-volume {up|down}" >&2
-	exit 1
+	usage >&2
+	exit 2
 	;;
 esac
 

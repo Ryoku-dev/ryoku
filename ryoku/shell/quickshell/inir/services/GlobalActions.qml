@@ -487,7 +487,7 @@ Singleton {
             icon: "volume_up",
             category: "media",
             keywords: ["volume", "louder", "up"],
-            execute: () => { root._stepVolume(0.05) }
+            execute: () => { root._stepVolume(Audio.volumeStep / 100) }
         },
         {
             id: "volume-down",
@@ -496,7 +496,7 @@ Singleton {
             icon: "volume_down",
             category: "media",
             keywords: ["volume", "quieter", "down"],
-            execute: () => { root._stepVolume(-0.05) }
+            execute: () => { root._stepVolume(-Audio.volumeStep / 100) }
         },
         {
             id: "brightness-up",
