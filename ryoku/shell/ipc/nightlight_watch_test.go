@@ -226,6 +226,10 @@ printf '%s' '{"name":"testwm","supports":["nightLight"],"nightLightProcess":"@BA
 set -u
 pid="@PID@"; marker="@MARKER@"; temp="@TEMP@"; fake="@FAKE@"; name="@NAME@"
 up() { pgrep -x "$name" >/dev/null 2>&1; }
+# Every invocation appends its verb beside the temp file: published frames
+# are deduplicated, so command counting is the only way a test can see a
+# redundant backend command.
+printf '%s\n' "${1:-toggle}" >>"$temp.cmds"
 case "${1:-toggle}" in
   on)
     # The real script's on always re-asserts: the provider's nightlight.on

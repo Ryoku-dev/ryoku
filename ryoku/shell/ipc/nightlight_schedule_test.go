@@ -2,11 +2,25 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	wm "ryoku-wm"
+	"strings"
 	"testing"
 	"time"
 )
+
+// nlCmdCount reads the invocation log the fake shim appends beside its temp
+// file. Published frames are deduplicated, so counting commands is the only
+// honest way to assert one-shot backend behavior.
+func nlCmdCount(t *testing.T, f nlFake) int {
+	t.Helper()
+	b, err := os.ReadFile(f.temp + ".cmds")
+	if err != nil {
+		return 0
+	}
+	return len(strings.Split(strings.TrimSpace(string(b)), "\n"))
+}
 
 func dayWindow(t *testing.T) (sunriseISO, sunsetISO string) {
 	t.Helper()
@@ -342,11 +356,26 @@ func TestNightlightScheduleReconcilesRunningBackend(t *testing.T) {
 		t.Fatalf("a daylight window must reconcile the running backend off: %s", got.Raw)
 	}
 
+	// Command counting, not frames: a redundant backend command leaves the
+	// state unchanged and so never wakes a binding.
+	afterReconcile := nlCmdCount(t, f)
 	n.tickSchedule()
-	select {
-	case fr := <-sub.frames:
-		t.Fatalf("a settled schedule must not act again: %s", fr)
-	case <-time.After(50 * time.Millisecond):
+	if got := nlCmdCount(t, f); got != afterReconcile {
+		t.Fatalf("a settled schedule sent another backend command: %d -> %d", afterReconcile, got)
+	}
+
+	// A manual toggle after reconciliation stays honoured: the next tick
+	// does not fight it.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the manual toggle must win: %s", got.Raw)
+	}
+	beforeTick := nlCmdCount(t, f)
+	n.tickSchedule()
+	if got := nlCmdCount(t, f); got != beforeTick {
+		t.Fatalf("the schedule fought a manual toggle: %d -> %d", beforeTick, got)
 	}
 }
 
@@ -408,5 +437,10 @@ func TestNightlightScheduleReconcilesAfterLoad(t *testing.T) {
 	m.tickSchedule()
 	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
 		t.Fatalf("a booted schedule must reconcile the light off during its day: %s", got.Raw)
+	}
+	booted := nlCmdCount(t, f)
+	m.tickSchedule()
+	if got := nlCmdCount(t, f); got != booted {
+		t.Fatalf("the booted schedule repeated a backend command: %d -> %d", booted, got)
 	}
 }
