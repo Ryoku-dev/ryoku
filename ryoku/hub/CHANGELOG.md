@@ -46,7 +46,8 @@
 - **The per-display tiling chips show the layout you picked.** On a second
   display, a chip kept its old value after a click, because the compositor
   sends no event for a layout change. The chip now shows the layout that was
-  applied (`pages/WindowManagerPage.qml`).
+  applied, or the one set from the bar when the Hub has no saved value
+  (`pages/WindowManagerPage.qml`).
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.
