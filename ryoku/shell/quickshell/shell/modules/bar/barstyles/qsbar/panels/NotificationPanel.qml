@@ -167,17 +167,6 @@ PanelWindow {
         notifPanel.saveCache()
     }
 
-    function openNotification(entry) {
-        var live = notifPanel.liveMap[entry.key]
-        if (live && live.actions && live.actions.length > 0) {
-            live.actions[0].invoke()             // trigger the default action
-        } else if (live) {
-            live.tracked = false                 // no action to run → just acknowledge
-        }
-        // history/cache-only entries (no live ref) → nothing to invoke
-        root.notifVisible = false
-    }
-
     property real reveal: root.notifVisible ? 1 : 0
     Behavior on reveal {
         NumberAnimation {
@@ -284,6 +273,10 @@ PanelWindow {
 
                         delegate: Rectangle {
                             required property var modelData
+                            // A click on an actionless notification expands
+                            // its body instead of dismissing it, so a long
+                            // alert can actually be read.
+                            property bool expanded: false
                             width: listCol.width
                             height: entryCol.implicitHeight + 16
                             radius: root.panelButtonRadius
@@ -325,8 +318,8 @@ PanelWindow {
                                     font.pixelSize: 10
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    maximumLineCount: 2
-                                    elide: Text.ElideRight
+                                    maximumLineCount: expanded ? Infinity : 2
+                                    elide: expanded ? Text.ElideNone : Text.ElideRight
                                     visible: text !== ""
                                 }
                             }
@@ -336,7 +329,20 @@ PanelWindow {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: notifPanel.openNotification(modelData)
+                                onClicked: {
+                                    var live = notifPanel.liveMap[modelData.key]
+                                    if (live && live.actions && live.actions.length > 0) {
+                                        live.actions[0].invoke()
+                                        root.notifVisible = false
+                                    } else {
+                                        // No action to run: expand the body
+                                        // so it can be read in full. A
+                                        // notification the user was still
+                                        // reading should not be dismissed
+                                        // by the act of trying to read it.
+                                        expanded = !expanded
+                                    }
+                                }
                             }
 
                             Rectangle {
