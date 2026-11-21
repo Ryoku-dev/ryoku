@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -10,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -46,6 +50,10 @@ type scanned struct {
 	filesize    int64
 	thumbPath   string
 	thumbSmPath string
+	// we marks a Steam Workshop source: Steam revalidation moves its
+	// mtime at every login, so preview staleness keys on the size record
+	// beside the clip instead of the file's timestamps.
+	we bool
 }
 
 // ScanDirs walks the wallpaper and video dirs and returns fresh entries merged
@@ -539,16 +547,95 @@ func ensureAnimatedMp4(it scanned) string {
 	return animPath
 }
 
+// previewRenderLocks serializes the render and publication of one clip at a
+// time per preview path: a forced reset can overlap a running scan, and two
+// writers for the same clip would otherwise publish clip and identity record
+// in crossed order, leaving an old clip described by a new identity. Entries
+// are refcounted and released when idle, so a library that churns does not
+// grow the registry.
+type previewLockEntry struct {
+	mu   sync.Mutex
+	refs int
+}
+
+var previewLocksMu sync.Mutex
+var previewLocks = map[string]*previewLockEntry{}
+
+// lockPreviewRender holds the render lock for one clip path; the returned
+// func releases it and drops the registry entry when nothing waits on it.
+func lockPreviewRender(prev string) func() {
+	previewLocksMu.Lock()
+	e, ok := previewLocks[prev]
+	if !ok {
+		e = &previewLockEntry{}
+		previewLocks[prev] = e
+	}
+	e.refs++
+	previewLocksMu.Unlock()
+	e.mu.Lock()
+	return func() {
+		e.mu.Unlock()
+		previewLocksMu.Lock()
+		e.refs--
+		if e.refs == 0 && previewLocks[prev] == e {
+			delete(previewLocks, prev)
+		}
+		previewLocksMu.Unlock()
+	}
+}
+
+// previewHeadBytes is how much of a workshop source the preview identity
+// hashes. Steam revalidation never rewrites bytes, so the head survives a
+// login's touch pass; a real update swaps the file and the head moves with
+// it even when the byte count happens not to.
+const previewHeadBytes = 64 * 1024
+
+// previewSourceIdentity is the cheap content marker a workshop clip records
+// beside itself: the source's byte size and the hex hash of its first
+// previewHeadBytes. Hashing 64 KiB of a 500 MiB source is a rounding error
+// next to the transcode it decides.
+func previewSourceIdentity(src string, size int64) string {
+	f, err := os.Open(src)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	head := make([]byte, previewHeadBytes)
+	n, err := io.ReadFull(f, head)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return ""
+	}
+	sum := sha256.Sum256(head[:n])
+	return strconv.FormatInt(size, 10) + ":" + hex.EncodeToString(sum[:8])
+}
+
 // ensureVideoPreview builds the small clip the picker's hover/selection
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
 // card, which froze the whole selector. 640w/24fps H.264 decodes for free.
-// Regenerated when missing or older than the source; "" on failure, which
-// callers treat as "no preview" (the delegate falls back to the still thumb).
+// Regenerated when missing or older than the source; workshop clips
+// instead reuse purely by recorded source identity (size plus head hash),
+// because Steam revalidation moves their mtimes at every login, a
+// redownload can restore an old one, and a same-size update must not wear
+// the previous clip forever; "" on failure, which callers treat as "no
+// preview" (the delegate falls back to the still thumb).
 func ensureVideoPreview(it scanned) string {
 	prev := strings.TrimSuffix(it.thumbPath, ".webp") + "-prev.mp4"
-	if fi, err := os.Stat(prev); err == nil && fi.ModTime().Unix() >= it.mtime {
-		return prev
+	unlock := lockPreviewRender(prev)
+	defer unlock()
+	if fi, err := os.Stat(prev); err == nil {
+		if it.we {
+			// Workshop sources sit under Steam's control: validation
+			// moves their mtimes at every login, and a redownload can
+			// carry the manifest's old one back, so the recorded
+			// identity decides whether the clip is current, not the
+			// timestamps.
+			if it.filesize > 0 && prevSourceIdentity(prev) == previewSourceIdentity(it.src, it.filesize) {
+				return prev
+			}
+		} else if fi.ModTime().Unix() >= it.mtime {
+			return prev
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(prev), 0o755); err != nil {
 		return ""
@@ -561,9 +648,45 @@ func ensureVideoPreview(it scanned) string {
 		fmt.Fprintf(os.Stderr, "ryogami: preview failed for %s: %v\n", it.name, err)
 		return ""
 	}
+	if it.we {
+		// Drop the old record before the rename: a daemon killed between
+		// the rename and the record write must leave either the new record
+		// or none, never a stale record describing a clip that is gone.
+		_ = os.Remove(prev + ".meta")
+	}
 	if os.Rename(tmp, prev) != nil {
 		os.Remove(tmp)
 		return ""
 	}
+	if it.we {
+		_ = writePrevSourceIdentity(prev, previewSourceIdentity(it.src, it.filesize))
+	}
 	return prev
+}
+
+// prevSourceIdentity reads the identity recorded when the clip beside it was
+// rendered; "" when no record exists.
+func prevSourceIdentity(prev string) string {
+	b, err := os.ReadFile(prev + ".meta")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func writePrevSourceIdentity(prev, identity string) error {
+	return os.WriteFile(prev+".meta", []byte(identity+"\n"), 0o644)
+}
+
+// sweepTmpFiles removes the temp artifacts a previous daemon lost mid-run: a
+// killed transcode or thumb job never cleans up after itself, and a login's
+// double start makes that routine. Startup, before the first scan, is the
+// only moment no generator can hold a live temp.
+func sweepTmpFiles(cacheDir string) {
+	for _, sub := range []string{"wallpaper/thumbs", "wallpaper/thumbs-sm", "wallpaper/video-thumbs", "wallpaper/anim"} {
+		temps, _ := filepath.Glob(filepath.Join(cacheDir, sub, "*.tmp.*"))
+		for _, p := range temps {
+			_ = os.Remove(p)
+		}
+	}
 }

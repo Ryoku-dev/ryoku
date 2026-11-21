@@ -4,7 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func newWorkshopScanDaemon(t *testing.T) (*daemon, string, string) {
@@ -118,5 +120,94 @@ func TestWorkshopPreviewClipsFollowTheToggle(t *testing.T) {
 	}
 	if clips, _ := filepath.Glob(filepath.Join(cache, "wallpaper", "video-thumbs", "*-prev.mp4")); len(clips) != 0 {
 		t.Fatalf("transcoded with previews off: %v", clips)
+	}
+}
+
+// Steam revalidation moves workshop mtimes past a freshly rendered clip at
+// every login: the size record beside the clip, not the mtime, marks it
+// reusable. A real update swaps the file and its size, and only that
+// re-renders.
+func TestWorkshopPreviewReuseIgnoresSteamMtime(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	d, root, cache := newWorkshopScanDaemon(t)
+	const id = "3100000004"
+	dir := writeWorkshopItem(t, root, id, `{"type":"video","title":"Clip","file":"clip.mp4"}`, nil)
+	clip := filepath.Join(dir, "clip.mp4")
+	writeTinyClip(t, clip)
+
+	first := d.workshop.scanEntries(cache, nil, func(Entry) {})
+	row := first["we:"+id]
+	if row.VideoPrev == "" || !fileExists(row.VideoPrev) {
+		t.Fatalf("first scan rendered no clip: %q", row.VideoPrev)
+	}
+
+	// The revalidation stand-in: mtime moves into the future, the bytes do
+	// not. The clip becomes a sentinel so a re-render is a visible
+	// overwrite.
+	if err := os.WriteFile(row.VideoPrev, []byte("sentinel"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(clip, future, future); err != nil {
+		t.Fatal(err)
+	}
+	again := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	b, err := os.ReadFile(again[row.Key].VideoPrev)
+	if err != nil || string(b) != "sentinel" {
+		t.Fatalf("unchanged source re-rendered the clip: err=%v len=%d", err, len(b))
+	}
+
+	out, err := exec.Command("ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+		"-i", "testsrc=size=320x180:rate=24:duration=2", "-pix_fmt", "yuv420p", clip).CombinedOutput()
+	if err != nil {
+		t.Fatalf("ffmpeg second clip: %v: %s", err, out)
+	}
+	// The updated source carries an old mtime, as a Steam redownload can:
+	// older than the sentinel clip, so only the size record can see the
+	// change.
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(clip, past, past); err != nil {
+		t.Fatal(err)
+	}
+	third := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	b, err = os.ReadFile(third[row.Key].VideoPrev)
+	if err != nil || string(b) == "sentinel" {
+		t.Fatalf("a changed source kept the stale clip: err=%v len=%d", err, len(b))
+	}
+
+	// A same-size update must not wear the previous clip forever: flip one
+	// metadata byte in the source's head (Lavf -> Lavq, still a valid file,
+	// byte count unchanged) and the identity must move with it. The scan
+	// re-renders, and the recorded identity under the new clip matches the
+	// flipped source.
+	prevPath := third[row.Key].VideoPrev
+	before, err := os.Stat(prevPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flipped := strings.Replace(string(src), "Lavf", "Lavq", 1)
+	if len(flipped) != len(src) {
+		t.Fatalf("flip changed the byte count: %d -> %d", len(src), len(flipped))
+	}
+	if err := os.WriteFile(clip, []byte(flipped), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1100 * time.Millisecond) // let the mtime second tick over
+	fourth := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	after, err := os.Stat(fourth[row.Key].VideoPrev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().After(before.ModTime()) {
+		t.Fatalf("a same-size update kept the previous clip (prev mtime %v)", after.ModTime())
+	}
+	if id := prevSourceIdentity(fourth[row.Key].VideoPrev); id == "" || id != previewSourceIdentity(clip, int64(len(flipped))) {
+		t.Fatalf("recorded identity %q does not match the flipped source", id)
 	}
 }
