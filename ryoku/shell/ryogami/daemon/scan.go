@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -543,6 +544,12 @@ func ensureAnimatedMp4(it scanned) string {
 	return animPath
 }
 
+// previewRenderLocks serializes the render and publication of one clip at a
+// time per preview path: a forced reset can overlap a running scan, and two
+// writers for the same clip would otherwise publish clip and size record in
+// crossed order, leaving an old clip described by a new size.
+var previewRenderLocks sync.Map
+
 // ensureVideoPreview builds the small clip the picker's hover/selection
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
@@ -554,6 +561,10 @@ func ensureAnimatedMp4(it scanned) string {
 // (the delegate falls back to the still thumb).
 func ensureVideoPreview(it scanned) string {
 	prev := strings.TrimSuffix(it.thumbPath, ".webp") + "-prev.mp4"
+	lockAny, _ := previewRenderLocks.LoadOrStore(prev, &sync.Mutex{})
+	lock := lockAny.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
 	if fi, err := os.Stat(prev); err == nil {
 		if it.we {
 			// Workshop sources sit under Steam's control: validation
@@ -578,16 +589,18 @@ func ensureVideoPreview(it scanned) string {
 		fmt.Fprintf(os.Stderr, "ryogami: preview failed for %s: %v\n", it.name, err)
 		return ""
 	}
+	if it.we {
+		// Drop the old record before the rename: a daemon killed between
+		// the rename and the record write must leave either the new record
+		// or none, never a stale record describing a clip that is gone.
+		_ = os.Remove(prev + ".size")
+	}
 	if os.Rename(tmp, prev) != nil {
 		os.Remove(tmp)
 		return ""
 	}
 	if it.we {
-		if err := writePrevSourceSize(prev, it.filesize); err != nil {
-			// A record that no longer describes the clip must not
-			// survive it: remove it rather than leave a stale size.
-			_ = os.Remove(prev + ".size")
-		}
+		_ = writePrevSourceSize(prev, it.filesize)
 	}
 	return prev
 }
