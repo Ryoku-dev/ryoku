@@ -170,13 +170,6 @@ Item {
     // would stay stale; the helper re-reads on every action, so this does not.
     property var appliedLayouts: ({})
     function liveLayout(output) {
-        // the compositor is the source of truth: it also holds a layout set from the
-        // bar, which the helper never records. The saved entry is only the fallback.
-        if (Wm.ready) {
-            var ws = Wm.workspaces || [];
-            for (var i = 0; i < ws.length; i++)
-                if (ws[i].output === output && ws[i].layout) return ws[i].layout;
-        }
         return pg.appliedLayouts[output] || "";
     }
     readonly property bool scopedView: pg.perOutput && !pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0]
