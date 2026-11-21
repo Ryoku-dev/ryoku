@@ -26,9 +26,14 @@ Item {
         const body = notification ? String(notification.body || "") : "";
         return body.split(/\r?\n/)[0].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     }
-    readonly property real textRoom: Math.max(1, Math.min(
-        220 * K.Style.scale, scene.textRoom,
+    // The scene reads these to size the lanes, so they must not depend on
+    // scene.textRoom: textRoom shrinks as the lanes grow.
+    readonly property real layoutPreferredTextWidth: Math.max(1, Math.min(
+        220 * K.Style.scale,
         Math.max(summaryMeasure.implicitWidth, bodyMeasure.implicitWidth)))
+    readonly property real layoutFixedWidth: noticeIconBox.width + content.spacing
+    readonly property real textRoom: Math.max(1,
+        Math.min(layoutPreferredTextWidth, scene.textRoom))
 
     implicitWidth: content.implicitWidth
     implicitHeight: K.Style.barH
@@ -53,6 +58,7 @@ Item {
         spacing: K.Style.s2
 
         Item {
+            id: noticeIconBox
             anchors.verticalCenter: parent.verticalCenter
             width: 18 * K.Style.scale
             height: width

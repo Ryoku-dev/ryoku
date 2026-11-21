@@ -1,6 +1,15 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A notification no longer freezes the shell.** The Orpheus voice notice
+  sized its text from the room the bar had left, and the bar measured that
+  same width when deciding the lanes overflowed. Past that point the text
+  narrowed, the overflow dropped, and the text widened again, so the shell
+  thread never left layout. The notice, media, idle, and recording faces now
+  report a fixed width and a preferred text width that do not follow that
+  room, and the voice module registers them the way Media and Window already
+  do (`modules/bar/barstyles/orpheus/voice/Voice.qml`, `VoiceNotice.qml`,
+  `VoiceMedia.qml`, `VoiceIdle.qml`, `VoiceRecording.qml`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

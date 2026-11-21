@@ -80,6 +80,19 @@ Item {
         State { name: "notice" },
         State { name: "recording" }
     ]
+    // A face's text column follows scene.textRoom, which shrinks as the lanes
+    // grow, so the scene sizes the voice lane from these instead of from the
+    // rendered width. Measuring the rendered width loops forever once the bar
+    // overflows: the text narrows, the overflow drops, the text widens again.
+    readonly property var face: faceLoader.item
+    readonly property real layoutPreferredTextWidth: face
+        ? Math.max(0, Number(face.layoutPreferredTextWidth) || 0) : 0
+    readonly property real layoutFixedWidth: 2 * K.Style.hitPad
+        + (face ? Math.max(0, Number(face.layoutFixedWidth) || 0) : 0)
+        + (timeLoader.item ? timeLoader.item.implicitWidth + content.spacing : 0)
+        + (badge.visible ? badge.implicitWidth + content.spacing : 0)
+        + (mediaLoader.item ? mediaLoader.item.implicitWidth + content.spacing : 0)
+
     implicitWidth: content.implicitWidth + 2 * K.Style.hitPad
     implicitHeight: K.Style.barH
     height: K.Style.barH
@@ -165,8 +178,12 @@ Item {
         displayState = voiceState;
         displayNotice = newestNotice;
         syncAudioClaim();
+        scene.registerTextModule("voice", root);
     }
-    Component.onDestruction: AudioBars.setActive(root, false)
+    Component.onDestruction: {
+        AudioBars.setActive(root, false);
+        scene.unregisterTextModule("voice", root);
+    }
 
     Connections {
         target: Media
@@ -284,6 +301,7 @@ Item {
         spacing: K.Style.barGap
 
         Loader {
+            id: timeLoader
             active: root.inlineBubbles && root.bubbles.left.indexOf("time") >= 0
             visible: active
             sourceComponent: timeBubble
@@ -308,12 +326,14 @@ Item {
         }
 
         K.Badge {
+            id: badge
             anchors.verticalCenter: parent.verticalCenter
             visible: root.unread && root.displayState !== "notice"
             dot: true
         }
 
         Loader {
+            id: mediaLoader
             active: root.inlineBubbles && root.bubbles.right.indexOf("media") >= 0
             visible: active
             sourceComponent: mediaBubble
