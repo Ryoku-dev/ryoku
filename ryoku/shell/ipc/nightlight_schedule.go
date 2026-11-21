@@ -109,7 +109,9 @@ func (n *nightlightState) loadSchedule() {
 	// A restored schedule reconciles the backend once on the first tick: a
 	// light left on across a reboot must meet the window it wakes into.
 	n.schedLastDesire = false
-	n.schedPending = s.Mode != nlSchedOff
+	if s.Mode != nlSchedOff {
+		n.schedArmed++
+	}
 	n.schedMu.Unlock()
 }
 
@@ -139,7 +141,12 @@ func (n *nightlightState) setSchedule(mode string, marginMin, startMin, stopMin 
 		// A fresh schedule re-decides at the next tick, even against a
 		// manual toggle: the user just asked for this window.
 		n.schedLastDesire = false
-		n.schedPending = mode != nlSchedOff
+	}
+	if mode != nlSchedOff {
+		// Any edit of an active window owes the backend one
+		// reconciliation, including a bounds-only change that keeps the
+		// mode: the user just asked for this window too.
+		n.schedArmed++
 	}
 	n.schedMode = mode
 	if marginMin != nil && *marginMin >= 0 {
@@ -260,7 +267,8 @@ func (n *nightlightState) tickSchedule() {
 	n.schedMu.Lock()
 	mode, margin := n.schedMode, n.schedMarginMin
 	start, stop := n.schedStartMin, n.schedStopMin
-	last, pending := n.schedLastDesire, n.schedPending
+	last := n.schedLastDesire
+	armed := n.schedArmed
 	n.schedMu.Unlock()
 	var want bool
 	switch mode {
@@ -278,9 +286,12 @@ func (n *nightlightState) tickSchedule() {
 	// A schedule that just loaded or changed reconciles once against the
 	// backend's real state rather than our own bookkeeping, so a light
 	// already on meets a daylight window and one left off at boot meets the
-	// night. After this pass the last-desire comparison resumes, and a
-	// manual toggle stays honoured until the next edge.
-	if pending {
+	// night. The arm is cleared only when the counter still matches the
+	// snapshot taken above, so a setSchedule racing this tick keeps its own
+	// arm and reconciles on its own pass instead. After the pass the
+	// last-desire comparison resumes, and a manual toggle stays honoured
+	// until the next edge.
+	if armed != 0 {
 		if want != n.running() {
 			var err error
 			if want {
@@ -294,8 +305,10 @@ func (n *nightlightState) tickSchedule() {
 			}
 		}
 		n.schedMu.Lock()
-		n.schedPending = false
-		n.schedLastDesire = want
+		if n.schedArmed == armed {
+			n.schedArmed = 0
+			n.schedLastDesire = want
+		}
 		n.schedMu.Unlock()
 		return
 	}

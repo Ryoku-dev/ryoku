@@ -77,11 +77,12 @@ type nightlightState struct {
 	schedStopMin    int
 	schedFile       string
 	schedLastDesire bool
-	// schedPending forces the next tick to reconcile against the backend's
-	// real state instead of our own last desire, so a schedule that arrives
-	// or survives a reboot meets a light that is already running or missing.
-	schedPending bool
-	schedKick    chan struct{}
+	// schedArmed counts schedule changes that still owe the backend one
+	// reconciliation. A tick snapshots the counter and only clears it when
+	// the counter still matches, so a setSchedule racing the tick cannot
+	// have its arm cleared or a stale desire recorded by the older pass.
+	schedArmed uint64
+	schedKick  chan struct{}
 
 	// rearmMu guards the hotplug bookkeeping: outputsSeen says the wm watcher
 	// has reported a connector set at least once (the first set only primes, it

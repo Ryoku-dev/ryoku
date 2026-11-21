@@ -176,8 +176,8 @@ func TestInClockWindow(t *testing.T) {
 		t.Fatalf("now must sit inside the window built around it: %d..%d", inStart, inStop)
 	}
 	// The complementary window excludes now: start after it, stop before it.
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart := (cur + 3) % (24 * 60)
+	outStop := (cur - 3 + 24*60) % (24 * 60)
 	if inClockWindow(now, outStart, outStop) {
 		t.Fatal("now must sit outside the complementary window")
 	}
@@ -268,8 +268,8 @@ func TestNightlightClockTickEdges(t *testing.T) {
 		t.Fatalf("all-day window must turn the light on: %s", got.Raw)
 	}
 
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart := (cur + 3) % (24 * 60)
+	outStop := (cur - 3 + 24*60) % (24 * 60)
 	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
 		t.Fatalf("setSchedule away: %v", err)
 	}
@@ -332,8 +332,8 @@ func TestNightlightScheduleReconcilesRunningBackend(t *testing.T) {
 
 	now := time.Now()
 	cur := now.Hour()*60 + now.Minute()
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart := (cur + 3) % (24 * 60)
+	outStop := (cur - 3 + 24*60) % (24 * 60)
 	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
 		t.Fatalf("setSchedule daylight window: %v", err)
 	}
@@ -376,8 +376,8 @@ func TestNightlightScheduleReconcilesAfterLoad(t *testing.T) {
 	}
 	now := time.Now()
 	cur := now.Hour()*60 + now.Minute()
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart := (cur + 3) % (24 * 60)
+	outStop := (cur - 3 + 24*60) % (24 * 60)
 	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
 		t.Fatalf("setSchedule daylight window: %v", err)
 	}
