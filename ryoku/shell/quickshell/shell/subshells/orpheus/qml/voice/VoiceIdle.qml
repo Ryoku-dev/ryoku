@@ -18,6 +18,9 @@ Item {
         && !S.Prefs.hasModule("weather")
     readonly property var currentWeather: Weather.current
 
+    readonly property real layoutFixedWidth: implicitWidth
+    readonly property real layoutPreferredTextWidth: 0
+
     implicitWidth: content.implicitWidth
     implicitHeight: K.Style.barH
 

@@ -274,13 +274,8 @@ LookCard {
                     id: art
                     readonly property bool hasImage: picture.status === Image.Ready
                     readonly property bool hasIcon: !art.hasImage && icon.status === Image.Ready
-                    // The box and the decode size stay put, and the picture is not
-                    // masked through a layer. Growing the box when the image
-                    // becomes ready redecodes it, and a layer mask on that
-                    // image keeps the shell thread inside polish. Either one
-                    // stops the dismiss timer.
                     visible: root.showImages
-                    width: Math.round(44 * root.u)
+                    width: Math.round((art.hasImage ? 44 : 34) * root.u)
                     height: width
 
                     CutRect {
@@ -294,12 +289,26 @@ LookCard {
                     Image {
                         id: picture
                         anchors.fill: parent
+                        visible: art.hasImage
                         source: root.showImages ? root.imageSource : ""
-                        sourceSize: Qt.size(Math.round(88 * root.u), Math.round(88 * root.u))
+                        sourceSize: Qt.size(width * 2, height * 2)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: true
-                        cache: true
+                        layer.enabled: art.hasImage
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskSource: pictureMask
+                        }
+                    }
+                    CutRect {
+                        id: pictureMask
+                        anchors.fill: parent
+                        visible: false
+                        layer.enabled: art.hasImage
+                        design: "lithic"
+                        cut: LithicTokens.cut.small * root.u
+                        fill: Lithic.fg
                     }
                     Image {
                         id: icon
@@ -308,7 +317,7 @@ LookCard {
                         height: width
                         visible: art.hasIcon
                         source: root.showImages ? root.appIconSource : ""
-                        sourceSize: Qt.size(Math.round(44 * root.u), Math.round(44 * root.u))
+                        sourceSize: Qt.size(width * 2, height * 2)
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         smooth: true

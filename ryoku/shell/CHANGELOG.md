@@ -1,13 +1,15 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
-- **Discord picture toasts no longer freeze the shell.** The Lithic card grew
-  its picture from 34 px to 44 px when the image became ready, and the decode
-  size followed that box. It also masked that picture through a layer effect.
-  A picture larger than the first request, including a Discord avatar, then
-  kept the shell thread inside that update and the toast never dismissed.
-  The box and the decode size now stay put, and the picture is not masked
-  (`modules/notifications/designs/LithicNotification.qml`).
+- **A notification no longer freezes the shell.** The Orpheus voice notice
+  sized its text from the room the bar had left, and the bar measured that
+  same width when deciding the lanes overflowed. Past that point the text
+  narrowed, the overflow dropped, and the text widened again, so the shell
+  thread never left layout. The notice, media, and idle faces now report a
+  fixed width and a preferred text width that do not follow that room, and
+  the voice module registers them the way Media and Window already do
+  (`subshells/orpheus/qml/voice/Voice.qml`, `VoiceNotice.qml`,
+  `VoiceMedia.qml`, `VoiceIdle.qml`).
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
   mouse moved within a second and a half: Hyprland sends no pointer enter to an
