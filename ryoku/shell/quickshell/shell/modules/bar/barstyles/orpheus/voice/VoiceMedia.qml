@@ -15,9 +15,15 @@ Item {
     readonly property string artist: player
         ? Theme.joinArtists(player.trackArtists, player.trackArtist) : ""
     readonly property url art: Music.coverFor(player)
-    readonly property real titleRoom: Math.max(1, Math.min(
-        S.Prefs.mediaWidth * K.Style.scale, scene.textRoom,
+    // The scene reads these to size the lanes, so they must not depend on
+    // scene.textRoom: textRoom shrinks as the lanes grow.
+    readonly property real layoutPreferredTextWidth: Math.max(1, Math.min(
+        S.Prefs.mediaWidth * K.Style.scale,
         Math.max(titleMeasure.implicitWidth, artistMeasure.implicitWidth)))
+    readonly property real layoutFixedWidth: cover.width + spectrum.implicitWidth
+        + 2 * content.spacing
+    readonly property real titleRoom: Math.max(1,
+        Math.min(layoutPreferredTextWidth, scene.textRoom))
 
     implicitWidth: content.implicitWidth
     implicitHeight: K.Style.barH
@@ -42,6 +48,7 @@ Item {
         spacing: K.Style.s2
 
         K.CoverArt {
+            id: cover
             anchors.verticalCenter: parent.verticalCenter
             source: root.art
             size: 22 * K.Style.scale
@@ -69,6 +76,7 @@ Item {
         }
 
         Row {
+            id: spectrum
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2 * K.Style.scale
 
