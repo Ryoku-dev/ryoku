@@ -273,10 +273,11 @@ PanelWindow {
 
                         delegate: Rectangle {
                             required property var modelData
-                            // A click on an actionless notification expands
-                            // its body instead of dismissing it, so a long
-                            // alert can actually be read.
-                            property bool expanded: false
+                            // Key-based rather than a bool: a Repeater may
+                            // reuse a delegate after the list changes, and
+                            // an expanded flag could then leak onto a
+                            // different notification.
+                            property string expandedKey: ""
                             width: listCol.width
                             height: entryCol.implicitHeight + 16
                             radius: root.panelButtonRadius
@@ -318,8 +319,8 @@ PanelWindow {
                                     font.pixelSize: 10
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    maximumLineCount: expanded ? Infinity : 2
-                                    elide: expanded ? Text.ElideNone : Text.ElideRight
+                                    maximumLineCount: expandedKey === modelData.key ? 2147483647 : 2
+                                    elide: expandedKey === modelData.key ? Text.ElideNone : Text.ElideRight
                                     visible: text !== ""
                                 }
                             }
@@ -340,7 +341,7 @@ PanelWindow {
                                         // notification the user was still
                                         // reading should not be dismissed
                                         // by the act of trying to read it.
-                                        expanded = !expanded
+                                        expandedKey = expandedKey === modelData.key ? "" : modelData.key
                                     }
                                 }
                             }

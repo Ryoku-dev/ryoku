@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Notification bodies expand when clicked (#909).** The QS Bar bell panel
+  clamped each body to two lines with no way to read the rest, and clicking an
+  actionless notification dismissed it instead, so a long alert from pacman or
+  cron was gone the moment you tried to read it. Clicking now toggles the full
+  body; notifications with actions still invoke their default action.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
