@@ -26,6 +26,8 @@ for finer detail.
 - **Workshop video previews survive Steam revalidation that moves source mtimes
   at login: a clip already rendered for the same source size is reused instead
   of re-encoding the whole video library (#920)**
+- **Ryogami sweeps the partial transcode files a killed daemon leaves behind
+  at startup, instead of leaking them until the cache is reset (#920)**
 - **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**

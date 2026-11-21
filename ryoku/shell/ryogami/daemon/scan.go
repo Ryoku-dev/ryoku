@@ -602,3 +602,16 @@ func prevSourceSize(prev string) int64 {
 func writePrevSourceSize(prev string, size int64) {
 	_ = os.WriteFile(prev+".size", []byte(strconv.FormatInt(size, 10)+"\n"), 0o644)
 }
+
+// sweepTmpFiles removes the temp artifacts a previous daemon lost mid-run: a
+// killed transcode or thumb job never cleans up after itself, and a login's
+// double start makes that routine. Startup, before the first scan, is the
+// only moment no generator can hold a live temp.
+func sweepTmpFiles(cacheDir string) {
+	for _, sub := range []string{"wallpaper/thumbs", "wallpaper/thumbs-sm", "wallpaper/video-thumbs", "wallpaper/anim"} {
+		temps, _ := filepath.Glob(filepath.Join(cacheDir, sub, "*.tmp.*"))
+		for _, p := range temps {
+			_ = os.Remove(p)
+		}
+	}
+}
