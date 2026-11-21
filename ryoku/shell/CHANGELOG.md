@@ -3,9 +3,10 @@
 ## Unreleased
 - **Discord picture toasts no longer freeze the shell.** The Lithic card grew
   its picture from 34 px to 44 px when the image became ready, and the decode
-  size followed that box, so a picture larger than the first request decoded
-  again on the shell thread and the toast never dismissed. The box and the
-  decode size now stay put
+  size followed that box. It also masked that picture through a layer effect.
+  A picture larger than the first request, including a Discord avatar, then
+  kept the shell thread inside that update and the toast never dismissed.
+  The box and the decode size now stay put, and the picture is not masked
   (`modules/notifications/designs/LithicNotification.qml`).
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
