@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Discord picture toasts no longer freeze the shell.** The Lithic card grew
+  its picture from 34 px to 44 px when the image became ready, and the decode
+  size followed that box, so a picture larger than the first request decoded
+  again on the shell thread and the toast never dismissed. The box and the
+  decode size now stay put
+  (`modules/notifications/designs/LithicNotification.qml`).
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
   mouse moved within a second and a half: Hyprland sends no pointer enter to an

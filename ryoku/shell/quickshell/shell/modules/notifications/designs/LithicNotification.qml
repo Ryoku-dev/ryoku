@@ -274,8 +274,11 @@ LookCard {
                     id: art
                     readonly property bool hasImage: picture.status === Image.Ready
                     readonly property bool hasIcon: !art.hasImage && icon.status === Image.Ready
+                    // The box and the decode size stay put. Growing either one when
+                    // the picture becomes ready changes sourceSize, the image decodes
+                    // again, and the shell thread never returns to the dismiss timer.
                     visible: root.showImages
-                    width: Math.round((art.hasImage ? 44 : 34) * root.u)
+                    width: Math.round(44 * root.u)
                     height: width
 
                     CutRect {
@@ -291,11 +294,11 @@ LookCard {
                         anchors.fill: parent
                         visible: art.hasImage
                         source: root.showImages ? root.imageSource : ""
-                        sourceSize: Qt.size(width * 2, height * 2)
+                        sourceSize: Qt.size(Math.round(88 * root.u), Math.round(88 * root.u))
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: true
-                        layer.enabled: art.hasImage
+                        layer.enabled: root.imageSource !== ""
                         layer.effect: MultiEffect {
                             maskEnabled: true
                             maskSource: pictureMask
@@ -305,7 +308,7 @@ LookCard {
                         id: pictureMask
                         anchors.fill: parent
                         visible: false
-                        layer.enabled: art.hasImage
+                        layer.enabled: root.imageSource !== ""
                         design: "lithic"
                         cut: LithicTokens.cut.small * root.u
                         fill: Lithic.fg
