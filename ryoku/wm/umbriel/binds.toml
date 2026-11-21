@@ -62,10 +62,11 @@
 "Mod+W" = "spawn:ryogami wallpaper ui"
 "Mod+Ctrl+Tab" = "column-focus-tab-next"
 "Mod+Ctrl+Shift+Tab" = "column-focus-tab-previous"
-# The wheel belongs to workspace up and down in the official legend; focus
-# left and right already have the Super+arrow chords above.
-"Mod+WheelUp" = "workspace-previous"
-"Mod+WheelDown" = "workspace-next"
+# Scrolling layout: the wheel steps focus through columns, matching the
+# user's niri setup (Super+WheelScrollUp/Down focus-column-or-monitor-left/right).
+# Workspace switching stays on the Super+Prior/Next keys.
+"Mod+WheelUp" = "window-focus-left"
+"Mod+WheelDown" = "window-focus-right"
 # Umbriel draws its own overview over the scrolling layout, with live window
 # cards. Super+Tab is Ryoku's overview chord and now toggles the compositor's
 # native overview rather than the shell's Hyprland-style overlay.
