@@ -16,7 +16,7 @@ type event struct {
 }
 
 func runWatch() error {
-	conn, err := subscribe([]string{"windows", "workspaces", "outputs", "overview"})
+	conn, err := subscribe([]string{"windows", "workspaces", "outputs", "overview", "keyboard_layout"})
 	if err != nil {
 		return err
 	}
@@ -44,6 +44,10 @@ func runWatch() error {
 		if !ready {
 			ready = true
 			if err := emit(wm.Frame{Kind: wm.FrameReady}); err != nil {
+				return err
+			}
+			// The bar hides its layout indicator until it sees FrameKeyboard.
+			if err := emitKeyboardFrame(emit); err != nil {
 				return err
 			}
 		}
@@ -86,6 +90,10 @@ func runWatch() error {
 					return err
 				}
 			}
+		case "keyboard_layout":
+			if err := emitKeyboardFrame(emit); err != nil {
+				return err
+			}
 		case "overview":
 			var o struct {
 				Open bool `json:"open"`
@@ -97,6 +105,27 @@ func runWatch() error {
 			}
 		}
 	}
+}
+
+// emitKeyboardFrame reports the loaded layouts and the active one so the bar
+// can show its layout indicator. Umbriel's keyboard_layout IPC carries both.
+func emitKeyboardFrame(emit func(wm.Frame) error) error {
+	raw, err := query("keyboard-layouts")
+	if err != nil {
+		return nil // a missing layout query must not kill the watch stream
+	}
+	var info struct {
+		CurrentIndex int      `json:"current_index"`
+		Names        []string `json:"names"`
+	}
+	if json.Unmarshal(raw, &info) != nil || len(info.Names) == 0 {
+		return nil
+	}
+	current := ""
+	if info.CurrentIndex >= 0 && info.CurrentIndex < len(info.Names) {
+		current = info.Names[info.CurrentIndex]
+	}
+	return emit(wm.Frame{Kind: wm.FrameKeyboard, KeyboardLayout: current, KeyboardLayouts: info.Names})
 }
 
 // focusedWorkspaceOutput returns the compositor's focused output. Each monitor

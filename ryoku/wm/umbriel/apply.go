@@ -118,12 +118,23 @@ func unconsumedLeaves(store map[string]any, mapped map[string]bool) []wm.Unhonor
 		sort.Strings(sections)
 		for _, section := range sections {
 			// Rebinds are consumed by storeBinds and reported through the
-			// keybind resolver; other desktop maps are leaf settings.
-			if group == "desktop" && (section == "keybindRebinds" || section == "keybindDisabled") {
-				continue
+			// keybind resolver. Only skip them when they parsed into the shape
+			// the resolver expects; a malformed one must be reported.
+			if group == "desktop" && section == "keybindRebinds" {
+				if _, ok := obj[section].(map[string]any); ok {
+					continue
+				}
+			}
+			if group == "desktop" && section == "keybindDisabled" {
+				if _, ok := obj[section].([]any); ok {
+					continue
+				}
 			}
 			leaves, ok := obj[section].(map[string]any)
 			if !ok {
+				// A list such as custom keybinds is not a leaf map. Report the
+				// section itself so a switch preview does not silently omit it.
+				out = append(out, wm.Unhonored{Key: group + "." + section, Reason: "Umbriel has no matching setting for this stored section."})
 				continue
 			}
 			keys := make([]string, 0, len(leaves))

@@ -47,7 +47,9 @@ func main() {
 		err = fmt.Errorf("unknown verb %q", os.Args[1])
 	}
 
-	_ = stdout.Flush()
+	if flushErr := stdout.Flush(); err == nil {
+		err = flushErr
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ryoku-wm-umbriel: %v\n", err)
 		os.Exit(1)

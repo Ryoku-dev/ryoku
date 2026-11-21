@@ -18,9 +18,11 @@ func runBinds(args []string) error {
 	}
 	store := map[string]any{}
 	if path != "" {
-		if s, err := readStore(path); err == nil {
-			store = s
+		s, err := readStore(path)
+		if err != nil {
+			return err
 		}
+		store = s
 	}
 	rebinds, disabled := storeBinds(store)
 	lines, unhonored := resolvedBinds(rebinds, disabled)
