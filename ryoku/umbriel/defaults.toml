@@ -1,0 +1,32 @@
+# Ryoku's shipped defaults for Umbriel. Included before user.toml so personal
+# overrides in user.toml win. The top-level config.toml is applied last by
+# Umbriel, so no overridable value lives there.
+
+[general]
+# Ryoku owns the cheatsheet (Kit, Super+K), so Umbriel's own one stays off.
+show_cheatsheet = false
+# X11 apps get a display through Xwayland; XSETTINGS carries the scaled cursor
+# and interface size Ryoku's environment already publishes.
+xwayland = true
+xwayland_xsettings = true
+# Ryoku's layer-shell panels expect modal dialogs to stay attached to parents.
+attach_modal_dialogs = true
+# Focus follows activation requests; the pointer keeps its own focus policy.
+focus_on_activate = true
+
+[appearance.blur]
+radius = 3
+
+# Scrolling matches the spatial model Ryoku's bar and dock assume; per-workspace
+# overrides from the Hub land in settings.toml as Umbriel layout rules.
+[layout]
+mode = "scrolling"
+extent_presets = [0.333, 0.5, 0.667]
+
+[layout.scrolling]
+default_extent_fraction = 0.5
+
+# The shell owns the overview while nativeOverview is unclaimed, so Umbriel's
+# hot corner stays off; Mod+O goes through ryoku-shell above.
+[hot_corners.top_left]
+enabled = false

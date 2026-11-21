@@ -8,11 +8,12 @@
 #
 # 1. Ryoku's config tree is split the same way as niri's. The files listed under
 #    [include] are all required and must exist on a deployed box: autostart and
-#    lid policy, machine seeds, then the two generated files (which
-#    ryoku-wm-umbriel apply always writes, even when empty), then user.toml.
-#    Umbriel applies includes in list order and this file last, so an explicit
-#    value here is authoritative. Put personal overrides in user.toml or in
-#    the user_edits overlay, never in this shipped file, which an update owns.
+#    lid policy, machine seeds, the two generated files (which
+#    ryoku-wm-umbriel apply always writes, even when empty), then defaults.toml
+#    and user.toml. Umbriel applies includes in list order and this file last,
+#    so all overridable values live in defaults.toml before user.toml, letting
+#    personal overrides win. Put them in user.toml or the user_edits overlay,
+#    never in the shipped files, which an update owns.
 # 2. Every setting here is Umbriel's own TOML. Ryoku never invents a format;
 #    the neutral settings store is written into settings.toml by the provider.
 #
@@ -34,6 +35,7 @@ files = [
   "monitors.toml",
   "settings.toml",
   "rebinds.toml",
+  "defaults.toml",
   "user.toml",
 ]
 
@@ -41,29 +43,6 @@ files = [
 # Written by `ryoku wm act input.touchpad` when the Fn key or Hub toggles the
 # touchpad. Creating it later reloads Umbriel, like niri's config-only route.
 files = ["touchpad.toml"]
-
-# ==============================================================================
-# General
-# ==============================================================================
-[general]
-# Ryoku owns the cheatsheet (Kit, Super+K), so Umbriel's own one stays off.
-show_cheatsheet = false
-# X11 apps get a display through Xwayland; XSETTINGS carries the scaled cursor
-# and interface size Ryoku's environment already publishes.
-xwayland = true
-xwayland_xsettings = true
-# Ryoku's layer-shell panels expect modal dialogs to stay attached to parents.
-attach_modal_dialogs = true
-# Focus follows activation requests; the pointer keeps its own focus policy.
-focus_on_activate = true
-
-# ==============================================================================
-# Appearance
-# ==============================================================================
-# Ryoku's wallpaper and palette drive the colours; Umbriel's blur radius is the
-# only look value owned here.
-[appearance.blur]
-radius = 3
 
 # ==============================================================================
 # Input
@@ -79,18 +58,6 @@ radius = 3
 # Keybinds are generated: ryoku-wm-umbriel apply writes the full active
 # table into rebinds.toml from the shipped bind template. Changing a chord
 # in Settings therefore reaches the compositor on the next apply.
-# ==============================================================================
-# Layout
-# ==============================================================================
-# Scrolling matches the spatial model Ryoku's bar and dock assume; per-workspace
-# overrides from the Hub land in settings.toml as Umbriel layout rules.
-[layout]
-mode = "scrolling"
-extent_presets = [0.333, 0.5, 0.667]
-
-[layout.scrolling]
-default_extent_fraction = 0.5
-
 # ==============================================================================
 # Window rules
 # ==============================================================================
@@ -185,8 +152,3 @@ blur_optimized = false
 
 # ==============================================================================
 # Overview
-# ==============================================================================
-# The shell owns the overview while nativeOverview is unclaimed, so Umbriel's
-# hot corner stays off; Mod+O goes through ryoku-shell above.
-[hot_corners.top_left]
-enabled = false
