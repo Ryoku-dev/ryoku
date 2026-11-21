@@ -82,9 +82,12 @@ func runAct(args []string) error {
 		}
 		// Cycle only within the focused output's workspaces. Names repeat
 		// across outputs, so a global index can step the wrong screen.
+		if focus == "" {
+			return fmt.Errorf("workspace.cycle: no focused output")
+		}
 		mine := make([]uWorkspace, 0, len(ws))
 		for _, w := range ws {
-			if focus == "" || w.Output == focus {
+			if w.Output == focus {
 				mine = append(mine, w)
 			}
 		}
@@ -218,7 +221,11 @@ func touchpadAction(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("input.touchpad: expected on|off|toggle|status|restore")
 	}
-	path := filepath.Join(umbrielConfigDir(), "touchpad.toml")
+	dir := umbrielConfigDir()
+	if dir == "" {
+		return fmt.Errorf("input.touchpad: no Umbriel config dir")
+	}
+	path := filepath.Join(dir, "touchpad.toml")
 	current := true
 	if body, err := os.ReadFile(path); err == nil && strings.Contains(string(body), "enabled = false") {
 		current = false

@@ -24,7 +24,13 @@ func runWatch() error {
 
 	var state uState
 	haveOutputs := false
-	ready := false
+	keyboardSent := false
+	// Mark the connection live at once. Umbriel sends no connect replay, so
+	// waiting for the first event would keep the daemon thinking the provider
+	// is not ready until something happens to change.
+	if err := emit(wm.Frame{Kind: wm.FrameReady}); err != nil {
+		return err
+	}
 	reader := bufio.NewReader(conn)
 	for {
 		line, err := reader.ReadBytes('\n')
@@ -38,15 +44,9 @@ func runWatch() error {
 		if json.Unmarshal(line, &ev) != nil {
 			continue
 		}
-		// The first decoded event completes the initial picture. The daemon
-		// needs FrameReady to mark this connection live; it learns the focused
-		// screen only from FrameFocus, not from the focused field on outputs.
-		if !ready {
-			ready = true
-			if err := emit(wm.Frame{Kind: wm.FrameReady}); err != nil {
-				return err
-			}
-			// The bar hides its layout indicator until it sees FrameKeyboard.
+		// The bar hides its layout indicator until it sees FrameKeyboard.
+		if !keyboardSent {
+			keyboardSent = true
 			if err := emitKeyboardFrame(emit); err != nil {
 				return err
 			}
