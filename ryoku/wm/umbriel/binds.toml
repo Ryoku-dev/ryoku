@@ -26,8 +26,8 @@
 "XF86MonBrightnessUp" = { action = "spawn:ryoku-shell brightness up", allow_when_locked = true }
 "XF86MonBrightnessDown" = { action = "spawn:ryoku-shell brightness down", allow_when_locked = true }
 # The keyboard backlight is a simple LED class device, so it is bound directly.
-"XF86KbdBrightnessUp" = { action = "spawn:brightnessctl -d platform::kbd_backlight set 1", allow_when_locked = true, repeat = false }
-"XF86KbdBrightnessDown" = { action = "spawn:brightnessctl -d platform::kbd_backlight set 0", allow_when_locked = true, repeat = false }
+"XF86KbdBrightnessUp" = { action = "spawn:brightnessctl -d platform::kbd_backlight set +10%", allow_when_locked = true, repeat = false }
+"XF86KbdBrightnessDown" = { action = "spawn:brightnessctl -d platform::kbd_backlight set 10%-", allow_when_locked = true, repeat = false }
 # The Fn touchpad keys drive the neutral input.touchpad action. Umbriel 0.1.0
 # has no runtime input override, so the provider records the intent in
 # touchpad.toml, which Umbriel watches.

@@ -66,17 +66,6 @@ func wmSettings(store map[string]any) (map[string]map[string]string, []wm.Unhono
 	return sections, unhonored, mapped
 }
 
-func tomlNumber(v any) string {
-	switch x := v.(type) {
-	case float64:
-		return strconv.FormatFloat(x, 'f', -1, 64)
-	case int:
-		return strconv.Itoa(x)
-	default:
-		return ""
-	}
-}
-
 // boundedNumber renders a number only when it is a finite value in the
 // compositor's documented range; otherwise it reports the setting unhonoured.
 func boundedNumber(key string, v any, lo, hi float64) string {
