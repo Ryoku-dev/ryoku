@@ -163,9 +163,11 @@ func TestWorkshopPreviewReuseIgnoresSteamMtime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ffmpeg second clip: %v: %s", err, out)
 	}
-	// The update also lands after a revalidation pass: its mtime sits past
-	// the sentinel, so neither reuse rule can keep the stale clip.
-	if err := os.Chtimes(clip, future, future); err != nil {
+	// The updated source carries an old mtime, as a Steam redownload can:
+	// older than the sentinel clip, so only the size record can see the
+	// change.
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(clip, past, past); err != nil {
 		t.Fatal(err)
 	}
 	third := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})

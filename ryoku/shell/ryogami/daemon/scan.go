@@ -547,20 +547,23 @@ func ensureAnimatedMp4(it scanned) string {
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
 // card, which froze the whole selector. 640w/24fps H.264 decodes for free.
-// Regenerated when missing or older than the source; workshop clips also
-// reuse by recorded source size, because Steam revalidation moves their
-// mtimes at every login; "" on failure, which callers treat as "no preview"
+// Regenerated when missing or older than the source; workshop clips
+// instead reuse purely by recorded source size, because Steam
+// revalidation moves their mtimes at every login and a redownload can
+// restore an old one; "" on failure, which callers treat as "no preview"
 // (the delegate falls back to the still thumb).
 func ensureVideoPreview(it scanned) string {
 	prev := strings.TrimSuffix(it.thumbPath, ".webp") + "-prev.mp4"
 	if fi, err := os.Stat(prev); err == nil {
-		if fi.ModTime().Unix() >= it.mtime {
-			return prev
-		}
-		// Workshop sources sit under Steam's control: validation moves
-		// their mtimes at every login, so a clip already rendered for a
-		// source of this size is still current.
-		if it.we && it.filesize > 0 && prevSourceSize(prev) == it.filesize {
+		if it.we {
+			// Workshop sources sit under Steam's control: validation
+			// moves their mtimes at every login, and a redownload can
+			// carry the manifest's old one back, so the size record
+			// decides whether the clip is current, not the timestamps.
+			if it.filesize > 0 && prevSourceSize(prev) == it.filesize {
+				return prev
+			}
+		} else if fi.ModTime().Unix() >= it.mtime {
 			return prev
 		}
 	}
@@ -580,7 +583,11 @@ func ensureVideoPreview(it scanned) string {
 		return ""
 	}
 	if it.we {
-		writePrevSourceSize(prev, it.filesize)
+		if err := writePrevSourceSize(prev, it.filesize); err != nil {
+			// A record that no longer describes the clip must not
+			// survive it: remove it rather than leave a stale size.
+			_ = os.Remove(prev + ".size")
+		}
 	}
 	return prev
 }
@@ -599,8 +606,8 @@ func prevSourceSize(prev string) int64 {
 	return n
 }
 
-func writePrevSourceSize(prev string, size int64) {
-	_ = os.WriteFile(prev+".size", []byte(strconv.FormatInt(size, 10)+"\n"), 0o644)
+func writePrevSourceSize(prev string, size int64) error {
+	return os.WriteFile(prev+".size", []byte(strconv.FormatInt(size, 10)+"\n"), 0o644)
 }
 
 // sweepTmpFiles removes the temp artifacts a previous daemon lost mid-run: a
