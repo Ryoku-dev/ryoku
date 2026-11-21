@@ -99,8 +99,8 @@ func monitorsToml(layout []wm.OutputLayout) []byte {
 			fmt.Fprintf(&b, "scale = %s\n", tomlNum(o.Scale))
 		}
 		fmt.Fprintf(&b, "position = [%d, %d]\n", o.X, o.Y)
-		if t := waylandTransformToUmbriel(o.Transform); t != "" {
-			fmt.Fprintf(&b, "transform = %s\n", strconv.Quote(t))
+		if o.Transform >= 0 && o.Transform <= 3 {
+			fmt.Fprintf(&b, "transform = %s\n", strconv.Quote(waylandTransformToUmbriel(o.Transform)))
 		}
 		b.WriteString("\n")
 	}

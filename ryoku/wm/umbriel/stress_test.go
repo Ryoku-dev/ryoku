@@ -260,3 +260,21 @@ func TestResolvedBindsStableCollisionWinner(t *testing.T) {
 		}
 	}
 }
+
+func TestInvalidKeyNamesRejected(t *testing.T) {
+	if _, ok := umbrielChord("SUPER + not-a-key"); ok {
+		t.Fatal("hyphenated token accepted as a key")
+	}
+	for _, good := range []string{"SUPER + KP_End", "XF86AudioMute", "SUPER + equal", "SUPER + bracketleft"} {
+		if _, ok := umbrielChord(good); !ok {
+			t.Fatalf("valid key %q rejected", good)
+		}
+	}
+}
+
+func TestFlippedTransformNotWritten(t *testing.T) {
+	body := string(monitorsToml([]wm.OutputLayout{{Name: "x", Enabled: true, Transform: 5}}))
+	if strings.Contains(body, "transform") {
+		t.Fatalf("flipped transform written:\n%s", body)
+	}
+}

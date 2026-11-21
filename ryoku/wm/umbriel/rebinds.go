@@ -29,6 +29,22 @@ var numpadKeys = [10]string{
 	"KP_Right", "KP_Home", "KP_Up", "KP_Prior", "KP_Insert",
 }
 
+// validKeyName accepts XKB-style key names (letters, digits and underscores,
+// including KP_ and XF86_ families) and rejects tokens that cannot be a key.
+func validKeyName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // umbrielChord turns a legend chord into the spelling Umbriel's keybind table
 // uses. Only the differences are rewritten; every other key name is already
 // the same. A chord Umbriel has no key for reports false.
@@ -70,7 +86,7 @@ func umbrielChord(chord string) (string, bool) {
 		case "equal", "minus":
 			out = append(out, tok)
 		default:
-			if strings.HasPrefix(tok, "mouse:") {
+			if strings.HasPrefix(tok, "mouse:") || !validKeyName(tok) {
 				return "", false
 			}
 			out = append(out, tok)
@@ -179,7 +195,7 @@ func resolvedBinds(rebinds map[string]string, disabled []string) ([]bindLine, []
 				collides = true
 				break
 			}
-			if tos[i] != froms[i] && (base[tos[i]] || claimed[tos[i]]) {
+			if claimed[tos[i]] || (tos[i] != froms[i] && base[tos[i]]) {
 				collides = true
 				break
 			}
