@@ -302,3 +302,111 @@ func TestNightlightScheduleFrameCarriesClock(t *testing.T) {
 		t.Fatalf("frame = %+v, want clock/1275/390", got)
 	}
 }
+
+// Enabling a schedule while the backend is already running must reconcile it
+// on the next tick: a window that wants the light off turns it off right
+// away instead of waiting for the next edge, and the pass is one-shot, so a
+// settled schedule never fights the state again.
+func TestNightlightScheduleReconcilesRunningBackend(t *testing.T) {
+	f := buildNlFake(t, "nlfakerecon", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+
+	// The light is on before the schedule exists, like a manual toggle.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the backend must be on before the schedule is enabled: %s", got.Raw)
+	}
+
+	now := time.Now()
+	cur := now.Hour()*60 + now.Minute()
+	outStart := (cur + 1) % (24 * 60)
+	outStop := (cur - 1 + 24*60) % (24 * 60)
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule daylight window: %v", err)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a daylight window must reconcile the running backend off: %s", got.Raw)
+	}
+
+	n.tickSchedule()
+	select {
+	case fr := <-sub.frames:
+		t.Fatalf("a settled schedule must not act again: %s", fr)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// The boot path gets the same reconciliation: a machine that shut down with
+// the light on and a daylight schedule persisted comes back up, loads the
+// schedule, and turns the light off on the first tick.
+func TestNightlightScheduleReconcilesAfterLoad(t *testing.T) {
+	f := buildNlFake(t, "nlfakeboot", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the backend must be on before the reboot: %s", got.Raw)
+	}
+	now := time.Now()
+	cur := now.Hour()*60 + now.Minute()
+	outStart := (cur + 1) % (24 * 60)
+	outStop := (cur - 1 + 24*60) % (24 * 60)
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule daylight window: %v", err)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("the daylight window must be off: %s", got.Raw)
+	}
+
+	// A manual toggle during the day still wins over the schedule.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the manual toggle must win: %s", got.Raw)
+	}
+
+	// The fresh daemon boots with the schedule file and the light running.
+	m := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      n.schedFile,
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+	m.loadSchedule()
+	m.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a booted schedule must reconcile the light off during its day: %s", got.Raw)
+	}
+}

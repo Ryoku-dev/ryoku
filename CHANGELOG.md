@@ -23,6 +23,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- **Night Light schedules now reconcile the running backend once when they are
+  enabled or restored, so a light left on during daylight turns off at the next
+  tick instead of waiting for the next sunrise edge (#919)**
 - **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**

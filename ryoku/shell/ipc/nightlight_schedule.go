@@ -19,7 +19,9 @@ import (
 // A manual toggle while a schedule is on is honoured until the next edge:
 // the loop compares against its own last desire (schedLastDesire), not the
 // live state, so it never fights the user every tick. Turning a schedule on
-// applies it immediately; turning it off leaves the current state alone.
+// or changing it reconciles the backend once on the next tick, so a light
+// already running meets the window it just entered; turning the schedule
+// off leaves the current state alone.
 
 const (
 	nlSchedOff   = "off"
@@ -104,7 +106,10 @@ func (n *nightlightState) loadSchedule() {
 	if s.StopMin != nil {
 		n.schedStopMin = clampClockMin(*s.StopMin)
 	}
+	// A restored schedule reconciles the backend once on the first tick: a
+	// light left on across a reboot must meet the window it wakes into.
 	n.schedLastDesire = false
+	n.schedPending = s.Mode != nlSchedOff
 	n.schedMu.Unlock()
 }
 
@@ -134,6 +139,7 @@ func (n *nightlightState) setSchedule(mode string, marginMin, startMin, stopMin 
 		// A fresh schedule re-decides at the next tick, even against a
 		// manual toggle: the user just asked for this window.
 		n.schedLastDesire = false
+		n.schedPending = mode != nlSchedOff
 	}
 	n.schedMode = mode
 	if marginMin != nil && *marginMin >= 0 {
@@ -254,7 +260,7 @@ func (n *nightlightState) tickSchedule() {
 	n.schedMu.Lock()
 	mode, margin := n.schedMode, n.schedMarginMin
 	start, stop := n.schedStartMin, n.schedStopMin
-	last := n.schedLastDesire
+	last, pending := n.schedLastDesire, n.schedPending
 	n.schedMu.Unlock()
 	var want bool
 	switch mode {
@@ -267,6 +273,30 @@ func (n *nightlightState) tickSchedule() {
 	case nlSchedClock:
 		want = inClockWindow(time.Now(), start, stop)
 	default:
+		return
+	}
+	// A schedule that just loaded or changed reconciles once against the
+	// backend's real state rather than our own bookkeeping, so a light
+	// already on meets a daylight window and one left off at boot meets the
+	// night. After this pass the last-desire comparison resumes, and a
+	// manual toggle stays honoured until the next edge.
+	if pending {
+		if want != n.running() {
+			var err error
+			if want {
+				err = n.intent("on")
+			} else {
+				err = n.intent("off")
+			}
+			if err != nil {
+				log.Printf("ryoku-shell: night light schedule tick failed: %v", err)
+				return // retry on the next tick: do not record an action that did not land
+			}
+		}
+		n.schedMu.Lock()
+		n.schedPending = false
+		n.schedLastDesire = want
+		n.schedMu.Unlock()
 		return
 	}
 	if want == last {
