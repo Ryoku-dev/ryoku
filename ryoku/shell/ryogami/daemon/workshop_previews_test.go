@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func newWorkshopScanDaemon(t *testing.T) (*daemon, string, string) {
@@ -118,5 +119,58 @@ func TestWorkshopPreviewClipsFollowTheToggle(t *testing.T) {
 	}
 	if clips, _ := filepath.Glob(filepath.Join(cache, "wallpaper", "video-thumbs", "*-prev.mp4")); len(clips) != 0 {
 		t.Fatalf("transcoded with previews off: %v", clips)
+	}
+}
+
+// Steam revalidation moves workshop mtimes past a freshly rendered clip at
+// every login: the size record beside the clip, not the mtime, marks it
+// reusable. A real update swaps the file and its size, and only that
+// re-renders.
+func TestWorkshopPreviewReuseIgnoresSteamMtime(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	d, root, cache := newWorkshopScanDaemon(t)
+	const id = "3100000004"
+	dir := writeWorkshopItem(t, root, id, `{"type":"video","title":"Clip","file":"clip.mp4"}`, nil)
+	clip := filepath.Join(dir, "clip.mp4")
+	writeTinyClip(t, clip)
+
+	first := d.workshop.scanEntries(cache, nil, func(Entry) {})
+	row := first["we:"+id]
+	if row.VideoPrev == "" || !fileExists(row.VideoPrev) {
+		t.Fatalf("first scan rendered no clip: %q", row.VideoPrev)
+	}
+
+	// The revalidation stand-in: mtime moves into the future, the bytes do
+	// not. The clip becomes a sentinel so a re-render is a visible
+	// overwrite.
+	if err := os.WriteFile(row.VideoPrev, []byte("sentinel"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(clip, future, future); err != nil {
+		t.Fatal(err)
+	}
+	again := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	b, err := os.ReadFile(again[row.Key].VideoPrev)
+	if err != nil || string(b) != "sentinel" {
+		t.Fatalf("unchanged source re-rendered the clip: err=%v len=%d", err, len(b))
+	}
+
+	out, err := exec.Command("ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+		"-i", "testsrc=size=320x180:rate=24:duration=2", "-pix_fmt", "yuv420p", clip).CombinedOutput()
+	if err != nil {
+		t.Fatalf("ffmpeg second clip: %v: %s", err, out)
+	}
+	// The update also lands after a revalidation pass: its mtime sits past
+	// the sentinel, so neither reuse rule can keep the stale clip.
+	if err := os.Chtimes(clip, future, future); err != nil {
+		t.Fatal(err)
+	}
+	third := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	b, err = os.ReadFile(third[row.Key].VideoPrev)
+	if err != nil || string(b) == "sentinel" {
+		t.Fatalf("a changed source kept the stale clip: err=%v len=%d", err, len(b))
 	}
 }

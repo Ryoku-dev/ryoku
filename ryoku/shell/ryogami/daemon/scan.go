@@ -46,6 +46,10 @@ type scanned struct {
 	filesize    int64
 	thumbPath   string
 	thumbSmPath string
+	// we marks a Steam Workshop source: Steam revalidation moves its
+	// mtime at every login, so preview staleness keys on the size record
+	// beside the clip instead of the file's timestamps.
+	we bool
 }
 
 // ScanDirs walks the wallpaper and video dirs and returns fresh entries merged
@@ -543,12 +547,22 @@ func ensureAnimatedMp4(it scanned) string {
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
 // card, which froze the whole selector. 640w/24fps H.264 decodes for free.
-// Regenerated when missing or older than the source; "" on failure, which
-// callers treat as "no preview" (the delegate falls back to the still thumb).
+// Regenerated when missing or older than the source; workshop clips also
+// reuse by recorded source size, because Steam revalidation moves their
+// mtimes at every login; "" on failure, which callers treat as "no preview"
+// (the delegate falls back to the still thumb).
 func ensureVideoPreview(it scanned) string {
 	prev := strings.TrimSuffix(it.thumbPath, ".webp") + "-prev.mp4"
-	if fi, err := os.Stat(prev); err == nil && fi.ModTime().Unix() >= it.mtime {
-		return prev
+	if fi, err := os.Stat(prev); err == nil {
+		if fi.ModTime().Unix() >= it.mtime {
+			return prev
+		}
+		// Workshop sources sit under Steam's control: validation moves
+		// their mtimes at every login, so a clip already rendered for a
+		// source of this size is still current.
+		if it.we && it.filesize > 0 && prevSourceSize(prev) == it.filesize {
+			return prev
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(prev), 0o755); err != nil {
 		return ""
@@ -565,5 +579,26 @@ func ensureVideoPreview(it scanned) string {
 		os.Remove(tmp)
 		return ""
 	}
+	if it.we {
+		writePrevSourceSize(prev, it.filesize)
+	}
 	return prev
+}
+
+// prevSourceSize reads the source size recorded when the clip beside it was
+// rendered; 0 when no record exists.
+func prevSourceSize(prev string) int64 {
+	b, err := os.ReadFile(prev + ".size")
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func writePrevSourceSize(prev string, size int64) {
+	_ = os.WriteFile(prev+".size", []byte(strconv.FormatInt(size, 10)+"\n"), 0o644)
 }
