@@ -288,10 +288,18 @@ func (n *nightlightState) tickSchedule() {
 	// already on meets a daylight window and one left off at boot meets the
 	// night. The arm is cleared only when the counter still matches the
 	// snapshot taken above, so a setSchedule racing this tick keeps its own
-	// arm and reconciles on its own pass instead. After the pass the
-	// last-desire comparison resumes, and a manual toggle stays honoured
-	// until the next edge.
+	// arm and reconciles on its own pass instead. A mode that moved while
+	// this tick was in flight is not applied at all: the newer mode gets
+	// its own kick, and a disabled schedule must leave the light alone.
+	// After the pass the last-desire comparison resumes, and a manual
+	// toggle stays honoured until the next edge.
 	if armed != 0 {
+		n.schedMu.Lock()
+		moved := n.schedMode != mode
+		n.schedMu.Unlock()
+		if moved {
+			return
+		}
 		if want != n.running() {
 			var err error
 			if want {
