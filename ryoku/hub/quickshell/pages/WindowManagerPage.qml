@@ -132,6 +132,7 @@ Item {
                 try {
                     var st = JSON.parse(this.text);
                     pg.linked = st.linked !== false;
+                    pg.appliedLayouts = st.outputs || ({});
                 } catch (e) { pg.linked = true; }
             }
         }
@@ -164,12 +165,12 @@ Item {
     readonly property string activeOutput: pg.outputNames.indexOf(pg.selectedOutput) >= 0 ? pg.selectedOutput : (pg.outputNames[0] || "")
     // the layout each non-main output has live, read from the compositor's own
     // workspace list; empty when the output has no workspace of its own
+    // The layout last applied to an output, from the helper's saved state. The
+    // compositor emits no workspace event for a layout change, so Wm.workspaces
+    // would stay stale; the helper re-reads on every action, so this does not.
+    property var appliedLayouts: ({})
     function liveLayout(output) {
-        if (!Wm.ready) return "";
-        var ws = Wm.workspaces || [];
-        for (var i = 0; i < ws.length; i++)
-            if (ws[i].output === output && ws[i].layout) return ws[i].layout;
-        return "";
+        return pg.appliedLayouts[output] || "";
     }
     readonly property bool scopedView: pg.perOutput && !pg.linked && pg.activeOutput !== "" && pg.activeOutput !== pg.outputNames[0]
     // applies a layout to every workspace of one output through the seam; a

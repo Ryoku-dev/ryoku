@@ -577,7 +577,7 @@ Item {
                                             anchors.fill: parent
                                             implicitHeight: 168
                                             readonly property string layout: {
-                                                var v = sheet.draft ? sheet.draft["appearance.layout"] : "";
+                                                var v = sheet.draft ? sheet.draft["desktop.appearance.layout"] : "";
                                                 return (v === "master" || v === "scrolling") ? v : "dwindle";
                                             }
                                             readonly property var blurbs: ({
