@@ -66,6 +66,7 @@ var capsManifest = []wm.Capability{
 	wm.CapOverviewState,
 	wm.CapColumnFill,
 	wm.CapOutputPower,
+	wm.CapOutputVrr,
 	wm.CapKeyboardLayoutSwitch,
 	wm.CapMonitorConfig,
 	wm.CapWindowFloat,

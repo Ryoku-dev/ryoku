@@ -1,0 +1,7 @@
+# Yours, and the last file Umbriel reads, so anything here beats both the seeds
+# and the Hub's generated config. Seeded once and never touched by an update.
+#
+# Add a keybind, override a setting or pin a display here:
+#
+#   [keybinds]
+#   "Mod+Shift+T" = "spawn kitty"

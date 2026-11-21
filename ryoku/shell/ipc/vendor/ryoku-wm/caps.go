@@ -55,6 +55,7 @@ const (
 	// an HDR/wide-gamut colour pipeline. Named for the behaviour so the Hub gates
 	// the control on the capability, never on which compositor is running.
 	CapOutputMirror Capability = "outputMirror"
+	CapOutputVrr     Capability = "outputVrr"
 	CapOutputHdr    Capability = "outputHdr"
 	CapWindowFloat  Capability = "windowFloat"
 	CapTiledLayout  Capability = "tiledLayout"
@@ -130,6 +131,7 @@ func All() []Capability {
 		CapAnimations, CapCursorSet, CapNativeOverview, CapOverviewBackdrop,
 		CapOverviewState, CapOutputPower,
 		CapKeyboardLayoutSwitch, CapMonitorConfig, CapOutputMirror,
+		CapOutputVrr,
 		CapOutputHdr, CapWindowFloat,
 		CapTiledLayout, CapPerWorkspaceLayout, CapColumnFill, CapSessionExit, CapNightLight,
 		CapTouchpadToggle, CapPaletteBorder, CapPersistentScreenCapture,

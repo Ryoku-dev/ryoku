@@ -1,6 +1,16 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **An experimental Umbriel provider was added.** It speaks Umbriel 0.1.0's
+  JSON-lines IPC, reports caps and state, maps neutral actions to `umbriel msg`,
+  writes the generated config from the neutral store and renders display
+  layouts into `monitors.toml`. The Hub's keybind legend reads the full shipped
+  catalogue again. Refresh is converted from millihertz, bad values are dropped
+  before they reach the config, and the pin, display-cycle and wheel-workspace
+  chords now match the legend. Adaptive sync is hidden where the compositor
+  cannot perform it. Rebinds, disabled chords and workspace families now reach
+  the compositor from Settings. Keyboard layout, repeat and Num Lock settings
+  reach the compositor, and switching between two layouts works live.
 - **Wayfire support was removed.** Ryoku now supports Hyprland and niri;
   doctor moves an older Wayfire installation to a supported desktop before
   removing its retired variant.

@@ -1,0 +1,154 @@
+# Ryoku's Umbriel config: the ported main configuration.
+#
+# This is the top-level file Umbriel reads, adapted from the compositor's
+# shipped starting config for the Ryoku desktop. Most values are live; validate
+# edits with `umbriel config validate` before saving.
+#
+# Two rules shape this file:
+#
+# 1. Ryoku's config tree is split the same way as niri's. The files listed under
+#    [include] are all required and must exist on a deployed box: autostart and
+#    lid policy, machine seeds, the two generated files (which
+#    ryoku-wm-umbriel apply always writes, even when empty), then defaults.toml
+#    and user.toml. Umbriel applies includes in list order and this file last,
+#    so all overridable values live in defaults.toml before user.toml, letting
+#    personal overrides win. Put them in user.toml or the user_edits overlay,
+#    never in the shipped files, which an update owns.
+# 2. Every setting here is Umbriel's own TOML. Ryoku never invents a format;
+#    the neutral settings store is written into settings.toml by the provider.
+#
+# The chord set follows the niri scrolling layout on Ryoku. Most actions are
+# layout-independent, but the focus and consume chords assume columns, so a
+# dwindle or master layout may want a different binding set later.
+#
+# Complete reference: https://docs.noctalia.dev/umbriel/configuration/
+
+# ==============================================================================
+# Includes: the Ryoku override chain
+# ==============================================================================
+[include]
+files = [
+  "autostart.toml",
+  "lid.toml",
+  "keyboard.toml",
+  "gpu.toml",
+  "monitors.toml",
+  "settings.toml",
+  "rebinds.toml",
+  "defaults.toml",
+  "user.toml",
+]
+
+[include.optional]
+# Written by `ryoku wm act input.touchpad` when the Fn key or Hub toggles the
+# touchpad. Creating it later reloads Umbriel, like niri's config-only route.
+files = ["touchpad.toml"]
+
+# ==============================================================================
+# Input
+# ==============================================================================
+# Leave focus-follows-mouse at Umbriel's default: the launcher suppresses it
+# through the seam on compositors that can do that live.
+
+# ==============================================================================
+# Keybinds
+# ==============================================================================
+# Defining this table replaces Umbriel's built-in set. Shell-keyed actions go
+# through `ryoku-shell` so the same verb works on every compositor Ryoku runs on.
+# Keybinds are generated: ryoku-wm-umbriel apply writes the full active
+# table into rebinds.toml from the shipped bind template. Changing a chord
+# in Settings therefore reaches the compositor on the next apply.
+# ==============================================================================
+# Window rules
+# ==============================================================================
+# Rules combine in order, with later values overriding earlier ones. Ryoku's
+# wallpaper blur backs every window. The own-app rules below are the same
+# designed defaults Ryoku gives these apps on its other compositors: centred,
+# floating, at the size each app was built for. Umbriel applies
+# default_floating_size_px only when the app does not ask for its own size, so
+# an app that restores saved geometry is also launched with its designed -size.
+[[window_rule]]
+blur = true
+
+[[window_rule]]
+match.title = "^Welcome to Ryoku$"
+default_floating = true
+default_floating_size_px = { width = 1180, height = 760 }
+
+# Settings is a Quickshell toplevel, so match its title rather than the generic
+# org.quickshell app id shared with the rest of the shell.
+[[window_rule]]
+match.title = "^Ryoku Settings$"
+default_floating = true
+default_floating_size_px = { width = 1280, height = 800 }
+
+[[window_rule]]
+match.app_id = "^dev.ryoku.rashin$"
+default_floating = true
+default_floating_size_px = { width = 1280, height = 820 }
+
+# Ryotunes chooses its own floating state, so it gets no rule here (niri
+# deliberately leaves it out too). Its keybind passes the designed -size so a
+# saved geometry in client.json cannot decide how the window opens.
+
+[[window_rule]]
+match.title = "^ryoku-phone-.*$"
+default_floating = true
+default_floating_size_px = { width = 520, height = 860 }
+
+[[window_rule]]
+match.app_id = "^dev.ryoku.update$"
+default_floating = true
+default_floating_size_px = { width = 1180, height = 760 }
+
+[[window_rule]]
+match.title = "^Ryostore$"
+default_floating = true
+default_floating_size_px = { width = 1180, height = 760 }
+
+[[window_rule]]
+match.app_id = "^dev.ryoku.ryoport$"
+default_floating = true
+default_floating_size_px = { width = 1180, height = 760 }
+
+[[window_rule]]
+match.app_id = "^dev.ryoku.ryoport_ssh$"
+default_floating = true
+default_floating_size_px = { width = 900, height = 560 }
+
+# Console and remote desktop clients have no fixed designed size; float and let
+# Umbriel centre them.
+[[window_rule]]
+match.app_id = ["^spicy$", "^dev.ryoku.ryoport_console$", "^Vncviewer$"]
+default_floating = true
+
+[[window_rule]]
+match.title = "^(Picture-in-Picture|Picture in picture)$"
+default_floating = true
+default_maximize = false
+default_position = { x = 20, y = 20, anchor = "bottom_right" }
+
+[[window_rule]]
+match.title = "^notificationtoasts_.+_desktop"
+default_position = { x = 0, y = 0, anchor = "bottom_right" }
+default_focused = false
+default_pinned = true
+
+# ==============================================================================
+# Layer rules: Ryoku's shell surfaces
+# ==============================================================================
+# Bar, dock, launcher, notifications and OSDs are Quickshell layer surfaces.
+# Namespaces are the ones Ryoku's QML actually uses, so the rules follow the
+# shell across bar styles and subshells.
+[[layer_rule]]
+match.namespace = "^(ryoku-|quickshell:|launcher$|launcher-window-rail$|overview$)"
+blur = true
+blur_ignore_alpha = 0.5
+blur_popups = true
+
+[[layer_rule]]
+match.namespace = "^(ryoku-notifications|ryoku-osd|ryoku-kit|ryoku-gamebar|ryoku-kairos-settings|ryoku-orpheus-settings|launcher$)"
+blur_optimized = false
+
+# ==============================================================================
+# Overview

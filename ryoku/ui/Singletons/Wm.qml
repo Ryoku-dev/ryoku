@@ -49,6 +49,7 @@ Singleton {
         keyboardLayoutSwitch: false,
         monitorConfig: false,
         outputMirror: false,
+        outputVrr: false,
         outputHdr: false,
         windowFloat: false,
         tiledLayout: false,
