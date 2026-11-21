@@ -19,7 +19,9 @@ import (
 // A manual toggle while a schedule is on is honoured until the next edge:
 // the loop compares against its own last desire (schedLastDesire), not the
 // live state, so it never fights the user every tick. Turning a schedule on
-// applies it immediately; turning it off leaves the current state alone.
+// or changing it reconciles the backend once on the next tick, so a light
+// already running meets the window it just entered; turning the schedule
+// off leaves the current state alone.
 
 const (
 	nlSchedOff   = "off"
@@ -104,7 +106,12 @@ func (n *nightlightState) loadSchedule() {
 	if s.StopMin != nil {
 		n.schedStopMin = clampClockMin(*s.StopMin)
 	}
+	// A restored schedule reconciles the backend once on the first tick: a
+	// light left on across a reboot must meet the window it wakes into.
 	n.schedLastDesire = false
+	if s.Mode != nlSchedOff {
+		n.schedArmed++
+	}
 	n.schedMu.Unlock()
 }
 
@@ -134,6 +141,12 @@ func (n *nightlightState) setSchedule(mode string, marginMin, startMin, stopMin 
 		// A fresh schedule re-decides at the next tick, even against a
 		// manual toggle: the user just asked for this window.
 		n.schedLastDesire = false
+	}
+	if mode != nlSchedOff {
+		// Any edit of an active window owes the backend one
+		// reconciliation, including a bounds-only change that keeps the
+		// mode: the user just asked for this window too.
+		n.schedArmed++
 	}
 	n.schedMode = mode
 	if marginMin != nil && *marginMin >= 0 {
@@ -255,6 +268,7 @@ func (n *nightlightState) tickSchedule() {
 	mode, margin := n.schedMode, n.schedMarginMin
 	start, stop := n.schedStartMin, n.schedStopMin
 	last := n.schedLastDesire
+	armed := n.schedArmed
 	n.schedMu.Unlock()
 	var want bool
 	switch mode {
@@ -267,6 +281,44 @@ func (n *nightlightState) tickSchedule() {
 	case nlSchedClock:
 		want = inClockWindow(time.Now(), start, stop)
 	default:
+		return
+	}
+	// A schedule that just loaded or changed reconciles once against the
+	// backend's real state rather than our own bookkeeping, so a light
+	// already on meets a daylight window and one left off at boot meets the
+	// night. The arm is cleared only when the counter still matches the
+	// snapshot taken above, so a setSchedule racing this tick keeps its own
+	// arm and reconciles on its own pass instead. A schedule that changed
+	// while this tick was in flight is not applied at all: any mode move or
+	// edit re-arms the counter, and a disable moves the mode, so the newer
+	// state gets its own kick and an off leaves the light alone. After the
+	// pass the last-desire comparison resumes, and a manual toggle stays
+	// honoured until the next edge.
+	if armed != 0 {
+		n.schedMu.Lock()
+		stale := n.schedMode != mode || n.schedArmed != armed
+		n.schedMu.Unlock()
+		if stale {
+			return
+		}
+		if want != n.running() {
+			var err error
+			if want {
+				err = n.intent("on")
+			} else {
+				err = n.intent("off")
+			}
+			if err != nil {
+				log.Printf("ryoku-shell: night light schedule tick failed: %v", err)
+				return // retry on the next tick: do not record an action that did not land
+			}
+		}
+		n.schedMu.Lock()
+		if n.schedArmed == armed {
+			n.schedArmed = 0
+			n.schedLastDesire = want
+		}
+		n.schedMu.Unlock()
 		return
 	}
 	if want == last {
