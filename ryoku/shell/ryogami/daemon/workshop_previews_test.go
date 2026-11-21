@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -174,5 +175,39 @@ func TestWorkshopPreviewReuseIgnoresSteamMtime(t *testing.T) {
 	b, err = os.ReadFile(third[row.Key].VideoPrev)
 	if err != nil || string(b) == "sentinel" {
 		t.Fatalf("a changed source kept the stale clip: err=%v len=%d", err, len(b))
+	}
+
+	// A same-size update must not wear the previous clip forever: flip one
+	// metadata byte in the source's head (Lavf -> Lavq, still a valid file,
+	// byte count unchanged) and the identity must move with it. The scan
+	// re-renders, and the recorded identity under the new clip matches the
+	// flipped source.
+	prevPath := third[row.Key].VideoPrev
+	before, err := os.Stat(prevPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flipped := strings.Replace(string(src), "Lavf", "Lavq", 1)
+	if len(flipped) != len(src) {
+		t.Fatalf("flip changed the byte count: %d -> %d", len(src), len(flipped))
+	}
+	if err := os.WriteFile(clip, []byte(flipped), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1100 * time.Millisecond) // let the mtime second tick over
+	fourth := d.workshop.scanEntries(cache, map[string]Entry{row.Key: row}, func(Entry) {})
+	after, err := os.Stat(fourth[row.Key].VideoPrev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.ModTime().After(before.ModTime()) {
+		t.Fatalf("a same-size update kept the previous clip (prev mtime %v)", after.ModTime())
+	}
+	if id := prevSourceIdentity(fourth[row.Key].VideoPrev); id == "" || id != previewSourceIdentity(clip, int64(len(flipped))) {
+		t.Fatalf("recorded identity %q does not match the flipped source", id)
 	}
 }
