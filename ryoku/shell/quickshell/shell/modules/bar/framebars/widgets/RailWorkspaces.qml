@@ -7,8 +7,8 @@ import "../../../../components"
 import shell.services
 
 // Pill workspaces: each non-special workspace across all monitors is a rounded
-// pill showing up to 3 tiny app icons resolved via DesktopEntries (same method
-// as RailDock). Active workspace pill is expanded and primary-tinted; inactive
+// pill showing up to 3 tiny app icons resolved through the icon service (same
+// method as RailDock). Active workspace pill is expanded and primary-tinted; inactive
 // occupied pills are compact and dimmed; empty workspaces are a small dot.
 // Click switches workspace, vertical wheel cycles. Monitor dividers are dropped
 // in favour of letting the pill sizes carry the visual weight.
@@ -61,15 +61,6 @@ Item {
         if (Wm.focusedWorkspace)
             s[Wm.focusedWorkspace.name] = true;
         return s;
-    }
-
-    // Icon path resolution: same two-step lookup as RailDock.
-    function iconFor(className) {
-        const desktop = DesktopEntries.heuristicLookup(className);
-        const byEntry = (desktop && desktop.icon) ?
-            Icons.path(desktop.icon, true) : "";
-        return byEntry !== "" ? byEntry :
-            Icons.path(className.toLowerCase(), true);
     }
 
     function focusWorkspace(name) {
@@ -306,7 +297,7 @@ Item {
                     Image {
                         id: wsIcon
                         anchors.fill: parent
-                        source: root.iconFor(wsIconItem.modelData)
+                        source: Icons.appIcon(wsIconItem.modelData)
                         sourceSize.width: root.iconPx
                         sourceSize.height: root.iconPx
                         smooth: true

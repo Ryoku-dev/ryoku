@@ -1,6 +1,14 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Orpheus draws the icon of a window whose id is not an icon name.** The
+  workspace strip asked the icon theme for a window's app id by name, so a
+  startup class (VS Code), a flatpak id (SonoBus), a Steam id such as
+  `steam_app_252950`, or a Wine exe class such as `RocketLeague.exe`, drew a
+  generic mark. `Icons.appIcon` resolves the id through its desktop entry
+  first, then asks the id itself in the shapes a theme names, and the overview
+  cell and the rail strip now call it instead of their own copies
+  (`quickshell/shell/services/Icons.qml`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

@@ -350,7 +350,7 @@ Item {
                                 id: appIcon
                                 required property var modelData
 
-                                readonly property url iconSource: Icons.path(String(modelData || ""), true)
+                                readonly property url iconSource: Icons.appIcon(modelData)
 
                                 width: 14 * root.u
                                 height: width

@@ -76,6 +76,37 @@ Singleton {
         return hit !== undefined && hit !== "";
     }
 
+    // appIcon(appId): the icon for a window, resolved from the id its compositor
+    // reports. That id is often not an icon name (a startup class, a flatpak
+    // reverse-domain id, a Steam or Wine identifier), so each step asks a shape
+    // the theme might name, most reliable first.
+    function appIcon(appId) {
+        void root.rev;
+        var n = (appId === undefined || appId === null) ? "" : String(appId).trim();
+        if (n.length === 0)
+            return "";
+        var candidates = [];
+        var entry = DesktopEntries.heuristicLookup(n);
+        if (entry && entry.icon)
+            candidates.push(entry.icon);
+        candidates.push(n);
+        if (/^steam_app_(\d+)$/.test(n))
+            candidates.push(n.replace(/^steam_app_/, "steam_icon_"));
+        var stem = n.replace(/\.(desktop|exe)$/i, "");
+        candidates.push(stem);
+        candidates.push(stem.toLowerCase());
+        candidates.push(stem.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase());
+        candidates.push(stem.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase());
+        candidates.push(stem.replace(/_/g, "-").toLowerCase());
+        candidates.push(stem.replace(/-/g, "_").toLowerCase());
+        for (var i = 0; i < candidates.length; ++i) {
+            var hit = root.path(candidates[i], true);
+            if (hit !== "")
+                return hit;
+        }
+        return "";
+    }
+
     // Rebuild the index. Coalesced: a run in flight is left to finish.
     function reload() {
         if (!loader.running)

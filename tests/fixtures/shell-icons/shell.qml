@@ -68,7 +68,25 @@ ShellRoot {
                             const resolved = Services.Icons.path(withExtension, "") || Services.Icons.path(baseName, true);
                             if (resolved !== path) throw new Error("Extension-stripped lookup failed");
                         }
+                        if (Services.Icons.appIcon(name) === "") throw new Error("App icon lost an indexed name: " + name);
                     }
+                    if (Services.Icons.appIcon("") !== "") throw new Error("Empty app id resolved");
+                    if (Services.Icons.appIcon("missing-test-icon-2381") !== "") throw new Error("Unknown app id resolved");
+                    // a theme name with no desktop entry and a case of its own, so only
+                    // the suffix-stripped stem answers it
+                    let bare = "";
+                    for (const name of names) {
+                        if (DesktopEntries.heuristicLookup(name) || name === name.toLowerCase()) continue;
+                        bare = name;
+                        break;
+                    }
+                    if (bare !== "" && Services.Icons.appIcon(bare + ".desktop") !== Services.Icons.path(bare, true))
+                        throw new Error("Suffix-stripped stem lost its icon: " + bare);
+                    const entry = DesktopEntries.heuristicLookup("ryoku-icon-probe");
+                    const declared = (entry && entry.icon) ? Services.Icons.path(entry.icon, true) : "";
+                    if (declared === "") throw new Error("Controlled desktop entry unreadable");
+                    if (Services.Icons.appIcon("ryoku-icon-probe") !== declared) throw new Error("Desktop entry icon ignored");
+                    if (Services.Icons.path("ryoku-icon-probe", true) !== "") throw new Error("Test id collides with an icon name");
                     if (Services.Icons.path("missing-test-icon-2381", true) !== "") throw new Error("Missing icon check failed");
                     root.names = names;
                     root.started = true;

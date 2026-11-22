@@ -112,8 +112,7 @@ Item {
             if (!c || seen[c])
                 continue;
             seen[c] = true;
-            var e = DesktopEntries.heuristicLookup(c);
-            var p = (e && e.icon) ? Svc.Icons.path(e.icon, true) : Svc.Icons.path(c, true);
+            var p = Svc.Icons.appIcon(c);
             if (p)
                 out.push(p);
         }
@@ -339,14 +338,7 @@ Item {
                 IconImage {
                     anchors.centerIn: parent
                     implicitSize: Math.max(16 * cell.s, Math.min(48 * cell.s, Math.min(tile.width, tile.height) * 0.5))
-                    source: {
-                        var c = tile.modelData.cls;
-                        var e = c ? DesktopEntries.heuristicLookup(c) : null;
-                        var p = (e && e.icon) ? Svc.Icons.path(e.icon, true) : "";
-                        if (!p && c)
-                            p = Svc.Icons.path(c, true);
-                        return p;
-                    }
+                    source: Svc.Icons.appIcon(tile.modelData.cls)
                 }
 
                 // A one-shot capture (not live): the overview is a momentary
