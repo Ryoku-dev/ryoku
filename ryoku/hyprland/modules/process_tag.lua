@@ -6,15 +6,13 @@
 -- fork: this runs inside the compositor for every new window.
 local M = {}
 
+-- Every window is tested afresh and no answer is kept for the next one. An
+-- answer depends on the whole chain of parents, which changes without the
+-- window's own process changing (a parent exits and the process is
+-- reparented, or it execs into another program under the same pid, start time
+-- and even comm), so a cache key that stays correct needs the same /proc reads
+-- as the walk itself. A walk is a few small reads per parent.
 local taggers = {}
--- One test per process, not per window. The key carries the start time, so a
--- recycled pid is tested afresh instead of inheriting a dead process's verdict,
--- and the comm, so a process that opened a window before its final exec is
--- tested again as the program it became.
--- Entries are never matched to exits, so the table is emptied once it holds
--- VERDICT_LIMIT answers: a forgotten answer only costs one more walk.
-local verdicts, verdict_count = {}, 0
-local VERDICT_LIMIT = 256
 
 local function read(path)
     local f = io.open(path, "r")
@@ -46,9 +44,8 @@ end
 -- walk(pid, visit): visit(p, comm) for the process, its parent, and so on up
 -- to init. visit returns true or false to settle the answer, or nil to climb
 -- on; reaching init settles false. A failed read (a process in the chain
--- exited mid-walk) settles nothing: walk returns nil, the answer is not kept,
--- and the next window from that process is tested again. So does an error
--- raised by visit.
+-- exited mid-walk) settles nothing: walk returns nil and the window is tested
+-- again (see retry below). So does an error raised by visit.
 function M.walk(pid, visit)
     local p = pid
     for _ = 1, 64 do
@@ -61,18 +58,6 @@ function M.walk(pid, visit)
         if p <= 1 then return false end
     end
     return false
-end
-
--- Field 22 of /proc/<pid>/stat. The fields are counted after the last ")",
--- since comm itself may hold spaces and parentheses.
-local function start_time(pid)
-    local rest = (read("/proc/" .. pid .. "/stat") or ""):match(".*%)%s+(.*)$")
-    if not rest then return nil end
-    local i = 2
-    for field in rest:gmatch("%S+") do
-        i = i + 1
-        if i == 22 then return field end
-    end
 end
 
 local function has_tag(win, tag)
@@ -111,26 +96,12 @@ end
 
 check = function(win, list, attempt)
     if not win or not win.pid or win.pid <= 0 or not win.address then return end
-    local started, comm = start_time(win.pid), M.comm(win.pid)
-    if not started or not comm then
-        retry(win.address, list, attempt or 1)
-        return
-    end
     local unsettled = {}
     for _, t in ipairs(list) do
-        local key = win.pid .. ":" .. started .. ":" .. comm .. ":" .. t.tag
-        local hit = verdicts[key]
-        if hit == nil then
-            local ok, res = pcall(t.test, win.pid)
-            hit = ok and res == true
-            if ok and res ~= nil then
-                if verdict_count >= VERDICT_LIMIT then verdicts, verdict_count = {}, 0 end
-                verdicts[key], verdict_count = hit, verdict_count + 1
-            else
-                unsettled[#unsettled + 1] = t
-            end
-        end
-        if hit and not has_tag(win, t.tag) then
+        local ok, res = pcall(t.test, win.pid)
+        if not ok or res == nil then
+            unsettled[#unsettled + 1] = t
+        elseif res == true and not has_tag(win, t.tag) then
             hl.dispatch(hl.dsp.window.tag({ tag = "+" .. t.tag, window = "address:" .. win.address }))
         end
     end

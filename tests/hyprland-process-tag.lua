@@ -1,6 +1,6 @@
 -- Process tagging (modules/process_tag.lua) and the taggers window_rules.lua
 -- registers, against a fake /proc and a fake hl: no running compositor.
-local files, comm_reads = {}, 0
+local files = {}
 
 local function proc(pid, comm, ppid, start, cmdline)
     local dir = "/proc/" .. pid .. "/"
@@ -47,7 +47,6 @@ local function load(open_windows)
             open = function(path)
                 local body = files[path]
                 if not body then return nil end
-                if path:match("/comm$") then comm_reads = comm_reads + 1 end
                 return { read = function() return body end, close = function() end }
             end,
         },
@@ -124,11 +123,15 @@ expect(open(210, "kitty"), "", "a terminal started from a game")
 expect(open(300, "plain"), "", "an app outside Steam")
 expect(open(401, "other-reaper"), "", "a process named reaper without SteamLaunch")
 
--- A second window from the same process reuses the answer: one comm read for
--- the cache key, no walk.
-comm_reads = 0
 expect(open(206, "game-2"), "+steam-game", "a second window from the game")
-assert(comm_reads == 1, "the second window walked /proc again")
+
+-- No answer outlives its window: once the chain above a process changes (its
+-- parents exit and it is reparented to init), its next window is walked
+-- afresh rather than handed the first window's answer.
+proc(250, "Game8.exe", 205, 66)
+expect(open(250, "before-reparent"), "+steam-game", "a game under the reaper")
+proc(250, "Game8.exe", 1, 66)
+expect(open(250, "after-reparent"), "", "the same process after its parents exited")
 
 -- A recycled pid (new start time) is tested afresh.
 proc(206, "zenity", 1, 99)
@@ -163,15 +166,15 @@ proc(203, "bwrap", 202, 23)
 run_timers()
 expect(tags_for("closed"), "", "a retry after the window closed")
 
--- An unreadable window process (its own stat) is retried the same way.
+-- An unreadable window process (its own comm) is retried the same way.
 proc(227, "Game7.exe", 205, 65)
-local stat227 = files["/proc/227/stat"]
-files["/proc/227/stat"] = nil
-expect(open(227, "own-stat"), "", "a window whose own process cannot be read")
+local comm227 = files["/proc/227/comm"]
+files["/proc/227/comm"] = nil
+expect(open(227, "own-comm"), "", "a window whose own process cannot be read")
 assert(#timers == 1, "an unreadable window process must be retried")
-files["/proc/227/stat"] = stat227
+files["/proc/227/comm"] = comm227
 run_timers()
-expect(tags_for("own-stat"), "+steam-game", "the retry once its stat reads")
+expect(tags_for("own-comm"), "+steam-game", "the retry once its comm reads")
 
 -- An unreadable reaper command line settles nothing either.
 proc(230, "Game3.exe", 205, 61)
@@ -182,7 +185,7 @@ files["/proc/200/cmdline"] = reaper_cmdline
 expect(open(230, "no-cmdline-2"), "+steam-game", "the retry once the command line reads")
 
 -- A process that execs keeps its pid and start time; the new program is
--- tested again rather than handed the old answer.
+-- tested as itself, not handed the old program's answer.
 proc(240, "launcher-stub", 1, 62)
 expect(open(240, "pre-exec"), "", "the process before its exec")
 proc(240, "Game4.exe", 205, 62)
