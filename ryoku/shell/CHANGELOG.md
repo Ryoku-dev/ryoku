@@ -1,6 +1,14 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Quick settings is redesigned and opens at the top right, under the bar.**
+  It reads connections and switches first, then volume and brightness, power
+  mode, system status and the session buttons, and wears each design natively:
+  a ruled Lithic sheet, Android's shade in Material, GNOME's quick settings in
+  Adwaita, the Windows action centre in Fluent, each with its own tiles,
+  sliders, pages and open motion. It stays in the work area so the bar keeps
+  working, Escape steps back out of a page before closing, and the quick
+  switches moved up beside Wi-Fi and Bluetooth (`modules/sidebar/`).
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
   mouse moved within a second and a half: Hyprland sends no pointer enter to an

@@ -1,20 +1,22 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls as QQC
 import Quickshell
 import Ryoku.Blobs
-import Ryoku.Ui
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
+import "../ask/look"
 
 Item {
     id: root
 
     required property bool active
     required property real s
+    // the shipped board turns this off because the panel's head shows who it is
+    property bool identity: true
 
-    readonly property bool showIdentity: SidebarState.elementVisible("identity")
+    readonly property bool showIdentity: root.identity && SidebarState.elementVisible("identity")
     readonly property bool showCpu: SidebarState.elementVisible("cpu")
     readonly property bool showTemperature: SidebarState.elementVisible("cpuTemperature")
     readonly property bool showGraph: SidebarState.elementVisible("liveGraph")
@@ -23,42 +25,49 @@ Item {
     readonly property bool showNetwork: SidebarState.elementVisible("network")
     readonly property bool showDisk: SidebarState.elementVisible("disk")
     readonly property bool showBattery: SidebarState.elementVisible("battery")
-    readonly property bool hasReadings: showCpu || showTemperature || showGraph || showMemory
-        || showGpu || showNetwork || showDisk || showBattery
+    readonly property bool hasReadings: root.showCpu || root.showTemperature || root.showGraph || root.showMemory
+        || root.showGpu || root.showNetwork || root.showDisk || root.showBattery
     readonly property var monitor: systemMonitor
+
+    readonly property bool cpuShown: root.showCpu || root.showTemperature || root.showGraph
+    readonly property bool memoryShown: root.showMemory && root.monitor.memoryAvailable
+    readonly property bool gpuShown: root.showGpu && root.monitor.gpuAvailable
+    readonly property bool networkShown: root.showNetwork && root.monitor.networkAvailable
+    readonly property bool diskShown: root.showDisk && root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0
+    readonly property bool batteryShown: root.showBattery && root.monitor.batteryAvailable
+    readonly property int cellCount: (root.memoryShown ? 1 : 0) + (root.gpuShown ? 1 : 0)
+        + (root.networkShown ? 1 : 0) + (root.diskShown ? 1 : 0) + (root.batteryShown ? 1 : 0)
+    readonly property bool readingsShown: root.cpuShown || root.cellCount > 0
+
+    readonly property bool carded: QsLook.adwaita || QsLook.fluent
+    readonly property real inset: root.carded ? Math.round(14 * root.s) : 0
+    readonly property real cpuInset: QsLook.material ? Math.round(14 * root.s) : 0
+    readonly property real sectionGap: Math.round((QsLook.material ? 8 : QsLook.lithic ? 14 : 12) * root.s)
+    readonly property real columnGap: Math.round((QsLook.material ? 8 : 14) * root.s)
+    readonly property real rowGap: Math.round((QsLook.material ? 8 : QsLook.lithic ? 10 : 12) * root.s)
+    readonly property real figurePx: Math.round((QsLook.lithic ? 26 * QsLook.figureScale : 28) * root.s)
+    readonly property color cpuTemperatureInk: root.quietInk(QsLook.temperatureInk(displayed.cpuTemperature))
+
+    implicitHeight: stack.implicitHeight
+    Behavior on implicitHeight {
+        enabled: root.active
+        NumberAnimation { duration: QsLook.dur(QsLook.unfoldMs); easing.type: Easing.BezierSpline; easing.bezierCurve: QsLook.unfold }
+    }
+    clip: true
 
     SystemMonitor {
         id: systemMonitor
         active: root.active && (root.showIdentity || root.hasReadings)
     }
 
-    QtObject {
-        id: palette
-        readonly property color memory: Tokens.role("secondary", Tokens.inkDim)
-        readonly property color gpu: Tokens.role("tertiary", Tokens.inkMuted)
+    SystemClock {
+        id: clock
+        precision: SystemClock.Minutes
+        enabled: root.active && root.showIdentity
     }
 
-    implicitHeight: (root.showIdentity ? (Tokens.s7 + Tokens.s3) * s : 0)
-        + (root.showIdentity && root.hasReadings ? Tokens.s3 * s : 0)
-        + (root.hasReadings ? Tokens.s7 * 3 * s : 0)
-    clip: true
-
-    function blendColor(from, to, amount): color {
-        const t = Math.max(0, Math.min(1, amount));
-        return Qt.rgba(from.r + (to.r - from.r) * t,
-                       from.g + (to.g - from.g) * t,
-                       from.b + (to.b - from.b) * t,
-                       from.a + (to.a - from.a) * t);
-    }
-
-    function temperatureColor(value): color {
-        if (!isFinite(value) || value < 60)
-            return Tokens.ink;
-        if (value >= 90)
-            return Tokens.alert;
-        if (value <= 85)
-            return root.blendColor(Tokens.ink, Tokens.sun, (value - 60) / 25);
-        return root.blendColor(Tokens.sun, Tokens.alert, (value - 85) / 5);
+    function quietInk(ink) {
+        return Qt.colorEqual(ink, Lithic.fg) ? Lithic.fg2 : ink;
     }
 
     function formatRate(bytes): string {
@@ -68,6 +77,16 @@ Item {
         if (value >= 1024 * 1024)
             return I18n.tr("%1 MB/s").arg((value / (1024 * 1024)).toFixed(1));
         return I18n.tr("%1 KB/s").arg((value / 1024).toFixed(1));
+    }
+
+    // a half-width cell only fits compact figures, the tooltip keeps the full rates
+    function compactRate(bytes): string {
+        const value = Math.max(0, bytes);
+        if (value >= 1024 * 1024 * 1024)
+            return I18n.tr("%1G").arg((value / (1024 * 1024 * 1024)).toFixed(1));
+        if (value >= 1024 * 1024)
+            return I18n.tr("%1M").arg((value / (1024 * 1024)).toFixed(1));
+        return I18n.tr("%1K").arg((value / 1024).toFixed(value >= 100 * 1024 ? 0 : 1));
     }
 
     function formatDiskRates(readBytes, writeBytes): string {
@@ -103,16 +122,12 @@ Item {
         id: displayed
 
         readonly property int settle: root.monitor.samplePeriodMs
-        readonly property bool eased: !Tokens.reduceMotion && !Motion.reduce
+        readonly property bool eased: !QsLook.still
         property real cpu: root.monitor.cpuAvailable && isFinite(root.monitor.cpuPercent)
-                           ? root.monitor.cpuPercent
-                           : 0
-        property real cpuFrequency: isFinite(root.monitor.cpuFrequencyGhz)
-                                    ? root.monitor.cpuFrequencyGhz
-                                    : 0
+            ? root.monitor.cpuPercent : 0
+        property real cpuFrequency: isFinite(root.monitor.cpuFrequencyGhz) ? root.monitor.cpuFrequencyGhz : 0
         property real cpuTemperature: root.monitor.cpuTempAvailable && isFinite(root.monitor.cpuTemp)
-                                      ? root.monitor.cpuTemp
-                                      : 0
+            ? root.monitor.cpuTemp : 0
         property real load: isFinite(root.monitor.loadAverage) ? root.monitor.loadAverage : 0
         property real uptime: isFinite(root.monitor.uptimeSeconds) ? root.monitor.uptimeSeconds : 0
 
@@ -138,467 +153,402 @@ Item {
         }
     }
 
-    SystemClock {
-        id: clock
-        precision: SystemClock.Minutes
-        enabled: root.active
-    }
-
-    Item {
-        id: identity
-        visible: root.showIdentity
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: visible ? (Tokens.s7 + Tokens.s3) * root.s : 0
-        clip: true
-
-        Rectangle {
-            id: avatar
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: Tokens.s6 * root.s
-            height: width
-            radius: width / 2
-            color: Tokens.role("primaryContainer", Tokens.tint10)
-
-            AvatarImage {
-                id: avatarImage
-                anchors.fill: parent
-                userName: root.monitor.userName
-                home: Quickshell.env("HOME") || ""
-            }
-
-            Text {
-                anchors.fill: parent
-                visible: !avatarImage.hasImage
-                text: root.monitor.userName.length > 0
-                      ? root.monitor.userName.slice(0, 1).toUpperCase()
-                      : I18n.tr("—")
-                textFormat: Text.PlainText
-                color: Tokens.role("onPrimaryContainer", Tokens.ink)
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-        }
-
-        Column {
-            anchors.left: avatar.right
-            anchors.leftMargin: Tokens.s2 * root.s
-            anchors.right: clockBlock.left
-            anchors.rightMargin: Tokens.s4 * root.s
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Tokens.s1 * root.s
-
-            Text {
-                width: parent.width
-                text: I18n.tr("%1@%2").arg(root.monitor.userName).arg(root.monitor.hostName)
-                textFormat: Text.PlainText
-                color: Tokens.ink
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fRow * root.s
-                font.weight: Font.Medium
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: root.monitor.sampleCount > 0
-                      ? root.uptime(displayed.uptime)
-                        + I18n.tr(" · Load %1").arg(displayed.load.toFixed(2))
-                      : I18n.tr("—")
-                textFormat: Text.PlainText
-                color: Tokens.inkMuted
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
-                elide: Text.ElideRight
-            }
-        }
-
-        Column {
-            id: clockBlock
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            width: Tokens.s7 * 2 * root.s
-            spacing: Tokens.s1 * root.s
-
-            Text {
-                width: parent.width
-                text: TimeFormat.format(clock.date)
-                textFormat: Text.PlainText
-                color: Tokens.ink
-                font.family: Tokens.display
-                font.pixelSize: Tokens.fHero * root.s
-                fontSizeMode: Text.HorizontalFit
-                minimumPixelSize: Tokens.fBody * root.s
-                font.weight: Font.Light
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignRight
-            }
-
-            Text {
-                width: parent.width
-                text: Qt.formatDateTime(clock.date, I18n.tr("ddd, MMM d"))
-                textFormat: Text.PlainText
-                color: Tokens.inkMuted
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fMicro * root.s
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignRight
-            }
-        }
-    }
-
-    Row {
-        id: body
-        visible: root.hasReadings
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: root.showIdentity ? identity.bottom : parent.top
-        anchors.topMargin: root.showIdentity && visible ? Tokens.s3 * root.s : 0
-        height: visible ? Tokens.s7 * 3 * root.s : 0
-        spacing: Tokens.s4 * root.s
+    Column {
+        id: stack
+        width: root.width
+        spacing: Math.round(14 * root.s)
 
         Item {
-            id: cpuZone
-            visible: root.showCpu || root.showTemperature
-            width: visible ? (Tokens.s7 * 3 + Tokens.s2) * root.s : 0
-            height: parent.height
-            clip: true
+            id: identityRow
+            visible: root.showIdentity
+            width: stack.width
+            height: Math.round(44 * root.s)
 
-            Text {
-                id: cpuHeading
-                visible: root.showCpu
+            Avatar {
+                id: avatar
                 anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                text: I18n.tr("CPU")
-                textFormat: Text.PlainText
-                color: Tokens.inkMuted
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fMicro * root.s
-                font.letterSpacing: Tokens.trackLabel * root.s
-                elide: Text.ElideRight
+                anchors.verticalCenter: parent.verticalCenter
+                s: root.s
+                size: 36
+                userName: root.monitor.userName
             }
 
-            Item {
-                id: cpuReading
-                visible: root.showCpu || root.showTemperature
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: cpuHeading.bottom
-                anchors.topMargin: Tokens.s2 * root.s
-                height: cpuPercent.implicitHeight + cpuFrequency.implicitHeight
+            Column {
+                anchors.left: avatar.right
+                anchors.leftMargin: Math.round(12 * root.s)
+                anchors.right: clockColumn.left
+                anchors.rightMargin: Math.round(12 * root.s)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Math.round(2 * root.s)
 
                 Text {
-                    id: cpuPercent
-                    visible: root.showCpu
-                    anchors.left: parent.left
-                    anchors.right: temperaturePill.visible ? temperaturePill.left : parent.right
-                    anchors.rightMargin: temperaturePill.visible ? Tokens.s2 * root.s : 0
-                    anchors.top: parent.top
-                    text: root.monitor.cpuAvailable
-                          ? I18n.tr("%1%").arg(Math.round(displayed.cpu))
-                          : I18n.tr("—")
+                    width: parent.width
+                    text: I18n.tr("%1@%2").arg(root.monitor.userName).arg(root.monitor.hostName)
                     textFormat: Text.PlainText
-                    color: Tokens.ink
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fHero * root.s
-                fontSizeMode: Text.HorizontalFit
-                minimumPixelSize: Tokens.fBody * root.s
-                    font.weight: Font.Light
+                    color: Lithic.fg
+                    font.family: QsLook.sans
+                    font.pixelSize: Math.round(14 * root.s)
+                    font.weight: Font.Medium
+                    renderType: Text.NativeRendering
                     elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    visible: root.monitor.sampleCount > 0
+                    text: root.uptime(displayed.uptime) + I18n.tr(" · Load %1").arg(displayed.load.toFixed(2))
+                    textFormat: Text.PlainText
+                    color: Lithic.fg2
+                    font.family: QsLook.sans
+                    font.pixelSize: Math.round(12 * root.s)
+                    font.features: ({ "tnum": 1 })
+                    renderType: Text.NativeRendering
+                    elide: Text.ElideRight
+                }
+            }
 
-                    HoverHandler {
-                        id: cpuHover
+            Column {
+                id: clockColumn
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Math.round(2 * root.s)
+
+                Text {
+                    anchors.right: parent.right
+                    text: TimeFormat.format(clock.date)
+                    textFormat: Text.PlainText
+                    color: Lithic.fg
+                    font.family: QsLook.lithic ? QsLook.figures : QsLook.sans
+                    font.pixelSize: Math.round((QsLook.lithic ? 20 * QsLook.figureScale : 22) * root.s)
+                    font.weight: QsLook.lithic ? Font.Normal : Font.Light
+                    font.features: ({ "tnum": 1 })
+                    renderType: Text.NativeRendering
+                }
+                Micro {
+                    anchors.right: parent.right
+                    s: root.s
+                    text: Qt.formatDateTime(clock.date, I18n.tr("ddd, MMM d"))
+                }
+            }
+        }
+
+        Item {
+            id: readings
+            visible: root.readingsShown
+            width: stack.width
+            height: body.implicitHeight + root.inset * 2
+
+            Plate {
+                visible: root.carded
+                anchors.fill: parent
+                s: root.s
+            }
+
+            Column {
+                id: body
+                x: root.inset
+                y: root.inset
+                width: readings.width - root.inset * 2
+                spacing: root.sectionGap
+
+                Item {
+                    id: cpuBlock
+                    visible: root.cpuShown
+                    width: body.width
+                    height: root.cpuInset * 2 + cpuRow.height
+                        + (cores.visible ? Math.round(8 * root.s) + cores.height : 0)
+
+                    Plate {
+                        visible: QsLook.material
+                        anchors.fill: parent
+                        s: root.s
                     }
 
-                    CornerTip { s: root.s; visible: cpuHover.hovered; text: root.monitor.cpuName.length > 0 ? root.monitor.cpuName : I18n.tr("CPU") }
-                }
+                    Item {
+                        id: cpuRow
+                        x: root.cpuInset
+                        y: root.cpuInset
+                        width: cpuBlock.width - root.cpuInset * 2
+                        height: Math.max(readout.visible ? readout.implicitHeight : 0,
+                            root.showGraph ? Math.round(52 * root.s) : 0)
 
-                Text {
-                    id: cpuFrequency
-                    visible: root.showCpu
-                    anchors.left: parent.left
-                    anchors.right: temperaturePill.visible ? temperaturePill.left : parent.right
-                    anchors.rightMargin: temperaturePill.visible ? Tokens.s2 * root.s : 0
-                    anchors.top: cpuPercent.bottom
-                    text: displayed.cpuFrequency > 0
-                          ? I18n.tr("%1 GHz").arg(displayed.cpuFrequency.toFixed(2))
-                          : I18n.tr("—")
-                    textFormat: Text.PlainText
-                    color: Tokens.inkMuted
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall * root.s
-                    elide: Text.ElideRight
+                        Column {
+                            id: readout
+                            visible: root.showCpu || root.showTemperature
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: root.showGraph ? cpuRow.width * 0.45 - Math.round(12 * root.s) : cpuRow.width
+                            spacing: Math.round(2 * root.s)
+                            Accessible.role: Accessible.StaticText
+                            Accessible.name: I18n.tr("Processor") + ", " + figure.text + percent.text + ", " + proof.text
+
+                            Micro {
+                                width: parent.width
+                                s: root.s
+                                text: I18n.tr("Processor")
+                            }
+
+                            Row {
+                                visible: root.showCpu
+
+                                Text {
+                                    anchors.baseline: figure.baseline
+                                    visible: QsLook.lithic && text.length > 0
+                                    text: root.monitor.cpuAvailable ? "000".slice(figure.text.length) : ""
+                                    color: Lithic.fg3
+                                    font: figure.font
+                                    renderType: Text.NativeRendering
+                                }
+                                Text {
+                                    id: figure
+                                    text: root.monitor.cpuAvailable ? String(Math.round(displayed.cpu)) : I18n.tr("–")
+                                    color: Lithic.fg
+                                    font.family: QsLook.lithic ? QsLook.figures : QsLook.sans
+                                    font.pixelSize: root.figurePx
+                                    font.weight: QsLook.lithic ? Font.Normal : Font.Light
+                                    font.features: ({ "tnum": 1 })
+                                    renderType: Text.NativeRendering
+                                }
+                                Text {
+                                    id: percent
+                                    anchors.baseline: figure.baseline
+                                    leftPadding: Math.round((QsLook.lithic ? 4 : 2) * root.s)
+                                    text: I18n.tr("%")
+                                    color: Lithic.fg2
+                                    font.family: QsLook.lithic ? QsLook.mono : QsLook.sans
+                                    font.pixelSize: Math.round((QsLook.lithic ? 11 : 14) * root.s)
+                                    renderType: Text.NativeRendering
+                                }
+                            }
+
+                            Row {
+                                id: proof
+                                readonly property bool frequency: root.showCpu && displayed.cpuFrequency > 0
+                                readonly property bool temperature: root.showTemperature && root.monitor.cpuTempAvailable
+                                readonly property string text: (proof.frequency ? frequencyText.text : "")
+                                    + (proof.frequency && proof.temperature ? separator.text : "")
+                                    + (proof.temperature ? temperatureText.text : "")
+                                visible: proof.frequency || proof.temperature
+
+                                Text {
+                                    id: frequencyText
+                                    visible: proof.frequency
+                                    text: I18n.tr("%1 GHz").arg(displayed.cpuFrequency.toFixed(2))
+                                    color: Lithic.fg2
+                                    font.family: QsLook.sans
+                                    font.pixelSize: Math.round(12 * root.s)
+                                    font.features: ({ "tnum": 1 })
+                                    renderType: Text.NativeRendering
+                                }
+                                Text {
+                                    id: separator
+                                    visible: proof.frequency && proof.temperature
+                                    text: I18n.tr(" · ")
+                                    color: Lithic.fg3
+                                    font.family: QsLook.sans
+                                    font.pixelSize: Math.round(12 * root.s)
+                                    renderType: Text.NativeRendering
+                                }
+                                Text {
+                                    id: temperatureText
+                                    visible: proof.temperature
+                                    text: I18n.tr("%1 °C").arg(Math.round(displayed.cpuTemperature))
+                                    color: root.cpuTemperatureInk
+                                    font.family: QsLook.sans
+                                    font.pixelSize: Math.round(12 * root.s)
+                                    font.weight: Qt.colorEqual(root.cpuTemperatureInk, Lithic.fg2) ? Font.Normal : Font.Medium
+                                    font.features: ({ "tnum": 1 })
+                                    renderType: Text.NativeRendering
+                                    Behavior on color {
+                                        ColorAnimation { duration: QsLook.dur(QsLook.stateMs * 2) }
+                                    }
+                                }
+                            }
+
+                            HoverHandler {
+                                id: readoutHover
+                            }
+                            CornerTip {
+                                s: root.s
+                                visible: readoutHover.hovered && text.length > 0
+                                text: {
+                                    const name = root.showCpu && root.monitor.cpuName.length > 0 ? root.monitor.cpuName : "";
+                                    const source = !proof.temperature ? ""
+                                        : root.monitor.cpuTempLabel === "zone" ? I18n.tr("Thermal zone temperature")
+                                        : I18n.tr("CPU package temperature");
+                                    return name.length > 0 && source.length > 0 ? name + "\n" + source : name + source;
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: graph
+                            visible: root.showGraph
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: readout.visible ? Math.round(cpuRow.width * 0.55) : cpuRow.width
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: Math.max(1, Math.round(root.s))
+                                color: QsLook.lithic ? Lithic.vein : QsLook.fluent ? Look.rule
+                                    : Lithic.alpha(Lithic.fg, QsLook.dark ? 0.12 : 0.14)
+                            }
+
+                            Loader {
+                                anchors.fill: parent
+                                anchors.bottomMargin: Math.max(1, Math.round(root.s))
+                                active: root.showGraph && root.active
+                                sourceComponent: VitalSparkline {
+                                    monitor: root.monitor
+                                    active: root.active
+                                    s: root.s
+                                    channels: ["cpu"]
+                                    colors: [Lithic.sel]
+                                    fill: true
+                                    showGrid: false
+                                    lineWidth: Math.max(1, Math.round((QsLook.material ? 2 : 1.5) * root.s))
+                                }
+                            }
+                        }
+                    }
+
+                    VitalCores {
+                        id: cores
+                        visible: root.showCpu
+                        x: root.cpuInset
+                        anchors.top: cpuRow.bottom
+                        anchors.topMargin: Math.round(8 * root.s)
+                        width: cpuRow.width
+                        height: implicitHeight
+                        monitor: root.monitor
+                        s: root.s
+                    }
                 }
 
                 Rectangle {
-                    id: temperaturePill
-                    visible: root.showTemperature && root.monitor.cpuTempAvailable
-                    anchors.right: parent.right
-                    anchors.verticalCenter: cpuPercent.verticalCenter
-                    width: temperatureRow.implicitWidth + Tokens.s1 * root.s * 2
-                    height: Tokens.ctlH * root.s
-                    radius: Tokens.radius * root.s
-                    color: Tokens.tint5
-                    border.width: Tokens.border * root.s
-                    border.color: Tokens.lineSoft
-
-                    Row {
-                        id: temperatureRow
-                        anchors.centerIn: parent
-                        spacing: Tokens.s1 * root.s
-
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Tokens.s1 * root.s
-                            height: width
-                            radius: width / 2
-                            color: root.temperatureColor(displayed.cpuTemperature)
-                        }
-
-                        Text {
-                            text: I18n.tr("%1 °C").arg(Math.round(displayed.cpuTemperature))
-                            textFormat: Text.PlainText
-                            color: Tokens.ink
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fSmall * root.s
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    HoverHandler {
-                        id: temperatureHover
-                    }
-
-                    CornerTip { s: root.s; visible: temperatureHover.hovered; text: root.monitor.cpuTempLabel === "zone" ? I18n.tr("Thermal zone temperature") : I18n.tr("CPU package temperature") }
+                    visible: root.carded && root.cpuShown && root.cellCount > 0
+                    width: body.width
+                    height: Math.max(1, Math.round(root.s))
+                    color: QsLook.adwaita ? Look.divider : Look.rule
                 }
-            }
 
-            VitalCores {
-                visible: root.showCpu
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: cpuReading.bottom
-                anchors.topMargin: Tokens.s2 * root.s
-                height: Math.min(implicitHeight, Math.max(0, cpuZone.height - y))
-                monitor: root.monitor
-                s: root.s
-            }
-        }
+                Grid {
+                    id: grid
+                    readonly property real cell: (grid.width - grid.columnSpacing) / 2
+                    visible: root.cellCount > 0
+                    width: body.width
+                    columns: 2
+                    columnSpacing: root.columnGap
+                    rowSpacing: root.rowGap
 
-        Item {
-            id: graphZone
-            visible: root.showGraph
-            width: visible ? (Tokens.s7 * 4 + Tokens.s5) * root.s : 0
-            height: parent.height
-            clip: true
-
-            readonly property bool inlineLegend: activityLabel.implicitWidth
-                                                   + Tokens.s3 * root.s
-                                                   + graphLegend.implicitWidth
-                                                   <= width
-
-            Text {
-                id: activityLabel
-                anchors.left: parent.left
-                anchors.top: parent.top
-                width: graphZone.inlineLegend ? implicitWidth : parent.width
-                text: I18n.tr("ACTIVITY")
-                textFormat: Text.PlainText
-                color: Tokens.inkMuted
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fMicro * root.s
-                font.letterSpacing: Tokens.trackLabel * root.s
-                elide: Text.ElideRight
-            }
-
-            Row {
-                id: graphLegend
-                anchors.right: parent.right
-                anchors.top: graphZone.inlineLegend ? parent.top : undefined
-                anchors.bottom: graphZone.inlineLegend ? undefined : parent.bottom
-                spacing: Tokens.s3 * root.s
-
-                Repeater {
-                    model: [
-                        { label: I18n.tr("CPU"), color: Tokens.sun },
-                        { label: I18n.tr("MEM"), color: palette.memory },
-                        { label: I18n.tr("GPU"), color: palette.gpu }
-                    ]
-
-                    delegate: Row {
-                        required property var modelData
-                        spacing: Tokens.s1 * root.s
-
-                        Text {
-                            text: I18n.tr("●")
-                            textFormat: Text.PlainText
-                            color: parent.modelData.color
-                            font.family: Tokens.mono
-                            font.pixelSize: Tokens.fMicro * root.s
-                        }
-
-                        Text {
-                            text: parent.modelData.label
-                            textFormat: Text.PlainText
-                            color: Tokens.inkFaint
-                            font.family: Tokens.mono
-                            font.pixelSize: Tokens.fMicro * root.s
-                        }
-                    }
-                }
-            }
-
-            Loader {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: activityLabel.bottom
-                anchors.topMargin: Tokens.s2 * root.s
-                anchors.bottom: graphZone.inlineLegend ? parent.bottom : graphLegend.top
-                anchors.bottomMargin: graphZone.inlineLegend ? 0 : Tokens.s2 * root.s
-                active: root.showGraph && root.active
-                sourceComponent: VitalSparkline {
-                    monitor: root.monitor
-                    active: root.active
-                    s: root.s
-                    channels: ["cpu", "memory", "gpu"]
-                    colors: [Tokens.sun, palette.memory, palette.gpu]
-                    fill: true
-                    showGrid: true
-                    detailPoints: false
-                    lineWidth: Tokens.border * root.s
-                }
-            }
-        }
-
-        Column {
-            id: meters
-            readonly property int visibleMeterCount:
-                (root.showMemory && root.monitor.memoryAvailable ? 1 : 0)
-                + (root.showGpu && root.monitor.gpuAvailable ? 1 : 0)
-                + (root.showNetwork && root.monitor.networkAvailable ? 1 : 0)
-                + (root.showDisk && root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0 ? 1 : 0)
-                + (root.showBattery && root.monitor.batteryAvailable ? 1 : 0)
-            width: Math.max(0, body.width - cpuZone.width - graphZone.width
-                - body.spacing * ((cpuZone.visible ? 1 : 0) + (graphZone.visible ? 1 : 0)))
-            height: parent.height
-            spacing: 0
-            clip: true
-
-            readonly property real rowHeight: visibleMeterCount > 0 ? height / visibleMeterCount : 0
-
-            VitalMeter {
-                width: parent.width
-                height: meters.rowHeight
-                visible: root.showMemory && root.monitor.memoryAvailable
-                s: root.s
-                settle: root.monitor.samplePeriodMs
-                label: I18n.tr("Memory")
-                valueText: {
-                    const memory = I18n.tr("%1 / %2 GiB")
-                        .arg(root.monitor.memoryUsedGiB.toFixed(1))
-                        .arg(root.monitor.memoryTotalGiB.toFixed(1));
-                    return root.monitor.swapUsedGiB > 0.1
-                           ? memory + I18n.tr(" · swap %1 GiB").arg(root.monitor.swapUsedGiB.toFixed(1))
-                           : memory;
-                }
-                showProgress: true
-                progressValue: root.monitor.memoryUsedGiB
-                progressMaximum: root.monitor.memoryTotalGiB
-                accent: palette.memory
-            }
-
-            VitalMeter {
-                width: parent.width
-                height: meters.rowHeight
-                visible: root.showGpu && root.monitor.gpuAvailable
-                s: root.s
-                settle: root.monitor.samplePeriodMs
-                label: I18n.tr("GPU")
-                valueText: root.monitor.gpuTempAvailable
-                           ? I18n.tr("%1% · %2 °C")
-                               .arg(Math.round(root.monitor.gpuPercent))
-                               .arg(Math.round(root.monitor.gpuTemp))
-                           : I18n.tr("%1%").arg(Math.round(root.monitor.gpuPercent))
-                tooltipText: root.monitor.gpuMemoryAvailable
-                             ? I18n.tr("VRAM %1 / %2 GiB")
-                                 .arg(root.monitor.gpuMemoryUsedGiB.toFixed(1))
-                                 .arg(root.monitor.gpuMemoryTotalGiB.toFixed(1))
-                             : ""
-                showProgress: true
-                progressValue: root.monitor.gpuPercent
-                accent: palette.gpu
-            }
-
-            VitalMeter {
-                id: networkMeter
-                width: parent.width
-                height: meters.rowHeight
-                visible: root.showNetwork && root.monitor.networkAvailable
-                s: root.s
-                settle: root.monitor.samplePeriodMs
-                label: I18n.tr("Network")
-                valueText: I18n.tr("↓ %1  ↑ %2")
-                    .arg(root.formatRate(root.monitor.networkRxBytesPerSec))
-                    .arg(root.formatRate(root.monitor.networkTxBytesPerSec))
-                tooltipText: root.monitor.networkInterface.length > 0
-                             ? I18n.tr("Interface %1").arg(root.monitor.networkInterface)
-                             : ""
-                meterContent: Component {
-                    VitalSparkline {
-                        monitor: root.monitor
-                        active: root.active && networkMeter.visible
+                    VitalMeter {
+                        visible: root.memoryShown
+                        width: grid.cell
                         s: root.s
-                        channels: ["netRx", "netTx"]
-                        colors: [Tokens.sun, palette.memory]
-                        fill: false
-                        showGrid: false
-                        detailPoints: false
+                        settle: root.monitor.samplePeriodMs
+                        label: I18n.tr("Memory")
+                        valueText: I18n.tr("%1 / %2 GiB")
+                            .arg(root.monitor.memoryUsedGiB.toFixed(1))
+                            .arg(root.monitor.memoryTotalGiB.toFixed(1))
+                        tooltipText: root.monitor.swapUsedGiB > 0.1
+                            ? I18n.tr("Swap %1 GiB").arg(root.monitor.swapUsedGiB.toFixed(1)) : ""
+                        showProgress: true
+                        progressValue: root.monitor.memoryUsedGiB
+                        progressMaximum: root.monitor.memoryTotalGiB
+                    }
+
+                    VitalMeter {
+                        visible: root.gpuShown
+                        width: grid.cell
+                        s: root.s
+                        settle: root.monitor.samplePeriodMs
+                        label: I18n.tr("Graphics")
+                        valueText: I18n.tr("%1%").arg(Math.round(root.monitor.gpuPercent))
+                        detailText: root.monitor.gpuTempAvailable
+                            ? I18n.tr(" · %1 °C").arg(Math.round(root.monitor.gpuTemp)) : ""
+                        detailInk: root.quietInk(QsLook.temperatureInk(root.monitor.gpuTemp))
+                        tooltipText: root.monitor.gpuMemoryAvailable
+                            ? I18n.tr("VRAM %1 / %2 GiB")
+                                .arg(root.monitor.gpuMemoryUsedGiB.toFixed(1))
+                                .arg(root.monitor.gpuMemoryTotalGiB.toFixed(1))
+                            : ""
+                        showProgress: true
+                        progressValue: root.monitor.gpuPercent
+                    }
+
+                    VitalMeter {
+                        id: networkMeter
+                        visible: root.networkShown
+                        width: grid.cell
+                        s: root.s
+                        settle: root.monitor.samplePeriodMs
+                        label: I18n.tr("Network")
+                        valueText: I18n.tr("↓ %1  ↑ %2")
+                            .arg(root.compactRate(root.monitor.networkRxBytesPerSec))
+                            .arg(root.compactRate(root.monitor.networkTxBytesPerSec))
+                        tooltipText: {
+                            const rates = I18n.tr("↓ %1 · ↑ %2")
+                                .arg(root.formatRate(root.monitor.networkRxBytesPerSec))
+                                .arg(root.formatRate(root.monitor.networkTxBytesPerSec));
+                            return root.monitor.networkInterface.length > 0
+                                ? I18n.tr("%1 · %2").arg(rates).arg(root.monitor.networkInterface) : rates;
+                        }
+                        meterContent: Component {
+                            VitalSparkline {
+                                monitor: root.monitor
+                                active: root.active && networkMeter.visible
+                                s: root.s
+                                channels: ["netRx", "netTx"]
+                                colors: [Lithic.fg2, Lithic.sel]
+                                fill: false
+                                showGrid: false
+                            }
+                        }
+                    }
+
+                    VitalMeter {
+                        visible: root.diskShown
+                        width: grid.cell
+                        s: root.s
+                        settle: root.monitor.samplePeriodMs
+                        label: I18n.tr("Disk")
+                        valueText: root.formatDiskRates(root.monitor.diskReadBytesPerSec,
+                            root.monitor.diskWriteBytesPerSec)
+                        tooltipText: {
+                            const usage = I18n.tr("Root %1%").arg(Math.round(
+                                root.monitor.storageUsedGiB / root.monitor.storageTotalGiB * 100));
+                            return root.monitor.storageTempAvailable
+                                ? I18n.tr("%1 · %2 °C").arg(usage).arg(Math.round(root.monitor.storageTemp))
+                                : usage;
+                        }
+                        showProgress: true
+                        progressValue: root.monitor.storageUsedGiB
+                        progressMaximum: root.monitor.storageTotalGiB
+                    }
+
+                    VitalMeter {
+                        id: batteryMeter
+                        readonly property color warning: QsLook.batteryInk(root.monitor.batteryPercent,
+                            root.monitor.batteryCharging)
+                        readonly property bool warned: !Qt.colorEqual(batteryMeter.warning, Lithic.fg)
+                        visible: root.batteryShown
+                        width: grid.cell
+                        s: root.s
+                        settle: root.monitor.samplePeriodMs
+                        label: I18n.tr("Battery")
+                        valueText: I18n.tr("%1%").arg(Math.round(root.monitor.batteryPercent))
+                        valueInk: batteryMeter.warning
+                        detailText: I18n.tr(" · %1").arg(root.monitor.batteryCharging
+                            ? I18n.tr("Charging") : I18n.tr("On battery"))
+                        showProgress: true
+                        progressValue: root.monitor.batteryPercent
+                        accent: batteryMeter.warned ? batteryMeter.warning
+                            : QsLook.lithic ? Lithic.fg2 : Lithic.sel
                     }
                 }
-            }
-
-            VitalMeter {
-                width: parent.width
-                height: meters.rowHeight
-                visible: root.showDisk && root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0
-                s: root.s
-                settle: root.monitor.samplePeriodMs
-                label: I18n.tr("Disk")
-                valueText: root.formatDiskRates(root.monitor.diskReadBytesPerSec,
-                                                root.monitor.diskWriteBytesPerSec)
-                tooltipText: {
-                    const usage = I18n.tr("Root %1%").arg(Math.round(
-                        root.monitor.storageUsedGiB / root.monitor.storageTotalGiB * 100));
-                    return root.monitor.storageTempAvailable
-                           ? I18n.tr("%1 · %2 °C").arg(usage).arg(Math.round(root.monitor.storageTemp))
-                           : usage;
-                }
-                showProgress: true
-                progressValue: root.monitor.storageUsedGiB
-                progressMaximum: root.monitor.storageTotalGiB
-                accent: Tokens.inkDim
-            }
-
-            VitalMeter {
-                width: parent.width
-                height: meters.rowHeight
-                visible: root.showBattery && root.monitor.batteryAvailable
-                s: root.s
-                settle: root.monitor.samplePeriodMs
-                label: I18n.tr("Battery")
-                valueText: I18n.tr("%1% · %2")
-                    .arg(Math.round(root.monitor.batteryPercent))
-                    .arg(root.monitor.batteryCharging ? I18n.tr("Charging") : I18n.tr("On battery"))
-                showProgress: true
-                progressValue: root.monitor.batteryPercent
-                accent: root.monitor.batteryCharging ? Tokens.sun : Tokens.inkDim
             }
         }
     }

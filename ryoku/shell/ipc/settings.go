@@ -87,7 +87,7 @@ var (
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	orientationValues     = []string{"Horizontal", "Vertical"}
 	locQueryTypeValues    = []string{"Coordinates", "City"}
-	controlSectionIDs     = []string{"vitals", "connections", "powerProfile", "media", "levels", "bottomControls"}
+	controlSectionIDs     = []string{"connections", "levels", "media", "powerProfile", "vitals", "bottomControls"}
 	controlPositionValues = []string{"top-left", "top-center", "top-right", "center"}
 	controlElementIDs     = []string{
 		"identity", "cpu", "cpuTemperature", "liveGraph", "memory", "gpu", "network", "disk", "battery",
@@ -430,11 +430,11 @@ func defaultSettings() *settings {
 		return menuConfig{Position: pos, MinimumWidth: width, Widgets: widgets}
 	}
 	controls := []controlsSection{
-		{ID: "vitals", Visible: true},
 		{ID: "connections", Visible: true},
-		{ID: "powerProfile", Visible: true},
-		{ID: "media", Visible: false},
 		{ID: "levels", Visible: true},
+		{ID: "media", Visible: false},
+		{ID: "powerProfile", Visible: true},
+		{ID: "vitals", Visible: true},
 		{ID: "bottomControls", Visible: true},
 	}
 	return &settings{
@@ -513,7 +513,7 @@ func defaultSettings() *settings {
 			Alarm:      phoneAlarmSettings{Enabled: true, PollMinutes: 10, ClockApps: []string{}, IgnorePackages: []string{}},
 		},
 		Controls: controlsSettings{
-			Position: "top-left",
+			Position: "top-right",
 			EdgeGap:  ip(12),
 			Sections: controls,
 			Hidden:   []string{},
@@ -829,7 +829,7 @@ func (c *controlsSettings) normalize(v *validator) {
 		if v.strict {
 			v.enum("controls.position", c.Position, controlPositionValues)
 		} else {
-			c.Position = "top-left"
+			c.Position = "top-right"
 		}
 	}
 	if c.EdgeGap == nil {

@@ -334,7 +334,7 @@ function pageSummary(id, ctx) {
             : widgetsOff > 1 ? ctx.tr("widgets off on %1 displays").replace("%1", widgetsOff) : ctx.tr("widgets on every display"));
     case "quick-settings":
         var corners = { "top-left": "Top left", "top-center": "Top centre", "top-right": "Top right", center: "Centre" };
-        var where = corners[ctx.settings("controls.position") || "top-left"] || "Top left";
+        var where = corners[ctx.settings("controls.position") || "top-right"] || "Top right";
         var gap = ctx.settings("controls.edgeGap");
         return ctx.tr(where) + ", " + ctx.tr("%1 px from the edges").replace("%1", gap === undefined || gap === null ? 12 : gap);
     case "clipboard":

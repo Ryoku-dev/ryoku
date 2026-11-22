@@ -446,11 +446,15 @@ below are what each surface becomes.
   `open_in_new`. Modes are a Segmented; provider prefixes show in mono. The rest
   card (clock, greeting, weather) sets its figures as Home does
   ([launcher.md](launcher.md)).
-- **Quick settings** (`Super+Escape`). A short sheet: ruled sections of setting
-  rows, levels as sliders with their value in tabular figures, vitals as
-  engraved charts with a value and proof, connections as claims with their
-  proof, session actions as plaques with the danger tier for power-off
-  ([sidebars.md](sidebars.md)).
+- **Quick settings** (`Super+Escape`). The control centre at the bar's trailing
+  end, in the work area so the bar stays uncovered. In Lithic a short sheet
+  under a `§ QUICK SETTINGS` masthead: numbered ruled blocks, connections as cut
+  tiles with their claim, levels on tick rulers with odometer figures, vitals as
+  ledger lines, session actions as plaques whose blade sweeps on hold, the
+  danger tier for power-off. The other designs keep the blocks and order and
+  take their platform's control centre: Android's shade, GNOME's quick
+  settings, the Windows action centre. Pages push in place and Escape pops them
+  first ([sidebars.md](sidebars.md)).
 - **Rashin bar** (`Alt+Space`). One field, one ranked list and a footer that
   names the primary action and `Actions Ctrl K`, drawn in the design in use:
   Lithic cuts the plane and rules it with hairlines, Material rounds a tonal pill

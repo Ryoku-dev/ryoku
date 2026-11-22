@@ -794,22 +794,24 @@ func TestControlsNormalization(t *testing.T) {
 	if len(sections) != len(controlSectionIDs) {
 		t.Fatalf("normalized sections = %d, want %d: %v", len(sections), len(controlSectionIDs), sections)
 	}
-	first := sections[0].(map[string]any)
-	if first["id"] != "levels" || first["visible"] != false {
-		t.Fatalf("first normalized section = %v, want hidden levels", first)
-	}
-	for _, raw := range sections {
-		if raw.(map[string]any)["id"] == "unknown" {
-			t.Fatalf("unknown section survived normalization: %v", sections)
+	// the stored block keeps its place; the missing ones follow in shipped order
+	want := []string{"levels", "connections", "media", "powerProfile", "vitals", "bottomControls"}
+	for i, raw := range sections {
+		if got := raw.(map[string]any)["id"]; got != want[i] {
+			t.Fatalf("normalized section %d = %v, want %s: %v", i, got, want[i], sections)
 		}
+	}
+	first := sections[0].(map[string]any)
+	if first["visible"] != false {
+		t.Fatalf("first normalized section = %v, want hidden levels", first)
 	}
 	hidden := controls["hidden"].([]any)
 	if len(hidden) != 1 || hidden[0] != "liveGraph" {
 		t.Fatalf("normalized hidden = %v, want [liveGraph]", hidden)
 	}
 
-	if controls["position"] != "top-left" {
-		t.Fatalf("missing controls position = %v, want top-left", controls["position"])
+	if controls["position"] != "top-right" {
+		t.Fatalf("missing controls position = %v, want top-right", controls["position"])
 	}
 	if controls["edgeGap"] != float64(12) {
 		t.Fatalf("missing controls edgeGap = %v, want 12", controls["edgeGap"])
@@ -818,8 +820,8 @@ func TestControlsNormalization(t *testing.T) {
 
 func TestControlsGeometrySettings(t *testing.T) {
 	s := newTestStore(t)
-	if got := frameGet(t, s.frameLocked(), "controls.position"); got != "top-left" {
-		t.Fatalf("controls.position default = %v, want top-left", got)
+	if got := frameGet(t, s.frameLocked(), "controls.position"); got != "top-right" {
+		t.Fatalf("controls.position default = %v, want top-right", got)
 	}
 	if got := frameNum(t, s.frameLocked(), "controls.edgeGap"); got != 12 {
 		t.Fatalf("controls.edgeGap default = %v, want 12", got)

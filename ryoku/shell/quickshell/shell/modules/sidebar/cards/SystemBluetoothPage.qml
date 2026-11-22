@@ -2,8 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell.Io
+import Lithic
 import shell.services
 import Ryoku.Ui.Singletons
+import "../../ask/look"
 import ".."
 
 Item {
@@ -21,7 +23,6 @@ Item {
     property string busyAddress: ""
     property string errorText: ""
     readonly property bool busy: linkProcess.running
-    readonly property bool motionAllowed: root.active && !Tokens.reduceMotion && !Motion.reduce
 
     readonly property var devices: root.adapterEnabled
         ? BluetoothPower.devices.filter(device => !!device) : []
@@ -114,364 +115,193 @@ Item {
         }
     }
 
-    component SectionTitle: Item {
-        id: sectionTitle
-        required property string title
-        property string status: ""
-        width: parent ? parent.width : implicitWidth
-        implicitHeight: Math.max(titleText.implicitHeight, statusText.implicitHeight)
-        height: implicitHeight
-        Text {
-            id: titleText
-            anchors.left: parent.left
-            anchors.right: statusText.visible ? statusText.left : parent.right
-            anchors.rightMargin: statusText.visible ? Tokens.s3 * root.s : 0
-            text: sectionTitle.title
-            color: Tokens.ink
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fRow * root.s
-            font.weight: Font.DemiBold
-            wrapMode: Text.Wrap
-        }
-        Text {
-            id: statusText
-            visible: sectionTitle.status !== ""
-            anchors.right: parent.right
-            anchors.verticalCenter: titleText.verticalCenter
-            text: sectionTitle.status
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
-            font.weight: Font.Medium
-        }
-    }
-
-    component EmptyState: Text {
-        width: parent ? parent.width : implicitWidth
-        color: Tokens.inkMuted
-        font.family: Tokens.ui
-        font.pixelSize: Tokens.fSmall * root.s
-        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-        horizontalAlignment: Text.AlignHCenter
-        topPadding: Tokens.s3 * root.s
-        bottomPadding: Tokens.s3 * root.s
-    }
-
-    component DeviceRow: Rectangle {
+    component DeviceRow: PageRow {
         id: deviceRow
         required property var device
-        width: parent ? parent.width : implicitWidth
-        implicitHeight: Math.max(72 * root.s, deviceCopy.implicitHeight + Tokens.s3 * root.s * 2)
-        height: implicitHeight
-        radius: Tokens.radius * root.s * 1.5
-        color: deviceHover.hovered ? Tokens.tint10
-            : deviceRow.device && deviceRow.device.connected ? Tokens.tint10 : Tokens.tint5
-        border.width: Tokens.border
-        border.color: deviceRow.connecting ? Tokens.bone : deviceHover.hovered ? Tokens.lineStrong : Tokens.lineSoft
-        Behavior on color {
-            enabled: root.motionAllowed
-            ColorAnimation { duration: Tokens.snap }
-        }
-        Behavior on border.color {
-            enabled: root.motionAllowed
-            ColorAnimation { duration: Tokens.snap }
-        }
+        readonly property bool known: !!deviceRow.device && (deviceRow.device.paired || deviceRow.device.bonded)
+        readonly property bool linked: !!deviceRow.device && deviceRow.device.connected
         readonly property bool connecting: root.busy
             && root.busyAddress === String(deviceRow.device ? deviceRow.device.address : "")
 
-        Rectangle {
-            id: deviceIcon
-            anchors.left: parent.left
-            anchors.leftMargin: Tokens.s3 * root.s
+        s: root.s
+        plated: true
+        plateOn: deviceRow.linked
+        glyph: BtLink.glyphFor(deviceRow.device)
+        title: BtLink.label(deviceRow.device)
+        meta: root.deviceStatus(deviceRow.device)
+
+        CornerButton {
             anchors.verticalCenter: parent.verticalCenter
-            width: 42 * root.s
-            height: width
-            radius: width / 2
-            color: deviceRow.device && deviceRow.device.connected ? Tokens.bone : Tokens.tint10
-            Text {
-                anchors.centerIn: parent
-                text: BtLink.glyphFor(deviceRow.device)
-                color: deviceRow.device && deviceRow.device.connected ? Tokens.inkOnBone : Tokens.inkDim
-                font.family: "Material Symbols Rounded"
-                font.pixelSize: 21 * root.s
+            s: root.s
+            subtle: true
+            visible: deviceRow.known
+            glyph: deviceRow.device && deviceRow.device.trusted ? "verified" : "verified_off"
+            Accessible.name: deviceRow.device && deviceRow.device.trusted ? I18n.tr("Untrust") : I18n.tr("Trust")
+            enabled: !root.busy
+            onClicked: if (deviceRow.device) deviceRow.device.trusted = !deviceRow.device.trusted
+        }
+        CornerButton {
+            anchors.verticalCenter: parent.verticalCenter
+            s: root.s
+            subtle: true
+            visible: deviceRow.known && !deviceRow.linked
+            glyph: "delete"
+            Accessible.name: I18n.tr("Forget")
+            enabled: !root.busy
+            onClicked: if (deviceRow.device) deviceRow.device.forget()
+        }
+        SidebarButton {
+            anchors.verticalCenter: parent.verticalCenter
+            s: root.s
+            compact: true
+            text: deviceRow.connecting ? I18n.tr("Connecting…")
+                : deviceRow.linked ? I18n.tr("Disconnect")
+                : deviceRow.known ? I18n.tr("Connect")
+                : I18n.tr("Pair")
+            armed: !root.busy
+            onAct: root.primaryAction(deviceRow.device)
+        }
+    }
+
+    component DeviceGroup: Column {
+        id: group
+        required property string title
+        required property var members
+        required property string empty
+
+        visible: root.adapterEnabled
+        spacing: Math.round(8 * root.s)
+
+        Item {
+            width: group.width
+            height: groupTitle.implicitHeight
+
+            Micro {
+                id: groupTitle
+                anchors.left: parent.left
+                anchors.right: groupCount.left
+                anchors.rightMargin: Math.round(8 * root.s)
+                s: root.s
+                text: group.title
+            }
+            Micro {
+                id: groupCount
+                anchors.right: parent.right
+                visible: group.members.length > 0
+                s: root.s
+                text: String(group.members.length)
+                font.features: ({ "tnum": 1 })
             }
         }
 
         Column {
-            id: deviceCopy
-            anchors.left: deviceIcon.right
-            anchors.right: deviceActions.left
-            anchors.leftMargin: Tokens.s3 * root.s
-            anchors.rightMargin: Tokens.s3 * root.s
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 2 * root.s
-            Text {
-                width: parent.width
-                text: BtLink.label(deviceRow.device)
-                color: Tokens.ink
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fRow * root.s
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            Text {
-                width: parent.width
-                text: root.deviceStatus(deviceRow.device)
-                color: Tokens.inkMuted
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
-                elide: Text.ElideRight
+            id: list
+            width: group.width
+            spacing: QsLook.material || QsLook.fluent ? Math.round(2 * root.s) : 0
+
+            Repeater {
+                model: group.members
+                delegate: DeviceRow {
+                    required property var modelData
+                    required property int index
+                    width: list.width
+                    device: modelData
+                    first: index === 0
+                    last: index === group.members.length - 1
+                }
             }
         }
 
-        Row {
-            id: deviceActions
-            anchors.right: parent.right
-            anchors.rightMargin: Tokens.s3 * root.s
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Tokens.s2 * root.s
-
-            SidebarButton {
-                s: root.s
-                compact: true
-                visible: !!deviceRow.device && (deviceRow.device.paired || deviceRow.device.bonded)
-                glyph: deviceRow.device && deviceRow.device.trusted ? "verified" : "verified_off"
-                text: ""
-                Accessible.name: deviceRow.device && deviceRow.device.trusted ? I18n.tr("Untrust") : I18n.tr("Trust")
-                armed: !root.busy
-                onAct: if (deviceRow.device) deviceRow.device.trusted = !deviceRow.device.trusted
-            }
-            SidebarButton {
-                s: root.s
-                compact: true
-                visible: !!deviceRow.device && (deviceRow.device.paired || deviceRow.device.bonded) && !deviceRow.device.connected
-                glyph: "delete"
-                text: ""
-                Accessible.name: I18n.tr("Forget")
-                armed: !root.busy
-                onAct: if (deviceRow.device) deviceRow.device.forget()
-            }
-            SidebarButton {
-                s: root.s
-                compact: true
-                text: deviceRow.connecting ? I18n.tr("Connecting…")
-                    : deviceRow.device && deviceRow.device.connected ? I18n.tr("Disconnect")
-                    : deviceRow.device && (deviceRow.device.paired || deviceRow.device.bonded) ? I18n.tr("Connect")
-                    : I18n.tr("Pair")
-                primary: !!deviceRow.device && deviceRow.device.connected
-                armed: !root.busy
-                onAct: root.primaryAction(deviceRow.device)
-            }
+        Text {
+            visible: group.members.length === 0
+            width: group.width
+            text: group.empty
+            color: Lithic.fg3
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(12 * root.s)
+            wrapMode: Text.WordWrap
+            renderType: Text.NativeRendering
         }
-
-        HoverHandler { id: deviceHover }
     }
 
     Column {
         id: content
         width: root.width
-        spacing: Tokens.s4 * root.s
+        spacing: Math.round(QsLook.gap * root.s)
 
-        Item {
+        RadioRow {
             width: parent.width
-            implicitHeight: Math.max(48 * root.s, pageTitle.implicitHeight)
-            height: implicitHeight
-
-            SidebarButton {
-                id: backButton
-                s: root.s
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                glyph: "arrow_back"
-                text: I18n.tr("Overview")
-                onAct: root.backRequested()
-            }
-            Text {
-                id: pageTitle
-                anchors.left: backButton.right
-                anchors.right: radioToggle.left
-                anchors.leftMargin: Tokens.s4 * root.s
-                anchors.rightMargin: Tokens.s3 * root.s
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("Bluetooth devices")
-                color: Tokens.ink
-                font.family: Tokens.display
-                font.pixelSize: Tokens.fTitle * root.s
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            SidebarToggle {
-                id: radioToggle
-                s: root.s
-                compact: true
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: implicitWidth
-                text: ""
-                on: root.adapterEnabled
-                enabled: root.adapterAvailable
-                Accessible.name: I18n.tr("Bluetooth radio")
-                onToggleRequested: BluetoothPower.toggle()
+            s: root.s
+            text: I18n.tr("Bluetooth")
+            detail: BluetoothPower.blocked ? I18n.tr("Blocked")
+                : !root.adapterAvailable ? I18n.tr("No Bluetooth adapter")
+                : !root.adapterEnabled ? I18n.tr("Off")
+                : root.connectedDevices.length > 0 ? I18n.tr("%1 connected").arg(root.connectedDevices.length)
+                : I18n.tr("On")
+            glyph: root.adapterEnabled ? "bluetooth" : "bluetooth_disabled"
+            on: root.adapterEnabled
+            available: root.adapterAvailable
+            searching: root.scanning && root.active
+            canSearch: root.adapterEnabled
+            onToggleRequested: BluetoothPower.toggle()
+            onSearchRequested: {
+                root.stopDiscovery();
+                Qt.callLater(root.syncDiscovery);
             }
         }
 
-        Rectangle {
-            visible: root.scanning
+        PageSearching {
+            visible: root.adapterEnabled
             width: parent.width
-            height: Tokens.s1 * root.s
-            radius: height / 2
-            color: Tokens.bone
-            opacity: root.motionAllowed ? 0.24 : 1
-
-            SequentialAnimation on opacity {
-                running: root.active && root.scanning && root.motionAllowed
-                loops: Animation.Infinite
-                NumberAnimation { from: 0.24; to: 0.86; duration: Tokens.move; easing.type: Tokens.ease }
-                NumberAnimation { from: 0.86; to: 0.24; duration: Tokens.move; easing.type: Tokens.ease }
-            }
+            s: root.s
+            running: root.scanning && root.active
+            text: root.scanning ? I18n.tr("Looking for devices. Put the device in pairing mode and keep it nearby.")
+                : I18n.tr("Discovery pauses when you leave this page.")
         }
 
-        Rectangle {
+        Text {
+            visible: !root.adapterEnabled
             width: parent.width
-            implicitHeight: statusBody.implicitHeight + Tokens.s4 * root.s * 2
-            height: implicitHeight
-            radius: Tokens.radius * root.s * 2
-            color: Tokens.paperLift
-            border.width: Tokens.border
-            border.color: Tokens.lineSoft
-
-            Row {
-                id: statusBody
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: Tokens.s4 * root.s
-                spacing: Tokens.s4 * root.s
-
-                Rectangle {
-                    width: 52 * root.s
-                    height: width
-                    radius: width / 2
-                    color: root.connectedDevices.length > 0 ? Tokens.bone : Tokens.tint10
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.adapterEnabled ? "bluetooth" : "bluetooth_disabled"
-                        color: root.connectedDevices.length > 0 ? Tokens.inkOnBone : Tokens.inkDim
-                        font.family: "Material Symbols Rounded"
-                        font.pixelSize: 25 * root.s
-                    }
-                }
-                Column {
-                    width: parent.width - 52 * root.s - parent.spacing
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Tokens.s1 * root.s
-                    Text {
-                        width: parent.width
-                        text: BluetoothPower.blocked ? I18n.tr("Bluetooth is blocked")
-                            : !root.adapterAvailable ? I18n.tr("No Bluetooth hardware")
-                            : !root.adapterEnabled ? I18n.tr("Bluetooth is off")
-                            : root.connectedDevices.length === 1 ? BtLink.label(root.connectedDevices[0])
-                            : root.connectedDevices.length > 1 ? I18n.tr("%1 devices connected").arg(root.connectedDevices.length)
-                            : I18n.tr("Ready to pair")
-                        color: Tokens.ink
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fValue * root.s
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        width: parent.width
-                        text: !root.adapterAvailable ? I18n.tr("This machine has no available Bluetooth adapter.")
-                            : !root.adapterEnabled ? I18n.tr("Turn on the radio to discover nearby devices.")
-                            : root.scanning ? I18n.tr("Discovering nearby devices. Put the device in pairing mode.")
-                            : I18n.tr("Discovery pauses when you leave this page.")
-                        color: Tokens.inkMuted
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fSmall * root.s
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    }
-                }
-            }
+            text: BluetoothPower.blocked ? I18n.tr("Bluetooth is blocked")
+                : !root.adapterAvailable ? I18n.tr("This machine has no Bluetooth adapter")
+                : I18n.tr("Bluetooth is off")
+            color: Lithic.fg2
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(13 * root.s)
+            wrapMode: Text.WordWrap
+            renderType: Text.NativeRendering
         }
 
         Text {
             visible: root.errorText !== ""
             width: parent.width
             text: root.errorText
-            color: Tokens.alert
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
+            textFormat: Text.PlainText
+            color: Lithic.jasper
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(12 * root.s)
             font.weight: Font.Medium
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+            renderType: Text.NativeRendering
         }
 
-        Column {
-            visible: root.adapterEnabled
+        DeviceGroup {
             width: parent.width
-            spacing: Tokens.s3 * root.s
-
-            SectionTitle {
-                title: I18n.tr("Connected")
-                status: root.connectedDevices.length > 0 ? String(root.connectedDevices.length) : ""
-            }
-            Repeater {
-                model: root.connectedDevices
-                delegate: DeviceRow { required property var modelData; device: modelData }
-            }
-            EmptyState {
-                visible: root.connectedDevices.length === 0
-                text: I18n.tr("No Bluetooth devices are connected.")
-            }
+            title: I18n.tr("Connected")
+            members: root.connectedDevices
+            empty: I18n.tr("No devices are connected.")
         }
-
-        Column {
-            visible: root.adapterEnabled
+        DeviceGroup {
             width: parent.width
-            spacing: Tokens.s3 * root.s
-
-            SectionTitle {
-                title: I18n.tr("Paired devices")
-                status: root.pairedDevices.length > 0 ? String(root.pairedDevices.length) : ""
-            }
-            Repeater {
-                model: root.pairedDevices
-                delegate: DeviceRow { required property var modelData; device: modelData }
-            }
-            EmptyState {
-                visible: root.pairedDevices.length === 0
-                text: I18n.tr("Paired devices will stay here when they are disconnected.")
-            }
+            title: I18n.tr("Paired")
+            members: root.pairedDevices
+            empty: I18n.tr("Paired devices stay here when they are disconnected.")
         }
-
-        Column {
-            visible: root.adapterEnabled
+        DeviceGroup {
             width: parent.width
-            spacing: Tokens.s3 * root.s
-
-            SectionTitle {
-                title: I18n.tr("Nearby devices")
-                status: root.scanning ? I18n.tr("Scanning…") : ""
-            }
-            Repeater {
-                model: root.discoveredDevices
-                delegate: DeviceRow { required property var modelData; device: modelData }
-            }
-            EmptyState {
-                visible: root.discoveredDevices.length === 0
-                text: root.scanning ? I18n.tr("Looking for devices… Keep the device nearby and in pairing mode.")
-                    : I18n.tr("No nearby devices found.")
-            }
-            SidebarButton {
-                s: root.s
-                visible: root.adapterEnabled && !root.scanning
-                anchors.horizontalCenter: parent.horizontalCenter
-                glyph: "refresh"
-                text: I18n.tr("Scan again")
-                onAct: {
-                    root.stopDiscovery();
-                    Qt.callLater(root.syncDiscovery);
-                }
-            }
+            title: I18n.tr("Nearby")
+            members: root.discoveredDevices
+            empty: root.scanning ? I18n.tr("Nothing found yet.") : I18n.tr("No nearby devices found.")
         }
     }
 }

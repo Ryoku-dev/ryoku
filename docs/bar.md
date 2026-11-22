@@ -80,7 +80,7 @@ profiles, and a detail panel, network runs Wi-Fi, and the rest follow suit. They
 share one skin from a card kit (`shell/modules/bar/popouts/PopoutCard.qml` and its siblings),
 so every card opens, reads, and dismisses the same way.
 
-Super+Escape opens Quick settings in the top-left corner. It is not a frame menu and its
+Super+Escape opens Quick settings at the top right, under the bar. It is not a frame menu and its
 layout is shared by every subshell and bar style (`shell/modules/sidebar/`, see
 `docs/sidebars.md`). Tapping Right Alt three times opens Theia (`docs/rashin.md`). Installed sidebar plugins
 appear under Extensions; placement and enablement live in Ryoku Settings > Apps > Add-ons.

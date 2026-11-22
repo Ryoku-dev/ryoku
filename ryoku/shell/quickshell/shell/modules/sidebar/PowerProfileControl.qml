@@ -1,90 +1,94 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
 
-Rectangle {
+// the board heads this block so it draws no frame or title of its own
+Item {
     id: root
 
     required property real s
     required property bool active
 
     readonly property var labels: ({
-        "power-saver": "Power Saver",
-        "balanced": "Balanced",
-        "performance": "Performance"
+        "power-saver": I18n.tr("Power saver"),
+        "balanced": I18n.tr("Balanced"),
+        "performance": I18n.tr("Performance")
     })
+    readonly property var glyphs: ({
+        "power-saver": "eco",
+        "balanced": "balance",
+        "performance": "speed"
+    })
+    readonly property var proofs: ({
+        "power-saver": I18n.tr("Saves battery, slower when busy"),
+        "balanced": I18n.tr("Steady speed and battery life"),
+        "performance": I18n.tr("Full speed, uses more power")
+    })
+    readonly property real proofGap: Math.round(8 * root.s)
 
-    implicitHeight: content.implicitHeight + Tokens.s3 * root.s * 2
-    radius: Tokens.radius * root.s * 1.5
-    color: Tokens.paperLift
-    border.width: Tokens.border
-    border.color: Tokens.lineSoft
-    Accessible.name: I18n.tr("Power Profile")
-    Accessible.description: I18n.tr("System-wide CPU and device policy")
+    implicitHeight: PowerProfiles.available
+        ? segments.implicitHeight + root.proofGap + proof.implicitHeight
+        : unavailable.implicitHeight
+    Accessible.role: Accessible.Grouping
+    Accessible.name: I18n.tr("Power mode")
 
     onActiveChanged: PowerProfiles.setActive(root, root.active)
     Component.onCompleted: PowerProfiles.setActive(root, root.active)
     Component.onDestruction: PowerProfiles.setActive(root, false)
 
-    Column {
-        id: content
+    SidebarSegments {
+        id: segments
+        visible: PowerProfiles.available
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.margins: Tokens.s3 * root.s
-        spacing: Tokens.s2 * root.s
+        s: root.s
+        options: PowerProfiles.profiles
+        labels: root.labels
+        glyphs: root.glyphs
+        current: PowerProfiles.profile
+        accessibleName: I18n.tr("Power mode")
+        onChose: key => PowerProfiles.setProfile(key)
+    }
 
-        Item {
-            width: parent.width
-            height: heading.implicitHeight
+    Text {
+        id: proof
+        visible: PowerProfiles.available
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: segments.bottom
+        anchors.topMargin: root.proofGap
+        text: root.proofs[PowerProfiles.profile] !== undefined ? root.proofs[PowerProfiles.profile] : ""
+        color: Lithic.fg3
+        font.family: QsLook.sans
+        font.pixelSize: Math.round(12 * root.s)
+        renderType: Text.NativeRendering
+        elide: Text.ElideRight
+        onTextChanged: if (root.active) settle.restart()
 
-            Text {
-                id: heading
-                anchors.left: parent.left
-                anchors.right: stateLabel.left
-                anchors.rightMargin: Tokens.s2 * root.s
-                text: I18n.tr("Power Profile")
-                color: Tokens.ink
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fRow * root.s
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-
-            Text {
-                id: stateLabel
-                anchors.right: parent.right
-                text: PowerProfiles.available
-                    ? I18n.tr("System power")
-                    : I18n.tr("Unavailable")
-                color: PowerProfiles.available ? Tokens.inkMuted : Tokens.inkFaint
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fTiny * root.s
-                font.capitalization: Font.AllUppercase
-                font.letterSpacing: Tokens.trackLabel
-            }
+        NumberAnimation {
+            id: settle
+            target: proof
+            property: "opacity"
+            from: 0.25
+            to: 1
+            duration: QsLook.dur(QsLook.stateMs * 2)
+            easing.type: Easing.OutCubic
         }
+    }
 
-        SidebarSegments {
-            width: parent.width
-            visible: PowerProfiles.available
-            s: root.s
-            options: PowerProfiles.profiles
-            labels: root.labels
-            current: PowerProfiles.profile
-            onChose: key => PowerProfiles.setProfile(key)
-        }
-
-        Text {
-            width: parent.width
-            visible: !PowerProfiles.available
-            text: I18n.tr("Power profiles unavailable")
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
-            elide: Text.ElideRight
-        }
+    Text {
+        id: unavailable
+        visible: !PowerProfiles.available
+        anchors.left: parent.left
+        anchors.right: parent.right
+        text: I18n.tr("Power profiles are not available on this computer")
+        color: Lithic.fg3
+        font.family: QsLook.sans
+        font.pixelSize: Math.round(12 * root.s)
+        renderType: Text.NativeRendering
+        elide: Text.ElideRight
     }
 }

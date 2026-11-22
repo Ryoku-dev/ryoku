@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
-import shell.services
 
 Item {
     id: root
@@ -10,96 +10,92 @@ Item {
     required property var monitor
     required property real s
 
-    function blendColor(from, to, amount): color {
-        const t = Math.max(0, Math.min(1, amount));
-        return Qt.rgba(from.r + (to.r - from.r) * t,
-                       from.g + (to.g - from.g) * t,
-                       from.b + (to.b - from.b) * t,
-                       from.a + (to.a - from.a) * t);
+    readonly property int count: Math.max(0, root.monitor.coreCount)
+    readonly property bool available: root.monitor.cpuAvailable && root.count > 0
+    readonly property real cell: root.count > 0 ? root.width / root.count : 0
+    readonly property real bar: QsLook.lithic
+        ? Math.max(Math.round(2 * root.s), Math.min(root.cell * 0.45, Math.round(5 * root.s)))
+        : Math.max(Math.round(3 * root.s), Math.min(root.cell * 0.6, Math.round(8 * root.s)))
+
+    function ink(load) {
+        return load > 85 ? Lithic.amber : load >= 40 ? Lithic.fg2 : Lithic.fg3;
     }
 
-    function loadColor(load): color {
-        if (load <= 50)
-            return Tokens.inkDim;
-        if (load >= 80)
-            return Tokens.sun;
-        return root.blendColor(Tokens.inkDim, Tokens.sun, (load - 50) / 30);
+    implicitHeight: Math.round(12 * root.s)
+    Accessible.role: Accessible.Graphic
+    Accessible.name: I18n.tr("Load per core")
+
+    Rectangle {
+        visible: QsLook.lithic || !root.available
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: Math.max(1, Math.round(root.s))
+        color: Lithic.vein
     }
 
-    QtObject {
-        id: layout
+    Repeater {
+        model: root.available ? root.count : 0
 
-        readonly property int count: Math.max(0, root.monitor.coreCount)
-        readonly property bool available: root.monitor.cpuAvailable && count > 0
-        readonly property int rowCount: count > 8 ? 2 : 1
-        readonly property int columnCount: Math.max(1, Math.ceil(count / rowCount))
-        readonly property real gap: Tokens.s1 * root.s
-        readonly property real cellWidth: (root.width - gap * (columnCount - 1)) / columnCount
-        readonly property real cellHeight: (root.height - gap * (rowCount - 1)) / rowCount
-    }
+        delegate: Item {
+            id: core
 
-    implicitHeight: layout.rowCount * (Tokens.s5 + Tokens.s1) * s
-                    + (layout.rowCount - 1) * Tokens.s1 * s
-    clip: true
+            required property int index
+            readonly property real load: {
+                const loads = root.monitor.coreLoads;
+                if (!loads || core.index >= loads.length || !isFinite(loads[core.index]))
+                    return 0;
+                return Math.max(0, Math.min(100, loads[core.index]));
+            }
 
-    Grid {
-        visible: layout.available
-        anchors.fill: parent
-        columns: layout.columnCount
-        columnSpacing: layout.gap
-        rowSpacing: layout.gap
+            x: core.index * root.cell
+            width: root.cell
+            height: root.height
 
-        Repeater {
-            model: layout.count
+            Rectangle {
+                visible: !QsLook.lithic
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: root.bar
+                height: parent.height
+                radius: width / 2
+                color: Lithic.alpha(Lithic.fg, QsLook.dark ? 0.08 : 0.07)
+            }
 
-            delegate: Item {
-                id: core
-                required property int index
-                width: layout.cellWidth
-                height: layout.cellHeight
+            CutRect {
+                visible: QsLook.lithic
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: root.bar
+                height: Math.max(Math.round(2 * root.s), parent.height * core.load / 100)
+                cut: 0
+                cutTopRight: root.bar
+                fill: root.ink(core.load)
 
-                readonly property real load: {
-                    const loads = root.monitor.coreLoads;
-                    if (!loads || core.index >= loads.length || !isFinite(loads[core.index]))
-                        return 0;
-                    return Math.max(0, Math.min(100, loads[core.index]));
+                Behavior on height {
+                    NumberAnimation { duration: QsLook.dur(root.monitor.samplePeriodMs); easing.type: Easing.Linear }
                 }
-
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottom: parent.bottom
-                    width: Math.max(2 * root.s, parent.width * 0.5)
-                    height: parent.height
-                    radius: width / 2
-                    color: Tokens.tint10
+                Behavior on fill {
+                    ColorAnimation { duration: QsLook.dur(QsLook.stateMs * 2) }
                 }
+            }
 
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottom: parent.bottom
-                    width: Math.max(2 * root.s, parent.width * 0.5)
-                    height: Math.max(width, parent.height * core.load / 100)
-                    radius: width / 2
-                    color: root.loadColor(core.load)
+            Rectangle {
+                visible: !QsLook.lithic
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                width: root.bar
+                height: Math.max(root.bar, parent.height * core.load / 100)
+                radius: width / 2
+                color: root.ink(core.load)
 
-                    Behavior on height {
-                        enabled: !Tokens.reduceMotion && !Motion.reduce
-                        NumberAnimation { duration: root.monitor.samplePeriodMs; easing.type: Easing.Linear }
-                    }
+                Behavior on height {
+                    NumberAnimation { duration: QsLook.dur(root.monitor.samplePeriodMs); easing.type: Easing.Linear }
+                }
+                Behavior on color {
+                    ColorAnimation { duration: QsLook.dur(QsLook.stateMs * 2) }
                 }
             }
         }
-    }
-
-    Text {
-        visible: !layout.available
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        text: I18n.tr("—")
-        color: Tokens.inkFaint
-        font.family: Tokens.ui
-        font.pixelSize: Tokens.fSmall * root.s
-        elide: Text.ElideRight
     }
 }

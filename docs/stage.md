@@ -59,7 +59,7 @@ operated, so its popups never open inside the card.
 
 The quick row contains **Wallpaper** and **Search**. The single accent row,
 **Edit desktop**, opens the Stage Editor on the monitor whose desktop was
-clicked. Quick settings opens the left sidebar, Settings opens Ryoku Settings, and Reload
+clicked. Quick settings opens the Quick settings panel, Settings opens Ryoku Settings, and Reload
 shell reloads the shell.
 
 `Super+Shift+D` opens the Widgets catalogue directly on the focused monitor.

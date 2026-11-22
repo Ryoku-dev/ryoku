@@ -1,10 +1,11 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls as QQC
 import Quickshell.Io
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
+import "../ask/look"
 
 Item {
     id: root
@@ -13,7 +14,6 @@ Item {
     required property var screen
     required property bool active
     property bool linked: false
-    readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
     readonly property int displayCount: (Devices.backlightAvailable ? 1 : 0) + (Devices.ddcMonitors || []).length
     readonly property string internalOutput: {
         const outputs = Wm.outputs || [];
@@ -24,6 +24,7 @@ Item {
         }
         return I18n.tr("Built-in display");
     }
+    readonly property real rowGap: Math.round((QsLook.lithic ? 6 : QsLook.material ? 12 : 10) * root.s)
     signal levelChanged(string outputName, int percent)
 
     implicitHeight: body.implicitHeight
@@ -65,22 +66,28 @@ Item {
         Devices.stopProbes(root);
     }
 
+    component DisplayName: Text {
+        id: displayName
+        property real s: 1
+        visible: !QsLook.lithic
+        color: Lithic.fg2
+        font.family: QsLook.sans
+        font.pixelSize: Math.round(12 * displayName.s)
+        font.weight: Font.Medium
+        elide: Text.ElideRight
+        renderType: Text.NativeRendering
+    }
+
     Column {
         id: body
         width: parent.width
-        spacing: Tokens.s2 * root.s
+        spacing: root.rowGap
 
-        Rectangle {
-            width: parent.width
-            height: Tokens.border
-            color: Tokens.lineSoft
-        }
-
-        Item {
+        Column {
             id: internalRow
             width: parent.width
-            height: Devices.backlightAvailable ? internalLevel.implicitHeight : 0
-            visible: height > 0
+            visible: Devices.backlightAvailable
+            spacing: Math.round(2 * root.s)
             property int pending: -1
 
             function setPercent(percent, broadcast): void {
@@ -100,8 +107,12 @@ Item {
                 internalCommit.stop();
             }
 
+            DisplayName {
+                width: parent.width
+                s: root.s
+                text: root.internalOutput
+            }
             LevelSlider {
-                id: internalLevel
                 width: parent.width
                 s: root.s
                 label: root.internalOutput
@@ -122,7 +133,7 @@ Item {
         Repeater {
             id: ddcRepeater
             model: Devices.ddcMonitors || []
-            delegate: Item {
+            delegate: Column {
                 id: monitorRow
                 required property var modelData
                 readonly property string bus: String(modelData.bus)
@@ -130,7 +141,7 @@ Item {
                 property int percent: -1
                 property int pending: -1
                 width: body.width
-                height: monitorLevel.implicitHeight
+                spacing: Math.round(2 * root.s)
 
                 function readLevel(): void {
                     if (!root.active || readProcess.running)
@@ -170,8 +181,12 @@ Item {
                     function onActiveChanged(): void { monitorRow.syncActive(); }
                 }
 
+                DisplayName {
+                    width: parent.width
+                    s: root.s
+                    text: monitorRow.outputName
+                }
                 LevelSlider {
-                    id: monitorLevel
                     width: parent.width
                     s: root.s
                     label: monitorRow.outputName
@@ -202,64 +217,14 @@ Item {
             }
         }
 
-        QQC.AbstractButton {
-            id: linkButton
+        SidebarToggle {
             width: parent.width
-            height: Tokens.rowH * root.s
             visible: root.displayCount > 1
-            hoverEnabled: true
-            Accessible.name: I18n.tr("Link displays")
-            Accessible.checked: root.linked
-            onClicked: root.linked = !root.linked
-            background: Rectangle {
-                radius: Tokens.radius * root.s
-                color: linkButton.down ? Tokens.tint16 : linkButton.hovered ? Tokens.tint5 : "transparent"
-                border.width: linkButton.visualFocus ? Tokens.border : 0
-                border.color: Tokens.bone
-                Behavior on color {
-                    enabled: root.motionAllowed
-                    ColorAnimation { duration: Tokens.snap }
-                }
-            }
-            contentItem: Item {
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("Link displays")
-                    color: Tokens.ink
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall * root.s
-                    font.weight: Font.Medium
-                }
-                Rectangle {
-                    id: switchTrack
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Tokens.ctlH * 2 * root.s
-                    height: Tokens.ctlH * root.s
-                    radius: Tokens.radius * root.s
-                    color: root.linked ? Tokens.tint16 : Tokens.tint5
-                    border.width: Tokens.border
-                    border.color: root.linked ? Tokens.lineStrong : Tokens.line
-                    Rectangle {
-                        width: (Tokens.ctlH - Tokens.s2) * root.s
-                        height: width
-                        y: Tokens.s1 * root.s
-                        x: root.linked ? parent.width - width - Tokens.s1 * root.s : Tokens.s1 * root.s
-                        radius: Tokens.radius * root.s
-                        color: root.linked ? Tokens.ink : Tokens.inkDim
-                        Behavior on x {
-                            enabled: root.motionAllowed
-                            NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
-                        }
-                    }
-                    Behavior on color {
-                        enabled: root.motionAllowed
-                        ColorAnimation { duration: Tokens.snap }
-                    }
-                }
-            }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            s: root.s
+            text: I18n.tr("Link displays")
+            glyph: "link"
+            on: root.linked
+            onToggleRequested: value => root.linked = value
         }
     }
 }

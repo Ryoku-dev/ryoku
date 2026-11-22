@@ -225,15 +225,11 @@
         "hidden": [],
         "sections": [
           {
-            "id": "vitals",
-            "visible": true
-          },
-          {
             "id": "connections",
             "visible": true
           },
           {
-            "id": "powerProfile",
+            "id": "levels",
             "visible": true
           },
           {
@@ -241,7 +237,11 @@
             "visible": false
           },
           {
-            "id": "levels",
+            "id": "powerProfile",
+            "visible": true
+          },
+          {
+            "id": "vitals",
             "visible": true
           },
           {

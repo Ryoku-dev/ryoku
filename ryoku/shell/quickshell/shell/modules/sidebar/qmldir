@@ -1,6 +1,7 @@
 module shell.modules.sidebar
+singleton QsLook 1.0 QsLook.qml
+Avatar 1.0 Avatar.qml
 BrightnessDrawer 1.0 BrightnessDrawer.qml
-ConnectionTile 1.0 ConnectionTile.qml
 ControlsBar 1.0 ControlsBar.qml
 ControlsBoard 1.0 ControlsBoard.qml
 ControlsConnections 1.0 ControlsConnections.qml
@@ -11,11 +12,16 @@ ControlsSettingsPopup 1.0 ControlsSettingsPopup.qml
 CornerButton 1.0 CornerButton.qml
 CornerTip 1.0 CornerTip.qml
 ExtensionsBoard 1.0 ExtensionsBoard.qml
+FocusFrame 1.0 FocusFrame.qml
 HoldButton 1.0 HoldButton.qml
 LevelSlider 1.0 LevelSlider.qml
+Meter 1.0 Meter.qml
 MixerDrawer 1.0 MixerDrawer.qml
 MixerRow 1.0 MixerRow.qml
+Plate 1.0 Plate.qml
+PageSlot 1.0 PageSlot.qml
 PowerProfileControl 1.0 PowerProfileControl.qml
+SectionHead 1.0 SectionHead.qml
 Sidebar 1.0 Sidebar.qml
 SidebarButton 1.0 SidebarButton.qml
 SidebarCardHost 1.0 SidebarCardHost.qml
@@ -24,6 +30,7 @@ SidebarFrame 1.0 SidebarFrame.qml
 SidebarPlugins 1.0 SidebarPlugins.qml
 SidebarSegments 1.0 SidebarSegments.qml
 SidebarToggle 1.0 SidebarToggle.qml
+Tile 1.0 Tile.qml
 VitalCores 1.0 VitalCores.qml
 VitalMeter 1.0 VitalMeter.qml
 VitalSparkline 1.0 VitalSparkline.qml

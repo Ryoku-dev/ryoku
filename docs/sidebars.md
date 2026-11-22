@@ -3,26 +3,89 @@
 Four global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
-- `Super+Escape` opens **Quick settings** at the top-left of the focused display.
+- `Super+Escape` opens **Quick settings** at the top-right of the focused display, under the bar.
 - `Super+Shift+S` opens the floating **ryoshot** capture bar.
 - `Alt+Space` opens the **Rashin bar** near the top third of the focused display.
 - `Super+K` opens **Kit** in the middle of the focused display.
 
-Quick settings and the Rashin bar close with Escape, their close button, or a click outside;
-Kit closes with Escape, a click outside, or `Super+K` again. ryoshot has its own close control.
+Quick settings closes with Escape or a click outside, and Escape first steps back out of an
+open page. The Rashin bar closes with Escape, its close button, or a click outside. Kit closes
+with Escape, a click outside, or `Super+K` again. ryoshot has its own close control.
 The shortcuts are editable in **Ryoku Settings > Windows > Keyboard shortcuts**.
 
 ## Quick settings
 
-Quick settings is a compact, configurable 688-logical-pixel panel.
+Quick settings is the desktop's control centre. It opens at the trailing end of the bar, where
+the bar's own status (controls, battery, clock) sits and where GNOME, macOS, Android and
+Windows all put theirs, and it stays inside the work area, so it never covers the bar. The bar
+keeps working while it is open.
 
-### Vitals
+The panel reads top to bottom in the order people reach for things: who and when, then
+connections and switches, then levels, then power, then how the machine is doing, then the
+session. Each block can be hidden or moved (see Customising below).
 
-The hero is a compact system monitor. It shows the user and host, uptime and
-load average, total CPU load with a per-core grid, CPU frequency and
-temperature, memory and swap, GPU load, temperature and VRAM, network traffic,
-disk traffic with root usage and drive temperature, and battery state. Missing
-sensors are omitted rather than shown as zero.
+### One panel, four designs
+
+The panel wears the design chosen in **Style** (Lithic, Material, Adwaita or Fluent) in
+Ryoku's or the wallpaper's colours, light or dark, and follows a change live. Every design
+keeps the same blocks and the same order, drawn the way its platform draws a control centre:
+
+- **Lithic** is a ruled specimen sheet: a `§ QUICK SETTINGS 早設` masthead with the date and
+  time over a tick ruler, numbered block heads, cut corners, tick-ruler sliders with odometer
+  figures, and hold buttons whose blade sweeps across. It unrolls from the bar.
+- **Material** follows Android's shade: a large clock head, rounded tiles whose icon square
+  switches while the rest opens the page, thick pill sliders with the icon inside, and a
+  spring scale on open.
+- **Adwaita** follows GNOME's quick settings: pill toggles with an arrow segment for the page,
+  a boxed card for the readings, and a small scale and drop on open.
+- **Fluent** follows the Windows action centre: square buttons with the name under them, a
+  chevron part for the page, and the session row on a footer band. It drops in from the bar.
+
+Reduced motion keeps every state change and drops the travel.
+
+### Head
+
+The head names the user and host with the uptime. Lithic sets the date and time in its
+masthead, Material leads with a large clock, Adwaita sets the time at the end of the name row,
+and Fluent leaves the clock to the bar as Windows does. When a page is open, the head becomes
+a back button with the page title.
+
+### Connections and switches
+
+Wi-Fi and Bluetooth are large tiles with their state (the network name, the connected device).
+Each has two targets: one switches the radio, the other opens its page in the same panel, a
+network list with connect, disconnect, forget and hidden-network actions, or a device list
+with pairing and scanning. Wired network and VPN appear as tiles when present and open Wi-Fi
+and internet settings. The quick switches follow: Night light (when the compositor supports
+it), Keep awake, Do not disturb, Microphone, and Game mode (when supported). The Microphone
+tile is on while the microphone is live. Unsupported controls are not shown as dead options.
+
+Keep awake is an idle inhibitor: the machine will not dim, lock, or sleep on its own while it
+is on, and the request persists across logins until it is switched off. It never refuses a
+deliberate sleep: the lid, the power key, and Sleep here still suspend.
+
+The Extensions page holds every installed `sidebarCard` plugin.
+
+### Volume and brightness
+
+Volume and brightness are fine sliders that follow the wheel and the arrow keys, and outside
+Material a click on the figure takes a typed value. The chevron beside Volume unfolds a
+drawer with output devices, playing apps, microphones, mute controls, and default-device
+selection. The chevron beside Brightness unfolds one control per display. Changing a level
+does not silently change its mute state.
+
+### Power mode
+
+Power saver, Balanced and Performance in one segmented control, with a line under it saying
+what the chosen mode does.
+
+### System status
+
+System status is a compact monitor: processor load with a live graph, frequency, and
+temperature, one bar per core, then memory, graphics, network traffic, disk traffic, and
+battery. Hovering a reading shows its detail: swap, VRAM, the network interface and full
+rates, root usage and drive temperature. Missing sensors are omitted rather than shown as
+zero.
 
 `SystemMonitor` samples four times a second on a worker thread while the panel
 is active; loads and transfer rates are measured over a sliding one-second
@@ -32,25 +95,11 @@ network, disk, and temperatures over a one-minute window, keeps a second more
 than it shows so the oldest sample is always beyond the left edge (the trace
 runs off the graph rather than ending on a point), and eases each new sample
 in over one sample period so the trace never steps. Sampling and graph
-animation stop when the panel is inactive. Hiding Vitals prevents its monitor
-from being created; hiding the live graph prevents its graph renderer from
-being created.
+animation stop when the panel is inactive. Hiding System status prevents its
+monitor from being created; hiding the activity graph prevents its graph
+renderer from being created.
 
-### Connections
-
-Wi-Fi and Bluetooth tiles show useful connection state at a glance and open
-their device lists in the same panel. Ethernet and VPN appear as presence chips
-when available. The Extensions view holds every installed `sidebarCard` plugin.
-
-### Levels
-
-Volume and brightness stay available as fine sliders with direct value entry and
-small step controls. Expanding Volume opens an inline drawer for output devices,
-playback apps, recording apps, microphones, mute controls, and default-device
-selection. Expanding Brightness opens a drawer with one control per display.
-Changing a level does not silently change its mute state.
-
-### Bottom bar
+### Session buttons
 
 Lock, Sleep, Log out, Restart, and Power off are hold-to-activate actions. Hold a
 button until its fill completes; releasing early cancels it. Keyboard users can
@@ -60,38 +109,25 @@ every compositor; Sleep runs `ryoku-shell suspend`, the fail-closed lock then
 suspend the lid uses. Log out, Restart, and Power off go through the daemon's
 `session.*` calls.
 
-The same bar carries Night light when supported, Keep awake, Do not disturb,
-Mic mute, and Gaming mode when supported. Keep awake is an idle inhibitor: the
-machine will not dim, lock, or sleep on its own while it is on, and the request
-persists across logins until it is switched off. It never refuses a deliberate
-sleep: the lid, the power key, and Sleep here still suspend. The gear opens a
-small popup for the remaining Quick settings options. Unsupported controls are not
-shown as dead options.
+The gear at the end of the row opens the panel settings: where the panel opens (pick a spot
+on the small screen, or use the arrow keys), the edge gap, how fast it moves (Quick, Standard
+or Calm), and shortcuts into Ryoku Settings.
 
 ### Customising Quick settings
 
-**Ryoku Settings > Desktop > Quick settings** has a miniature of the panel rather than a list of
-switches. Drag Vitals, Connections, Power profile, Now playing, Levels, and
-Bottom controls into the order you want. The eye on each block shows or hides
-the whole block. Selecting a block exposes chips for its smaller parts, including
-individual readings, the live graph, connection tiles, level sliders, media
-details and transport, session actions, quick controls, and plugin cards.
+**Ryoku Settings > Desktop > Quick settings** lists the blocks in their order. Each block can
+be shown, hidden, or moved, and each part inside it (a reading, a tile, a slider, a session
+button) can be hidden on its own. **Restore the panel** puts every block back in its shipped
+order with all its parts. Now playing is available but hidden until you add it. The choice is
+stored in `shell.json` under `controls`, applies immediately to an open panel on every
+display, and is used the next time it opens. Hidden blocks are not instantiated, so their
+panel-owned probes, processes, watches, and animations do not continue in the background.
 
-The shipped arrangement matches the original Quick settings panel. Now playing is
-available but hidden until selected. **Reset** restores that arrangement. The
-choice is stored in `shell.json` under `controls`, applies immediately to an
-open panel on every display, and is used the next time it opens. Hidden blocks
-are not instantiated, so their panel-owned probes, processes, watches, and
-animations do not continue in the background.
-
-The gear in Quick settings also saves where the panel opens and how far it sits from
-the screen edge. **Top left** keeps the shipped placement, **Top center** and
-**Top right** keep it against the upper edge, and **Center** centres the panel
-in both directions. **Edge gap** accepts 0 to 96 pixels and starts at 12,
-matching the earlier fixed spacing. The settings popup stays inside the panel
-window at every placement and scale, scrolling when the available room is
-short. These choices live beside the panel arrangement in `shell.json` under
-`controls`.
+**Position** saves where the panel opens: **Top right** (the default) beside the bar's status,
+**Top centre** and **Top left** against the upper edge, and **Centre** in the middle of the
+work area. **Edge gap** accepts 0 to 96 pixels and starts at 12. These live beside the
+arrangement in `shell.json` under `controls`. `ryoku doctor` moves a box still on the old
+top-left default and block order to the new ones once; a later choice of either stands.
 
 Quick settings remains a global shell surface. The same arrangement is used by every
 subshell, bar style and supported compositor.
@@ -108,6 +144,7 @@ placement takes precedence over the saved Quick settings position.
 Pick the design in **Ryoku Settings > Desktop > Quick settings**. Design authors can use
 the stock blocks with `import shell.modules.sidebar as Kit`, including the
 complete Quick settings board, individual Quick settings sections, frame, and buttons.
+`Kit.ControlsHero` keeps its own name-and-load row for designs that have no head of their own.
 
 
 
@@ -325,7 +362,8 @@ compositor-specific QML in the shell.
 
 ## Rendering and lifecycle
 
-`Sidebar.qml` owns the Quick settings content window and its click-away window.
+`Sidebar.qml` owns the Quick settings content window and its click-away window,
+both laid out inside the work area so the bar stays uncovered and live.
 `AskBar.qml` is one full-screen overlay surface that holds the bar and its
 click-away area, so the keyboard always stays with the bar on both compositors.
 Kit's `Kit.qml` is the same kind of overlay, with the dim, on the focused display.
@@ -349,18 +387,22 @@ Quick settings components live under
 
 | File | Responsibility |
 |---|---|
-| `Sidebar.qml` | Saved placement, focus, input region, and click-away dismissal |
-| `SidebarFrame.qml`, `SidebarChrome.qml` | Shared surface, header, and board routing |
-| `ControlsBoard.qml` | Persisted section order, visibility, and lazy block loading |
-| `ControlsHero.qml`, `Vital*.qml` | Native activity graphs and individual system readings |
-| `ControlsConnections.qml`, `ConnectionTile.qml` | Wi-Fi, Bluetooth, Ethernet, and VPN summaries |
-| `ControlsLevels.qml`, `LevelSlider.qml` | Volume and brightness controls |
+| `Sidebar.qml` | Saved placement in the work area, focus, input region, open and close motion, and click-away dismissal |
+| `QsLook.qml` | The per-design tables every part reads: sizes, cuts, radii, type, and motion |
+| `SidebarFrame.qml`, `SidebarChrome.qml` | The panel surface and its head, with the page back button |
+| `ControlsBoard.qml`, `SectionHead.qml`, `PageSlot.qml` | Persisted block order and visibility, lazy block loading, block heads, and pages |
+| `Tile.qml`, `ControlsConnections.qml` | Quick tiles in each design's form, the connection tiles, and the switches |
+| `ControlsLevels.qml`, `LevelSlider.qml` | Volume and brightness sliders |
 | `MixerDrawer.qml`, `MixerRow.qml` | Per-device and per-application audio controls |
 | `BrightnessDrawer.qml` | Per-display brightness controls |
 | `ControlsMedia.qml` | Optional now-playing details and transport |
-| `ControlsBar.qml`, `HoldButton.qml`, `ControlsSettingsPopup.qml` | Session actions, toggles, and gear popup |
+| `PowerProfileControl.qml`, `SidebarSegments.qml` | Power mode and the segmented control it shares |
+| `ControlsHero.qml`, `Vital*.qml`, `Meter.qml`, `Plate.qml` | System status: native graphs, readings, meters, and the card under them |
+| `ControlsBar.qml`, `HoldButton.qml`, `ControlsSettingsPopup.qml` | Session buttons and the panel settings popover |
+| `CornerButton.qml`, `CornerTip.qml`, `SidebarButton.qml`, `SidebarToggle.qml`, `Avatar.qml`, `FocusFrame.qml` | Shared buttons, tooltips, switches, the avatar, and the keyboard focus ring |
 | `ExtensionsBoard.qml`, `SidebarCardHost.qml`, `SidebarPlugins.qml` | Plugin discovery, ordering, and hosting |
-| `cards/SystemWifiPage.qml`, `cards/SystemBluetoothPage.qml` | Connection detail pages |
+| `cards/SystemWifiPage.qml`, `cards/SystemBluetoothPage.qml` | The Wi-Fi and Bluetooth pages |
+| `cards/RadioRow.qml`, `cards/PageRow.qml`, `cards/RowPlane.qml`, `cards/PageSearching.qml`, `cards/SearchButton.qml` | The rows, scanning state, and search button those pages share |
 
 ryoshot lives in `ryoku/shell/quickshell/ryoshot/`. The shell keeps only the
 shared recording, key-press, and webcam overlay services under
@@ -387,3 +429,5 @@ Ask and chat services. Native sampling and rendering live in
 `ryoku/shell/plugin/thinkingorb.{hpp,cpp}` and
 `ryoku/shell/plugin/borderbeam.{hpp,cpp}`. Contributor plugins use the public
 [`sidebarCard` contract](plugins.md#4-sidebar-card---lives-in-a-global-sidebar).
+The one-time move off the old top-left layout is
+`ryoku/cli/internal/doctor/reconcile_quick_settings_layout.go`.

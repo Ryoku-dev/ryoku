@@ -2,8 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell.Io
+import Lithic
 import Ryoku.Ui.Singletons
 import shell.services
+import "../ask/look"
 
 Item {
     id: root
@@ -17,7 +19,7 @@ Item {
     property bool brightnessOpen: false
     property int externalBrightness: -1
     property real pendingBrightness: -1
-    readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
+    readonly property real rowGap: Math.round((QsLook.lithic ? 4 : QsLook.material ? 8 : 6) * root.s)
     readonly property string outputName: screen && screen.name ? String(screen.name) : Wm.focusedOutput
     readonly property string ddcBus: {
         const displays = Devices.ddcMonitors || [];
@@ -36,11 +38,6 @@ Item {
     readonly property real volumeValue: volumeAvailable ? Math.min(1, Audio.sink.audio.volume) : 0
 
     implicitHeight: stack.implicitHeight
-    height: implicitHeight
-    Behavior on height {
-        enabled: root.motionAllowed
-        NumberAnimation { duration: SidebarState.motionDuration(Tokens.swap); easing.type: Tokens.ease }
-    }
 
     function syncActive(): void {
         if (root.active && root.showBrightness) {
@@ -125,10 +122,52 @@ Item {
         onTriggered: root.writeBrightness()
     }
 
+    // the body stays live until the fold has closed so it never empties mid-fold
+    component Fold: Item {
+        id: fold
+
+        property real s: 1
+        property bool open: false
+        property real bodyHeight: 0
+        readonly property bool showing: fold.open || fold.height > 0
+        default property alias content: holder.data
+        readonly property real gap: Math.round((QsLook.lithic ? 4 : 6) * fold.s)
+        readonly property real inset: Math.round(12 * fold.s)
+
+        height: fold.open ? fold.gap + fold.bodyHeight + fold.inset * 2 : 0
+        visible: fold.height > 0
+        clip: true
+        opacity: fold.open ? 1 : 0
+        Behavior on height {
+            NumberAnimation {
+                duration: QsLook.dur(QsLook.unfoldMs)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: QsLook.unfold
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation { duration: QsLook.dur(Math.round(QsLook.unfoldMs * 0.7)); easing.type: Easing.OutQuad }
+        }
+
+        Plate {
+            y: fold.gap
+            width: fold.width
+            height: fold.bodyHeight + fold.inset * 2
+            s: fold.s
+
+            Item {
+                id: holder
+                x: fold.inset
+                y: fold.inset
+                width: parent.width - fold.inset * 2
+                height: fold.bodyHeight
+            }
+        }
+    }
+
     Column {
         id: stack
         width: parent.width
-        spacing: Tokens.s1 * root.s
 
         LevelSlider {
             id: volume
@@ -157,26 +196,25 @@ Item {
             }
         }
 
-        Item {
-            id: mixerClip
+        Fold {
+            id: mixerFold
             width: parent.width
-            height: root.volumeOpen ? mixer.implicitHeight : 0
-            opacity: root.volumeOpen ? 1 : 0
-            clip: true
-            Behavior on height {
-                enabled: root.motionAllowed
-                NumberAnimation { duration: SidebarState.motionDuration(Tokens.swap); easing.type: Tokens.ease }
-            }
-            Behavior on opacity {
-                enabled: root.motionAllowed
-                NumberAnimation { duration: SidebarState.motionDuration(Tokens.move); easing.type: Tokens.ease }
-            }
+            s: root.s
+            open: root.volumeOpen
+            bodyHeight: mixer.implicitHeight
+
             MixerDrawer {
                 id: mixer
                 width: parent.width
                 s: root.s
-                active: root.active && root.volumeOpen
+                active: root.active && mixerFold.showing
             }
+        }
+
+        Item {
+            width: parent.width
+            height: root.rowGap
+            visible: root.showVolume && root.showBrightness
         }
 
         LevelSlider {
@@ -198,26 +236,19 @@ Item {
             }
         }
 
-        Item {
-            id: brightnessClip
+        Fold {
+            id: displaysFold
             width: parent.width
-            height: root.brightnessOpen ? brightnessDrawer.implicitHeight : 0
-            opacity: root.brightnessOpen ? 1 : 0
-            clip: true
-            Behavior on height {
-                enabled: root.motionAllowed
-                NumberAnimation { duration: SidebarState.motionDuration(Tokens.swap); easing.type: Tokens.ease }
-            }
-            Behavior on opacity {
-                enabled: root.motionAllowed
-                NumberAnimation { duration: SidebarState.motionDuration(Tokens.move); easing.type: Tokens.ease }
-            }
+            s: root.s
+            open: root.brightnessOpen
+            bodyHeight: displays.implicitHeight
+
             BrightnessDrawer {
-                id: brightnessDrawer
+                id: displays
                 width: parent.width
                 s: root.s
                 screen: root.screen
-                active: root.active && root.brightnessOpen
+                active: root.active && displaysFold.showing
                 onLevelChanged: (name, percent) => {
                     if (name === root.outputName)
                         root.externalBrightness = percent;

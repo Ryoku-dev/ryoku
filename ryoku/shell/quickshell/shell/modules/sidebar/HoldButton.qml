@@ -2,8 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls as QQC
-import Ryoku.Ui.Singletons
-import shell.services
+import QtQuick.Shapes as QS
+import Lithic
+import "../ask/look"
 
 QQC.AbstractButton {
     id: root
@@ -13,78 +14,92 @@ QQC.AbstractButton {
     property int holdDuration: 650
     property bool subtle: false
     property bool labelled: true
+    property bool danger: false
     // a whole sentence per action, so a language can word and case it its own way
     property string tip: ""
     signal held()
 
+    readonly property bool round: QsLook.roundButtons && !root.showsLabel
+    readonly property bool showsLabel: root.labelled && root.text.length > 0
+    readonly property color accent: root.danger ? Lithic.jasper : Lithic.sel
+    readonly property color accentInk: root.danger ? Lithic.inkOn(Lithic.jasper) : Lithic.onSel
+    readonly property color ink: root.danger && (QsLook.lithic || QsLook.fluent) ? Lithic.jasper : Lithic.fg
+    readonly property color rest: root.subtle && !QsLook.roundButtons ? "transparent"
+        : QsLook.lithic ? "transparent"
+        : QsLook.material ? Lithic.field
+        : QsLook.adwaita ? Lithic.alpha(Lithic.fg, QsLook.dark ? 0.1 : 0.08)
+        : Lithic.alpha(Lithic.fg, QsLook.dark ? 0.06 : 0.045)
+    readonly property color plane: root.down ? Lithic.mix(Qt.colorEqual(root.rest, "transparent") ? QsLook.press : root.rest, Lithic.fg, Qt.colorEqual(root.rest, "transparent") ? 0 : 0.1)
+        : root.hovered ? (Qt.colorEqual(root.rest, "transparent") ? QsLook.hover : Lithic.mix(root.rest, Lithic.fg, 0.06))
+        : root.rest
+
     QtObject {
-        id: holdState
+        id: hold
         property real progress: 0
-        property real fillOpacity: 1
+        property real flash: 0
         property bool active: false
         property bool completed: false
-        readonly property bool motionAllowed: !Tokens.reduceMotion && !Motion.reduce
     }
 
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
-    implicitWidth: Math.ceil(normalLabel.implicitWidth + (glyph !== "" ? (Tokens.s6 + Tokens.s1) * s : 0) + Tokens.s5 * s)
-    implicitHeight: (Tokens.ctlH + Tokens.s3) * s
-    Accessible.name: text
+    implicitWidth: root.round ? Math.round(QsLook.holdHeight * root.s)
+        : Math.ceil(label.implicitWidth + (root.glyph.length > 0 ? Math.round(26 * root.s) : 0) + Math.round(26 * root.s))
+    implicitHeight: Math.round(QsLook.holdHeight * root.s)
+    Accessible.name: root.text
+    Accessible.description: root.tip
 
     function beginHold(): void {
-        if (!root.enabled || holdState.active)
+        if (!root.enabled || hold.active)
             return;
-        holdFill.stop();
-        drainFill.stop();
-        flash.stop();
+        fillRun.stop();
+        drainRun.stop();
+        flashRun.stop();
         reducedHold.stop();
-        holdState.progress = 0;
-        holdState.fillOpacity = 1;
-        holdState.completed = false;
-        holdState.active = true;
-        if (holdState.motionAllowed)
-            holdFill.start();
-        else
+        hold.progress = 0;
+        hold.completed = false;
+        hold.active = true;
+        if (QsLook.still)
             reducedHold.start();
+        else
+            fillRun.start();
     }
 
     function endHold(): void {
-        if (!holdState.active)
+        if (!hold.active)
             return;
-        holdState.active = false;
-        holdFill.stop();
+        hold.active = false;
+        fillRun.stop();
         reducedHold.stop();
-        if (holdState.completed)
+        if (hold.completed)
             return;
-        if (holdState.motionAllowed)
-            drainFill.start();
+        if (QsLook.still)
+            hold.progress = 0;
         else
-            holdState.progress = 0;
+            drainRun.start();
     }
 
     function completeHold(): void {
-        if (!holdState.active || holdState.completed)
+        if (!hold.active || hold.completed)
             return;
-        holdState.completed = true;
-        holdState.active = false;
-        holdState.progress = 1;
+        hold.completed = true;
+        hold.active = false;
+        hold.progress = 1;
         root.held();
-        flash.restart();
+        flashRun.restart();
     }
 
     onPressed: root.beginHold()
     onReleased: root.endHold()
     onCanceled: root.endHold()
     onEnabledChanged: if (!enabled) root.endHold()
-
-    Keys.onPressed: function(event) {
+    Keys.onPressed: event => {
         if ((event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat) {
             root.beginHold();
             event.accepted = true;
         }
     }
-    Keys.onReleased: function(event) {
+    Keys.onReleased: event => {
         if ((event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !event.isAutoRepeat) {
             root.endHold();
             event.accepted = true;
@@ -92,8 +107,8 @@ QQC.AbstractButton {
     }
 
     NumberAnimation {
-        id: holdFill
-        target: holdState
+        id: fillRun
+        target: hold
         property: "progress"
         to: 1
         duration: root.holdDuration
@@ -101,154 +116,195 @@ QQC.AbstractButton {
         onFinished: root.completeHold()
     }
     NumberAnimation {
-        id: drainFill
-        target: holdState
+        id: drainRun
+        target: hold
         property: "progress"
         to: 0
-        duration: Tokens.move
-        easing.type: Tokens.ease
+        duration: QsLook.dur(240)
+        easing.type: Easing.OutCubic
     }
     Timer {
         id: reducedHold
         interval: root.holdDuration
         onTriggered: {
-            holdState.progress = 1;
+            hold.progress = 1;
             root.completeHold();
         }
     }
     SequentialAnimation {
-        id: flash
-        NumberAnimation {
-            target: holdState
-            property: "fillOpacity"
-            from: 1
-            to: 0.5
-            duration: holdState.motionAllowed ? Tokens.snap / 2 : 0
-            easing.type: Tokens.easeSnap
-        }
-        NumberAnimation {
-            target: holdState
-            property: "fillOpacity"
-            from: 0.5
-            to: 1
-            duration: holdState.motionAllowed ? Tokens.snap / 2 : 0
-            easing.type: Tokens.easeSnap
-        }
-        ScriptAction { script: holdState.progress = 0 }
+        id: flashRun
+        NumberAnimation { target: hold; property: "flash"; from: 0; to: 1; duration: QsLook.dur(90); easing.type: Easing.OutQuad }
+        NumberAnimation { target: hold; property: "flash"; to: 0; duration: QsLook.dur(260); easing.type: Easing.OutCubic }
+        ScriptAction { script: hold.progress = 0 }
     }
 
-    background: Rectangle {
-        radius: Tokens.radius * root.s * 1.5
-        color: root.down ? Tokens.tint16 : root.hovered ? Tokens.tint10 : root.subtle ? "transparent" : Tokens.tint5
-        border.width: Tokens.border
-        border.color: root.visualFocus ? Tokens.sun : Tokens.lineSoft
-        clip: true
+    scale: QsLook.material ? 1 + hold.flash * 0.04 : 1
 
+    background: Item {
+        id: plate
+
+        readonly property real cut: Look.cutRow * root.s + (QsLook.lithic && (root.down || hold.flash > 0) ? Lithic.pressCutGrow * root.s : 0)
+
+        CutRect {
+            id: body
+            visible: !root.round
+            anchors.fill: parent
+            cut: plate.cut
+            fill: root.plane
+            strokeColor: QsLook.lithic ? (root.danger ? Lithic.alpha(Lithic.jasper, 0.7) : Lithic.vein)
+                : QsLook.fluent && !root.subtle ? Lithic.alpha(Lithic.fg, QsLook.dark ? 0.09 : 0.12)
+                : "transparent"
+            strokeWidth: Math.max(1, Math.round(root.s))
+            Behavior on fill {
+                ColorAnimation { duration: QsLook.dur(QsLook.stateMs) }
+            }
+            Behavior on cut {
+                NumberAnimation { duration: QsLook.dur(LithicTokens.motion.press) }
+            }
+        }
         Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: parent.width * holdState.progress
-            color: Tokens.bone
-            opacity: holdState.fillOpacity
+            visible: root.round
+            anchors.fill: parent
+            radius: width / 2
+            color: root.plane
         }
 
-        Behavior on color {
-            enabled: holdState.motionAllowed
-            ColorAnimation { duration: Tokens.snap }
+        // clipping a whole accent copy keeps the shape's left corners and a straight leading edge
+        Item {
+            visible: !QsLook.fluent && !root.round && hold.progress > 0
+            width: parent.width * hold.progress
+            height: parent.height
+            clip: true
+
+            CutRect {
+                width: plate.width
+                height: plate.height
+                cut: plate.cut
+                fill: root.accent
+                opacity: 1 - hold.flash * 0.45
+            }
+        }
+        Rectangle {
+            visible: QsLook.fluent && hold.progress > 0
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: Math.round(3 * root.s)
+            width: (parent.width - Math.round(6 * root.s)) * hold.progress
+            height: Math.max(2, Math.round(3 * root.s))
+            radius: height / 2
+            color: root.accent
+        }
+        Rectangle {
+            visible: QsLook.fluent && hold.flash > 0
+            anchors.fill: parent
+            radius: Look.corner(Look.cutRow, width / root.s, height / root.s) * root.s
+            color: Lithic.alpha(root.accent, 0.3 * hold.flash)
+        }
+        QS.Shape {
+            visible: root.round && hold.progress > 0
+            anchors.fill: parent
+            preferredRendererType: QS.Shape.CurveRenderer
+
+            QS.ShapePath {
+                strokeColor: root.accent
+                strokeWidth: Math.max(2, Math.round(3 * root.s))
+                fillColor: "transparent"
+                capStyle: QS.ShapePath.RoundCap
+                PathAngleArc {
+                    centerX: plate.width / 2
+                    centerY: plate.height / 2
+                    radiusX: plate.width / 2 - Math.max(2, Math.round(3 * root.s)) / 2
+                    radiusY: radiusX
+                    startAngle: -90
+                    sweepAngle: 360 * hold.progress
+                }
+            }
         }
     }
 
     contentItem: Item {
-        id: contentRoot
-        implicitWidth: normalLabel.implicitWidth + (root.glyph !== "" ? (Tokens.s6 + Tokens.s1) * root.s : 0)
+        id: face
+        implicitWidth: label.implicitWidth + (root.glyph.length > 0 ? Math.round(26 * root.s) : 0)
 
-        Item {
-            anchors.fill: parent
+        Row {
+            id: restFace
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: QsLook.lithic && root.down ? Lithic.pressSink * root.s : 0
+            spacing: Math.round(7 * root.s)
 
-            Text {
-                id: normalIcon
-                anchors.left: parent.left
+            Symbol {
+                visible: root.glyph.length > 0
                 anchors.verticalCenter: parent.verticalCenter
-                width: normalLabel.visible ? Tokens.s5 * root.s : parent.width
-                visible: root.glyph !== ""
-                text: root.glyph
-                color: Tokens.inkDim
-                font.family: "Material Symbols Rounded"
-                font.pixelSize: Tokens.fBody * root.s + Tokens.s2 * root.s
-                horizontalAlignment: Text.AlignHCenter
-                Accessible.ignored: true
-                scale: root.down || holdState.active ? 0.9 : 1
+                s: root.s
+                name: root.glyph
+                size: root.round ? 20 : 17
+                ink: root.ink
+                scale: root.down ? 0.88 : 1
                 Behavior on scale {
-                    enabled: holdState.motionAllowed
-                    NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
+                    NumberAnimation { duration: QsLook.dur(LithicTokens.motion.press); easing.type: Easing.OutCubic }
                 }
             }
             Text {
-                id: normalLabel
-                anchors.left: root.glyph !== "" ? normalIcon.right : parent.left
-                anchors.leftMargin: root.glyph !== "" ? Tokens.s2 * root.s : 0
-                anchors.right: parent.right
+                id: label
+                visible: root.showsLabel
                 anchors.verticalCenter: parent.verticalCenter
-                visible: root.labelled && root.width >= implicitWidth + (root.glyph !== "" ? (Tokens.s6 + Tokens.s5) * root.s : Tokens.s5 * root.s)
                 text: root.text
-                color: Tokens.ink
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
+                color: root.ink
+                font.family: QsLook.sans
+                font.pixelSize: Math.round(12 * root.s)
                 font.weight: Font.Medium
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
+                renderType: Text.NativeRendering
             }
         }
 
         Item {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: parent.width * holdState.progress
-            opacity: holdState.fillOpacity
+            visible: !QsLook.fluent && !root.round && hold.progress > 0
+            x: 0
+            width: face.width * hold.progress
+            height: face.height
             clip: true
 
-            Item {
-                width: contentRoot.width
-                height: contentRoot.height
+            Row {
+                x: restFace.x
+                y: restFace.y
+                spacing: restFace.spacing
 
-                Text {
-                    id: filledIcon
-                    anchors.left: parent.left
+                Symbol {
+                    visible: root.glyph.length > 0
                     anchors.verticalCenter: parent.verticalCenter
-                    width: normalLabel.visible ? Tokens.s5 * root.s : parent.width
-                    visible: root.glyph !== ""
-                    text: root.glyph
-                    color: Tokens.inkOnBone
-                    font.family: "Material Symbols Rounded"
-                    font.pixelSize: Tokens.fBody * root.s + Tokens.s2 * root.s
-                    horizontalAlignment: Text.AlignHCenter
-                    Accessible.ignored: true
-                    scale: root.down || holdState.active ? 0.9 : 1
-                    Behavior on scale {
-                        enabled: holdState.motionAllowed
-                        NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
-                    }
+                    s: root.s
+                    name: root.glyph
+                    size: 17
+                    ink: root.accentInk
+                    scale: root.down ? 0.88 : 1
                 }
                 Text {
-                    anchors.left: root.glyph !== "" ? filledIcon.right : parent.left
-                    anchors.leftMargin: root.glyph !== "" ? Tokens.s2 * root.s : 0
-                    anchors.right: parent.right
+                    visible: root.showsLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: normalLabel.visible
                     text: root.text
-                    color: Tokens.inkOnBone
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall * root.s
+                    color: root.accentInk
+                    font.family: QsLook.sans
+                    font.pixelSize: Math.round(12 * root.s)
                     font.weight: Font.Medium
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
+                    renderType: Text.NativeRendering
                 }
             }
         }
     }
 
-    CornerTip { s: root.s; visible: root.tip !== "" && root.hovered && !root.down; text: root.tip }
-    HoverHandler { cursorShape: Qt.PointingHandCursor }
+    FocusFrame {
+        s: root.s
+        shown: root.visualFocus
+        cut: Look.cutRow * root.s
+        pill: root.round
+    }
+    CornerTip {
+        s: root.s
+        visible: root.tip.length > 0 && root.hovered && !root.down
+        text: root.tip
+    }
+    HoverHandler {
+        enabled: root.enabled
+        cursorShape: Qt.PointingHandCursor
+    }
 }

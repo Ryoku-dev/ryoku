@@ -20,11 +20,11 @@ Singleton {
     readonly property int maxEdgeGap: 96
     readonly property int edgeGap: controls.edgeGap
     readonly property var defaultSections: [
-        { id: "vitals", visible: true },
         { id: "connections", visible: true },
-        { id: "powerProfile", visible: true },
-        { id: "media", visible: false },
         { id: "levels", visible: true },
+        { id: "media", visible: false },
+        { id: "powerProfile", visible: true },
+        { id: "vitals", visible: true },
         { id: "bottomControls", visible: true }
     ]
     readonly property var elementIds: [
@@ -185,8 +185,8 @@ Singleton {
 
     function normalizedPosition(value) {
         const candidate = String(value ?? "");
-        return candidate === "top-center" || candidate === "top-right" || candidate === "center"
-            ? candidate : "top-left";
+        return candidate === "top-left" || candidate === "top-center" || candidate === "center"
+            ? candidate : "top-right";
     }
 
     function normalizedEdgeGap(value) {

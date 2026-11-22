@@ -13,11 +13,44 @@ var sections = [
 // the panel's blocks in their shipped order, each with the parts it can hide;
 // ids are the shell's controls.sections and controls.hidden ids
 var blocks = [
+    { id: "connections", label: "Connections and switches", visible: true,
+      detail: "Wi-Fi, Bluetooth, wired network, VPN and quick switches",
+      keywords: ["network", "internet", "toggles", "switches"],
+      parts: [
+          { id: "wifi", label: "Wi-Fi", keywords: ["wireless", "wlan"] },
+          { id: "bluetooth", label: "Bluetooth", keywords: ["headphones", "pair"] },
+          { id: "ethernet", label: "Wired network", keywords: ["ethernet", "cable", "lan"] },
+          { id: "vpn", label: "VPN", keywords: ["tunnel", "wireguard"] },
+          { id: "nightLight", label: "Night light", keywords: ["warm", "blue light"] },
+          { id: "keepAwake", label: "Keep awake", keywords: ["caffeine", "inhibit sleep", "idle"] },
+          { id: "doNotDisturb", label: "Do not disturb", keywords: ["dnd", "silence notifications"] },
+          { id: "micMute", label: "Microphone", keywords: ["mic", "microphone"] },
+          { id: "gamingMode", label: "Game mode", keywords: ["gaming mode", "games"] }
+      ] },
+    { id: "levels", label: "Volume and brightness", visible: true,
+      detail: "Sliders for sound and screen brightness",
+      keywords: ["levels", "sliders", "audio", "sound"],
+      parts: [
+          { id: "volume", label: "Volume", keywords: ["sound", "audio", "mixer"] },
+          { id: "brightness", label: "Brightness", keywords: ["screen", "backlight"] }
+      ] },
+    { id: "media", label: "Now playing", visible: false,
+      detail: "What is playing, with its controls",
+      keywords: ["media", "music", "player", "mpris"],
+      parts: [
+          { id: "mediaArtwork", label: "Album art", keywords: ["artwork", "cover"] },
+          { id: "mediaTrack", label: "Track details", keywords: ["title", "artist", "song"] },
+          { id: "mediaTransport", label: "Play, pause and skip", keywords: ["transport", "controls", "next", "previous"] }
+      ] },
+    { id: "powerProfile", label: "Power mode", visible: true,
+      detail: "Switch between saving power, balanced and performance",
+      keywords: ["power profile", "performance", "balanced", "power saver"], parts: [] },
     { id: "vitals", label: "System status", visible: true,
-      detail: "The time, and how hard the computer is working",
+      detail: "How hard the computer is working",
       keywords: ["vitals", "readings", "monitor", "stats", "usage"],
       parts: [
-          { id: "identity", label: "Name and clock", keywords: ["hostname", "user", "uptime", "date", "time"] },
+          { id: "identity", label: "Name and clock", detail: "Shown at the top of the panel",
+            keywords: ["hostname", "user", "uptime", "date", "time"] },
           { id: "cpu", label: "Processor", keywords: ["cpu", "load", "usage"] },
           { id: "cpuTemperature", label: "Temperature", keywords: ["cpu temperature", "heat", "thermal"] },
           { id: "liveGraph", label: "Activity graph", keywords: ["live graph", "sparkline", "chart", "history"] },
@@ -27,47 +60,15 @@ var blocks = [
           { id: "disk", label: "Disk", keywords: ["storage", "drive", "space"] },
           { id: "battery", label: "Battery", keywords: ["charge", "power"] }
       ] },
-    { id: "connections", label: "Connections", visible: true,
-      detail: "Wi-Fi, Bluetooth, wired network and VPN",
-      keywords: ["network", "internet"],
-      parts: [
-          { id: "wifi", label: "Wi-Fi", keywords: ["wireless", "wlan"] },
-          { id: "bluetooth", label: "Bluetooth", keywords: ["headphones", "pair"] },
-          { id: "ethernet", label: "Wired network", keywords: ["ethernet", "cable", "lan"] },
-          { id: "vpn", label: "VPN", keywords: ["tunnel", "wireguard"] }
-      ] },
-    { id: "powerProfile", label: "Power mode", visible: true,
-      detail: "Switch between saving power, balanced and performance",
-      keywords: ["power profile", "performance", "balanced", "power saver"], parts: [] },
-    { id: "media", label: "Now playing", visible: false,
-      detail: "What is playing, with its controls",
-      keywords: ["media", "music", "player", "mpris"],
-      parts: [
-          { id: "mediaArtwork", label: "Album art", keywords: ["artwork", "cover"] },
-          { id: "mediaTrack", label: "Track details", keywords: ["title", "artist", "song"] },
-          { id: "mediaTransport", label: "Play, pause and skip", keywords: ["transport", "controls", "next", "previous"] }
-      ] },
-    { id: "levels", label: "Volume and brightness", visible: true,
-      detail: "Sliders for sound and screen brightness",
-      keywords: ["levels", "sliders", "audio", "sound"],
-      parts: [
-          { id: "volume", label: "Volume", keywords: ["sound", "audio", "mixer"] },
-          { id: "brightness", label: "Brightness", keywords: ["screen", "backlight"] }
-      ] },
-    { id: "bottomControls", label: "Buttons along the bottom", visible: true,
-      detail: "Lock, sleep and power buttons, and quick switches",
-      keywords: ["bottom controls", "power buttons", "toggles", "switches"],
+    { id: "bottomControls", label: "Session buttons", visible: true,
+      detail: "Lock, sleep, log out, restart and power off, each held to confirm, and the panel settings button",
+      keywords: ["bottom controls", "power buttons", "session", "power", "hold"],
       parts: [
           { id: "lock", label: "Lock", keywords: ["lock screen"] },
           { id: "sleep", label: "Sleep", keywords: ["suspend"] },
           { id: "logout", label: "Log out", keywords: ["sign out", "logout"] },
           { id: "restart", label: "Restart", keywords: ["reboot"] },
           { id: "powerOff", label: "Power off", keywords: ["shut down", "shutdown"] },
-          { id: "nightLight", label: "Night light", keywords: ["warm", "blue light"] },
-          { id: "keepAwake", label: "Keep awake", keywords: ["caffeine", "inhibit sleep", "idle"] },
-          { id: "doNotDisturb", label: "Do not disturb", keywords: ["dnd", "silence notifications"] },
-          { id: "micMute", label: "Mute the microphone", keywords: ["mic", "microphone"] },
-          { id: "gamingMode", label: "Game mode", keywords: ["gaming mode", "games"] },
           { id: "panelSettings", label: "Panel settings button", keywords: ["gear", "panel options"] }
       ] }
 ];
@@ -86,7 +87,7 @@ function blockRows() {
         for (var j = 0; j < b.parts.length; j++) {
             var p = b.parts[j];
             out.push({ id: "part-" + p.id, section: "blocks", block: b.id, part: p.id, label: p.label,
-                       detail: b.label, keywords: ["show", "hide"].concat(p.keywords), template: true,
+                       detail: p.detail || b.label, keywords: ["show", "hide"].concat(p.keywords), template: true,
                        control: "toggle", bind: q("part:" + p.id), "default": true });
         }
     }
@@ -118,7 +119,7 @@ var rows = blockRows().concat([
           { label: "Top centre", value: "top-center" },
           { label: "Top right", value: "top-right" },
           { label: "Centre", value: "center" }
-      ], bind: s("controls.position", "top-left"), "default": "top-left" },
+      ], bind: s("controls.position", "top-right"), "default": "top-right" },
     { id: "edge-gap", section: "position", label: "Edge gap",
       detail: "Space between the panel and the edges of the screen",
       keywords: ["margin", "distance", "gap", "spacing", "offset"], control: "slider", min: 0, max: 96, step: 1,

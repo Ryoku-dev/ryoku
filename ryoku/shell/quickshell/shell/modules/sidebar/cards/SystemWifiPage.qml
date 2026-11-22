@@ -2,8 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls as QQC
+import Lithic
 import shell.services
 import Ryoku.Ui.Singletons
+import "../../ask/look"
 import ".."
 
 Item {
@@ -25,7 +27,17 @@ Item {
     property string errorText: ""
 
     readonly property bool busy: root.pendingCallId >= 0
-    readonly property bool motionAllowed: root.active && !Tokens.reduceMotion && !Motion.reduce
+    readonly property bool joined: Network.activeSsid !== ""
+    readonly property bool radioOn: Network.wifiPresent && Network.wifiRadio
+    readonly property var activeAp: {
+        const aps = Network.accessPoints || [];
+        for (let i = 0; i < aps.length; i++)
+            if (aps[i] && aps[i].active)
+                return aps[i];
+        return null;
+    }
+    readonly property string joinedProof: I18n.tr("%1% signal").arg(Network.wifi.strength || 0)
+        + (root.activeAp && root.activeAp.band ? " · " + I18n.tr("%1 GHz").arg(root.activeAp.band) : "")
     readonly property var multiBandSsids: {
         const bands = ({});
         const aps = Network.accessPoints || [];
@@ -45,14 +57,7 @@ Item {
     }
     readonly property var availableNets: {
         const aps = Network.accessPoints || [];
-        let activeBand = "";
-        for (let i = 0; i < aps.length; i++) {
-            const ap = aps[i];
-            if (ap && ap.active) {
-                activeBand = ap.band || "";
-                break;
-            }
-        }
+        const activeBand = root.activeAp ? root.activeAp.band || "" : "";
         const best = ({});
         for (let i = 0; i < aps.length; i++) {
             const ap = aps[i];
@@ -94,6 +99,16 @@ Item {
         return ap ? String(ap.ssid || "") + "\u0000" + String(ap.band || "") : "";
     }
 
+    function networkMeta(ap): string {
+        const parts = [root.isOpen(ap) ? I18n.tr("Open") : I18n.tr("Secure")];
+        if (ap.saved)
+            parts.push(I18n.tr("Saved"));
+        if (root.multiBandSsids[ap.ssid] && ap.band)
+            parts.push(I18n.tr("%1 GHz").arg(ap.band));
+        parts.push(I18n.tr("%1%").arg(ap.strength || 0));
+        return parts.join(" · ");
+    }
+
     function beginConnect(ssid, password, bssid, hidden, key): void {
         if (root.busy || !ssid)
             return;
@@ -117,6 +132,15 @@ Item {
         }
         root.pendingAp = ap;
         Qt.callLater(() => passwordField.forceActiveFocus());
+    }
+
+    function openHidden(): void {
+        root.pendingAp = null;
+        root.hiddenForm = true;
+        root.hiddenSsid = "";
+        root.password = "";
+        root.errorText = "";
+        Qt.callLater(() => hiddenSsidField.forceActiveFocus());
     }
 
     function submitPassword(): void {
@@ -193,440 +217,355 @@ Item {
         }
     }
 
-    component SectionTitle: Text {
-        color: Tokens.ink
-        font.family: Tokens.ui
-        font.pixelSize: Tokens.fRow * root.s
-        font.weight: Font.DemiBold
-        wrapMode: Text.Wrap
-    }
-
-    component Field: QQC.TextField {
-        height: 46 * root.s
-        font.family: Tokens.ui
-        font.pixelSize: Tokens.fRow * root.s
-        color: Tokens.ink
-        placeholderTextColor: Tokens.inkMuted
-        selectionColor: Tokens.bone
-        selectedTextColor: Tokens.inkOnBone
-        selectByMouse: true
-        leftPadding: Tokens.s3 * root.s
-        rightPadding: Tokens.s3 * root.s
-        background: Rectangle {
-            radius: Tokens.radius * root.s * 1.5
-            color: Tokens.tint5
-            border.width: Tokens.border
-            border.color: parent.activeFocus ? Tokens.bone : Tokens.line
-        }
-    }
-
     Column {
         id: content
         width: root.width
-        spacing: Tokens.s4 * root.s
+        spacing: Math.round(QsLook.gap * root.s)
 
-        Item {
+        RadioRow {
             width: parent.width
-            implicitHeight: Math.max(48 * root.s, pageTitle.implicitHeight)
-            height: implicitHeight
+            s: root.s
+            text: I18n.tr("Wi-Fi")
+            detail: !Network.wifiPresent ? I18n.tr("No Wi-Fi adapter")
+                : Network.wifiRadio ? I18n.tr("On") : I18n.tr("Off")
+            glyph: Network.wifiRadio ? "wifi" : "wifi_off"
+            on: Network.wifiRadio
+            available: Network.wifiPresent
+            searching: root.scanning && root.active
+            canSearch: root.radioOn
+            onToggleRequested: value => Network.setWifiEnabled(value)
+            onSearchRequested: root.refresh()
+        }
+
+        Plate {
+            visible: QsLook.lithic && root.joined
+            width: parent.width
+            height: joinedCopy.implicitHeight + Math.round(24 * root.s)
+            s: root.s
+
+            Symbol {
+                id: joinedGlyph
+                anchors.left: parent.left
+                anchors.leftMargin: Math.round(12 * root.s)
+                anchors.verticalCenter: parent.verticalCenter
+                s: root.s
+                name: root.signalGlyph(Network.wifi.strength)
+                size: 22
+                ink: Lithic.sel
+            }
+            Column {
+                id: joinedCopy
+                anchors.left: joinedGlyph.right
+                anchors.leftMargin: Math.round(12 * root.s)
+                anchors.right: lithicDisconnect.left
+                anchors.rightMargin: Math.round(10 * root.s)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Math.round(3 * root.s)
+
+                Row {
+                    spacing: Math.round(6 * root.s)
+                    Flake {
+                        anchors.verticalCenter: parent.verticalCenter
+                        tone: "alive"
+                        fill: Lithic.jade
+                        size: Math.round(7 * root.s)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("Connected")
+                        color: Lithic.fg2
+                        font.family: QsLook.mono
+                        font.pixelSize: Math.round(9 * root.s)
+                        font.capitalization: Font.AllUppercase
+                        font.letterSpacing: Look.tracking * root.s
+                        renderType: Text.NativeRendering
+                    }
+                }
+                Text {
+                    width: parent.width
+                    text: Network.activeSsid
+                    textFormat: Text.PlainText
+                    color: Lithic.fg
+                    font.family: QsLook.sans
+                    font.pixelSize: Math.round(16 * root.s)
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                    renderType: Text.NativeRendering
+                }
+                Text {
+                    width: parent.width
+                    text: root.joinedProof
+                    color: Lithic.fg2
+                    font.family: QsLook.mono
+                    font.pixelSize: Math.round(10 * root.s)
+                    font.features: ({ "tnum": 1 })
+                    elide: Text.ElideRight
+                    renderType: Text.NativeRendering
+                }
+            }
+            SidebarButton {
+                id: lithicDisconnect
+                anchors.right: parent.right
+                anchors.rightMargin: Math.round(12 * root.s)
+                anchors.verticalCenter: parent.verticalCenter
+                s: root.s
+                compact: true
+                text: I18n.tr("Disconnect")
+                onAct: Network.disconnectWifi()
+            }
+        }
+
+        PageRow {
+            visible: !QsLook.lithic && root.joined
+            width: parent.width
+            s: root.s
+            selected: true
+            checked: true
+            glyph: root.signalGlyph(Network.wifi.strength)
+            title: Network.activeSsid
+            meta: I18n.tr("Connected") + " · " + root.joinedProof
 
             SidebarButton {
-                id: backButton
                 s: root.s
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                glyph: "arrow_back"
-                text: I18n.tr("Overview")
-                onAct: root.backRequested()
-            }
-            Text {
-                id: pageTitle
-                anchors.left: backButton.right
-                anchors.right: headerActions.left
-                anchors.leftMargin: Tokens.s4 * root.s
-                anchors.rightMargin: Tokens.s3 * root.s
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("Wi-Fi networks")
-                color: Tokens.ink
-                font.family: Tokens.display
-                font.pixelSize: Tokens.fTitle * root.s
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-            }
-            Row {
-                id: headerActions
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Tokens.s2 * root.s
-                SidebarButton {
-                    s: root.s
-                    compact: true
-                    glyph: "refresh"
-                    text: root.scanning ? I18n.tr("Scanning…") : I18n.tr("Refresh")
-                    armed: Network.wifiPresent && Network.wifiRadio && !root.scanning
-                    onAct: root.refresh()
-                }
-                SidebarToggle {
-                    s: root.s
-                    compact: true
-                    width: implicitWidth
-                    text: ""
-                    glyph: ""
-                    on: Network.wifiRadio
-                    enabled: Network.wifiPresent
-                    Accessible.name: I18n.tr("Wi-Fi radio")
-                    onToggleRequested: Network.setWifiEnabled(!Network.wifiRadio)
-                }
+                compact: true
+                text: I18n.tr("Disconnect")
+                onAct: Network.disconnectWifi()
             }
         }
 
-        Rectangle {
-            visible: root.scanning
+        Text {
+            visible: !root.joined
             width: parent.width
-            height: Tokens.s1 * root.s
-            radius: height / 2
-            color: Tokens.bone
-            opacity: root.motionAllowed ? 0.24 : 1
-
-            SequentialAnimation on opacity {
-                running: root.active && root.scanning && root.motionAllowed
-                loops: Animation.Infinite
-                NumberAnimation { from: 0.24; to: 0.86; duration: Tokens.move; easing.type: Tokens.ease }
-                NumberAnimation { from: 0.86; to: 0.24; duration: Tokens.move; easing.type: Tokens.ease }
-            }
-        }
-
-        Rectangle {
-            width: parent.width
-            implicitHeight: statusBody.implicitHeight + Tokens.s4 * root.s * 2
-            height: implicitHeight
-            radius: Tokens.radius * root.s * 2
-            color: Network.activeSsid !== "" ? Tokens.bone : Tokens.paperLift
-            border.width: Tokens.border
-            border.color: Network.activeSsid !== "" ? Tokens.bone : Tokens.lineSoft
-
-            Behavior on color {
-                enabled: root.motionAllowed
-                ColorAnimation { duration: Tokens.snap }
-            }
-
-            Row {
-                id: statusBody
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: Tokens.s4 * root.s
-                spacing: Tokens.s4 * root.s
-
-                Rectangle {
-                    width: 52 * root.s
-                    height: width
-                    radius: width / 2
-                    color: Network.activeSsid !== "" ? Tokens.inkOnBone : Tokens.tint10
-                    Text {
-                        anchors.centerIn: parent
-                        text: !Network.wifiPresent || !Network.wifiRadio ? "wifi_off" : root.signalGlyph(Network.wifi.strength)
-                        color: Network.activeSsid !== "" ? Tokens.bone : Tokens.inkDim
-                        font.family: "Material Symbols Rounded"
-                        font.pixelSize: 25 * root.s
-                    }
-                }
-                Column {
-                    width: Math.max(0, parent.width - parent.spacing - 52 * root.s - (disconnectButton.visible ? disconnectButton.width + parent.spacing : 0))
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Tokens.s1 * root.s
-                    Text {
-                        width: parent.width
-                        text: !Network.wifiPresent ? I18n.tr("No Wi-Fi hardware")
-                            : !Network.wifiRadio ? I18n.tr("Wi-Fi is off")
-                            : Network.activeSsid ? Network.activeSsid
-                            : Network.wifiConnectivity === "Connecting" ? I18n.tr("Connecting…")
-                            : I18n.tr("Ready to connect")
-                        color: Network.activeSsid !== "" ? Tokens.inkOnBone : Tokens.ink
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fValue * root.s
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        width: parent.width
-                        text: !Network.wifiPresent ? I18n.tr("This machine has no available wireless adapter.")
-                            : !Network.wifiRadio ? I18n.tr("Turn on the radio to search for nearby networks.")
-                            : Network.activeSsid ? I18n.tr("Connected · %1% signal").arg(Network.wifi.strength || 0)
-                            : root.scanning ? I18n.tr("Searching for nearby networks…")
-                            : I18n.tr("Choose a network below.")
-                        color: Network.activeSsid !== "" ? Tokens.inkOnBone : Tokens.inkMuted
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fSmall * root.s
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    }
-                }
-                QQC.AbstractButton {
-                    id: disconnectButton
-                    visible: Network.activeSsid !== ""
-                    hoverEnabled: true
-                    implicitWidth: disconnectLabel.implicitWidth + Tokens.s3 * root.s * 2
-                    width: implicitWidth
-                    height: (Tokens.rowH - Tokens.s2) * root.s
-                    Accessible.name: I18n.tr("Disconnect")
-                    onClicked: Network.disconnectWifi()
-                    background: Rectangle {
-                        radius: Tokens.radius * root.s * 1.5
-                        color: disconnectButton.down || disconnectButton.hovered ? Tokens.inkOnBone : "transparent"
-                        border.width: Tokens.border
-                        border.color: Tokens.inkOnBone
-                        Behavior on color {
-                            enabled: root.motionAllowed
-                            ColorAnimation { duration: Tokens.snap }
-                        }
-                    }
-                    contentItem: Text {
-                        id: disconnectLabel
-                        text: I18n.tr("Disconnect")
-                        color: disconnectButton.down || disconnectButton.hovered ? Tokens.bone : Tokens.inkOnBone
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fBody * root.s
-                        font.weight: Font.Medium
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                }
-            }
+            text: !Network.wifiPresent ? I18n.tr("This machine has no Wi-Fi adapter")
+                : !Network.wifiRadio ? I18n.tr("Wi-Fi is off")
+                : Network.wifiConnectivity === "Connecting" ? I18n.tr("Connecting…")
+                : I18n.tr("Not connected")
+            color: Lithic.fg2
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(13 * root.s)
+            wrapMode: Text.WordWrap
+            renderType: Text.NativeRendering
         }
 
         Text {
             visible: root.errorText !== "" && root.pendingAp === null && !root.hiddenForm
             width: parent.width
             text: root.errorText
-            color: Tokens.alert
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
+            textFormat: Text.PlainText
+            color: Lithic.jasper
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(12 * root.s)
             font.weight: Font.Medium
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+            renderType: Text.NativeRendering
         }
 
         Column {
-            visible: Network.wifiPresent && Network.wifiRadio
+            visible: root.radioOn
             width: parent.width
-            spacing: Tokens.s2 * root.s
+            spacing: Math.round(8 * root.s)
 
-            SectionTitle {
+            Micro {
                 width: parent.width
+                s: root.s
                 text: I18n.tr("Available networks")
             }
 
-            Repeater {
-                model: root.availableNets
-                delegate: Rectangle {
-                    id: apRow
-                    required property var modelData
-                    readonly property bool connecting: root.busy && root.pendingKey === root.networkKey(apRow.modelData)
-                    readonly property bool selected: root.pendingAp
-                        && root.networkKey(root.pendingAp) === root.networkKey(apRow.modelData)
-                    width: parent.width
-                    implicitHeight: Math.max(64 * root.s, apCopy.implicitHeight + Tokens.s3 * root.s * 2)
-                    height: implicitHeight
-                    radius: Tokens.radius * root.s * 1.5
-                    color: apRow.selected ? Tokens.bone
-                        : apHover.hovered ? Tokens.tint10
-                        : apRow.modelData.saved ? Tokens.tint10 : Tokens.tint5
-                    border.width: Tokens.border
-                    border.color: apRow.selected ? Tokens.bone : apHover.hovered ? Tokens.lineStrong : Tokens.lineSoft
+            Column {
+                id: networkList
+                width: parent.width
+                spacing: QsLook.material || QsLook.fluent ? Math.round(2 * root.s) : 0
 
-                    Behavior on color {
-                        enabled: root.motionAllowed
-                        ColorAnimation { duration: Tokens.snap }
-                    }
-                    Behavior on border.color {
-                        enabled: root.motionAllowed
-                        ColorAnimation { duration: Tokens.snap }
-                    }
-
-                    Text {
-                        id: apIcon
-                        anchors.left: parent.left
-                        anchors.leftMargin: Tokens.s3 * root.s
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 30 * root.s
-                        horizontalAlignment: Text.AlignHCenter
-                        text: root.signalGlyph(apRow.modelData.strength)
-                        color: apRow.selected ? Tokens.inkOnBone : Tokens.inkDim
-                        font.family: "Material Symbols Rounded"
-                        font.pixelSize: 23 * root.s
-                    }
-                    Column {
-                        id: apCopy
-                        anchors.left: apIcon.right
-                        anchors.right: apAction.left
-                        anchors.leftMargin: Tokens.s3 * root.s
-                        anchors.rightMargin: Tokens.s3 * root.s
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2 * root.s
-                        Text {
-                            width: parent.width
-                            text: apRow.modelData.ssid || ""
-                            color: apRow.selected ? Tokens.inkOnBone : Tokens.ink
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fRow * root.s
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            text: (root.isOpen(apRow.modelData) ? I18n.tr("Open") : String(apRow.modelData.security || I18n.tr("Secure")))
-                                + (apRow.modelData.saved ? " · " + I18n.tr("Saved") : "")
-                                + (root.multiBandSsids[apRow.modelData.ssid] && apRow.modelData.band ? " · " + I18n.tr("%1 GHz").arg(apRow.modelData.band) : "")
-                                + " · " + I18n.tr("%1% signal").arg(apRow.modelData.strength || 0)
-                            color: apRow.selected ? Tokens.inkOnBone : Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fSmall * root.s
-                            elide: Text.ElideRight
-                        }
-                    }
-                    SidebarButton {
-                        id: apAction
+                Repeater {
+                    model: root.availableNets
+                    delegate: PageRow {
+                        id: apRow
+                        required property var modelData
+                        required property int index
+                        readonly property bool connecting: root.busy && root.pendingKey === root.networkKey(apRow.modelData)
+                        readonly property bool picked: root.pendingAp !== null
+                            && root.networkKey(root.pendingAp) === root.networkKey(apRow.modelData)
+                        width: networkList.width
                         s: root.s
-                        compact: true
-                        anchors.right: parent.right
-                        anchors.rightMargin: Tokens.s3 * root.s
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: apRow.connecting ? I18n.tr("Connecting…") : I18n.tr("Connect")
-                        primary: apRow.selected
-                        armed: !root.busy
-                        onAct: root.choose(apRow.modelData)
+                        first: apRow.index === 0
+                        last: apRow.index === root.availableNets.length - 1
+                        selected: apRow.picked
+                        glyph: root.signalGlyph(apRow.modelData.strength)
+                        title: apRow.modelData.ssid || ""
+                        meta: root.networkMeta(apRow.modelData)
+
+                        SidebarButton {
+                            s: root.s
+                            compact: true
+                            text: apRow.connecting ? I18n.tr("Connecting…") : I18n.tr("Connect")
+                            primary: apRow.picked
+                            armed: !root.busy
+                            Accessible.name: I18n.tr("Connect to %1").arg(apRow.modelData.ssid || "")
+                            onAct: root.choose(apRow.modelData)
+                        }
                     }
-                    HoverHandler { id: apHover }
                 }
             }
 
-            Text {
+            PageSearching {
                 visible: root.availableNets.length === 0
                 width: parent.width
+                s: root.s
+                running: root.scanning && root.active
                 text: root.scanning ? I18n.tr("Searching for nearby networks…")
-                    : I18n.tr("No networks found. Move closer to an access point, then refresh.")
-                color: Tokens.inkMuted
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
-                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                horizontalAlignment: Text.AlignHCenter
-                topPadding: Tokens.s4 * root.s
-                bottomPadding: Tokens.s4 * root.s
+                    : I18n.tr("No networks found. Move closer to an access point, then search again.")
             }
         }
 
-        QQC.Popup {
-            id: joinPopup
-            parent: root.card ?? QQC.Overlay.overlay
-            visible: root.active && (root.pendingAp !== null || root.hiddenForm)
-            width: Math.min(520 * root.s, parent ? parent.width - Tokens.s5 * root.s * 2 : root.width)
-            implicitHeight: joinForm.implicitHeight + padding * 2
-            x: parent ? (parent.width - width) / 2 : 0
-            y: parent ? Math.max(Tokens.s4 * root.s, (parent.height - height) / 2) : 0
-            padding: Tokens.s4 * root.s
-            modal: true
-            // the overlay spans the panel's whole column, so its dim would shade past the card
-            dim: false
-            focus: true
-            closePolicy: root.busy ? QQC.Popup.NoAutoClose : QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
-            onOpened: Qt.callLater(() => root.hiddenForm ? hiddenSsidField.forceActiveFocus() : passwordField.forceActiveFocus())
-            onClosed: if (!root.busy) root.clearForm()
-            background: Rectangle {
-                radius: Tokens.radius * root.s * 2
-                color: Tokens.paperLift
-                border.width: Tokens.border
-                border.color: Tokens.line
-            }
+        Flow {
+            visible: root.radioOn && !root.hiddenForm && root.pendingAp === null
+            width: parent.width
+            spacing: Math.round(8 * root.s)
 
-            contentItem: Column {
-                id: joinForm
-                spacing: Tokens.s3 * root.s
-
-                SectionTitle {
-                    width: parent.width
-                    text: root.hiddenForm ? I18n.tr("Join a hidden network")
-                        : I18n.tr("Password for %1").arg(root.pendingAp ? root.pendingAp.ssid : "")
-                }
-                Text {
-                    visible: root.errorText !== ""
-                    width: parent.width
-                    text: root.errorText
-                    color: Tokens.alert
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall * root.s
-                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                }
-                Field {
-                    id: hiddenSsidField
-                    visible: root.hiddenForm
-                    width: parent.width
-                    placeholderText: I18n.tr("Network name (SSID)")
-                    text: root.hiddenSsid
-                    onTextEdited: root.hiddenSsid = text
-                    onAccepted: hiddenPasswordField.forceActiveFocus()
-                }
-                Field {
-                    id: passwordField
-                    visible: !root.hiddenForm
-                    width: parent.width
-                    placeholderText: I18n.tr("Password")
-                    echoMode: TextInput.Password
-                    text: root.password
-                    onTextEdited: root.password = text
-                    onAccepted: root.submitPassword()
-                }
-                Field {
-                    id: hiddenPasswordField
-                    visible: root.hiddenForm
-                    width: parent.width
-                    placeholderText: I18n.tr("Password (leave empty if open)")
-                    echoMode: TextInput.Password
-                    text: root.password
-                    onTextEdited: root.password = text
-                    onAccepted: root.submitHidden()
-                }
-                Row {
-                    spacing: Tokens.s2 * root.s
-                    SidebarButton {
-                        s: root.s
-                        text: root.busy ? I18n.tr("Connecting…") : I18n.tr("Connect")
-                        primary: true
-                        armed: !root.busy && (root.hiddenForm ? root.hiddenSsid.trim() !== ""
-                            : root.pendingAp !== null && root.password.length > 0)
-                        onAct: root.hiddenForm ? root.submitHidden() : root.submitPassword()
-                    }
-                    SidebarButton {
-                        s: root.s
-                        text: I18n.tr("Cancel")
-                        armed: !root.busy
-                        onAct: root.clearForm()
-                    }
-                }
-            }
-        }
-
-        Row {
-            visible: Network.wifiPresent && Network.wifiRadio && !root.hiddenForm && root.pendingAp === null
-            spacing: Tokens.s2 * root.s
             SidebarButton {
                 s: root.s
                 glyph: "add"
                 text: I18n.tr("Hidden network")
-                onAct: {
-                    root.pendingAp = null;
-                    root.hiddenForm = true;
-                    root.hiddenSsid = "";
-                    root.password = "";
-                    root.errorText = "";
-                    Qt.callLater(() => hiddenSsidField.forceActiveFocus());
-                }
+                onAct: root.openHidden()
             }
             SidebarButton {
                 s: root.s
-                visible: Network.activeSsid !== ""
+                visible: root.joined
                 glyph: "delete"
                 text: I18n.tr("Forget %1").arg(Network.activeSsid)
                 onAct: Network.forgetWifi(Network.activeSsid)
+            }
+        }
+    }
+
+    QQC.Popup {
+        id: joinPopup
+        parent: root.card ?? QQC.Overlay.overlay
+        visible: root.active && (root.pendingAp !== null || root.hiddenForm)
+        width: Math.min(Math.round(400 * root.s), parent ? parent.width - Math.round(32 * root.s) : root.width)
+        implicitHeight: joinForm.implicitHeight + padding * 2
+        x: parent ? (parent.width - width) / 2 : 0
+        y: parent ? Math.max(Math.round(16 * root.s), (parent.height - height) / 2) : 0
+        padding: Math.round((QsLook.material ? 24 : 18) * root.s)
+        modal: true
+        // the overlay spans the panel's whole column, so its dim would shade past the card
+        dim: false
+        focus: true
+        closePolicy: root.busy ? QQC.Popup.NoAutoClose : QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
+        onOpened: Qt.callLater(() => root.hiddenForm ? hiddenSsidField.forceActiveFocus() : passwordField.forceActiveFocus())
+        onClosed: if (!root.busy) root.clearForm()
+
+        enter: Transition {
+            NumberAnimation {
+                property: "opacity"
+                from: 0
+                to: 1
+                duration: QsLook.dur(Look.viewMs)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: QsLook.arrive
+            }
+            NumberAnimation {
+                property: "scale"
+                from: QsLook.lithic ? 1 : QsLook.material ? 0.92 : 0.96
+                to: 1
+                duration: QsLook.dur(Look.viewMs)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: QsLook.arrive
+            }
+        }
+        exit: Transition {
+            NumberAnimation {
+                property: "opacity"
+                to: 0
+                duration: QsLook.dur(QsLook.closeMs)
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: QsLook.leave
+            }
+        }
+
+        background: CutRect {
+            cut: Look.cutFrame * root.s
+            fill: Look.popover
+            strokeColor: Look.popoverStroke
+            strokeWidth: Qt.colorEqual(Look.popoverStroke, "transparent") ? 0 : Math.max(1, Math.round(root.s))
+        }
+
+        contentItem: Column {
+            id: joinForm
+            spacing: Math.round(12 * root.s)
+
+            Text {
+                width: parent.width
+                text: root.hiddenForm ? I18n.tr("Join a hidden network")
+                    : I18n.tr("Password for %1").arg(root.pendingAp ? root.pendingAp.ssid : "")
+                textFormat: Text.PlainText
+                color: Lithic.fg
+                font.family: QsLook.sans
+                font.pixelSize: Math.round(16 * root.s)
+                font.weight: Font.DemiBold
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                renderType: Text.NativeRendering
+            }
+            Text {
+                visible: root.errorText !== ""
+                width: parent.width
+                text: root.errorText
+                textFormat: Text.PlainText
+                color: Lithic.jasper
+                font.family: QsLook.sans
+                font.pixelSize: Math.round(12 * root.s)
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                renderType: Text.NativeRendering
+            }
+            TextField {
+                id: hiddenSsidField
+                visible: root.hiddenForm
+                width: parent.width
+                placeholderText: I18n.tr("Network name (SSID)")
+                text: root.hiddenSsid
+                onTextEdited: root.hiddenSsid = text
+                onAccepted: hiddenPasswordField.forceActiveFocus()
+            }
+            TextField {
+                id: passwordField
+                visible: !root.hiddenForm
+                width: parent.width
+                secret: true
+                placeholderText: I18n.tr("Password")
+                text: root.password
+                onTextEdited: root.password = text
+                onAccepted: root.submitPassword()
+            }
+            TextField {
+                id: hiddenPasswordField
+                visible: root.hiddenForm
+                width: parent.width
+                secret: true
+                placeholderText: I18n.tr("Password (leave empty if open)")
+                text: root.password
+                onTextEdited: root.password = text
+                onAccepted: root.submitHidden()
+            }
+            Row {
+                anchors.right: parent.right
+                spacing: Math.round(8 * root.s)
+                // Fluent's dialogs lead with the primary action, the others end on it
+                layoutDirection: QsLook.fluent ? Qt.RightToLeft : Qt.LeftToRight
+
+                SidebarButton {
+                    s: root.s
+                    text: I18n.tr("Cancel")
+                    armed: !root.busy
+                    onAct: root.clearForm()
+                }
+                SidebarButton {
+                    s: root.s
+                    text: root.busy ? I18n.tr("Connecting…") : I18n.tr("Connect")
+                    primary: true
+                    armed: !root.busy && (root.hiddenForm ? root.hiddenSsid.trim() !== ""
+                        : root.pendingAp !== null && root.password.length > 0)
+                    onAct: root.hiddenForm ? root.submitHidden() : root.submitPassword()
+                }
             }
         }
     }

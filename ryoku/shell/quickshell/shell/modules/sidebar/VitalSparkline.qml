@@ -2,8 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Ryoku.Blobs
-import Ryoku.Ui.Singletons
-import shell.services
+import Lithic
 
 Item {
     id: root
@@ -12,11 +11,11 @@ Item {
     required property bool active
     required property real s
     property var channels: ["cpu"]
-    property var colors: [Tokens.sun]
+    property var colors: [Lithic.sel]
     property bool fill: true
     property bool showGrid: false
     property bool detailPoints: false
-    property real lineWidth: Tokens.border * s
+    property real lineWidth: Math.max(1, Math.round(root.s))
 
     clip: true
 
@@ -24,13 +23,13 @@ Item {
         anchors.fill: parent
         source: root.monitor
         active: root.active
-        animated: !Tokens.reduceMotion && !Motion.reduce
+        animated: !QsLook.still
         channels: root.channels
         colors: root.colors
         fill: root.fill
         showGrid: root.showGrid
         detailPoints: root.detailPoints
-        gridColor: Tokens.lineSoft
+        gridColor: Lithic.vein
         lineWidth: root.lineWidth
     }
 }

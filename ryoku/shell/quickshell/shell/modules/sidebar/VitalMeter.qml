@@ -1,9 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls as QQC
-import Ryoku.Ui.Singletons
-import shell.services
+import Lithic
+import "../ask/look"
 
 Item {
     id: root
@@ -11,90 +10,127 @@ Item {
     required property real s
     required property string label
     required property string valueText
+    property color valueInk: Lithic.fg
+    property string detailText: ""
+    property color detailInk: Lithic.fg2
     property string tooltipText: ""
     property bool showProgress: false
     property real progressValue: 0
     property real progressMaximum: 100
-    property int settle: Tokens.flap
-    property color accent: Tokens.inkDim
+    property int settle: 0
+    property color accent: QsLook.lithic ? Lithic.fg2 : Lithic.sel
     property Component meterContent: null
 
-    implicitHeight: (Tokens.s5 + Tokens.s1) * s
-    clip: true
+    readonly property bool tiled: QsLook.material
+    readonly property real pad: root.tiled ? Math.round(12 * root.s) : 0
+    readonly property real head: QsLook.lithic ? Math.round(8 * root.s) : root.pad
+    readonly property real line: Math.round(18 * root.s)
+    readonly property real slot: Math.round(14 * root.s)
+    readonly property real between: Math.round(8 * root.s)
+    readonly property real progressRatio: root.showProgress && isFinite(root.progressValue) && root.progressMaximum > 0
+        ? Math.max(0, Math.min(1, root.progressValue / root.progressMaximum)) : 0
 
-    readonly property real progressRatio: showProgress && isFinite(progressValue) && progressMaximum > 0
-                                                 ? Math.max(0, Math.min(1, progressValue / progressMaximum))
-                                                 : 0
+    implicitHeight: root.head + root.line + Math.round(6 * root.s) + root.slot + root.pad
+    Accessible.role: Accessible.StaticText
+    Accessible.name: root.label + ", " + root.valueText + root.detailText
 
-    Text {
-        id: heading
-        anchors.left: parent.left
-        anchors.top: parent.top
-        width: Math.min(implicitWidth, Math.max(0, parent.width - Tokens.s7 * root.s))
-        text: root.label.toUpperCase()
-        textFormat: Text.PlainText
-        color: Tokens.inkMuted
-        font.family: Tokens.mono
-        font.pixelSize: Tokens.fMicro * root.s
-        font.letterSpacing: Tokens.trackLabel * root.s
-        elide: Text.ElideRight
+    Plate {
+        visible: root.tiled
+        anchors.fill: parent
+        s: root.s
     }
-
-    Text {
-        id: value
-        anchors.left: heading.right
-        anchors.leftMargin: Tokens.s2 * root.s
+    Rectangle {
+        visible: QsLook.lithic
+        anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: parent.top
-        text: root.valueText
-        textFormat: Text.PlainText
-        color: Tokens.ink
-        font.family: Tokens.ui
-        font.pixelSize: Tokens.fSmall * root.s
-        font.weight: Font.DemiBold
-        elide: Text.ElideLeft
-        horizontalAlignment: Text.AlignRight
+        height: Math.max(1, Math.round(root.s))
+        color: Lithic.vein
     }
 
     Item {
-        id: meterSlot
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: root.meterContent ? Tokens.s3 * root.s : Tokens.border * 3 * root.s
-        clip: true
+        id: content
+        anchors.fill: parent
+        anchors.leftMargin: root.pad
+        anchors.rightMargin: root.pad
+        anchors.topMargin: root.head
+        anchors.bottomMargin: root.pad
 
-        Rectangle {
-            visible: root.showProgress && root.meterContent === null
-            anchors.fill: parent
-            radius: Math.min(height / 2, Tokens.radius * root.s)
-            color: Tokens.inkFaint
+        Micro {
+            id: name
+            anchors.left: parent.left
+            anchors.verticalCenter: reading.verticalCenter
+            width: Math.max(Math.min(implicitWidth, parent.width / 3),
+                Math.min(implicitWidth, parent.width - reading.implicitWidth - root.between))
+            s: root.s
+            text: root.label
+        }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: parent.width * root.progressRatio
-                radius: parent.radius
-                color: root.accent
+        Row {
+            id: reading
+            anchors.right: parent.right
+            height: root.line
+            width: Math.min(implicitWidth, parent.width - name.width - root.between)
+            clip: true
+            layoutDirection: Qt.RightToLeft
 
-                Behavior on width {
-                    enabled: !Tokens.reduceMotion && !Motion.reduce
-                    NumberAnimation { duration: root.settle; easing.type: Easing.Linear }
+            Text {
+                visible: root.detailText.length > 0
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.detailText
+                color: root.detailInk
+                font.family: QsLook.lithic ? QsLook.figures : QsLook.sans
+                font.pixelSize: Math.round((QsLook.lithic ? 13 * QsLook.figureScale : 13) * root.s)
+                font.features: ({ "tnum": 1 })
+                renderType: Text.NativeRendering
+                Behavior on color {
+                    ColorAnimation { duration: QsLook.dur(QsLook.stateMs * 2) }
+                }
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.valueText
+                color: root.valueInk
+                font.family: QsLook.lithic ? QsLook.figures : QsLook.sans
+                font.pixelSize: Math.round((QsLook.lithic ? 13 * QsLook.figureScale : 13) * root.s)
+                font.weight: QsLook.lithic ? Font.Normal : Font.Medium
+                font.features: ({ "tnum": 1 })
+                renderType: Text.NativeRendering
+                Behavior on color {
+                    ColorAnimation { duration: QsLook.dur(QsLook.stateMs * 2) }
                 }
             }
         }
 
-        Loader {
-            anchors.fill: parent
-            active: root.visible && root.meterContent !== null
-            sourceComponent: root.meterContent
+        Item {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: root.slot
+
+            Meter {
+                visible: root.showProgress && root.meterContent === null
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                s: root.s
+                value: root.progressRatio
+                ink: root.accent
+                settle: root.settle
+            }
+            Loader {
+                anchors.fill: parent
+                active: root.visible && root.meterContent !== null
+                sourceComponent: root.meterContent
+            }
         }
     }
 
     HoverHandler {
-        id: meterHover
+        id: hover
     }
-
-    CornerTip { s: root.s; visible: meterHover.hovered && root.tooltipText.length > 0; text: root.tooltipText }
+    CornerTip {
+        s: root.s
+        visible: hover.hovered && root.tooltipText.length > 0
+        text: root.tooltipText
+    }
 }

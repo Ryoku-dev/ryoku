@@ -15,6 +15,11 @@
 
 ### Changed
 
+- **The Quick settings page follows the new panel.** Its blocks are listed in
+  the new order, the switches sit under Connections and switches, the session
+  row is Session buttons, and Top right is the default position
+  (`quickshell/schema/quick-settings.js`).
+
 - **Long dropdowns scroll and stay inside the window.** A menu holds about ten
   rows with the next one showing, opens below its control or above it when that
   has more room, never covers the control, scrolls with the wheel, touchpad and

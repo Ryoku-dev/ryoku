@@ -4,7 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Ryoku.PluginKit
-import Ryoku.Ui.Singletons
+import Lithic
 import shell.services
 import "SidebarCatalog.js" as SidebarCatalog
 
@@ -148,17 +148,18 @@ Item {
         id: genericSummary
         anchors { left: parent.left; right: parent.right; top: parent.top }
         visible: root.genericPluginSummary
-        spacing: Math.round(Tokens.s1 * root.s)
+        spacing: Math.round(4 * root.s)
 
         Text {
             width: parent.width
             text: root.pluginName
             textFormat: Text.PlainText
-            color: Tokens.ink
-            font.family: Tokens.ui
-            font.pixelSize: Math.round(Tokens.fRow * root.s)
-            font.weight: Font.DemiBold
+            color: Lithic.fg
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(14 * root.s)
+            font.weight: Font.Medium
             elide: Text.ElideRight
+            renderType: Text.NativeRendering
         }
 
         Text {
@@ -166,10 +167,11 @@ Item {
             visible: root.pluginDescription !== ""
             text: root.pluginDescription
             textFormat: Text.PlainText
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: Math.round(Tokens.fSmall * root.s)
+            color: Lithic.fg2
+            font.family: QsLook.sans
+            font.pixelSize: Math.round(12 * root.s)
             wrapMode: Text.WordWrap
+            renderType: Text.NativeRendering
         }
     }
 

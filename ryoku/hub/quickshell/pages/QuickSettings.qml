@@ -44,7 +44,7 @@ Item {
         for (var i = 0; i < Schema.blocks.length; i++)
             if (Changes.value({ store: "quicksettings", key: "block:" + Schema.blocks[i].id }) === true)
                 shown++;
-        var line = I18n.tr("Opens at %1, %2 px from the edges.").arg(where[pos] || where["top-left"]).arg(gap);
+        var line = I18n.tr("Opens at %1, %2 px from the edges.").arg(where[pos] || where["top-right"]).arg(gap);
         return line + " " + I18n.tr("Shows %1 of %2 blocks.").arg(shown).arg(Schema.blocks.length);
     }
 

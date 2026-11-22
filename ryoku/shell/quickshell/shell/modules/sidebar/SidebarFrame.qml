@@ -1,21 +1,45 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Ryoku.Ui.Singletons
+import QtQuick.Effects
+import Lithic
+import shell.services
 
-Rectangle {
+Item {
     id: root
+
     property real s: 1
-    radius: Tokens.radius * s * 2.5
-    color: Tokens.paper
-    border.width: Tokens.border
-    border.color: Tokens.line
-    Rectangle {
+    readonly property real cut: QsLook.frameCut * root.s
+    readonly property real quietCut: QsLook.frameQuietCut * root.s
+    readonly property real hairline: Math.max(1, Math.round(root.s))
+
+    RectangularShadow {
+        visible: !Perf.shadowsDisabled
         anchors.fill: parent
-        anchors.margins: Tokens.border
-        radius: Math.max(0, root.radius - Tokens.border)
-        color: "transparent"
-        border.width: Tokens.border
-        border.color: Qt.alpha(Tokens.ink, Tokens.light ? 0.02 : 0.035)
+        offset.y: QsLook.shadowY * root.s
+        blur: QsLook.shadowBlur * root.s
+        spread: -Math.round(4 * root.s)
+        radius: QsLook.lithic ? root.cut / 2 : Lithic.cornerRadius(root.cut, width, height)
+        color: QsLook.shadow
+    }
+    CutRect {
+        id: plane
+        anchors.fill: parent
+        cutTopLeft: root.cut
+        cutBottomRight: root.cut
+        cutTopRight: QsLook.lithic ? root.quietCut : root.cut
+        cutBottomLeft: QsLook.lithic ? root.quietCut : root.cut
+        fill: QsLook.frame
+        strokeColor: QsLook.frameStroke
+        strokeWidth: Qt.colorEqual(QsLook.frameStroke, "transparent") ? 0 : root.hairline
+    }
+    CutRect {
+        visible: QsLook.fluent
+        anchors.fill: parent
+        anchors.margins: root.hairline
+        cut: Math.max(0, root.cut - root.hairline)
+        fill: "transparent"
+        strokeColor: QsLook.frameInner
+        strokeWidth: root.hairline
     }
 }

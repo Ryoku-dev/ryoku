@@ -134,14 +134,14 @@ Singleton {
     }
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
     readonly property var defaultControls: ({
-        "position": "top-left",
+        "position": "top-right",
         "edgeGap": 12,
         "sections": [
-            { "id": "vitals", "visible": true },
             { "id": "connections", "visible": true },
-            { "id": "powerProfile", "visible": true },
-            { "id": "media", "visible": false },
             { "id": "levels", "visible": true },
+            { "id": "media", "visible": false },
+            { "id": "powerProfile", "visible": true },
+            { "id": "vitals", "visible": true },
             { "id": "bottomControls", "visible": true }
         ],
         "hidden": []

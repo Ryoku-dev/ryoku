@@ -1,6 +1,11 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku doctor` moves Quick settings to its new default once.** A box still
+  on the old top-left position or the old block order gets the top right and
+  the connections-first order; a reordered or partly hidden panel keeps its
+  order, and a later choice of either stands
+  (`internal/doctor/reconcile_quick_settings_layout.go`).
 - **`ryoku-host capabilities` names the edition.** Its JSON gains `edition`
   (`arch`, `cachyos`, `fedora` or `void`, read from `/etc/os-release` by `ID` and
   then `ID_LIKE`; absent when none matches), so Kit's Commands shows the commands
