@@ -11,8 +11,7 @@ import (
 // style ids, values lowercase GitHub logins. team.ryoku.dev keeps the same table
 // (CARD_STYLE_OWNERS in release/team-badges/src/codec.js); the shared test vectors compare them.
 var cardStyleOwners = map[string][]string{
-	"eidolon": {"aethctl"},
-	"stand":   {"neur0map"},
+	"stand": {"neur0map"},
 }
 
 // styleOwnedBy is whether login, compared without case, owns the built-in style

@@ -14,12 +14,7 @@ func TestStyleOwnersMatchLoginsWithoutCase(t *testing.T) {
 			t.Fatal(login, "does not own the Stand style")
 		}
 	}
-	for _, login := range []string{"aethctl", "AETHCTL", "Aethctl"} {
-		if !styleOwnedBy("eidolon", login) || !reflect.DeepEqual(stylesOwnedBy(login), []string{"eidolon"}) {
-			t.Fatal(login, "does not own EIDOLON")
-		}
-	}
-	for _, c := range [][2]string{{"stand", "friend"}, {"stand", "neur0map2"}, {"stand", ""}, {"stand", "aethctl"}, {"eidolon", "neur0map"}, {"eidolon", "friend"}, {"eidolon", ""}, {"gold", "neur0map"}, {"", "neur0map"}} {
+	for _, c := range [][2]string{{"stand", "friend"}, {"stand", "neur0map2"}, {"stand", ""}, {"gold", "neur0map"}, {"", "neur0map"}} {
 		if styleOwnedBy(c[0], c[1]) {
 			t.Fatal(c, "owns the style")
 		}
@@ -97,23 +92,5 @@ func TestRecordSyncSendsOnlyAnOwnedStyle(t *testing.T) {
 	}
 	if status, _ := badgeStatus(false); !reflect.DeepEqual(status.Styles, []string{"stand"}) {
 		t.Fatal("badge status left out the owner's style", status.Styles)
-	}
-	if e := atomicWrite(profileConfigPath(), []byte(`{"style":"eidolon","text":{"name":"AETHCTL","tagline":"For the sake of power and beauty."}}`), 0o644); e != nil {
-		t.Fatal(e)
-	}
-	if r := sync("AETHCTL", "18"); r.V != 3 || r.Style != "eidolon" || r.StandName != "" {
-		t.Fatal("EIDOLON owner did not publish the signed style", r)
-	}
-	if status, _ := badgeStatus(false); !reflect.DeepEqual(status.Styles, []string{"eidolon"}) {
-		t.Fatal("badge status left out EIDOLON", status.Styles)
-	}
-	if profile, e := validateProfile([]byte(`{"style":"eidolon"}`)); e != nil || profile.Style != "eidolon" {
-		t.Fatal("EIDOLON owner could not persist the style", profile, e)
-	}
-	if r := sync("Neur0map", "19"); r.Style != "" {
-		t.Fatal("Stand owner was allowed to publish EIDOLON", r)
-	}
-	if _, e := validateProfile([]byte(`{"style":"eidolon"}`)); e == nil {
-		t.Fatal("Another badge owner could persist EIDOLON")
 	}
 }
