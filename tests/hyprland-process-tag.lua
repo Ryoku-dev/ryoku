@@ -19,10 +19,10 @@ local function gone(pid)
     end
 end
 
-local handlers, dispatched, rules
+local handlers, dispatched, rules, windows, timers
 
 local function load(open_windows)
-    handlers, dispatched, rules = {}, {}, {}
+    handlers, dispatched, rules, windows, timers = {}, {}, {}, open_windows or {}, {}
     local environment = {
         hl = {
             on = function(event, handler)
@@ -36,7 +36,11 @@ local function load(open_windows)
                 resize = function(args) return args end,
                 move = function(args) return args end,
             } },
-            get_windows = function() return open_windows or {} end,
+            get_windows = function() return windows end,
+            timer = function(fn, opts)
+                timers[#timers + 1] = { fn = fn, timeout = opts.timeout, type = opts.type }
+                return {}
+            end,
             get_config = function() return {} end,
         },
         io = {
@@ -68,10 +72,21 @@ end
 
 local function open(pid, address)
     local before = #dispatched
-    for _, handler in ipairs(handlers["window.open"]) do
-        handler({ pid = pid, address = address, tags = {}, title = "" })
-    end
+    local win = { pid = pid, address = address, tags = {}, title = "" }
+    windows[#windows + 1] = win
+    for _, handler in ipairs(handlers["window.open"]) do handler(win) end
     return tags_for(address, before + 1)
+end
+
+-- Fire the timers pending now; a timer they schedule waits for the next call.
+local function run_timers()
+    local due = timers
+    timers = {}
+    for _, t in ipairs(due) do
+        assert(t.type == "oneshot", "retry timers must be oneshot")
+        t.fn()
+    end
+    return #due
 end
 
 local function expect(got, want, what)
@@ -123,8 +138,30 @@ expect(open(206, "reused"), "", "a recycled pid")
 proc(220, "Game2.exe", 205, 60)
 gone(203)
 expect(open(220, "race"), "", "a walk through an exited process")
+assert(#timers == 1 and timers[1].timeout == 250, "an unsettled window must be retried soon")
 proc(203, "bwrap", 202, 23)
-expect(open(220, "race-2"), "+steam-game", "the retry once the chain reads again")
+run_timers()
+expect(tags_for("race"), "+steam-game", "the timed retry of the unsettled window")
+assert(#timers == 0, "a settled retry must not schedule another")
+expect(open(220, "race-2"), "+steam-game", "a later window from the same process")
+
+-- The retries are bounded: three, then the window is left alone.
+proc(225, "Game5.exe", 205, 63)
+gone(205)
+expect(open(225, "stuck"), "", "a walk that never settles")
+local fired = 0
+while #timers > 0 do fired = fired + run_timers() end
+assert(fired == 3, "retries must stop after three, fired " .. fired)
+proc(205, "wine64-preloader", 204, 25)
+
+-- A window closed before its retry is not touched.
+gone(203)
+proc(226, "Game6.exe", 205, 64)
+expect(open(226, "closed"), "", "an unsettled window")
+windows[#windows] = nil
+proc(203, "bwrap", 202, 23)
+run_timers()
+expect(tags_for("closed"), "", "a retry after the window closed")
 
 -- An unreadable reaper command line settles nothing either.
 proc(230, "Game3.exe", 205, 61)
