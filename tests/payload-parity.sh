@@ -382,6 +382,14 @@ for pkg in "${packages[@]}"; do
       cmp -s "$root/ryoku/apps/xfce4/helpers/ryoku-terminal.desktop" "$helper" \
         || fail "ryoku-desktop $edition package is missing the Xfce terminal helper"
     done
+    for edition in arch void fedora fedora-spec; do
+      staged="$work/staged/$pkg-$edition"
+      cmp -s "$root/ryoku/apps/dolphin/ryoku-set-wallpaper.desktop" \
+        "$staged/usr/share/kio/servicemenus/ryoku-set-wallpaper.desktop" \
+        || fail "ryoku-desktop $edition package is missing the Dolphin wallpaper menu"
+      cmp -s "$root/ryoku/apps/dolphin/kservicemenurc" "$staged/etc/xdg/kservicemenurc" \
+        || fail "ryoku-desktop $edition package does not hide Plasma's wallpaper action"
+    done
     [[ -f $work/staged/$pkg-arch/usr/share/libalpm/hooks/96-ryoku-polkit-reload.hook ]] \
       || fail "ryoku-desktop Arch package is missing the polkit reload hook"
     for edition in arch void fedora fedora-spec; do

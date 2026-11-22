@@ -1267,6 +1267,15 @@ install -Dm644 "$here/../apps/nautilus/ryoku-stash-menu.py" \
   "$appshare/nautilus-python/extensions/ryoku-stash-menu.py"
 say "installed nautilus stash menu -> $appshare/nautilus-python/extensions"
 
+# Dolphin's Set as Wallpaper through ryogami. A user service menu only loads when
+# it is executable; the package's system copy needs no exec bit.
+install -Dm755 "$here/../apps/dolphin/ryoku-set-wallpaper.desktop" \
+  "$appshare/kio/servicemenus/ryoku-set-wallpaper.desktop"
+if command -v kwriteconfig6 >/dev/null 2>&1; then
+  kwriteconfig6 --file kservicemenurc --group Show --key wallpaperfileitemaction false
+fi
+say "installed dolphin wallpaper menu -> $appshare/kio/servicemenus"
+
 # The compositor config comes from the ACTIVE provider's payload, so a checkout
 # on niri deploys ryoku/niri exactly the way one on Hyprland deploys
 # ryoku/hyprland. `ryoku wm config` is the single source for the config dir name
