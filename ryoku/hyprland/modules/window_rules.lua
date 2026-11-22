@@ -300,14 +300,14 @@ end)
 -- opacity made the editor see-through whenever a pop-up took focus, and it is
 -- a tool you watch while you work in another window. Pinned to 1.0 by the
 -- opacity override, which beats the active, inactive and fullscreen values.
-process_tag.add("unreal-engine", process_tag.runs({
-    "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/",
-}))
 hl.window_rule({
     name    = "unreal-engine-opaque",
     match   = { tag = "unreal-engine" },
     opacity = "1.0 override 1.0 override 1.0 override",
 })
+process_tag.add("unreal-engine", process_tag.runs({
+    "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/",
+}))
 
 -- Browsers are tagged only. Whether they stay opaque is the user's call (Ryoku
 -- Settings > Window Manager > Look), since a see-through page is hard to read

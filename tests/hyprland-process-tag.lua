@@ -154,6 +154,13 @@ expect(open(500, "ue"), "+unreal-engine", "the editor")
 expect(open(501, "ue-popup"), "+unreal-engine", "an editor child process")
 expect(open(502, "ue-path"), "+unreal-engine", "a binary under Engine/Binaries")
 expect(open(503, "ue-crash"), "+unreal-engine", "the crash reporter (comm cut to 15)")
+proc(510, "dotnet", 500, 74)
+proc(511, "helper-a", 510, 75)
+proc(512, "helper-b", 511, 76)
+proc(513, "helper-c", 512, 77)
+proc(514, "helper-d", 513, 78)
+proc(515, "ue-subwindow", 514, 79)
+expect(open(515, "ue-deep"), "+unreal-engine", "a helper six processes below the editor")
 
 -- Browsers are tagged only; the opt-in rule comes from the provider.
 proc(600, "firefox", 1, 80, "/usr/lib/firefox/firefox")
