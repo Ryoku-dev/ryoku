@@ -43,11 +43,16 @@ func (d *daemon) importToLibrary(src string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	stem := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
+	// The scanner skips dotfiles, so a hidden source gets a visible name.
+	base := strings.TrimLeft(filepath.Base(src), ".")
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	if stem == "" {
+		stem = "wallpaper"
+	}
 	for n := 0; ; n++ {
-		name := filepath.Base(src)
+		name := stem + filepath.Ext(base)
 		if n > 0 {
-			name = fmt.Sprintf("%s-%d%s", stem, n, filepath.Ext(src))
+			name = fmt.Sprintf("%s-%d%s", stem, n, filepath.Ext(base))
 		}
 		dest := filepath.Join(dir, name)
 		same, err := sameContent(src, dest)
@@ -92,18 +97,31 @@ func scannerLists(cfg config, path string, video bool) bool {
 	}
 	for _, root := range roots {
 		rel := within(root, path)
-		if rel == "" {
-			continue
-		}
-		hidden := false
-		for _, part := range strings.Split(rel, string(filepath.Separator)) {
-			hidden = hidden || strings.HasPrefix(part, ".")
-		}
-		if !hidden {
+		if rel != "" && walkReaches(root, rel) {
 			return true
 		}
 	}
 	return false
+}
+
+// walkReaches reports whether WalkDir from root descends to rel: no hidden
+// part on the way, and no folder on the way that is a symlink it won't follow.
+func walkReaches(root, rel string) bool {
+	parts := strings.Split(rel, string(filepath.Separator))
+	dir := root
+	for i, part := range parts {
+		if strings.HasPrefix(part, ".") {
+			return false
+		}
+		if i == len(parts)-1 {
+			break
+		}
+		dir = filepath.Join(dir, part)
+		if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 // within answers path relative to root, or "" when path lies outside it.

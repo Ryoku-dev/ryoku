@@ -306,3 +306,34 @@ func TestDolphinMenuOffersOnlyTypesTheLibraryShows(t *testing.T) {
 		}
 	}
 }
+
+func TestImportGivesAHiddenFileAListedName(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), ".photo.jpg")
+	writeMedia(t, src, "hidden name")
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo.jpg"); got != want {
+		t.Fatalf("imported to %q, want %q where the picker lists it", got, want)
+	}
+}
+
+func TestImportCopiesOutOfASymlinkedFolder(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	elsewhere := t.TempDir()
+	writeMedia(t, filepath.Join(elsewhere, "linked.png"), "png via a linked folder")
+	if err := os.Symlink(elsewhere, filepath.Join(wall, "linked")); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := d.importToLibrary(filepath.Join(wall, "linked", "linked.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "linked.png"); got != want {
+		t.Fatalf("imported to %q, want %q where the picker lists it", got, want)
+	}
+}
