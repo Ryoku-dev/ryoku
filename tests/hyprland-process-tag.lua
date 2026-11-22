@@ -229,6 +229,13 @@ expect(open(521, "not-ue"), "", "-game on a binary that is not Unreal")
 proc(522, "UnrealEditor", 1, 92, "/opt/ue/Engine/Binaries/Linux/UnrealEditor /p/Game.uproject -gamepad")
 expect(open(522, "ue-gamepad"), "+unreal-engine", "an option that only starts with -game")
 
+-- An exec can keep the pid, the start time and even the comm while argv
+-- changes, so a "no" from before the exec must not stick to the program after.
+proc(530, "launcher", 1, 93, "/usr/bin/launcher --pick")
+expect(open(530, "same-comm-pre"), "", "a launcher before its exec")
+proc(530, "launcher", 1, 93, "/opt/ue/Engine/Binaries/Linux/launcher /p/Game.uproject")
+expect(open(530, "same-comm-post"), "+unreal-engine", "the same comm after an exec into an engine binary")
+
 -- Rule order: the editor's immediate = false follows the steam-game rule, and
 -- the game window rules follow the editor's.
 local at = rule_order
