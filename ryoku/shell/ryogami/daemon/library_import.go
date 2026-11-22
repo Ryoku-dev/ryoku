@@ -37,10 +37,8 @@ func (d *daemon) importToLibrary(src string) (string, error) {
 	default:
 		return "", fmt.Errorf("%s is not an image or video the library shows", filepath.Base(src))
 	}
-	for _, root := range []string{cfg.wallpaperDir(), cfg.videoDir()} {
-		if within(root, src) {
-			return src, nil
-		}
+	if scannerLists(cfg, src, videoExts[ext]) {
+		return src, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -78,24 +76,62 @@ var linkFile = os.Link
 
 const compareChunk = 64 << 10
 
-func within(root, path string) bool {
-	if root == "" {
+// scannerLists mirrors collectMedia's filters: a still is listed from the
+// wallpaper dir, a clip from either dir, never from a hidden path or the cache,
+// and only as a regular file, not a symlink.
+func scannerLists(cfg config, path string, video bool) bool {
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
 		return false
+	}
+	if within(cfg.cacheDir(), path) != "" {
+		return false
+	}
+	roots := []string{cfg.wallpaperDir()}
+	if video {
+		roots = append(roots, cfg.videoDir())
+	}
+	for _, root := range roots {
+		rel := within(root, path)
+		if rel == "" {
+			continue
+		}
+		hidden := false
+		for _, part := range strings.Split(rel, string(filepath.Separator)) {
+			hidden = hidden || strings.HasPrefix(part, ".")
+		}
+		if !hidden {
+			return true
+		}
+	}
+	return false
+}
+
+// within answers path relative to root, or "" when path lies outside it.
+func within(root, path string) string {
+	if root == "" {
+		return ""
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return false
+		return ""
 	}
 	rel, err := filepath.Rel(abs, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return rel
 }
 
 // sameContent compares in fixed chunks, so weighing a multi-gigabyte clip
 // against its library copy never holds either file in memory.
 func sameContent(a, b string) (bool, error) {
-	bi, err := os.Stat(b)
+	bi, err := os.Lstat(b)
 	if err != nil {
 		return false, err
+	}
+	if !bi.Mode().IsRegular() {
+		// A symlink or folder holding the name is never listed, so never reused.
+		return false, nil
 	}
 	ai, err := os.Stat(a)
 	if err != nil {

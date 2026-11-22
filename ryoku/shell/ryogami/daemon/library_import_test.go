@@ -235,3 +235,74 @@ func TestSameContentComparesPastTheFirstChunk(t *testing.T) {
 		t.Fatalf("files differing in the last byte compared as the same (err %v)", err)
 	}
 }
+
+func TestImportCopiesWhatTheScannerWouldNotList(t *testing.T) {
+	d, wall, vid := daemonWithDirs(t)
+	inVideoDir := filepath.Join(vid, "still.jpg")
+	writeMedia(t, inVideoDir, "still in the video dir")
+	hidden := filepath.Join(wall, ".stash", "kept.png")
+	writeMedia(t, hidden, "hidden png")
+
+	for src, want := range map[string]string{
+		inVideoDir: filepath.Join(wall, "still.jpg"),
+		hidden:     filepath.Join(wall, "kept.png"),
+	} {
+		got, err := d.importToLibrary(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("import of %q went to %q, want %q where the picker lists it", src, got, want)
+		}
+	}
+}
+
+func TestImportReplacesASymlinkWithARealCopy(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	target := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, target, "linked bytes")
+	link := filepath.Join(wall, "photo.jpg")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := d.importToLibrary(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo-1.jpg"); got != want {
+		t.Fatalf("imported to %q, want a real file at %q", got, want)
+	}
+	if info, err := os.Lstat(got); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("import is not a regular file the scanner lists: %v", err)
+	}
+}
+
+func TestDolphinMenuOffersOnlyTypesTheLibraryShows(t *testing.T) {
+	body := readBody(t, filepath.Join("..", "..", "..", "apps", "dolphin", "ryoku-set-wallpaper.desktop"))
+	byMime := map[string][]string{
+		"image/jpeg": {"jpg", "jpeg"}, "image/png": {"png"}, "image/webp": {"webp"},
+		"image/gif": {"gif"}, "image/bmp": {"bmp"}, "image/avif": {"avif"}, "image/tiff": {"tiff", "tif"},
+	}
+	var mimes []string
+	for _, line := range strings.Split(body, "\n") {
+		if v, ok := strings.CutPrefix(line, "MimeType="); ok {
+			mimes = strings.FieldsFunc(v, func(r rune) bool { return r == ';' })
+		}
+	}
+	if len(mimes) == 0 {
+		t.Fatal("the menu declares no MimeType")
+	}
+	for _, m := range mimes {
+		exts, known := byMime[m]
+		if !known {
+			t.Errorf("the menu offers %s, which import has no extension mapping for", m)
+			continue
+		}
+		for _, e := range exts {
+			if !imageExts[e] {
+				t.Errorf("the menu offers %s but import refuses .%s", m, e)
+			}
+		}
+	}
+}
