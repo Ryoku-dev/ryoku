@@ -255,9 +255,7 @@ hl.window_rule({
 -- Strip that chrome and force them opaque so they read like a native fullscreen
 -- app, and inhibit idle while fullscreen so controller-only play never dims or
 -- locks (hypridle has no fullscreen exception). steamwebhelper stays untouched.
-hl.window_rule({
-    name         = "steam-native",
-    match        = { class = "^(steam|steam_app_.*|gamescope)$" },
+local steam_native = {
     no_blur      = true,
     no_shadow    = true,
     opaque       = true,
@@ -267,7 +265,35 @@ hl.window_rule({
     -- hit when the Steam overlay composites on top. Pairs with
     -- general.allow_tearing; Game Mode already forces this path at runtime.
     immediate    = true,
-})
+}
+local function steam_native_rule(name, match)
+    local rule = { name = name, match = match }
+    for k, v in pairs(steam_native) do rule[k] = v end
+    hl.window_rule(rule)
+end
+steam_native_rule("steam-native", { class = "^(steam|steam_app_.*|gamescope)$" })
+
+-- Plenty of games never map as steam_app_<id>: a native Linux build keeps its
+-- engine's class. Every game Steam starts runs under its reaper
+-- (`reaper SteamLaunch AppId=<id> -- ...`), however many wrappers sit between
+-- it and the window (steam-launch-wrapper, sh, pressure-vessel, bwrap, proton,
+-- wine), so the ancestry names them all. The
+-- client and steamwebhelper never pass a reaper: the walk ends at steam. A
+-- terminal started from a game is not a game either.
+local not_a_game = {
+    steam = true, systemd = true,
+    kitty = true, foot = true, alacritty = true, ghostty = true, ["wezterm-gui"] = true,
+}
+local process_tag = require("modules.process_tag")
+steam_native_rule("steam-native-launched", { tag = "steam-game" })
+process_tag.add("steam-game", function(pid)
+    return process_tag.walk(pid, function(p, comm)
+        if comm == "reaper" and process_tag.cmdline(p):find("SteamLaunch", 1, true) then
+            return true
+        end
+        if not_a_game[comm] then return false end
+    end)
+end)
 
 -- Ryotunes, the music app ([ryoku] package, ryoku-dev/ryotunes). Float it like
 -- the other music players (Spotify above); the app sizes and centres its own

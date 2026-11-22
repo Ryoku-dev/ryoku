@@ -33,6 +33,14 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Every game Steam launches is treated as a game, whatever its window
+  class.** The steam-native props (opaque, no blur or shadow, tearing, idle
+  inhibit while fullscreen) matched only `steam_app_<id>`, so a native game
+  that keeps its engine's class turned translucent as soon as it lost focus.
+  A window whose process descends from Steam's reaper now gets the
+  `steam-game` tag and the same props; the client and terminals are left out.
+  The process walk lives in `modules/process_tag.lua`, a shared tagger other
+  rules can reuse (`modules/window_rules.lua`).
 - **Unplugging the external monitor no longer leaves an invalid layout.** A
   panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
   Hyprland reports for a disabled output, and the hotplug fallback woke it with
