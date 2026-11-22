@@ -298,20 +298,34 @@ end)
 -- Unreal Engine: the editor, its pop-ups (menus, toasts, asset pickers, most of
 -- them with an empty or per-build class) and the crash reporter. The inactive
 -- opacity made the editor see-through whenever a pop-up took focus, and it is
--- a tool you watch while you work in another window. Pinned to 1.0 by the
--- opacity override, which beats the active, inactive and fullscreen values.
+-- a tool you watch while you work in another window. It gets the steam-native
+-- props except tearing: Hyprland tears only a fullscreen window, and a
+-- fullscreened editor UI that tears looks broken. Its game windows tear like
+-- any game: a process run with -game, and the Play In Editor window.
+local function steam_native_untorn_rule(name, match)
+    local rule = { name = name, match = match }
+    for k, v in pairs(steam_native) do rule[k] = v end
+    rule.immediate = nil
+    hl.window_rule(rule)
+end
+steam_native_untorn_rule("unreal-engine", { tag = "unreal-engine" })
+hl.window_rule({ name = "unreal-game", match = { tag = "unreal-game" }, immediate = true })
 hl.window_rule({
-    name    = "unreal-engine-opaque",
-    match   = { tag = "unreal-engine" },
-    opacity = "1.0 override 1.0 override 1.0 override",
+    name      = "unreal-play-in-editor",
+    match     = { tag = "unreal-engine", title = "^.* Preview \\[NetMode: .*$" },
+    immediate = true,
 })
-process_tag.add("unreal-engine", process_tag.runs({
-    "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/",
-}))
+local unreal = process_tag.runs({ "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/" })
+process_tag.add("unreal-engine", unreal)
+process_tag.add("unreal-game", function(pid)
+    return process_tag.cmdline(pid):find("\0-game", 1, true) ~= nil and unreal(pid)
+end)
 
--- Browsers are tagged only. Whether they stay opaque is the user's call (Ryoku
--- Settings > Window Manager > Look), since a see-through page is hard to read
--- for some while others like the look; the provider writes that rule.
+-- Browsers are tagged only. Whether they get the untorn steam-native props
+-- (opaque, no blur or shadow, awake through fullscreen video) is the user's
+-- call (Ryoku Settings > Window Manager > Look), since a see-through page is
+-- hard to read for some while others like the look; the provider writes that
+-- rule. Never tearing: it would show in scrolling and video.
 process_tag.add("browser", process_tag.runs({
     "^firefox", "^chrome$", "^chromium", "^google%-chrome", "^brave", "^vivaldi", "^opera", "^msedge",
     "^zen$", "^zen%-bin$", "^librewolf", "^floorp", "^waterfox", "^mullvadbrowser", "^thorium",

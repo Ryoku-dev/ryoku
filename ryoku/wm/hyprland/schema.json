@@ -4,7 +4,7 @@
     "group": "OPACITY",
     "key": "wm.hyprland.opaque.browsers",
     "label": "Keep browsers fully opaque",
-    "desc": "Draw web browsers solid, focused or not, whatever the window opacity",
+    "desc": "Draw web browsers solid without blur or shadow, and keep the screen awake for fullscreen video",
     "ctl": "sw",
     "src": "desktop.json",
     "page": "windowmanager"

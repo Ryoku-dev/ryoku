@@ -258,12 +258,15 @@ func TestOpaqueBrowsersOptIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	on := loadStore(store)
-	want := `hl.window_rule({ name = "ryoku-opaque-browsers", match = { tag = "browser" }, opacity = "1.0 override 1.0 override 1.0 override" })` + "\n"
+	want := `hl.window_rule({ name = "ryoku-opaque-browsers", match = { tag = "browser" }, no_blur = true, no_shadow = true, opaque = true, idle_inhibit = "fullscreen" })` + "\n"
 	if got := genOpaqueBrowsers(on); got != want {
 		t.Fatalf("rule on:\n got %q\nwant %q", got, want)
 	}
 	if !strings.Contains(genLua(on, false), "ryoku-opaque-browsers") {
 		t.Fatal("the full config must carry the browser rule when the setting is on")
+	}
+	if strings.Contains(genOpaqueBrowsers(on), "immediate") {
+		t.Fatal("browsers must never tear")
 	}
 	ns, err := splitStore(on)
 	if err != nil {

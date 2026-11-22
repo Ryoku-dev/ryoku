@@ -145,11 +145,18 @@ expect(open(240, "post-exec"), "+steam-game", "the same process after its exec")
 -- parent, a build from an engine tree by its path.
 proc(500, "UnrealEditor", 1, 70, "/opt/ue/Engine/Binaries/Linux/UnrealEditor")
 proc(501, "UnrealEditor", 500, 71)
-proc(502, "MyGameEditor", 1, 72, "/home/u/ue/Engine/Binaries/Linux/MyGameEditor -game")
+proc(502, "MyGameEditor", 1, 72, "/home/u/ue/Engine/Binaries/Linux/MyGameEditor /p/My.uproject")
 proc(503, "CrashReportClie", 1, 73)
 load()
-assert(rules["unreal-engine-opaque"] and rules["unreal-engine-opaque"].match.tag == "unreal-engine",
-    "no rule carries the unreal-engine tag")
+local ue_rule = rules["unreal-engine"]
+assert(ue_rule and ue_rule.match.tag == "unreal-engine", "no rule carries the unreal-engine tag")
+for _, prop in ipairs({ "no_blur", "no_shadow", "opaque", "idle_inhibit" }) do
+    assert(ue_rule[prop] == rules["steam-native"][prop], "unreal-engine rule differs on " .. prop)
+end
+assert(ue_rule.immediate == nil, "the editor UI must not tear")
+assert(rules["unreal-game"] and rules["unreal-game"].immediate == true, "UE game windows must tear")
+assert(rules["unreal-play-in-editor"] and rules["unreal-play-in-editor"].immediate == true
+    and rules["unreal-play-in-editor"].match.tag == "unreal-engine", "the PIE window must tear")
 expect(open(500, "ue"), "+unreal-engine", "the editor")
 expect(open(501, "ue-popup"), "+unreal-engine", "an editor child process")
 expect(open(502, "ue-path"), "+unreal-engine", "a binary under Engine/Binaries")
@@ -161,6 +168,10 @@ proc(513, "helper-c", 512, 77)
 proc(514, "helper-d", 513, 78)
 proc(515, "ue-subwindow", 514, 79)
 expect(open(515, "ue-deep"), "+unreal-engine", "a helper six processes below the editor")
+proc(520, "UnrealEditor", 1, 90, "/opt/ue/Engine/Binaries/Linux/UnrealEditor /p/Game.uproject -game")
+expect(open(520, "ue-game"), "+unreal-engine,+unreal-game", "the editor binary run with -game")
+proc(521, "Game.exe", 1, 91, "/games/Game.exe -game")
+expect(open(521, "not-ue"), "", "-game on a binary that is not Unreal")
 
 -- Browsers are tagged only; the opt-in rule comes from the provider.
 proc(600, "firefox", 1, 80, "/usr/lib/firefox/firefox")
