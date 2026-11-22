@@ -3,6 +3,11 @@
 ## Unreleased
 ### Added
 
+- **EIDOLON owner-only card.** The verified holder can select the animated
+  card in Card Studio. Signed records retain the owned style and the
+  card-code rulers remain readable (`quickshell/components/about/`,
+  `backend/cardstyles.go`).
+
 - **Hyperion adds Ryoku-wide achievements and a cosmetic Points Shop.** Earn and claim
   category and secret badges for points, collect stickers, backgrounds and fonts, and
   customise the profile canvas and hardware card. Card rarity now uses generation-aware
