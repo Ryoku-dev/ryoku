@@ -12,6 +12,16 @@ for finer detail.
   rounding of their own.
 
 ### Added
+- An experimental Umbriel compositor variant: a provider in `ryoku/wm/umbriel/`,
+  a TOML config tree in `ryoku/umbriel/`, a variant package and systemd drop-ins.
+  The shell, Hub and lockscreen are unchanged; compositor behaviour is reached
+  through the seam. Full bindings, native overview and display arrangement work.
+  Refresh rates are converted from millihertz, values the config cannot express
+  are dropped and reported, own apps open at their designed sizes, and the pin,
+  display-cycle and wheel-workspace chords match the legend. Adaptive sync is
+  not offered on outputs that cannot use it. Rebinding a chord in Settings now
+  reaches the compositor. Keyboard layout, style, second layout, repeat rate
+  and Num Lock are written to Umbriel's config, with live layout switching.
 - QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
   multi-monitor setups to show only the workspaces assigned to each screen on its
   respective bar. The inactive screen dims its active workspace indicator to 72%

@@ -1,0 +1,10 @@
+# The login bootstrap. Ryoku's session is brought up by the shared systemd user
+# units (ryoku-session.target -> ryoku-shell.service), not by the compositor, so
+# the shell itself needs no entry here. Keep this file for the helpers a bare
+# Umbriel session would otherwise miss; entries are commands Umbriel runs once
+# when the session starts.
+#
+# Empty by default: adding a command here means owning its lifecycle on every
+# compositor variant that follows this tree.
+[general]
+autostart = []

@@ -975,6 +975,7 @@ Item {
                         SpecRow {
                             host: page
                             rowId: "vrr"
+                            visible: Settings.supports("outputVrr")
                             activatable: true
                             unavailable: page.selOn ? "" : I18n.tr("Turn the display on to change this")
                             onActivated: page.setField("vrr", !page.sel.vrr)

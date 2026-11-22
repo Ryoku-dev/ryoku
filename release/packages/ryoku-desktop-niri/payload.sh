@@ -45,6 +45,8 @@ package() {
     # compositor never reads its own defaults on first login.
     install -Dm644 "$_repo/ryoku/shell/systemd/user/niri.service.d/ryoku-bootstrap.conf" \
       "$pkgdir/usr/lib/systemd/user/niri.service.d/ryoku-bootstrap.conf"
+    install -Dm644 "$_repo/ryoku/shell/systemd/user/niri.service.d/ryoku-wm-env.conf" \
+      "$pkgdir/usr/lib/systemd/user/niri.service.d/ryoku-wm-env.conf"
   fi
 }
 case "${1:-}" in

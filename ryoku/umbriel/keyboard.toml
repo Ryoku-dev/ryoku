@@ -1,0 +1,6 @@
+# Your keyboard. Seeded once and never repaired by an update, so an edit here
+# survives forever.
+#
+# Empty means Umbriel's own input defaults. The Hub writes the layout it picks
+# into settings.toml, which is included after this file and therefore wins. Set
+# values here only for something the Hub cannot express, e.g. a per-device rule.

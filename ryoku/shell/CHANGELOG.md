@@ -1,6 +1,13 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Switching compositors no longer leaves the old provider forced on the new
+  session.** The session launchers import the login environment into the user
+  manager but do not clear `RYOKU_WM`, so after a switch the previous
+  compositor's tag survived and every Ryoku process aimed at a dead provider:
+  the Displays and window-manager rows broke and settings saves went nowhere.
+  Drop-ins for Umbriel and niri clear that variable before the compositor
+  starts, so detection falls back to the live socket.
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
   mouse moved within a second and a half: Hyprland sends no pointer enter to an

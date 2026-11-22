@@ -1,0 +1,7 @@
+# Written at runtime by the GPU tooling when a machine has more than one GPU and
+# Umbriel's own pick is wrong. Empty means Umbriel discovers devices itself,
+# which is right on a single-GPU box.
+#
+# If you add [drm] here, also declare an empty [drm] in config.toml: Umbriel
+# refuses a partial GPU exclusion policy loaded from an unavailable include.
+# Hand edits are lost on the next GPU reset; put lasting ones in user.toml.

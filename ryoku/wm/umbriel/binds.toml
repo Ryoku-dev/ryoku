@@ -1,0 +1,256 @@
+[keybinds]
+
+# Applications and session
+"Mod+Return" = { action = "spawn:kitty", repeat = false }
+# Super+Shift+P pins, matching the official legend; Settings is Super+comma.
+# Super+P cycles display layouts through the provider, not the shell.
+"Mod+Shift+P" = { action = "window-toggle-pinned", repeat = false }
+"Mod+P" = { action = "spawn:ryoku-wm-umbriel act output.cycle", repeat = false }
+"Mod+Q" = { action = "window-close", repeat = false }
+# Ryoku defaults: Super+Escape is quick settings, Super+L locks. Session quit
+# moves to Super+Alt+Escape so a stray Escape cannot end the session.
+"Mod+Escape" = { action = "spawn:ryoku-shell quicksettings", repeat = false }
+"Mod+L" = { action = "spawn:ryoku-shell lock", repeat = false }
+"Mod+M" = "spawn:ryoku-shell visualizer"
+"Mod+Alt+Escape" = "session-quit"
+"Mod+Shift+Escape" = { action = "shortcuts-inhibit-toggle", allow_when_inhibited = true, repeat = false }
+
+# Media keys, routed through the shell so its OSDs show. Safe while locked.
+"XF86AudioRaiseVolume" = { action = "spawn:ryoku-volume up", allow_when_locked = true }
+"XF86AudioLowerVolume" = { action = "spawn:ryoku-volume down", allow_when_locked = true }
+"XF86AudioMute" = { action = "spawn:ryoku-shell audio mute", allow_when_locked = true, repeat = false }
+"XF86AudioMicMute" = { action = "spawn:wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle", allow_when_locked = true, repeat = false }
+"XF86AudioPlay" = { action = "spawn:ryoku-media play-pause", allow_when_locked = true, repeat = false }
+"XF86AudioNext" = { action = "spawn:ryoku-media next", allow_when_locked = true }
+"XF86AudioPrev" = { action = "spawn:ryoku-media previous", allow_when_locked = true }
+"XF86MonBrightnessUp" = { action = "spawn:ryoku-shell brightness up", allow_when_locked = true }
+"XF86MonBrightnessDown" = { action = "spawn:ryoku-shell brightness down", allow_when_locked = true }
+# The keyboard backlight is a simple LED class device, so it is bound directly.
+"XF86KbdBrightnessUp" = { action = "spawn:brightnessctl -d platform::kbd_backlight set +10%", allow_when_locked = true, repeat = false }
+"XF86KbdBrightnessDown" = { action = "spawn:brightnessctl -d platform::kbd_backlight set 10%-", allow_when_locked = true, repeat = false }
+# The Fn touchpad keys drive the neutral input.touchpad action. Umbriel 0.1.0
+# has no runtime input override, so the provider records the intent in
+# touchpad.toml, which Umbriel watches.
+"XF86TouchpadToggle" = { action = "spawn:ryoku wm act input.touchpad toggle", allow_when_locked = true, repeat = false }
+"XF86TouchpadOn" = { action = "spawn:ryoku wm act input.touchpad on", allow_when_locked = true, repeat = false }
+"XF86TouchpadOff" = { action = "spawn:ryoku wm act input.touchpad off", allow_when_locked = true, repeat = false }
+
+# Focus and movement
+"Mod+Left" = "window-focus-left"
+"Mod+Down" = "window-focus-down"
+"Mod+Up" = "window-focus-up"
+"Mod+Right" = "window-focus-right"
+# Pin the designed size: Ryotunes restores its last geometry otherwise.
+"Mod+J" = "spawn:ryotunes -size 1280x800"
+"Mod+K" = "spawn:ryoku-shell cheatsheet"
+"Mod+F1" = "window-focus-next"
+"Mod+Shift+Left" = "column-move-left"
+"Mod+Shift+Down" = "window-move-down"
+"Mod+Shift+Up" = "window-move-up"
+"Mod+Shift+Right" = "column-move-right"
+
+# Window state and layout
+"Mod+T" = { action = "column-toggle-tabbed", repeat = false }
+"Mod+Shift+T" = { action = "window-focus-switch-floating", repeat = false }
+"Mod+F" = { action = "window-toggle-fullscreen", repeat = false }
+"Mod+Ctrl+F" = { action = "window-toggle-maximize", repeat = false }
+"Mod+R" = "window-cycle-primary-extent"
+"Mod+Shift+R" = "window-cycle-secondary-extent"
+"Mod+Comma" = "spawn:ryoku-shell settings"
+"Mod+Period" = "window-consume-right"
+"Mod+Ctrl+Period" = "window-consume-from-right"
+"Mod+W" = "spawn:ryogami wallpaper ui"
+"Mod+Ctrl+Tab" = "column-focus-tab-next"
+"Mod+Ctrl+Shift+Tab" = "column-focus-tab-previous"
+# Scrolling layout: the wheel steps focus through columns, matching the
+# user's niri setup (Super+WheelScrollUp/Down focus-column-or-monitor-left/right).
+# Workspace switching stays on the Super+Prior/Next keys.
+"Mod+WheelUp" = "window-focus-left"
+"Mod+WheelDown" = "window-focus-right"
+# Umbriel draws its own overview over the scrolling layout, with live window
+# cards. Super+Tab is Ryoku's overview chord and now toggles the compositor's
+# native overview rather than the shell's Hyprland-style overlay.
+"Mod+Tab" = { action = "overview-toggle", repeat = false }
+"Mod+Shift+G" = { action = "spawn:ryoku-shell gamebar", repeat = false }
+"Mod+Shift+S" = { action = "spawn:ryoku-shell screenshot", repeat = false }
+# Print is the hardware screenshot key; both forms open the capture panel,
+# which offers Region, Window, Screen and All.
+"Print" = { action = "spawn:ryoku-shell screenshot", repeat = false }
+"Shift+Print" = { action = "spawn:ryoku-shell screenshot", repeat = false }
+
+# Workspaces
+"Mod+1" = "workspace-switch:1"
+"Mod+2" = "workspace-switch:2"
+"Mod+3" = "workspace-switch:3"
+"Mod+4" = "workspace-switch:4"
+"Mod+5" = "workspace-switch:5"
+"Mod+6" = "workspace-switch:6"
+"Mod+7" = "workspace-switch:7"
+"Mod+8" = "workspace-switch:8"
+"Mod+9" = "workspace-switch:9"
+"Mod+0" = "workspace-switch:10"
+"Mod+Shift+1" = { action = "window-move-to-workspace:1", repeat = false }
+"Mod+Shift+2" = { action = "window-move-to-workspace:2", repeat = false }
+"Mod+Shift+3" = { action = "window-move-to-workspace:3", repeat = false }
+"Mod+Shift+4" = { action = "window-move-to-workspace:4", repeat = false }
+"Mod+Shift+5" = { action = "window-move-to-workspace:5", repeat = false }
+"Mod+Shift+6" = { action = "window-move-to-workspace:6", repeat = false }
+"Mod+Shift+7" = { action = "window-move-to-workspace:7", repeat = false }
+"Mod+Shift+8" = { action = "window-move-to-workspace:8", repeat = false }
+"Mod+Shift+9" = { action = "window-move-to-workspace:9", repeat = false }
+
+# Scratchpad
+"Mod+Shift+Space" = { action = "window-move-to-scratchpad", repeat = false }
+# Super+Space is Ryoku's hero launcher; Super+Alt+Space belongs to Rashin and
+# the scratchpad uses Super+Alt+H, matching the Hub's legend.
+"Mod+Space" = { action = "spawn:ryoku-shell launcher", repeat = false }
+"Mod+Alt+Space" = "spawn:ryoku-summon --app-id dev.ryoku.rashin rashin-app"
+"Mod+Ctrl+Space" = { action = "window-restore-from-scratchpad", repeat = false }
+"Mod+Alt+Tab" = "scratchpad-focus-next"
+
+
+# ------------------------------------------------------------------------------
+# Remaining Ryoku catalogue binds (Umbriel actions)
+# ------------------------------------------------------------------------------
+# Windows / focus / move
+"Mod+A" = { action = "window-toggle-floating", repeat = false }
+"Mod+D" = { action = "window-toggle-maximize", repeat = false }
+"Mod+C" = { action = "window-center", repeat = false }
+"Alt+Tab" = { action = "window-focus-last", repeat = false }
+"Mod+Home" = "column-focus-first"
+"Mod+End" = "column-focus-last"
+"Mod+bracketleft" = "window-consume-or-expel-left"
+"Mod+bracketright" = "window-consume-or-expel-right"
+
+# Resize
+"Mod+Ctrl+Left" = "window-modify-width-left:0.05"
+"Mod+Ctrl+Right" = "window-modify-width-right:0.05"
+"Mod+Ctrl+Up" = "window-modify-height-up:0.05"
+"Mod+Ctrl+Down" = "window-modify-height-down:0.05"
+"Mod+Ctrl+R" = "window-set-secondary-extent:0.5"
+"Mod+equal" = "window-cycle-primary-extent"
+"Mod+minus" = "window-cycle-primary-extent-back"
+
+# Workspaces: move window, numpad families, previous/next, scratchpad
+"Mod+Alt+1" = { action = "window-move-to-workspace:1", repeat = false }
+"Mod+Alt+2" = { action = "window-move-to-workspace:2", repeat = false }
+"Mod+Alt+3" = { action = "window-move-to-workspace:3", repeat = false }
+"Mod+Alt+4" = { action = "window-move-to-workspace:4", repeat = false }
+"Mod+Alt+5" = { action = "window-move-to-workspace:5", repeat = false }
+"Mod+Alt+6" = { action = "window-move-to-workspace:6", repeat = false }
+"Mod+Alt+7" = { action = "window-move-to-workspace:7", repeat = false }
+"Mod+Alt+8" = { action = "window-move-to-workspace:8", repeat = false }
+"Mod+Alt+9" = { action = "window-move-to-workspace:9", repeat = false }
+"Mod+Alt+0" = { action = "window-move-to-workspace:10", repeat = false }
+"Mod+Prior" = "workspace-previous"
+"Mod+Next" = "workspace-next"
+"Mod+Shift+Prior" = { action = "window-move-to-workspace-previous", repeat = false }
+"Mod+Shift+Next" = { action = "window-move-to-workspace-next", repeat = false }
+"Mod+Alt+H" = { action = "window-toggle-scratchpad", repeat = false }
+
+# Displays
+"Mod+Alt+Left" = "output-focus-left"
+"Mod+Alt+Right" = "output-focus-right"
+"Mod+Alt+Up" = "output-focus-up"
+"Mod+Alt+Down" = "output-focus-down"
+"Mod+Alt+Shift+Left" = { action = "window-move-to-output-left", repeat = false }
+"Mod+Alt+Shift+Right" = { action = "window-move-to-output-right", repeat = false }
+"Mod+Alt+Shift+Up" = { action = "window-move-to-output-up", repeat = false }
+"Mod+Alt+Shift+Down" = { action = "window-move-to-output-down", repeat = false }
+"Mod+Ctrl+Alt+Left" = { action = "workspace-move-to-output-left", repeat = false }
+"Mod+Ctrl+Alt+Right" = { action = "workspace-move-to-output-right", repeat = false }
+"Mod+Ctrl+Alt+Up" = { action = "workspace-move-to-output-up", repeat = false }
+"Mod+Ctrl+Alt+Down" = { action = "workspace-move-to-output-down", repeat = false }
+
+# Apps
+"Mod+E" = "spawn:ryoku-app files"
+"Mod+B" = "spawn:ryoku-app browser"
+"Mod+N" = "spawn:ryoku-app editor"
+"Mod+O" = "spawn:ryoku-app notes"
+"Mod+Alt+E" = "spawn:kitty -e yazi"
+
+# Shell extras
+"Alt+Space" = "spawn:ryoku-shell ask"
+"Mod+Shift+W" = "spawn:ryogami wallpaper random"
+"Mod+Shift+V" = "spawn:ryoku-summon --app-id dev.ryoku.ryoport ryoport"
+"Mod+V" = "spawn:ryoku-shell clipboard"
+"Mod+Shift+M" = "spawn:ryoku-shell visualizer-overlay"
+"Mod+Alt+M" = "spawn:ryoku-shell visualizer-place"
+"Mod+grave" = { action = "spawn:ryoku-shell voice", repeat = false }
+"Mod+Shift+D" = "spawn:ryoku-shell hub open widgets"
+"Mod+Shift+C" = "spawn:ryoku-cmd-color-picker"
+"Mod+Shift+A" = "spawn:ryoku-restart-audio"
+
+# Media
+"XF86AudioPause" = { action = "spawn:ryoku-media pause", allow_when_locked = true, repeat = false }
+
+# Touchpad keys need CapTouchpadToggle and stay unbound until it is claimed.
+# Mouse drag/resize chords need pointer-modifier binds Umbriel does not expose.
+# Workspace reorder has no Umbriel equivalent.
+
+# Numpad workspace families (official catalogue)
+# Named numpad aliases used by niri on Ryoku
+"Mod+KP_End" = "workspace-switch:1"
+"Mod+KP_Down" = "workspace-switch:2"
+"Mod+KP_Next" = "workspace-switch:3"
+"Mod+KP_Left" = "workspace-switch:4"
+"Mod+KP_Begin" = "workspace-switch:5"
+"Mod+KP_Right" = "workspace-switch:6"
+"Mod+KP_Home" = "workspace-switch:7"
+"Mod+KP_Up" = "workspace-switch:8"
+"Mod+KP_Prior" = "workspace-switch:9"
+"Mod+KP_Insert" = "workspace-switch:10"
+"Mod+Alt+KP_End" = { action = "window-move-to-workspace:1", repeat = false }
+"Mod+Alt+KP_Down" = { action = "window-move-to-workspace:2", repeat = false }
+"Mod+Alt+KP_Next" = { action = "window-move-to-workspace:3", repeat = false }
+"Mod+Alt+KP_Left" = { action = "window-move-to-workspace:4", repeat = false }
+"Mod+Alt+KP_Begin" = { action = "window-move-to-workspace:5", repeat = false }
+"Mod+Alt+KP_Right" = { action = "window-move-to-workspace:6", repeat = false }
+"Mod+Alt+KP_Home" = { action = "window-move-to-workspace:7", repeat = false }
+"Mod+Alt+KP_Up" = { action = "window-move-to-workspace:8", repeat = false }
+"Mod+Alt+KP_Prior" = { action = "window-move-to-workspace:9", repeat = false }
+"Mod+Alt+KP_Insert" = { action = "window-move-to-workspace:10", repeat = false }
+"Mod+Shift+KP_End" = { action = "window-move-to-workspace-silent:1", repeat = false }
+"Mod+Shift+KP_Down" = { action = "window-move-to-workspace-silent:2", repeat = false }
+"Mod+Shift+KP_Next" = { action = "window-move-to-workspace-silent:3", repeat = false }
+"Mod+Shift+KP_Left" = { action = "window-move-to-workspace-silent:4", repeat = false }
+"Mod+Shift+KP_Begin" = { action = "window-move-to-workspace-silent:5", repeat = false }
+"Mod+Shift+KP_Right" = { action = "window-move-to-workspace-silent:6", repeat = false }
+"Mod+Shift+KP_Home" = { action = "window-move-to-workspace-silent:7", repeat = false }
+"Mod+Shift+KP_Up" = { action = "window-move-to-workspace-silent:8", repeat = false }
+"Mod+Shift+KP_Prior" = { action = "window-move-to-workspace-silent:9", repeat = false }
+"Mod+Shift+KP_Insert" = { action = "window-move-to-workspace-silent:10", repeat = false }
+
+"Mod+KP_1" = "workspace-switch:1"
+"Mod+KP_2" = "workspace-switch:2"
+"Mod+KP_3" = "workspace-switch:3"
+"Mod+KP_4" = "workspace-switch:4"
+"Mod+KP_5" = "workspace-switch:5"
+"Mod+KP_6" = "workspace-switch:6"
+"Mod+KP_7" = "workspace-switch:7"
+"Mod+KP_8" = "workspace-switch:8"
+"Mod+KP_9" = "workspace-switch:9"
+"Mod+KP_0" = "workspace-switch:10"
+"Mod+Alt+KP_1" = { action = "window-move-to-workspace:1", repeat = false }
+"Mod+Alt+KP_2" = { action = "window-move-to-workspace:2", repeat = false }
+"Mod+Alt+KP_3" = { action = "window-move-to-workspace:3", repeat = false }
+"Mod+Alt+KP_4" = { action = "window-move-to-workspace:4", repeat = false }
+"Mod+Alt+KP_5" = { action = "window-move-to-workspace:5", repeat = false }
+"Mod+Alt+KP_6" = { action = "window-move-to-workspace:6", repeat = false }
+"Mod+Alt+KP_7" = { action = "window-move-to-workspace:7", repeat = false }
+"Mod+Alt+KP_8" = { action = "window-move-to-workspace:8", repeat = false }
+"Mod+Alt+KP_9" = { action = "window-move-to-workspace:9", repeat = false }
+"Mod+Alt+KP_0" = { action = "window-move-to-workspace:10", repeat = false }
+"Mod+Shift+KP_1" = { action = "window-move-to-workspace-silent:1", repeat = false }
+"Mod+Shift+KP_2" = { action = "window-move-to-workspace-silent:2", repeat = false }
+"Mod+Shift+KP_3" = { action = "window-move-to-workspace-silent:3", repeat = false }
+"Mod+Shift+KP_4" = { action = "window-move-to-workspace-silent:4", repeat = false }
+"Mod+Shift+KP_5" = { action = "window-move-to-workspace-silent:5", repeat = false }
+"Mod+Shift+KP_6" = { action = "window-move-to-workspace-silent:6", repeat = false }
+"Mod+Shift+KP_7" = { action = "window-move-to-workspace-silent:7", repeat = false }
+"Mod+Shift+KP_8" = { action = "window-move-to-workspace-silent:8", repeat = false }
+"Mod+Shift+KP_9" = { action = "window-move-to-workspace-silent:9", repeat = false }
+"Mod+Shift+KP_0" = { action = "window-move-to-workspace-silent:10", repeat = false }
+"Mod+Shift+0" = { action = "window-move-to-workspace-silent:10", repeat = false }
+# Workspace reorder has no Umbriel equivalent. Touchpad keys need CapTouchpadToggle.
+# Modifier-drag window move/resize has no Umbriel action (only window-move-by keys).
