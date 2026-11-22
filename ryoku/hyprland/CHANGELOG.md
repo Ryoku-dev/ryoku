@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Added
+- **Unreal Engine stays fully opaque.** The editor, its pop-ups and the crash
+  reporter are tagged `unreal-engine` by process (the window class of a UE
+  pop-up is often empty) and pinned to opacity 1.0 whether focused or not
+  (`modules/window_rules.lua`, `modules/process_tag.lua`).
+- **Opt-in: keep browsers fully opaque.** Browser windows are tagged `browser`
+  by process; Ryoku Settings > Window Manager > Look > Keep browsers fully
+  opaque (`wm.hyprland.opaque.browsers`, off by default) adds the rule that
+  pins them to 1.0. Off by default because the translucent desktop is a look
+  some users chose, while others find a see-through page hard to read
+  (`ryoku/wm/hyprland/`).
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
   layout of one output's workspaces and remembers it. While the display link is
   off it re-applies at login and follows new workspaces and displays through

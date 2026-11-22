@@ -44,6 +44,37 @@ function M.ancestors(pid)
     end
 end
 
+-- The programs that start other apps. A walk for an app's own helpers ends at
+-- them, so a window opened from a terminal or a launcher never counts as the
+-- app that happens to sit above it.
+local launchers = {
+    sh = true, bash = true, dash = true, fish = true, zsh = true,
+    systemd = true, uwsm = true, Hyprland = true, Xwayland = true,
+    bwrap = true, firejail = true, ["xdg-open"] = true, gio = true,
+    kitty = true, foot = true, alacritty = true, ghostty = true, ["wezterm-gui"] = true,
+}
+
+-- runs(patterns): a test for add(). True when the window's process, or a parent
+-- below the first launcher, runs a program one of the Lua patterns matches:
+-- each is tried on comm (cut to 15 characters by the kernel), on the base name
+-- of argv[0] and on the whole argv[0] path.
+function M.runs(patterns)
+    return function(pid)
+        local depth = 0
+        for p in M.ancestors(pid) do
+            local comm = M.comm(p)
+            local argv0 = M.cmdline(p):match("^[^\0]*") or ""
+            local base = argv0:match("([^/]+)$") or argv0
+            for _, pat in ipairs(patterns) do
+                if comm:match(pat) or base:match(pat) or argv0:match(pat) then return true end
+            end
+            depth = depth + 1
+            if launchers[comm] or depth >= 5 then return false end
+        end
+        return false
+    end
+end
+
 -- Field 22 of /proc/<pid>/stat. The fields are counted after the last ")",
 -- since comm itself may hold spaces and parentheses.
 local function start_time(pid)

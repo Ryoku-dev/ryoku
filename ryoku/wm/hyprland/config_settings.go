@@ -71,6 +71,9 @@ func genLua(o Overrides, follow bool) string {
 	if tm := genTameMaximizeOnOpen(o); tm != "" {
 		b.WriteString(tm)
 	}
+	if ob := genOpaqueBrowsers(o); ob != "" {
+		b.WriteString(ob)
+	}
 	for i, r := range o.WindowRules {
 		if rl := genWindowRule(i, r); rl != "" {
 			b.WriteString(rl)
@@ -493,6 +496,18 @@ func genTameMaximizeOnOpen(o Overrides) string {
 	}
 	return fmt.Sprintf("hl.window_rule({ name = %s, match = { class = %s }, suppress_event = %s })\n",
 		luaStr("ryoku-tame-maximize-on-open"), luaStr(".*"), luaStr("maximize"))
+}
+
+// genOpaqueBrowsers keeps every window window_rules.lua tagged "browser" fully
+// opaque: the opacity is pinned to 1.0 over the active, inactive and
+// fullscreen values, and nothing else about the window changes. Emitted before
+// the user's own rules so a per-app rule can still win.
+func genOpaqueBrowsers(o Overrides) string {
+	if !o.Opaque.Browsers {
+		return ""
+	}
+	return fmt.Sprintf("hl.window_rule({ name = %s, match = { tag = %s }, opacity = %s })\n",
+		luaStr("ryoku-opaque-browsers"), luaStr("browser"), luaStr("1.0 override 1.0 override 1.0 override"))
 }
 
 func genWindowRule(i int, r WindowRule) string {

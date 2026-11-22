@@ -1,5 +1,15 @@
 [
   {
+    "tab": "Look",
+    "group": "OPACITY",
+    "key": "wm.hyprland.opaque.browsers",
+    "label": "Keep browsers fully opaque",
+    "desc": "Draw web browsers solid, focused or not, whatever the window opacity",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "page": "windowmanager"
+  },
+  {
     "tab": "Display",
     "group": "HDR",
     "key": "wm.hyprland.render.autoHdr",

@@ -297,6 +297,28 @@ process_tag.add("steam-game", function(pid)
 end)
 steam_native_rule("steam-native-launched", { tag = "steam-game" })
 
+-- Unreal Engine: the editor, its pop-ups (menus, toasts, asset pickers, most of
+-- them with an empty or per-build class) and the crash reporter. The inactive
+-- opacity made the editor see-through whenever a pop-up took focus, and it is
+-- a tool you watch while you work in another window. Pinned to 1.0 by the
+-- opacity override, which beats the active, inactive and fullscreen values.
+process_tag.add("unreal-engine", process_tag.runs({
+    "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/",
+}))
+hl.window_rule({
+    name    = "unreal-engine-opaque",
+    match   = { tag = "unreal-engine" },
+    opacity = "1.0 override 1.0 override 1.0 override",
+})
+
+-- Browsers are tagged only. Whether they stay opaque is the user's call (Ryoku
+-- Settings > Window Manager > Look), since a see-through page is hard to read
+-- for some while others like the look; the provider writes that rule.
+process_tag.add("browser", process_tag.runs({
+    "^firefox", "^chrom", "^google%-chrome", "^brave", "^vivaldi", "^opera", "^msedge",
+    "^zen$", "^zen%-bin$", "^librewolf", "^floorp", "^waterfox", "^mullvadbrowser", "^thorium",
+}))
+
 -- Ryotunes, the music app ([ryoku] package, ryoku-dev/ryotunes). Float it like
 -- the other music players (Spotify above); the app sizes and centres its own
 -- floating window. The Tauri app maps with class "ryotunes"; the native
