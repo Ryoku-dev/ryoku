@@ -7,4 +7,4 @@ X-KDE-Priority=TopLevel
 [Desktop Action setRyokuWallpaper]
 Name=Set as Wallpaper
 Icon=preferences-desktop-wallpaper
-Exec=ryogami wallpaper set %f
+Exec=ryogami wallpaper import %f

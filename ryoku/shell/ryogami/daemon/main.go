@@ -52,7 +52,7 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintln(os.Stderr, "usage: ryogami [daemon | wallpaper set [--workspace] [--screen <output>] <path> | wallpaper preview [--screen <output>] <path> | wallpaper preview-clear | wallpaper assign|unassign [--screen <output>] | wallpaper <mode> ... | depth <set|clear> ... | upscale <start|status|cancel> ...]")
+		fmt.Fprintln(os.Stderr, "usage: ryogami [daemon | wallpaper set [--workspace] [--screen <output>] <path> | wallpaper import [--screen <output>] <path> | wallpaper preview [--screen <output>] <path> | wallpaper preview-clear | wallpaper assign|unassign [--screen <output>] | wallpaper <mode> ... | depth <set|clear> ... | upscale <start|status|cancel> ...]")
 		os.Exit(2)
 	}
 }

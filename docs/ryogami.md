@@ -19,6 +19,13 @@ wallpaper, each display gets its own pick on every tick.
 setting: on a desk with more than one display it sets the focused display
 only. `--screen '*'` always sets every display.
 
+`ryogami wallpaper import PATH` copies a picture or clip from anywhere into the
+library (the wallpaper or video folder the picker scans), then sets it the same
+way. A file already in the library stays where it is, an identical copy is
+reused, and a different file with the same name is kept beside it as
+`name-1.ext`. Dolphin's **Set as Wallpaper** uses it, so the picture is in the
+picker afterwards.
+
 The effective wallpaper on each display is resolved in this order:
 
 1. the active workspace assignment;

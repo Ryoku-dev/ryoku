@@ -10,8 +10,8 @@ Plasma's own "Set as Wallpaper" action (`wallpaperfileitemaction`, from
 is no Plasma shell to answer, so it fails with "The name is not activatable".
 
 - `ryoku-set-wallpaper.desktop` is a KIO service menu that runs
-  `ryogami wallpaper set` on the picture instead, the same path the wallpaper
-  picker takes.
+  `ryogami wallpaper import` on the picture instead: it copies the picture into
+  the wallpaper library, so it shows up in the picker, then sets it.
 - `kservicemenurc` hides Plasma's action, so the menu shows one wallpaper entry
   that works.
 
