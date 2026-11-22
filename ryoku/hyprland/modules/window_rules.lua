@@ -285,6 +285,7 @@ local not_a_game = {
     kitty = true, foot = true, alacritty = true, ghostty = true, ["wezterm-gui"] = true,
 }
 local process_tag = require("modules.process_tag")
+steam_native_rule("steam-native-launched", { tag = "steam-game" })
 process_tag.add("steam-game", function(pid)
     return process_tag.walk(pid, function(p, comm)
         if comm == "reaper" and process_tag.cmdline(p):find("SteamLaunch", 1, true) then
@@ -293,7 +294,6 @@ process_tag.add("steam-game", function(pid)
         if not_a_game[comm] then return false end
     end)
 end)
-steam_native_rule("steam-native-launched", { tag = "steam-game" })
 
 -- Ryotunes, the music app ([ryoku] package, ryoku-dev/ryotunes). Float it like
 -- the other music players (Spotify above); the app sizes and centres its own

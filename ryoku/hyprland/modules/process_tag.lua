@@ -8,7 +8,9 @@ local M = {}
 
 local taggers = {}
 -- One test per process, not per window. The key carries the start time, so a
--- recycled pid is tested afresh instead of inheriting a dead process's verdict.
+-- recycled pid is tested afresh instead of inheriting a dead process's verdict,
+-- and the comm, so a process that opened a window before its final exec is
+-- tested again as the program it became.
 -- Entries are never matched to exits, so the table is emptied once it holds
 -- VERDICT_LIMIT answers: a forgotten answer only costs one more walk.
 local verdicts, verdict_count = {}, 0
@@ -28,8 +30,12 @@ function M.comm(pid)
     return s and (s:gsub("\n$", ""))
 end
 
+-- Raises when the process is gone or a zombie: an error inside a test settles
+-- nothing, the same as a failed read in walk().
 function M.cmdline(pid)
-    return read("/proc/" .. pid .. "/cmdline") or ""
+    local s = read("/proc/" .. pid .. "/cmdline")
+    if not s or s == "" then error("no command line for pid " .. pid) end
+    return s
 end
 
 function M.ppid(pid)
@@ -41,7 +47,8 @@ end
 -- to init. visit returns true or false to settle the answer, or nil to climb
 -- on; reaching init settles false. A failed read (a process in the chain
 -- exited mid-walk) settles nothing: walk returns nil, the answer is not kept,
--- and the next window from that process is tested again.
+-- and the next window from that process is tested again. So does an error
+-- raised by visit.
 function M.walk(pid, visit)
     local p = pid
     for _ = 1, 64 do
@@ -82,10 +89,10 @@ end
 
 local function check(win, list)
     if not win or not win.pid or win.pid <= 0 or not win.address then return end
-    local started = start_time(win.pid)
-    if not started then return end
+    local started, comm = start_time(win.pid), M.comm(win.pid)
+    if not started or not comm then return end
     for _, t in ipairs(list) do
-        local key = win.pid .. ":" .. started .. ":" .. t.tag
+        local key = win.pid .. ":" .. started .. ":" .. comm .. ":" .. t.tag
         local hit = verdicts[key]
         if hit == nil then
             local ok, res = pcall(t.test, win.pid)
