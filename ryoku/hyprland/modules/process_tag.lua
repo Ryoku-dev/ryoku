@@ -87,10 +87,33 @@ local function has_tag(win, tag)
     return false
 end
 
-local function check(win, list)
+-- A window whose answer did not settle (a process in its chain was exiting as
+-- it mapped) is tested again a few times, as long as it is still open, so a
+-- game's only window is not left untagged for the whole session.
+local RETRY_MS = { 250, 1000, 3000 }
+
+local function open_window(address)
+    for _, win in ipairs(hl.get_windows() or {}) do
+        if win.address == address then return win end
+    end
+end
+
+local check
+
+local function retry(address, list, attempt)
+    local delay = RETRY_MS[attempt]
+    if not delay or not hl.timer then return end
+    hl.timer(function()
+        local win = open_window(address)
+        if win then pcall(check, win, list, attempt + 1) end
+    end, { timeout = delay, type = "oneshot" })
+end
+
+check = function(win, list, attempt)
     if not win or not win.pid or win.pid <= 0 or not win.address then return end
     local started, comm = start_time(win.pid), M.comm(win.pid)
     if not started or not comm then return end
+    local unsettled = {}
     for _, t in ipairs(list) do
         local key = win.pid .. ":" .. started .. ":" .. comm .. ":" .. t.tag
         local hit = verdicts[key]
@@ -100,12 +123,15 @@ local function check(win, list)
             if ok and res ~= nil then
                 if verdict_count >= VERDICT_LIMIT then verdicts, verdict_count = {}, 0 end
                 verdicts[key], verdict_count = hit, verdict_count + 1
+            else
+                unsettled[#unsettled + 1] = t
             end
         end
         if hit and not has_tag(win, t.tag) then
             hl.dispatch(hl.dsp.window.tag({ tag = "+" .. t.tag, window = "address:" .. win.address }))
         end
     end
+    if #unsettled > 0 then retry(win.address, unsettled, attempt or 1) end
 end
 
 -- add(tag, test): test(pid) returns true for a process whose windows get tag,
