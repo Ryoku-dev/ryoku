@@ -167,6 +167,16 @@ proc(203, "bwrap", 202, 23)
 run_timers()
 expect(tags_for("closed"), "", "a retry after the window closed")
 
+-- An unreadable window process (its own stat) is retried the same way.
+proc(227, "Game7.exe", 205, 65)
+local stat227 = files["/proc/227/stat"]
+files["/proc/227/stat"] = nil
+expect(open(227, "own-stat"), "", "a window whose own process cannot be read")
+assert(#timers == 1, "an unreadable window process must be retried")
+files["/proc/227/stat"] = stat227
+run_timers()
+expect(tags_for("own-stat"), "+steam-game", "the retry once its stat reads")
+
 -- An unreadable reaper command line settles nothing either.
 proc(230, "Game3.exe", 205, 61)
 local reaper_cmdline = files["/proc/200/cmdline"]
