@@ -112,7 +112,10 @@ end
 check = function(win, list, attempt)
     if not win or not win.pid or win.pid <= 0 or not win.address then return end
     local started, comm = start_time(win.pid), M.comm(win.pid)
-    if not started or not comm then return end
+    if not started or not comm then
+        retry(win.address, list, attempt or 1)
+        return
+    end
     local unsettled = {}
     for _, t in ipairs(list) do
         local key = win.pid .. ":" .. started .. ":" .. comm .. ":" .. t.tag
