@@ -109,10 +109,11 @@ expect(open(210, "kitty"), "", "a terminal started from a game")
 expect(open(300, "plain"), "", "an app outside Steam")
 expect(open(401, "other-reaper"), "", "a process named reaper without SteamLaunch")
 
--- A second window from the same process reuses the answer: no walk.
+-- A second window from the same process reuses the answer: one comm read for
+-- the cache key, no walk.
 comm_reads = 0
 expect(open(206, "game-2"), "+steam-game", "a second window from the game")
-assert(comm_reads == 0, "the second window walked /proc again")
+assert(comm_reads == 1, "the second window walked /proc again")
 
 -- A recycled pid (new start time) is tested afresh.
 proc(206, "zenity", 1, 99)
@@ -124,6 +125,21 @@ gone(203)
 expect(open(220, "race"), "", "a walk through an exited process")
 proc(203, "bwrap", 202, 23)
 expect(open(220, "race-2"), "+steam-game", "the retry once the chain reads again")
+
+-- An unreadable reaper command line settles nothing either.
+proc(230, "Game3.exe", 205, 61)
+local reaper_cmdline = files["/proc/200/cmdline"]
+files["/proc/200/cmdline"] = nil
+expect(open(230, "no-cmdline"), "", "a reaper whose command line cannot be read")
+files["/proc/200/cmdline"] = reaper_cmdline
+expect(open(230, "no-cmdline-2"), "+steam-game", "the retry once the command line reads")
+
+-- A process that execs keeps its pid and start time; the new program is
+-- tested again rather than handed the old answer.
+proc(240, "launcher-stub", 1, 62)
+expect(open(240, "pre-exec"), "", "the process before its exec")
+proc(240, "Game4.exe", 205, 62)
+expect(open(240, "post-exec"), "+steam-game", "the same process after its exec")
 
 -- Unreal Engine, always opaque: the editor by name, a pop-up helper by its
 -- parent, a build from an engine tree by its path.
