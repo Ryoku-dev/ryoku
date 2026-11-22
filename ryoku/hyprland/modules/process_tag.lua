@@ -9,7 +9,10 @@ local M = {}
 local taggers = {}
 -- One test per process, not per window. The key carries the start time, so a
 -- recycled pid is tested afresh instead of inheriting a dead process's verdict.
-local verdicts = {}
+-- Entries are never matched to exits, so the table is emptied once it holds
+-- VERDICT_LIMIT answers: a forgotten answer only costs one more walk.
+local verdicts, verdict_count = {}, 0
+local VERDICT_LIMIT = 256
 
 local function read(path)
     local f = io.open(path, "r")
@@ -19,8 +22,10 @@ local function read(path)
     return s
 end
 
+-- nil when the process is gone.
 function M.comm(pid)
-    return ((read("/proc/" .. pid .. "/comm") or ""):gsub("\n$", ""))
+    local s = read("/proc/" .. pid .. "/comm")
+    return s and (s:gsub("\n$", ""))
 end
 
 function M.cmdline(pid)
@@ -32,16 +37,23 @@ function M.ppid(pid)
     return s and tonumber(s:match("\nPPid:%s*(%d+)"))
 end
 
--- pid, its parent, its grandparent, ... up to init, bounded so a /proc race
--- can never loop.
-function M.ancestors(pid)
-    local p, n = pid, 0
-    return function()
-        if not p or p <= 1 or n >= 64 then return nil end
-        local cur = p
-        p, n = M.ppid(cur), n + 1
-        return cur
+-- walk(pid, visit): visit(p, comm) for the process, its parent, and so on up
+-- to init. visit returns true or false to settle the answer, or nil to climb
+-- on; reaching init settles false. A failed read (a process in the chain
+-- exited mid-walk) settles nothing: walk returns nil, the answer is not kept,
+-- and the next window from that process is tested again.
+function M.walk(pid, visit)
+    local p = pid
+    for _ = 1, 64 do
+        local comm = M.comm(p)
+        if not comm then return nil end
+        local verdict = visit(p, comm)
+        if verdict ~= nil then return verdict end
+        p = M.ppid(p)
+        if not p then return nil end
+        if p <= 1 then return false end
     end
+    return false
 end
 
 -- The programs that start other apps. A walk for an app's own helpers ends at
@@ -109,7 +121,10 @@ local function check(win, list)
         if hit == nil then
             local ok, res = pcall(t.test, win.pid)
             hit = ok and res == true
-            verdicts[key] = hit
+            if ok and res ~= nil then
+                if verdict_count >= VERDICT_LIMIT then verdicts, verdict_count = {}, 0 end
+                verdicts[key], verdict_count = hit, verdict_count + 1
+            end
         end
         if hit and not has_tag(win, t.tag) then
             hl.dispatch(hl.dsp.window.tag({ tag = "+" .. t.tag, window = "address:" .. win.address }))
@@ -117,7 +132,8 @@ local function check(win, list)
     end
 end
 
--- add(tag, test): test(pid) returns true for a process whose windows get tag.
+-- add(tag, test): test(pid) returns true for a process whose windows get tag,
+-- false for one whose windows never do, nil when it cannot tell yet.
 -- Windows already open (a config reload) are swept once for the new tagger.
 function M.add(tag, test)
     local t = { tag = tag, test = test }

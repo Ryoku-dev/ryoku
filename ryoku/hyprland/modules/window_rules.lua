@@ -286,14 +286,12 @@ local not_a_game = {
 }
 local process_tag = require("modules.process_tag")
 process_tag.add("steam-game", function(pid)
-    for p in process_tag.ancestors(pid) do
-        local comm = process_tag.comm(p)
+    return process_tag.walk(pid, function(p, comm)
         if comm == "reaper" and process_tag.cmdline(p):find("SteamLaunch", 1, true) then
             return true
         end
         if not_a_game[comm] then return false end
-    end
-    return false
+    end)
 end)
 steam_native_rule("steam-native-launched", { tag = "steam-game" })
 
