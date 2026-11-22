@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Tenfold</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z"/></clipPath></defs>
-<path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z" fill="url(#stone)" stroke="#84ba9f" stroke-width="2.6"/>
-<path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z" fill="none" stroke="#84ba9f" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 85L200 134" stroke="#84ba9f" stroke-opacity=".11" stroke-width="2"/>
-<path d="M45 -10L152 210" stroke="#84ba9f" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#84ba9f" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-42 35L-22 10L-30 -7L-4 -29L17 -14L42 -37"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#84ba9f" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Tenfold</title>
+<desc>Flat Hellenic achievement insignia. Uncommon rarity. Ryoku.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+<path d="M97 129L28 108L45 131L97 143Z" fill="#849a65"/><path d="M97 148L21 127L38 150L97 162Z" fill="#849a65"/><path d="M223 129L292 108L275 131L223 143Z" fill="#849a65"/><path d="M223 148L299 127L282 150L223 162Z" fill="#849a65"/>
+
+<path d="M160 40L235 82V220L160 274L85 220V82Z" fill="#849a65"/><path d="M160 60L216 94V207L160 251L104 207V94Z" fill="#18231d"/>
+
+<circle cx="160" cy="155" r="66" fill="#18231d" stroke="#849a65" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-35 34Q-14 1 34-32" stroke="#849a65" stroke-width="6" fill="none"/><ellipse cx="-25" cy="18" rx="15" ry="6.5" fill="#849a65" transform="rotate(-44 -25 18)"/><ellipse cx="-15" cy="3" rx="15" ry="6.5" fill="#849a65" transform="rotate(28 -15 3)"/><ellipse cx="0" cy="-7" rx="15" ry="6.5" fill="#849a65" transform="rotate(-40 0 -7)"/><ellipse cx="12" cy="-18" rx="15" ry="6.5" fill="#849a65" transform="rotate(27 12 -18)"/><ellipse cx="23" cy="-29" rx="15" ry="6.5" fill="#849a65" transform="rotate(-39 23 -29)"/><ellipse cx="-7" cy="21" rx="15" ry="6.5" fill="#849a65" transform="rotate(31 -7 21)"/></g>
+<path d="M113 244Q160 255 207 244L215 260Q160 278 105 260Z" fill="#849a65"/><path d="M122 254H198" stroke="#18231d" stroke-width="3"/>
+</g>
 </svg>

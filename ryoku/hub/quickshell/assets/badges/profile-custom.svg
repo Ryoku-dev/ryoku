@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Signature Plate</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M11 11H150L189 50V189H50L11 150Z"/></clipPath></defs>
-<path d="M11 11H150L189 50V189H50L11 150Z" fill="url(#stone)" stroke="#ebbb75" stroke-width="2.6"/>
-<path d="M11 11H150L189 50V189H50L11 150Z" fill="none" stroke="#ebbb75" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 79L200 123" stroke="#ebbb75" stroke-opacity=".11" stroke-width="2"/>
-<path d="M14 -10L157 210" stroke="#ebbb75" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#ebbb75" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-43 27Q-25 -44 -5 19Q8 -13 24 8Q35 21 44 -18 M-44 40H44"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#ebbb75" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Signature Plate</title>
+<desc>Flat Hellenic achievement insignia. Legendary rarity. Profile.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+
+
+<path d="M160 43L235 72V169Q236 225 160 271Q84 225 85 169V72Z" fill="#edb84f"/><path d="M160 62L217 84V164Q217 207 160 244Q103 207 103 164V84Z" fill="#34220f"/><path d="M109 93L160 64L211 93" fill="none" stroke="#f7d484" stroke-width="3.5"/><path d="M119.0 51L124.0 34L129.0 51Z" fill="#edb84f"/><path d="M137.0 51L142.0 29L147.0 51Z" fill="#edb84f"/><path d="M155.0 51L160.0 34L165.0 51Z" fill="#edb84f"/><path d="M173.0 51L178.0 29L183.0 51Z" fill="#edb84f"/><path d="M191.0 51L196.0 34L201.0 51Z" fill="#edb84f"/><path d="M121 247H199" stroke="#edb84f" stroke-width="5"/><path d="M127 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/><path d="M147 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/><path d="M167 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/>
+<path d="M95 238Q40 189 72 103" stroke="#edb84f" stroke-width="5.5" fill="none"/><ellipse cx="83.0" cy="216.0" rx="12" ry="5.8" fill="#edb84f" transform="rotate(47 83.0 216.0)"/><ellipse cx="77.7" cy="186.2" rx="12" ry="5.8" fill="#edb84f" transform="rotate(34 77.7 186.2)"/><ellipse cx="74.4" cy="156.5" rx="12" ry="5.8" fill="#edb84f" transform="rotate(21 74.4 156.5)"/><ellipse cx="74.4" cy="126.8" rx="12" ry="5.8" fill="#edb84f" transform="rotate(8 74.4 126.8)"/><ellipse cx="77.7" cy="97.0" rx="12" ry="5.8" fill="#edb84f" transform="rotate(-5 77.7 97.0)"/><path d="M225 238Q280 189 248 103" stroke="#edb84f" stroke-width="5.5" fill="none"/><ellipse cx="237.0" cy="216.0" rx="12" ry="5.8" fill="#edb84f" transform="rotate(-47 237.0 216.0)"/><ellipse cx="242.3" cy="186.2" rx="12" ry="5.8" fill="#edb84f" transform="rotate(-34 242.3 186.2)"/><ellipse cx="245.6" cy="156.5" rx="12" ry="5.8" fill="#edb84f" transform="rotate(-21 245.6 156.5)"/><ellipse cx="245.6" cy="126.8" rx="12" ry="5.8" fill="#edb84f" transform="rotate(-8 245.6 126.8)"/><ellipse cx="242.3" cy="97.0" rx="12" ry="5.8" fill="#edb84f" transform="rotate(5 242.3 97.0)"/>
+<circle cx="160" cy="155" r="67" fill="#34220f" stroke="#edb84f" stroke-width="5"/><circle cx="160" cy="155" r="59" fill="none" stroke="#f7d484" stroke-width="3"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M0-43Q16-28 35-26L33 8Q29 31 0 44Q-29 31-33 8L-35-26Q-16-28 0-43Z" fill="#edb84f"/><path d="M0-30Q12-20 22-19L20 8Q18 21 0 31Q-18 21-20 8L-22-19Q-12-20 0-30Z" fill="#34220f"/><path d="M-13 0L-2 13L17-12" stroke="#edb84f" stroke-width="8" fill="none"/></g>
+<path d="M113 244Q160 255 207 244L215 260Q160 278 105 260Z" fill="#edb84f"/><path d="M122 254H198" stroke="#34220f" stroke-width="3"/>
+</g>
 </svg>

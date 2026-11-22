@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Art Director</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M53 7H147L179 25V175L147 193H53L21 175V25Z"/></clipPath></defs>
-<path d="M53 7H147L179 25V175L147 193H53L21 175V25Z" fill="url(#stone)" stroke="#67b1dc" stroke-width="2.6"/>
-<path d="M53 7H147L179 25V175L147 193H53L21 175V25Z" fill="none" stroke="#67b1dc" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 61L200 115" stroke="#67b1dc" stroke-opacity=".11" stroke-width="2"/>
-<path d="M36 -10L165 210" stroke="#67b1dc" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#67b1dc" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-42 -42H42V42H-42Z M-42 -12H42 M-14 -12V42 M3 5H29 M3 23H29"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#67b1dc" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Art Director</title>
+<desc>Flat Hellenic achievement insignia. Rare rarity. Card studio.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+<path d="M97 129L28 108L45 131L97 143Z" fill="#4487ec"/><path d="M97 148L21 127L38 150L97 162Z" fill="#4487ec"/><path d="M223 129L292 108L275 131L223 143Z" fill="#4487ec"/><path d="M223 148L299 127L282 150L223 162Z" fill="#4487ec"/>
+
+<path d="M160 40L235 82V220L160 274L85 220V82Z" fill="#4487ec"/><path d="M160 60L216 94V207L160 251L104 207V94Z" fill="#101e39"/><path d="M109 93L160 64L211 93" fill="none" stroke="#8ab3ff" stroke-width="3.5"/><circle cx="160" cy="59" r="5.5" fill="#8ab3ff"/>
+
+<circle cx="160" cy="155" r="66" fill="#101e39" stroke="#4487ec" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-33-37H33V-28H-33Z M-39-27H39V-20H-39Z M-23-17H23V24H-23Z M-37 27H37V36H-37Z" fill="#4487ec"/><path d="M-13-17V23 M0-17V23 M13-17V23" stroke="#101e39" stroke-width="4"/></g>
+
+</g>
 </svg>

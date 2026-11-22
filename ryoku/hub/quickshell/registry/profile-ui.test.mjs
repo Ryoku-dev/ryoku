@@ -25,6 +25,8 @@ test("every badge has its own SVG art, shape and mapped achievement identity", (
         assert.match(svg, /<path d="/);
         assert.ok(svg.includes("<title>" + badge.title.replaceAll("&", "&amp;") + "</title>"), badge.id);
         assert.ok(!svg.includes("ROMAN"), badge.id);
+        assert.doesNotMatch(svg, /<linearGradient|<radialGradient|<filter|<image|<script/);
+        assert.match(svg, /Flat Hellenic achievement insignia/);
         artworks.add(svg);
     }
     assert.equal(artworks.size, P.achievements.length);

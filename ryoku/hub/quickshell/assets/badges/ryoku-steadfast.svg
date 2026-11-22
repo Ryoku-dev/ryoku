@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>First Week</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M100 8L192 100L100 192L8 100Z"/></clipPath></defs>
-<path d="M100 8L192 100L100 192L8 100Z" fill="url(#stone)" stroke="#67b1dc" stroke-width="2.6"/>
-<path d="M100 8L192 100L100 192L8 100Z" fill="none" stroke="#67b1dc" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 64L200 123" stroke="#67b1dc" stroke-opacity=".11" stroke-width="2"/>
-<path d="M19 -10L157 210" stroke="#67b1dc" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#67b1dc" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-44 14H44 M-35 28H35 M-25 40H25 M-29 14A29 29 0 0 1 29 14 M0 -40V-30 M-30 -28L-23 -20 M30 -28L23 -20"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#67b1dc" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>First Week</title>
+<desc>Flat Hellenic achievement insignia. Rare rarity. Ryoku.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+<path d="M97 129L28 108L45 131L97 143Z" fill="#4487ec"/><path d="M97 148L21 127L38 150L97 162Z" fill="#4487ec"/><path d="M223 129L292 108L275 131L223 143Z" fill="#4487ec"/><path d="M223 148L299 127L282 150L223 162Z" fill="#4487ec"/>
+
+<path d="M160 40L235 82V220L160 274L85 220V82Z" fill="#4487ec"/><path d="M160 60L216 94V207L160 251L104 207V94Z" fill="#101e39"/><path d="M109 93L160 64L211 93" fill="none" stroke="#8ab3ff" stroke-width="3.5"/><path d="M123 69L160 51L197 69" stroke="#4487ec" stroke-width="4" fill="none"/>
+
+<circle cx="160" cy="155" r="66" fill="#101e39" stroke="#4487ec" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.09)"><circle r="19" fill="#4487ec"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(0)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(45)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(90)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(135)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(180)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(225)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(270)"/><path d="M-5-28L0-45L5-28Z" fill="#4487ec" transform="rotate(315)"/></g>
+
+</g>
 </svg>

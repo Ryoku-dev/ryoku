@@ -13,9 +13,6 @@ Item {
     property bool locked: false
     property bool animateFoil: false
 
-    readonly property bool moving: animateFoil && visible &&
-        rarity === "holographic" && !locked && !Lithic.reduceMotion
-
     implicitWidth: 150
     implicitHeight: 150
     clip: false
@@ -49,28 +46,4 @@ Item {
         }
     }
 
-    Rectangle {
-        id: glint
-        visible: seal.moving
-        width: Math.max(4, seal.width * 0.13)
-        height: seal.height * 1.45
-        y: -seal.height * 0.22
-        opacity: 0.28
-        rotation: 25
-        x: -width * 2
-        gradient: Gradient {
-            GradientStop { position: 0; color: "transparent" }
-            GradientStop { position: 0.45; color: Lithic.mix(Lithic.lapis, Lithic.gold, 0.20) }
-            GradientStop { position: 0.6; color: Lithic.mix(Lithic.gold, Lithic.fg, 0.38) }
-            GradientStop { position: 1; color: "transparent" }
-        }
-
-        NumberAnimation on x {
-            from: -glint.width * 2
-            to: seal.width + glint.width * 2
-            duration: 4900
-            loops: Animation.Infinite
-            running: seal.moving
-        }
-    }
 }

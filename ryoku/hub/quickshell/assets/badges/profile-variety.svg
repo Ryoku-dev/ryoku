@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Variety Show</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M11 30L30 11H170L189 30V170L170 189H30L11 170Z"/></clipPath></defs>
-<path d="M11 30L30 11H170L189 30V170L170 189H30L11 170Z" fill="url(#stone)" stroke="#67b1dc" stroke-width="2.6"/>
-<path d="M11 30L30 11H170L189 30V170L170 189H30L11 170Z" fill="none" stroke="#67b1dc" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 72L200 141" stroke="#67b1dc" stroke-opacity=".11" stroke-width="2"/>
-<path d="M37 -10L159 210" stroke="#67b1dc" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#67b1dc" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M0 -43L40 30H-40Z M0 -43V30 M-40 30L0 -6L40 30"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#67b1dc" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Variety Show</title>
+<desc>Flat Hellenic achievement insignia. Rare rarity. Profile.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+
+
+<circle cx="160" cy="155" r="112" fill="#4487ec"/><circle cx="160" cy="155" r="96" fill="#101e39"/><circle cx="160" cy="155" r="85" fill="none" stroke="#8ab3ff" stroke-width="3"/><circle cx="160" cy="59" r="5.5" fill="#8ab3ff"/>
+<path d="M95 238Q40 189 72 103" stroke="#4487ec" stroke-width="5.5" fill="none"/><ellipse cx="83.0" cy="216.0" rx="10" ry="5.8" fill="#4487ec" transform="rotate(47 83.0 216.0)"/><ellipse cx="77.7" cy="186.2" rx="10" ry="5.8" fill="#4487ec" transform="rotate(34 77.7 186.2)"/><ellipse cx="74.4" cy="156.5" rx="10" ry="5.8" fill="#4487ec" transform="rotate(21 74.4 156.5)"/><ellipse cx="74.4" cy="126.8" rx="10" ry="5.8" fill="#4487ec" transform="rotate(8 74.4 126.8)"/><ellipse cx="77.7" cy="97.0" rx="10" ry="5.8" fill="#4487ec" transform="rotate(-5 77.7 97.0)"/><path d="M225 238Q280 189 248 103" stroke="#4487ec" stroke-width="5.5" fill="none"/><ellipse cx="237.0" cy="216.0" rx="10" ry="5.8" fill="#4487ec" transform="rotate(-47 237.0 216.0)"/><ellipse cx="242.3" cy="186.2" rx="10" ry="5.8" fill="#4487ec" transform="rotate(-34 242.3 186.2)"/><ellipse cx="245.6" cy="156.5" rx="10" ry="5.8" fill="#4487ec" transform="rotate(-21 245.6 156.5)"/><ellipse cx="245.6" cy="126.8" rx="10" ry="5.8" fill="#4487ec" transform="rotate(-8 245.6 126.8)"/><ellipse cx="242.3" cy="97.0" rx="10" ry="5.8" fill="#4487ec" transform="rotate(5 242.3 97.0)"/>
+<circle cx="160" cy="155" r="66" fill="#101e39" stroke="#4487ec" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-34-29Q0-44 34-29L31 19Q9 43 0 43Q-9 43-31 19Z" fill="#4487ec"/><path d="M-23-10L-5-6L-13 5Z M23-10L5-6L13 5Z" fill="#101e39"/><path d="M-18 17Q0 30 18 17" fill="none" stroke="#101e39" stroke-width="6"/></g>
+
+</g>
 </svg>

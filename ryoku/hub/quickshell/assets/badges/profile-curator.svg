@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Curator</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M28 11H172L189 28V172L172 189H28L11 172V28Z"/></clipPath></defs>
-<path d="M28 11H172L189 28V172L172 189H28L11 172V28Z" fill="url(#stone)" stroke="#a2a5ae" stroke-width="2.6"/>
-<path d="M28 11H172L189 28V172L172 189H28L11 172V28Z" fill="none" stroke="#a2a5ae" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 66L200 135" stroke="#a2a5ae" stroke-opacity=".11" stroke-width="2"/>
-<path d="M36 -10L145 210" stroke="#a2a5ae" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#a2a5ae" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-43 -43H-13 M13 -43H43V-13 M43 13V43H13 M-13 43H-43V13 M-43 -13V-43 M-23 19L-8 -1L5 12L25 -19"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#a2a5ae" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Curator</title>
+<desc>Flat Hellenic achievement insignia. Common rarity. Profile.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+
+
+<path d="M160 43L235 72V169Q236 225 160 271Q84 225 85 169V72Z" fill="#848b99"/><path d="M160 62L217 84V164Q217 207 160 244Q103 207 103 164V84Z" fill="#141d2c"/><path d="M121 247H199" stroke="#848b99" stroke-width="5"/>
+<path d="M95 238Q40 189 72 103" stroke="#848b99" stroke-width="5.5" fill="none"/><ellipse cx="83.0" cy="216.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(47 83.0 216.0)"/><ellipse cx="75.2" cy="156.5" rx="10" ry="5.8" fill="#848b99" transform="rotate(34 75.2 156.5)"/><ellipse cx="75.2" cy="97.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(21 75.2 97.0)"/><path d="M225 238Q280 189 248 103" stroke="#848b99" stroke-width="5.5" fill="none"/><ellipse cx="237.0" cy="216.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(-47 237.0 216.0)"/><ellipse cx="244.8" cy="156.5" rx="10" ry="5.8" fill="#848b99" transform="rotate(-34 244.8 156.5)"/><ellipse cx="244.8" cy="97.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(-21 244.8 97.0)"/>
+<circle cx="160" cy="155" r="66" fill="#141d2c" stroke="#848b99" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.09)"><path d="M-37-36L-16-26Q0-33 16-26L37-36L31 14Q21 37 0 41Q-21 37-31 14Z" fill="#848b99"/><path d="M-28-8Q-18-22-1-8Q-1 10-18 12Q-32 6-28-8Z M1-8Q18-22 28-8Q32 6 18 12Q1 10 1-8Z" fill="#141d2c"/><circle cx="-15" cy="-3" r="5" fill="#848b99"/><circle cx="15" cy="-3" r="5" fill="#848b99"/><path d="M-8 16L0 30L8 16Z" fill="#141d2c"/></g>
+<path d="M113 244Q160 255 207 244L215 260Q160 278 105 260Z" fill="#848b99"/><path d="M122 254H198" stroke="#141d2c" stroke-width="3"/>
+</g>
 </svg>

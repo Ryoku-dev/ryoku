@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>First Steps</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M100 8L192 100L100 192L8 100Z"/></clipPath></defs>
-<path d="M100 8L192 100L100 192L8 100Z" fill="url(#stone)" stroke="#a2a5ae" stroke-width="2.6"/>
-<path d="M100 8L192 100L100 192L8 100Z" fill="none" stroke="#a2a5ae" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 56L200 125" stroke="#a2a5ae" stroke-opacity=".11" stroke-width="2"/>
-<path d="M16 -10L159 210" stroke="#a2a5ae" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#a2a5ae" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-35 31L-23 3L-8 12L-20 40Z M6 -12L20 -38L35 -25L17 13Z M-5 -20L10 -36"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#a2a5ae" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>First Steps</title>
+<desc>Flat Hellenic achievement insignia. Common rarity. Ryoku.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+<path d="M97 129L28 108L45 131L97 143Z" fill="#848b99"/><path d="M97 148L21 127L38 150L97 162Z" fill="#848b99"/><path d="M223 129L292 108L275 131L223 143Z" fill="#848b99"/><path d="M223 148L299 127L282 150L223 162Z" fill="#848b99"/>
+
+<polygon points="160.0,41.0 200.9,54.1 239.2,73.8 258.9,112.1 272.0,153.0 258.9,193.9 239.2,232.2 200.9,251.9 160.0,265.0 119.1,251.9 80.8,232.2 61.1,193.9 48.0,153.0 61.1,112.1 80.8,73.8 119.1,54.1" fill="#848b99"/><polygon points="160.0,59.0 194.4,69.9 226.5,86.5 243.1,118.6 254.0,153.0 243.1,187.4 226.5,219.5 194.4,236.1 160.0,247.0 125.6,236.1 93.5,219.5 76.9,187.4 66.0,153.0 76.9,118.6 93.5,86.5 125.6,69.9" fill="#141d2c"/><path d="M123 69L160 51L197 69" stroke="#848b99" stroke-width="4" fill="none"/>
+
+<circle cx="160" cy="155" r="67" fill="#141d2c" stroke="#848b99" stroke-width="5"/><circle cx="160" cy="155" r="59" fill="none" stroke="#b5b9c3" stroke-width="3"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-35 12Q-20 28 2 24L31 16L34 25Q8 37-17 35L-35 27Z" fill="#848b99"/><path d="M-17 10L-4-25L6-17L1 8L21-20L31-12L14 11Z" fill="#848b99"/><path d="M-30 21H25" stroke="#141d2c" stroke-width="4"/></g>
+
+</g>
 </svg>

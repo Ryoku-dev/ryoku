@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Seal Keeper</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M100 9L175 39L189 100L175 161L100 191L25 161L11 100L25 39Z"/></clipPath></defs>
-<path d="M100 9L175 39L189 100L175 161L100 191L25 161L11 100L25 39Z" fill="url(#stone)" stroke="#a2a5ae" stroke-width="2.6"/>
-<path d="M100 9L175 39L189 100L175 161L100 191L25 161L11 100L25 39Z" fill="none" stroke="#a2a5ae" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 62L200 111" stroke="#a2a5ae" stroke-opacity=".11" stroke-width="2"/>
-<path d="M52 -10L169 210" stroke="#a2a5ae" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#a2a5ae" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M0 -44L35 -28V10L0 43L-35 10V-28Z M-16 -1L-3 13L23 -19"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#a2a5ae" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Seal Keeper</title>
+<desc>Flat Hellenic achievement insignia. Common rarity. Collection.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+
+
+<polygon points="160.0,41.0 200.9,54.1 239.2,73.8 258.9,112.1 272.0,153.0 258.9,193.9 239.2,232.2 200.9,251.9 160.0,265.0 119.1,251.9 80.8,232.2 61.1,193.9 48.0,153.0 61.1,112.1 80.8,73.8 119.1,54.1" fill="#848b99"/><polygon points="160.0,59.0 194.4,69.9 226.5,86.5 243.1,118.6 254.0,153.0 243.1,187.4 226.5,219.5 194.4,236.1 160.0,247.0 125.6,236.1 93.5,219.5 76.9,187.4 66.0,153.0 76.9,118.6 93.5,86.5 125.6,69.9" fill="#141d2c"/>
+<path d="M95 238Q40 189 72 103" stroke="#848b99" stroke-width="5.5" fill="none"/><ellipse cx="83.0" cy="216.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(47 83.0 216.0)"/><ellipse cx="75.2" cy="156.5" rx="10" ry="5.8" fill="#848b99" transform="rotate(34 75.2 156.5)"/><ellipse cx="75.2" cy="97.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(21 75.2 97.0)"/><path d="M225 238Q280 189 248 103" stroke="#848b99" stroke-width="5.5" fill="none"/><ellipse cx="237.0" cy="216.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(-47 237.0 216.0)"/><ellipse cx="244.8" cy="156.5" rx="10" ry="5.8" fill="#848b99" transform="rotate(-34 244.8 156.5)"/><ellipse cx="244.8" cy="97.0" rx="10" ry="5.8" fill="#848b99" transform="rotate(-21 244.8 97.0)"/>
+<circle cx="160" cy="155" r="67" fill="#141d2c" stroke="#848b99" stroke-width="5"/><circle cx="160" cy="155" r="59" fill="none" stroke="#b5b9c3" stroke-width="3"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M0 34Q-37 12-34-23" fill="none" stroke="#848b99" stroke-width="6"/><ellipse cx="-28" cy="18" rx="12" ry="6" fill="#848b99" transform="rotate(-22 -28 18)"/><ellipse cx="-21" cy="8" rx="12" ry="6" fill="#848b99" transform="rotate(-10 -21 8)"/><ellipse cx="-14" cy="-2" rx="12" ry="6" fill="#848b99" transform="rotate(2 -14 -2)"/><ellipse cx="-7" cy="-12" rx="12" ry="6" fill="#848b99" transform="rotate(14 -7 -12)"/><ellipse cx="0" cy="-22" rx="12" ry="6" fill="#848b99" transform="rotate(26 0 -22)"/><g transform="scale(-1 1)"><ellipse cx="-28" cy="18" rx="12" ry="6" fill="#848b99" transform="rotate(-22 -28 18)"/><ellipse cx="-21" cy="8" rx="12" ry="6" fill="#848b99" transform="rotate(-10 -21 8)"/><ellipse cx="-14" cy="-2" rx="12" ry="6" fill="#848b99" transform="rotate(2 -14 -2)"/><ellipse cx="-7" cy="-12" rx="12" ry="6" fill="#848b99" transform="rotate(14 -7 -12)"/><ellipse cx="0" cy="-22" rx="12" ry="6" fill="#848b99" transform="rotate(26 0 -22)"/></g></g>
+<path d="M113 244Q160 255 207 244L215 260Q160 278 105 260Z" fill="#848b99"/><path d="M122 254H198" stroke="#141d2c" stroke-width="3"/>
+</g>
 </svg>

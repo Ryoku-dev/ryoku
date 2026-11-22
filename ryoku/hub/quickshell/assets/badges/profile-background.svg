@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>New Canvas</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M28 11H172L189 28V172L172 189H28L11 172V28Z"/></clipPath></defs>
-<path d="M28 11H172L189 28V172L172 189H28L11 172V28Z" fill="url(#stone)" stroke="#84ba9f" stroke-width="2.6"/>
-<path d="M28 11H172L189 28V172L172 189H28L11 172V28Z" fill="none" stroke="#84ba9f" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 61L200 105" stroke="#84ba9f" stroke-opacity=".11" stroke-width="2"/>
-<path d="M36 -10L139 210" stroke="#84ba9f" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#84ba9f" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-43 34L-14 -8L8 18L23 -27L45 34Z M-20 -31A8 8 0 1 0 -4 -31A8 8 0 1 0 -20 -31"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#84ba9f" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>New Canvas</title>
+<desc>Flat Hellenic achievement insignia. Uncommon rarity. Profile.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+
+
+<path d="M92 65H228V217L160 272L92 217Z" fill="#849a65"/><path d="M107 83H213V206L160 250L107 206Z" fill="#18231d"/><path d="M121 247H199" stroke="#849a65" stroke-width="5"/><path d="M123 69L160 51L197 69" stroke="#849a65" stroke-width="4" fill="none"/>
+<path d="M95 238Q40 189 72 103" stroke="#849a65" stroke-width="5.5" fill="none"/><ellipse cx="83.0" cy="216.0" rx="10" ry="5.8" fill="#849a65" transform="rotate(47 83.0 216.0)"/><ellipse cx="75.2" cy="156.5" rx="10" ry="5.8" fill="#849a65" transform="rotate(34 75.2 156.5)"/><ellipse cx="75.2" cy="97.0" rx="10" ry="5.8" fill="#849a65" transform="rotate(21 75.2 97.0)"/><path d="M225 238Q280 189 248 103" stroke="#849a65" stroke-width="5.5" fill="none"/><ellipse cx="237.0" cy="216.0" rx="10" ry="5.8" fill="#849a65" transform="rotate(-47 237.0 216.0)"/><ellipse cx="244.8" cy="156.5" rx="10" ry="5.8" fill="#849a65" transform="rotate(-34 244.8 156.5)"/><ellipse cx="244.8" cy="97.0" rx="10" ry="5.8" fill="#849a65" transform="rotate(-21 244.8 97.0)"/>
+<circle cx="160" cy="155" r="66" fill="#18231d" stroke="#849a65" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-43 32L-11-26L4-4L21-38L44 32Z" fill="#849a65"/><path d="M-18-12L-11-26L-4-13Z M14-23L21-38L29-21Z" fill="#18231d"/></g>
+
+</g>
 </svg>

@@ -33,10 +33,14 @@ test("an invalid initial save is not treated as a loaded state", () => {
     assert.match(progression, /root\.error = "";\s*root\.ready = true;\s*Qt\.callLater\(root\.flushPending\)/);
 });
 
-test("the holographic badge finish follows Lithic colours", () => {
+test("achievement insignias stay flat, including holographic rarity", () => {
     const seal = read("components/about/ArchiveSeal.qml");
-    assert.match(seal, /GradientStop \{ position: 0\.45; color: Lithic\.mix\(Lithic\.lapis, Lithic\.gold/);
-    assert.match(seal, /GradientStop \{ position: 0\.6; color: Lithic\.mix\(Lithic\.gold, Lithic\.fg/);
+    assert.doesNotMatch(seal, /GradientStop|NumberAnimation|id: glint/);
+    for (const id of ["ryoku-first-steps", "master-hyperion", "secret-signal"]) {
+        const svg = read("assets/badges/" + id + ".svg");
+        assert.doesNotMatch(svg, /<linearGradient|<radialGradient|<filter|<image/);
+        assert.match(svg, /Flat Hellenic achievement insignia/);
+    }
 });
 
 test("progression errors are visibly surfaced across Hub pages", () => {

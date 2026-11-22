@@ -25,7 +25,7 @@
 
 ### Changed
 
-- **Long dropdowns scroll and stay inside the window.** A menu holds about ten
+- **Achievement insignias use flat Hellenic seals and Greek relief symbols.** All 72 badges now use positive and negative colour fields, with solid rarity inks instead of metallic gradients or moving foil. Common rewards remain restrained while higher tiers use more elaborate silhouettes (quickshell/assets/badges/, quickshell/components/about/ArchiveSeal.qml).\n- **Long dropdowns scroll and stay inside the window.** A menu holds about ten
   rows with the next one showing, opens below its control or above it when that
   has more room, never covers the control, scrolls with the wheel, touchpad and
   keys, and opens on the current choice; labels that mix writing systems keep

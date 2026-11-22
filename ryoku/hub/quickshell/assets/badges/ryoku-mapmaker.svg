@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Behind Every Door</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z"/></clipPath></defs>
-<path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z" fill="url(#stone)" stroke="#ebbb75" stroke-width="2.6"/>
-<path d="M100 8L174 37L192 100L174 163L100 192L26 163L8 100L26 37Z" fill="none" stroke="#ebbb75" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 76L200 110" stroke="#ebbb75" stroke-opacity=".11" stroke-width="2"/>
-<path d="M36 -10L152 210" stroke="#ebbb75" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#ebbb75" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-18 -30A19 19 0 1 0 -18 8A19 19 0 1 0 -18 -30 M-5 -3L37 39L46 30 M24 24L34 14"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#ebbb75" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Behind Every Door</title>
+<desc>Flat Hellenic achievement insignia. Legendary rarity. Ryoku.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+<g><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(0.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(40.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(80.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(120.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(160.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(200.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(240.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(280.0 160 155)"/><path d="M155 48L160 27L165 48Z" fill="#edb84f" transform="rotate(320.0 160 155)"/></g>
+<path d="M97 129L28 108L45 131L97 143Z" fill="#edb84f"/><path d="M87 131L47 119" fill="none" stroke="#f7d484" stroke-width="3"/><path d="M97 148L21 127L38 150L97 162Z" fill="#edb84f"/><path d="M87 150L40 138" fill="none" stroke="#f7d484" stroke-width="3"/><path d="M97 167L14 146L31 169L97 181Z" fill="#edb84f"/><path d="M223 129L292 108L275 131L223 143Z" fill="#edb84f"/><path d="M233 131L273 119" fill="none" stroke="#f7d484" stroke-width="3"/><path d="M223 148L299 127L282 150L223 162Z" fill="#edb84f"/><path d="M233 150L280 138" fill="none" stroke="#f7d484" stroke-width="3"/><path d="M223 167L306 146L289 169L223 181Z" fill="#edb84f"/>
+
+<polygon points="160.0,41.0 200.9,54.1 239.2,73.8 258.9,112.1 272.0,153.0 258.9,193.9 239.2,232.2 200.9,251.9 160.0,265.0 119.1,251.9 80.8,232.2 61.1,193.9 48.0,153.0 61.1,112.1 80.8,73.8 119.1,54.1" fill="#edb84f"/><polygon points="160.0,59.0 194.4,69.9 226.5,86.5 243.1,118.6 254.0,153.0 243.1,187.4 226.5,219.5 194.4,236.1 160.0,247.0 125.6,236.1 93.5,219.5 76.9,187.4 66.0,153.0 76.9,118.6 93.5,86.5 125.6,69.9" fill="#34220f"/><path d="M119.0 51L124.0 34L129.0 51Z" fill="#edb84f"/><path d="M137.0 51L142.0 29L147.0 51Z" fill="#edb84f"/><path d="M155.0 51L160.0 34L165.0 51Z" fill="#edb84f"/><path d="M173.0 51L178.0 29L183.0 51Z" fill="#edb84f"/><path d="M191.0 51L196.0 34L201.0 51Z" fill="#edb84f"/><circle cx="160" cy="59" r="5.5" fill="#f7d484"/><path d="M127 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/><path d="M147 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/><path d="M167 252v-8h9v7h-5" fill="none" stroke="#f7d484" stroke-width="2.7"/>
+
+<circle cx="160" cy="155" r="67" fill="#34220f" stroke="#edb84f" stroke-width="5"/><circle cx="160" cy="155" r="59" fill="none" stroke="#f7d484" stroke-width="3"/>
+<g transform="translate(160 155) scale(1.09)"><circle r="31" fill="none" stroke="#edb84f" stroke-width="7"/><path d="M0-44L9-9L43 0L9 9L0 44L-9 9L-43 0L-9-9Z" fill="#edb84f"/><circle r="6" fill="#34220f"/></g>
+
+</g>
 </svg>

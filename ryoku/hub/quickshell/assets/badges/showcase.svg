@@ -1,12 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<title>Showtime</title><defs>
-<linearGradient id="holo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8fd1d7"/><stop offset=".35" stop-color="#ac89ce"/><stop offset=".7" stop-color="#e2a5ac"/><stop offset="1" stop-color="#e4c380"/></linearGradient>
-<linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a22"/><stop offset=".6" stop-color="#10131a"/><stop offset="1" stop-color="#080b10"/></linearGradient>
-<clipPath id="cut"><path d="M53 7H147L179 25V175L147 193H53L21 175V25Z"/></clipPath></defs>
-<path d="M53 7H147L179 25V175L147 193H53L21 175V25Z" fill="url(#stone)" stroke="#ba8cdb" stroke-width="2.6"/>
-<path d="M53 7H147L179 25V175L147 193H53L21 175V25Z" fill="none" stroke="#ba8cdb" stroke-opacity=".2" stroke-width="9"/>
-<g clip-path="url(#cut)"><path d="M0 73L200 142" stroke="#ba8cdb" stroke-opacity=".11" stroke-width="2"/>
-<path d="M33 -10L144 210" stroke="#ba8cdb" stroke-opacity=".10" stroke-width="1"/></g>
-<g transform="translate(100 100)" fill="none" stroke="#ba8cdb" stroke-width="4.2" stroke-linecap="square" stroke-linejoin="miter"><path d="M-43 -22H28V22H-43Z M-14 22V41 M9 22V41 M-30 41H30 M28 -13L44 -25V25L28 12"/></g>
-<path d="M31 49V32H48 M152 168H169V151" fill="none" stroke="#ba8cdb" stroke-opacity=".4" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+<title>Showtime</title>
+<desc>Flat Hellenic achievement insignia. Epic rarity. Card studio.</desc>
+<g stroke-linejoin="round" stroke-linecap="round">
+
+<path d="M97 129L28 108L45 131L97 143Z" fill="#9860db"/><path d="M97 148L21 127L38 150L97 162Z" fill="#9860db"/><path d="M97 167L14 146L31 169L97 181Z" fill="#9860db"/><path d="M223 129L292 108L275 131L223 143Z" fill="#9860db"/><path d="M223 148L299 127L282 150L223 162Z" fill="#9860db"/><path d="M223 167L306 146L289 169L223 181Z" fill="#9860db"/>
+
+<path d="M160 43L235 72V169Q236 225 160 271Q84 225 85 169V72Z" fill="#9860db"/><path d="M160 62L217 84V164Q217 207 160 244Q103 207 103 164V84Z" fill="#241336"/><path d="M109 93L160 64L211 93" fill="none" stroke="#c79aef" stroke-width="3.5"/><path d="M121 247H199" stroke="#9860db" stroke-width="5"/><circle cx="160" cy="59" r="5.5" fill="#c79aef"/><path d="M127 252v-8h9v7h-5" fill="none" stroke="#c79aef" stroke-width="2.7"/><path d="M147 252v-8h9v7h-5" fill="none" stroke="#c79aef" stroke-width="2.7"/><path d="M167 252v-8h9v7h-5" fill="none" stroke="#c79aef" stroke-width="2.7"/>
+
+<circle cx="160" cy="155" r="66" fill="#241336" stroke="#9860db" stroke-width="7"/>
+<g transform="translate(160 155) scale(1.16)"><path d="M-29-34L-35-10Q-31 10-15 14L-18 30H-25V35H25V30H18L15 14Q31 10 35-10L29-34L19-25Q31 1 10 6H-10Q-31 1-19-25Z" fill="#9860db"/><path d="M-13-23V13 M0-25V13 M13-23V13" stroke="#9860db" stroke-width="4"/><path d="M-24 18H24" stroke="#9860db" stroke-width="5"/></g>
+
+</g>
 </svg>
