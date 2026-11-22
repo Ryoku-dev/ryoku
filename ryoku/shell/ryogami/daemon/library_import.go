@@ -57,12 +57,26 @@ func (d *daemon) importToLibrary(src string) (string, error) {
 		case same:
 			return dest, nil
 		case errors.Is(err, os.ErrNotExist):
-			return dest, copyNew(src, dest)
+			err = copyNew(src, dest)
+			if errors.Is(err, os.ErrExist) {
+				// Another import claimed the name first: weigh it like any
+				// existing file, reusing it if identical, else the next name.
+				n--
+				continue
+			}
+			if err != nil {
+				return "", err
+			}
+			return dest, nil
 		case err != nil:
 			return "", err
 		}
 	}
 }
+
+var linkFile = os.Link
+
+const compareChunk = 64 << 10
 
 func within(root, path string) bool {
 	if root == "" {
@@ -76,6 +90,8 @@ func within(root, path string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// sameContent compares in fixed chunks, so weighing a multi-gigabyte clip
+// against its library copy never holds either file in memory.
 func sameContent(a, b string) (bool, error) {
 	bi, err := os.Stat(b)
 	if err != nil {
@@ -88,26 +104,39 @@ func sameContent(a, b string) (bool, error) {
 	if ai.Size() != bi.Size() {
 		return false, nil
 	}
-	ab, err := os.ReadFile(a)
+	fa, err := os.Open(a)
 	if err != nil {
 		return false, err
 	}
-	bb, err := os.ReadFile(b)
+	defer fa.Close()
+	fb, err := os.Open(b)
 	if err != nil {
 		return false, err
 	}
-	return bytes.Equal(ab, bb), nil
+	defer fb.Close()
+	ba, bb := make([]byte, compareChunk), make([]byte, compareChunk)
+	for {
+		na, erra := io.ReadFull(fa, ba)
+		nb, errb := io.ReadFull(fb, bb)
+		if na != nb || !bytes.Equal(ba[:na], bb[:nb]) {
+			return false, nil
+		}
+		if errors.Is(erra, io.EOF) || errors.Is(erra, io.ErrUnexpectedEOF) {
+			return errors.Is(errb, io.EOF) || errors.Is(errb, io.ErrUnexpectedEOF), nil
+		}
+		if erra != nil {
+			return false, erra
+		}
+		if errb != nil {
+			return false, errb
+		}
+	}
 }
 
 // copyNew writes through a hidden temp name the library walk ignores, then
-// links it into place, so the watcher never catalogues a half-written file and
-// a name taken in the meantime is refused rather than replaced.
+// links it into place, so the watcher never catalogues a half-written file. A
+// name taken in the meantime fails with os.ErrExist and is never replaced.
 func copyNew(src, dest string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
 	tmp, err := os.CreateTemp(filepath.Dir(dest), ".import-*.part")
 	if err != nil {
 		return err
@@ -117,20 +146,37 @@ func copyNew(src, dest string) error {
 		tmp.Close()
 		return err
 	}
-	if _, err := io.Copy(tmp, in); err != nil {
-		tmp.Close()
+	if err := copyInto(tmp, src); err != nil {
 		return err
 	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	err = os.Link(tmp.Name(), dest)
+	err = linkFile(tmp.Name(), dest)
 	if err == nil || errors.Is(err, os.ErrExist) {
 		return err
 	}
-	// FAT, exFAT and some FUSE mounts have no hard links.
-	if _, statErr := os.Lstat(dest); !errors.Is(statErr, os.ErrNotExist) {
-		return fmt.Errorf("%s appeared while importing", dest)
+	// FAT, exFAT and some FUSE mounts have no hard links. Exclusive create
+	// still refuses a taken name; the file is just visible while it fills.
+	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
 	}
-	return os.Rename(tmp.Name(), dest)
+	if err := copyInto(out, tmp.Name()); err != nil {
+		os.Remove(dest)
+		return err
+	}
+	return nil
+}
+
+// copyInto copies src into w and closes w.
+func copyInto(w *os.File, src string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		w.Close()
+		return err
+	}
+	defer in.Close()
+	if _, err := io.Copy(w, in); err != nil {
+		w.Close()
+		return err
+	}
+	return w.Close()
 }

@@ -1271,7 +1271,10 @@ say "installed nautilus stash menu -> $appshare/nautilus-python/extensions"
 # it is executable; the package's system copy needs no exec bit.
 install -Dm755 "$here/../apps/dolphin/ryoku-set-wallpaper.desktop" \
   "$appshare/kio/servicemenus/ryoku-set-wallpaper.desktop"
-if command -v kwriteconfig6 >/dev/null 2>&1; then
+# The package hides Plasma's action through a system default; a checkout writes
+# the user's file instead, so set the key only while the user has not chosen.
+if command -v kwriteconfig6 >/dev/null 2>&1 &&
+  [[ -z $(kreadconfig6 --file kservicemenurc --group Show --key wallpaperfileitemaction 2>/dev/null) ]]; then
   kwriteconfig6 --file kservicemenurc --group Show --key wallpaperfileitemaction false
 fi
 say "installed dolphin wallpaper menu -> $appshare/kio/servicemenus"

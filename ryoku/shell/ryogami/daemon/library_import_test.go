@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -128,5 +130,108 @@ func TestImportRefusesWhatTheLibraryCannotShow(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(wall); len(entries) != 0 {
 		t.Fatalf("a refused import left %d files in the library", len(entries))
+	}
+}
+
+// swapLink replaces the publish step for one test, so a race with another
+// import can be staged at the exact moment the name is claimed.
+func swapLink(t *testing.T, fn func(tmp, dest string) error) {
+	t.Helper()
+	orig := linkFile
+	linkFile = fn
+	t.Cleanup(func() { linkFile = orig })
+}
+
+func TestImportReusesACopyThatLandsMidImport(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, src, "same bytes")
+	swapLink(t, func(tmp, dest string) error {
+		writeMedia(t, dest, "same bytes")
+		return os.ErrExist
+	})
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo.jpg"); got != want {
+		t.Fatalf("imported to %q, want the copy that landed %q", got, want)
+	}
+}
+
+func TestImportTakesTheNextNameWhenOneIsClaimedMidImport(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, src, "mine")
+	claimed := false
+	swapLink(t, func(tmp, dest string) error {
+		if !claimed {
+			claimed = true
+			writeMedia(t, dest, "theirs")
+			return os.ErrExist
+		}
+		return os.Link(tmp, dest)
+	})
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo-1.jpg"); got != want {
+		t.Fatalf("imported to %q, want %q", got, want)
+	}
+	if readBody(t, filepath.Join(wall, "photo.jpg")) != "theirs" || readBody(t, got) != "mine" {
+		t.Fatal("the racing import's picture was replaced")
+	}
+}
+
+func TestImportWithoutHardLinksNeverOverwrites(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, src, "mine")
+	raced := false
+	swapLink(t, func(tmp, dest string) error {
+		if !raced {
+			raced = true
+			writeMedia(t, dest, "theirs")
+		}
+		return &os.LinkError{Op: "link", Old: tmp, New: dest, Err: syscall.EPERM}
+	})
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo-1.jpg"); got != want {
+		t.Fatalf("imported to %q, want %q", got, want)
+	}
+	if readBody(t, filepath.Join(wall, "photo.jpg")) != "theirs" {
+		t.Fatal("the fallback overwrote a picture that appeared mid-import")
+	}
+	if readBody(t, got) != "mine" {
+		t.Fatal("the fallback copy does not match the source")
+	}
+	if info, err := os.Stat(got); err != nil || info.Mode().Perm() != 0o644 {
+		t.Fatalf("fallback copy has the wrong mode: %v", err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(wall, ".import-*")); len(left) != 0 {
+		t.Fatalf("temp files left behind: %v", left)
+	}
+}
+
+func TestSameContentComparesPastTheFirstChunk(t *testing.T) {
+	dir := t.TempDir()
+	big := strings.Repeat("x", 3*compareChunk+17)
+	a, b, c := filepath.Join(dir, "a"), filepath.Join(dir, "b"), filepath.Join(dir, "c")
+	writeMedia(t, a, big)
+	writeMedia(t, b, big)
+	writeMedia(t, c, big[:len(big)-1]+"y")
+
+	if same, err := sameContent(a, b); err != nil || !same {
+		t.Fatalf("identical files compared as different (err %v)", err)
+	}
+	if same, err := sameContent(a, c); err != nil || same {
+		t.Fatalf("files differing in the last byte compared as the same (err %v)", err)
 	}
 }
