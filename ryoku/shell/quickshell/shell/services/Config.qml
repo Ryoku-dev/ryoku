@@ -423,12 +423,6 @@ Singleton {
             "sidebar": "ryoku"
         })
         property var clipboard: ({
-            "widthPercent": 65,
-            "heightPercent": 42,
-            "bottomPercent": 0,
-            "panelRadius": 18,
-            "paneRadius": 12,
-            "cardRadius": 9,
             "pruneWeekly": false
         })
         property var phone: ({

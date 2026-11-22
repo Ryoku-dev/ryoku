@@ -15,6 +15,11 @@
 
 ### Changed
 
+- **The Clipboard page drops the panel's size and corner settings.** The new
+  palette takes them from the design in use; the page gains Open the clipboard
+  and keeps the history's size, clearing and weekly clearing
+  (`quickshell/schema/clipboard.js`).
+
 - **The Quick settings page follows the new panel.** Its blocks are listed in
   the new order, the switches sit under Connections and switches, the session
   row is Session buttons, and Top right is the default position

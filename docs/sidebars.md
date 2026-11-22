@@ -1,15 +1,17 @@
-# Quick settings, ryoshot, the Rashin bar, and Kit
+# Quick settings, ryoshot, the Rashin bar, the clipboard, and Kit
 
-Four global tools are available under every subshell and bar style and on both Hyprland and
+Five global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
 - `Super+Escape` opens **Quick settings** at the top-right of the focused display, under the bar.
 - `Super+Shift+S` opens the floating **ryoshot** capture bar.
 - `Alt+Space` opens the **Rashin bar** near the top third of the focused display.
+- `Super+V` opens the **clipboard** history on the Rashin bar's line of the focused display.
 - `Super+K` opens **Kit** in the middle of the focused display.
 
 Quick settings closes with Escape or a click outside, and Escape first steps back out of an
-open page. The Rashin bar closes with Escape, its close button, or a click outside. Kit closes
+open page. The Rashin bar closes with Escape, its close button, or a click outside. The
+clipboard closes once something is copied, with Escape, or with a click outside. Kit closes
 with Escape, a click outside, or `Super+K` again. ryoshot has its own close control.
 The shortcuts are editable in **Ryoku Settings > Windows > Keyboard shortcuts**.
 
@@ -280,6 +282,54 @@ Its health and budgets live in `~/.local/state/ryoku/ryoseek/health.json` and
 its cache in `~/.cache/ryoku/ryoseek/`. `ryoseek query <text>` searches from a
 terminal.
 
+## Clipboard
+
+`Super+V` opens the clipboard history as a palette on the Rashin bar's line, so both open where
+the eye already is. One field searches it, the list sits on the left, a preview of the selected
+item fills the right, and the foot says what Enter does and opens every other action with
+`Ctrl+K`. It is built from the Rashin bar's parts, so it draws in the desktop's design and
+palette the same way and follows a change live.
+
+The tabs at the end of the field switch between **Recent**, everything newest first under
+Today, Yesterday and Earlier, and **Starred**, only what you starred. Tab switches them, and
+the search reads whichever is open. It matches the text, a link's host, file names, and kinds
+such as image, link, colour or code, and underlines what matched.
+
+Each row is drawn for what it holds: a picture's thumbnail with its pixel size, a colour's
+swatch, a link as host and path, a command or code in mono, a file list by its first name and
+folder, and text by its first line and length. The time it was copied sits at the end, with a
+star when it is starred. While Ctrl is held the first nine rows show the number that copies
+them.
+
+The preview reads the selected item closer: the picture whole, the colour as a swatch with its
+RGB and HSL values, the link's full address, files one per line, and text set to read. Text
+longer than the daemon's 200-character preview says so. Under it are its type, size and when it
+was copied, and Copy, Open (for links), Star and Delete for the pointer.
+
+Picking an item copies it and closes the palette; paste it as usual with Ctrl+V, or
+Ctrl+Shift+V in a terminal. Delete removes the selected item after a five-second undo (Ctrl+Z,
+or Undo in the foot), and Ctrl+S stars it. Starred items stay when the history is cleared and
+are never pushed out by new copies. Clearing the history lives in **Ryoku Settings > Desktop >
+Clipboard**, which asks first; the action list leads there.
+
+| Key | Does |
+|---|---|
+| Enter | Copy and close |
+| Ctrl+Enter | Open a link in the browser |
+| Ctrl+1 to Ctrl+9 | Copy that row |
+| Up, Down, Ctrl+N, Ctrl+P, Page Up, Page Down | Move |
+| Ctrl+Up, Ctrl+Down | Jump between days |
+| Home, End | First or last row, while the field is empty |
+| Tab | Recent or Starred |
+| Ctrl+S | Star or unstar |
+| Delete | Delete, while nothing in the field is after the cursor |
+| Ctrl+Z | Undo the last delete |
+| Ctrl+K | Every action for the selected item |
+| Escape | Close the actions, clear the field, leave Starred, then close |
+
+The history is the daemon's (`ryoku/shell/ipc/clipboard.go`): 100 entries, items up to 10 MiB,
+an image thumbnail each, and the time each was copied, kept across restarts.
+
 ## Kit
 
 Kit (`Super+K`) is a tabbed manual of six sections in the desktop's design. Its
@@ -345,6 +395,7 @@ section's page, the dev tools' options and the typing history.
 
 ```text
 ryoku-shell quicksettings
+ryoku-shell clipboard
 ryoku-shell screenshot
 ryoku-shell ask
 ryoku-shell ask web
@@ -353,11 +404,11 @@ ryoku-shell cheatsheet
 ryoku-kit [section [page]]
 ```
 
-`quicksettings` opens Quick settings, `screenshot` launches ryoshot, `ask` and
-`ask web` open the Rashin bar on its root or Web view, and `ask downloads` opens
-Kit's Downloads. `cheatsheet` toggles Kit, and `ryoku-kit` opens it on a section
-(`downloads`, `keys`, `commands`, `phone`, `devtools`, `typing`) and, if given, one
-of its pages. The compositor providers expose the same actions without putting
+`quicksettings` opens Quick settings, `clipboard` toggles the clipboard, `screenshot`
+launches ryoshot, `ask` and `ask web` open the Rashin bar on its root or Web view, and
+`ask downloads` opens Kit's Downloads. `cheatsheet` toggles Kit, and `ryoku-kit` opens it
+on a section (`downloads`, `keys`, `commands`, `phone`, `devtools`, `typing`) and, if given,
+one of its pages. The compositor providers expose the same actions without putting
 compositor-specific QML in the shell.
 
 ## Rendering and lifecycle
@@ -366,8 +417,10 @@ compositor-specific QML in the shell.
 both laid out inside the work area so the bar stays uncovered and live.
 `AskBar.qml` is one full-screen overlay surface that holds the bar and its
 click-away area, so the keyboard always stays with the bar on both compositors.
-Kit's `Kit.qml` is the same kind of overlay, with the dim, on the focused display.
-They use overlay-layer keyboard focus while open and reserve no window space.
+Kit's `Kit.qml` is the same kind of overlay, with the dim, on the focused display, and
+`ClipboardSurface.qml` is one too, on the Rashin bar's line, built when it first opens and
+released 15 s after it closes. They use overlay-layer keyboard focus while open and reserve no
+window space.
 Per-display UI scale is applied to every dimension, and reduced-motion settings
 remove decorative movement without removing required hold gestures.
 
@@ -403,6 +456,13 @@ Quick settings components live under
 | `ExtensionsBoard.qml`, `SidebarCardHost.qml`, `SidebarPlugins.qml` | Plugin discovery, ordering, and hosting |
 | `cards/SystemWifiPage.qml`, `cards/SystemBluetoothPage.qml` | The Wi-Fi and Bluetooth pages |
 | `cards/RadioRow.qml`, `cards/PageRow.qml`, `cards/RowPlane.qml`, `cards/PageSearching.qml`, `cards/SearchButton.qml` | The rows, scanning state, and search button those pages share |
+
+The clipboard lives under `ryoku/shell/quickshell/shell/modules/clipboard/`:
+`ClipboardSurface.qml` is the window and its arrival, `ClipPalette.qml` the body (its state,
+keys and actions), `ClipRow.qml` one row, `ClipDetail.qml` the preview, `ClipTabs.qml` the
+Recent and Starred tabs, and `lib/clip.js` reads an entry (link, colour, command, code, files),
+its age and its day, with its tests beside it. It reuses the Rashin bar's `look/` parts and its
+`bar/` field, list, foot and action panel. The topic is `shell/services/Clipboard.qml`.
 
 ryoshot lives in `ryoku/shell/quickshell/ryoshot/`. The shell keeps only the
 shared recording, key-press, and webcam overlay services under

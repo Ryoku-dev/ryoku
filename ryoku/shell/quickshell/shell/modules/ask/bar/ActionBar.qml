@@ -16,6 +16,8 @@ Item {
     property string context: ""
     // a view's own item for the left of the foot, in place of the context line
     property Component contextItem: null
+    // a surface's own mark in place of Rashin's
+    property string glyph: ""
     property var primary: null
     property bool hasActions: false
     property bool panelOpen: false
@@ -120,17 +122,25 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.round(14 * root.s)
                 height: width
-                visible: status === Image.Ready
-                source: ShellServices.Icons.path("dev.ryoku.rashin", true)
+                visible: root.glyph.length === 0 && status === Image.Ready
+                source: root.glyph.length === 0 ? ShellServices.Icons.path("dev.ryoku.rashin", true) : ""
                 sourceSize: Qt.size(width * 2, height * 2)
                 opacity: 0.86
+            }
+            Symbol {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.glyph.length > 0
+                s: root.s
+                name: root.glyph
+                size: 15
+                ink: Lithic.fg3
             }
             Micro {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, leftSide.width - 24 * root.s)
                 visible: root.contextItem === null
                 s: root.s
-                text: root.context.length > 0 ? root.context : I18n.tr("Rashin")
+                text: root.context.length > 0 ? root.context : root.glyph.length > 0 ? "" : I18n.tr("Rashin")
                 font.features: ({ "tnum": 1 })
             }
             Loader {

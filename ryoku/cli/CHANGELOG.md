@@ -1,6 +1,10 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku doctor` clears the retired clipboard panel settings.** The six size
+  and corner keys under `clipboard` in `shell.json` are removed; weekly clearing
+  and everything else stay as they were
+  (`internal/doctor/reconcile_retired_clipboard_layout.go`).
 - **`ryoku doctor` moves Quick settings to its new default once.** A box still
   on the old top-left position or the old block order gets the top right and
   the connections-first order; a reordered or partly hidden panel keeps its

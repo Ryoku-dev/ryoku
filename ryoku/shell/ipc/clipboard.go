@@ -55,6 +55,19 @@ type clipEntry struct {
 	thumbBytes int
 }
 
+// at is derived from ts on the way out so the persisted clock stays the only copy time
+func (e *clipEntry) MarshalJSON() ([]byte, error) {
+	type plain clipEntry
+	var at int64
+	if ms := e.ts.UnixMilli(); ms > 0 {
+		at = ms
+	}
+	return json.Marshal(struct {
+		*plain
+		At int64 `json:"at,omitempty"`
+	}{(*plain)(e), at})
+}
+
 type clipState struct {
 	primary  primarySelectionState
 	mu       sync.Mutex

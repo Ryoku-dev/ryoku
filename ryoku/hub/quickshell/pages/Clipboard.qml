@@ -6,8 +6,8 @@ import "../components"
 import "../components/desktop-dock"
 import "../schema/clipboard.js" as Schema
 
-// the clipboard panel's size and corners, and its history: what it holds,
-// clearing it now, and clearing it every week
+// opening the clipboard, and its history: what it holds, clearing it now,
+// and clearing it every week
 Item {
     id: root
 

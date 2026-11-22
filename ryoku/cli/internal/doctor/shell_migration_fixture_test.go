@@ -17,6 +17,12 @@ var shell0755DocumentedDrops = map[string]string{
 	"barHeight":                                "frame bars own rail geometry",
 	"bars.frame.enable_frame":                  "nothing read it; frameEnabled switches the frame",
 	"barPosition":                              "frame bars own rail placement",
+	"clipboard.bottomPercent":                  "the clipboard palette takes its size and corners from the design",
+	"clipboard.cardRadius":                     "the clipboard palette takes its size and corners from the design",
+	"clipboard.heightPercent":                  "the clipboard palette takes its size and corners from the design",
+	"clipboard.paneRadius":                     "the clipboard palette takes its size and corners from the design",
+	"clipboard.panelRadius":                    "the clipboard palette takes its size and corners from the design",
+	"clipboard.widthPercent":                   "the clipboard palette takes its size and corners from the design",
 	"frameBars.dock":                           "the universal dock owns this store",
 	"frameBars.dock.pinned":                    "pins move to dock.pinned",
 	"frameBars.menus.quick-settings":           "the global sidebar owns quick settings",
@@ -85,6 +91,7 @@ func runShellStoreMigrations(t *testing.T, raw []byte) []byte {
 	apply("migrateAskKeybind", migrateAskKeybind)
 	apply("stripShimaFrameMusicKey", stripShimaFrameMusicKey)
 	apply("stripIrisBatteryThresholds", stripIrisBatteryThresholds)
+	apply("stripRetiredClipboardLayout", stripRetiredClipboardLayout)
 	return raw
 }
 

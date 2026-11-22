@@ -75,7 +75,8 @@ Item {
     }
 
     function settleScroll() {
-        if (!flick || !glide)
+        // a list still being laid out has no viewport to reveal a row in
+        if (!flick || !glide || flick.height <= 0)
             return;
         glide.stop();
         const index = Geometry.indexOf(root.layout.rows, root.selectedId);

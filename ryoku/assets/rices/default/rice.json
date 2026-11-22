@@ -201,13 +201,7 @@
         }
       },
       "clipboard": {
-        "bottomPercent": 0,
-        "cardRadius": 9,
-        "heightPercent": 42,
-        "paneRadius": 12,
-        "panelRadius": 18,
-        "pruneWeekly": false,
-        "widthPercent": 65
+        "pruneWeekly": false
       },
       "dock": {
         "autohide": false,

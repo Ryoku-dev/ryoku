@@ -13,6 +13,7 @@ Item {
 
     required property real s
     property alias text: input.text
+    readonly property alias cursorPosition: input.cursorPosition
     property string token: ""
     property string placeholder: ""
     property Component accessory: null

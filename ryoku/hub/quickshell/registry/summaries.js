@@ -338,9 +338,7 @@ function pageSummary(id, ctx) {
         var gap = ctx.settings("controls.edgeGap");
         return ctx.tr(where) + ", " + ctx.tr("%1 px from the edges").replace("%1", gap === undefined || gap === null ? 12 : gap);
     case "clipboard":
-        var width = ctx.settings("clipboard.widthPercent");
-        return ctx.tr("Panel %1% wide").replace("%1", width === undefined || width === null ? 65 : width) + ", "
-            + (ctx.settings("clipboard.pruneWeekly") === true ? ctx.tr("cleared every week") : ctx.tr("kept until you clear it"));
+        return ctx.settings("clipboard.pruneWeekly") === true ? ctx.tr("Cleared every week") : ctx.tr("Kept until you clear it");
     case "game-bar":
         // shell.json is read once the daemon answers; until then the fixed line
         var playing = ctx.settings("gamebar.enabled");

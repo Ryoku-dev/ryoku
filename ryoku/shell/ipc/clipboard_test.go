@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
@@ -86,6 +87,65 @@ func TestClipPromote(t *testing.T) {
 	}
 	if s.promoteLocked(99) != nil {
 		t.Error("promoteLocked of an unknown id should be nil")
+	}
+}
+
+func clipFrame(t *testing.T, s *clipState) []map[string]any {
+	t.Helper()
+	s.publish()
+	var frame struct {
+		Entries []map[string]any `json:"entries"`
+	}
+	if err := json.Unmarshal(s.topic.last, &frame); err != nil {
+		t.Fatalf("decode frame %s: %v", s.topic.last, err)
+	}
+	return frame.Entries
+}
+
+// Every frame entry carries at, its copy time in Unix milliseconds, so the
+// palette can show and group by age; an entry with no known time leaves it out.
+func TestClipFrameCarriesCopyTime(t *testing.T) {
+	copied := time.UnixMilli(1_700_000_000_123)
+	s := &clipState{topic: newStateTopic()}
+	s.pushLocked(&clipEntry{hash: 1, Kind: "text", Mime: "text/plain", Size: 5, Preview: "hello"})
+	s.pushLocked(&clipEntry{
+		hash: 2, Kind: "image", Mime: "image/png", Size: 2048, ThumbPath: "/cache/thumb-0000000000000002.png",
+		ThumbW: 256, ThumbH: 128, W: 1024, H: 512, Starred: true, ts: copied,
+	})
+
+	ents := clipFrame(t, s)
+	if len(ents) != 2 {
+		t.Fatalf("frame has %d entries, want 2", len(ents))
+	}
+	raw, _ := json.Marshal(ents[0])
+	t.Logf("sample frame entry: %s", raw)
+	want := map[string]any{
+		"id": 2.0, "kind": "image", "mime": "image/png", "size": 2048.0,
+		"thumb": "/cache/thumb-0000000000000002.png", "thumbW": 256.0, "thumbH": 128.0,
+		"w": 1024.0, "h": 512.0, "starred": true, "at": float64(copied.UnixMilli()),
+	}
+	if !reflect.DeepEqual(ents[0], want) {
+		t.Errorf("timed entry = %v, want %v", ents[0], want)
+	}
+	wantUnknown := map[string]any{
+		"id": 1.0, "kind": "text", "mime": "text/plain", "size": 5.0, "preview": "hello", "starred": false,
+	}
+	if !reflect.DeepEqual(ents[1], wantUnknown) {
+		t.Errorf("untimed entry = %v, want %v (no at)", ents[1], wantUnknown)
+	}
+
+	s.entries[1].ts = time.Unix(0, 0)
+	if _, ok := clipFrame(t, s)[1]["at"]; ok {
+		t.Error("an entry restored with a zero persisted ts should leave at out")
+	}
+
+	s.mu.Lock()
+	s.promoteLocked(2)
+	s.mu.Unlock()
+	after := clipFrame(t, s)
+	at, _ := after[0]["at"].(float64)
+	if after[0]["id"] != 2.0 || at <= float64(copied.UnixMilli()) {
+		t.Errorf("after promote, front entry = %v, want id 2 with at past %d", after[0], copied.UnixMilli())
 	}
 }
 

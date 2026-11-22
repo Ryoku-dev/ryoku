@@ -1,6 +1,14 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Super+V opens a new clipboard palette, beside the Rashin bar.** One field
+  with Recent and Starred tabs, the list on the left and the selected item read
+  closer on the right: pictures whole, colours as swatches, links with their full
+  address, code and commands in mono. It shows when each item was copied, groups
+  them by day, underlines what a search matched, and draws natively in all four
+  designs. Delete has a five-second undo, Ctrl+1 to Ctrl+9 copy a row, and
+  Ctrl+K lists every action (`modules/clipboard/`). The daemon's clipboard frame
+  now carries each entry's copy time (`ipc/clipboard.go`).
 - **Quick settings is redesigned and opens at the top right, under the bar.**
   It reads connections and switches first, then volume and brightness, power
   mode, system status and the session buttons, and wears each design natively:

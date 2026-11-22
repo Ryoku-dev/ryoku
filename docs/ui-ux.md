@@ -464,8 +464,15 @@ below are what each surface becomes.
   draw their live piece maps in lapis while moving, jade when landed, amber when
   paused and jasper when failed. Nothing breathes or glows while idle
   ([sidebars.md](sidebars.md)).
-- **Clipboard, voice.** A `stone4` cut plane with one field. Rows take the hover
-  plane, never a left accent bar. Nothing breathes or glows while idle.
+- **Clipboard** (`Super+V`). The Rashin bar's sibling, on the same line: one
+  field with Recent and Starred tabs at its end, the list on the left, the
+  selected item read closer on the right, and a foot that names what Enter does
+  and `Actions Ctrl K`. Rows are drawn for what they hold (a thumbnail, a colour
+  swatch, mono for commands and code); one selection plate glides between rows,
+  never a left accent bar. Nothing breathes or glows while idle
+  ([sidebars.md](sidebars.md)).
+- **Voice.** A `stone4` cut plane with one field. Rows take the hover plane,
+  never a left accent bar. Nothing breathes or glows while idle.
 - **Notifications.** Ryoku's own card takes the design in use, switched live
   from `theme.design` (`modules/notifications/NotificationLook.qml`,
   `designs/`). Each look sets the column's width, gap and settle

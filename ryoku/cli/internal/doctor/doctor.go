@@ -338,6 +338,7 @@ func reconcilers() []reconciler {
 		{i18n.T("stage migration leftovers"), reconcileStageLeftovers},
 		{i18n.T("retired sidebar settings"), reconcileSidebarRework},
 		{i18n.T("Quick settings layout"), reconcileQuickSettingsLayout},
+		{i18n.T("retired clipboard panel keys"), reconcileRetiredClipboardLayout},
 		{i18n.T("retired panel keybind"), reconcileAskKeybind},
 		{i18n.T("retired Shima frame music key"), reconcileShimaFrameMusic},
 		{i18n.T("retired Shima battery warning thresholds"), reconcileIrisBatteryThresholds},

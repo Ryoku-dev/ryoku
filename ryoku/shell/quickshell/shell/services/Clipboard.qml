@@ -12,9 +12,8 @@ import Ryoku.Ui.Singletons
 // entry already carries its resolved view: a "text"
 // entry has a 200-character preview, an "image" entry has a persisted thumbnail
 // file and size (thumb, thumbW/thumbH) plus its source pixel size (w/h), and a
-// "binary" entry has its mime and byte size.
-// Copy re-sets the Wayland selection; there is no synthetic paste. Contract 07
-// sec 2.2/3/4.2.
+// "binary" entry has its mime and byte size. at is when it was copied, in ms.
+// Copy re-sets the Wayland selection, there is no synthetic paste.
 Singleton {
     id: root
 

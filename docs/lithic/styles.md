@@ -205,9 +205,9 @@ UI against the Hub (2026-11-16).
 
 | Stack | Surfaces on it | Four styles | Ryoku and wallpaper colours from the desktop | Light, dark, contrast, tint |
 |---|---|---|---|---|
-| QML Lithic library | the Hub, quick settings, the Rashin bar, Kit, the dictation card, the game bar, the OSD, notification pop-ups, ryoshot | Yes | Yes | Yes |
+| QML Lithic library | the Hub, quick settings, the Rashin bar, the clipboard, Kit, the dictation card, the game bar, the OSD, notification pop-ups, ryoshot | Yes | Yes | Yes |
 | `Ryoku.Ui` Tokens | Ask, launcher, welcome, ryopin, keys hint, the Stage Editor pages, RyoStore, the session confirm, Orpheus's kit | Corners only, and always rounded (`Tokens.qml:138`) | The desktop palette only; never reads `theme.colours` (`Tokens.qml:319`) | Light and dark from the palette; no contrast or tint |
-| Shell `Theme` singleton | the bar frame, popouts, the notification history, clipboard, the Ryoku dock, Kairos, store bar styles | No: a fixed radius, never reads `theme.design` | No: Matugen roles only | Light and dark from the palette |
+| Shell `Theme` singleton | the bar frame, popouts, the notification history, the Ryoku dock, Kairos, store bar styles | No: a fixed radius, never reads `theme.design` | No: Matugen roles only | Light and dark from the palette |
 | Private theme copies | the launcher, workspace overview, desktop widgets, the Ryogami picker, the plugin kit | No | No: each keeps its own palette chain or fixed values | Their own |
 | Go library (Gio, terminal) | Rashin, Ryotunes | Yes (Gio; the terminal stays Lithic) | Yes: `palette.ReadDesktop` and `WatchDesktop`; Rashin follows the desktop without a second style or colour setting | Yes |
 | Web library | Ryoku web pages | Not yet: always Lithic | Both exist, but each page picks | Yes |
