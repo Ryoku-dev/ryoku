@@ -172,19 +172,24 @@ func sameContent(a, b string) (bool, error) {
 	for {
 		na, erra := io.ReadFull(fa, ba)
 		nb, errb := io.ReadFull(fb, bb)
+		endA, endB := atEnd(erra), atEnd(errb)
+		if erra != nil && !endA {
+			return false, erra
+		}
+		if errb != nil && !endB {
+			return false, errb
+		}
 		if na != nb || !bytes.Equal(ba[:na], bb[:nb]) {
 			return false, nil
 		}
-		if errors.Is(erra, io.EOF) || errors.Is(erra, io.ErrUnexpectedEOF) {
-			return errors.Is(errb, io.EOF) || errors.Is(errb, io.ErrUnexpectedEOF), nil
-		}
-		if erra != nil {
-			return false, erra
-		}
-		if errb != nil {
-			return false, errb
+		if endA || endB {
+			return endA && endB, nil
 		}
 	}
+}
+
+func atEnd(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // copyNew writes through a hidden temp name the library walk ignores, then
@@ -207,13 +212,16 @@ func copyNew(src, dest string) error {
 	if err == nil || errors.Is(err, os.ErrExist) {
 		return err
 	}
-	// FAT, exFAT and some FUSE mounts have no hard links. Exclusive create
-	// still refuses a taken name; the file is just visible while it fills.
-	out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	// FAT, exFAT and some FUSE mounts have no hard links. Claim the name with
+	// an exclusive empty placeholder, then rename the finished copy over our
+	// own placeholder: a taken name is still refused, and the picture is only
+	// ever visible complete.
+	claim, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
-	if err := copyInto(out, tmp.Name()); err != nil {
+	claim.Close()
+	if err := os.Rename(tmp.Name(), dest); err != nil {
 		os.Remove(dest)
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +32,7 @@ func main() {
 	// CLI this replaces (keybinds and scripts shell out to it).
 	switch args[0] {
 	case "wallpaper", "depth":
-		line := strings.Join(args, " ")
-		reply, err := sendLine(line)
+		reply, err := sendLine(clientLine(args))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "ryogami:", err)
 			os.Exit(1)
@@ -179,4 +179,25 @@ func jsonInt(v interface{}) int {
 		return int(f)
 	}
 	return 0
+}
+
+// clientLine joins a verb for the daemon. An import path is resolved here,
+// since the daemon's working directory is not the caller's.
+func clientLine(args []string) string {
+	line := strings.Join(args, " ")
+	if len(args) < 3 || args[0] != "wallpaper" || args[1] != "import" {
+		return line
+	}
+	rest, screen := extractScreen(strings.Join(args[2:], " "))
+	if rest == "" || filepath.IsAbs(rest) {
+		return line
+	}
+	abs, err := filepath.Abs(rest)
+	if err != nil {
+		return line
+	}
+	if screen != "" {
+		return "wallpaper import --screen " + screen + " " + abs
+	}
+	return "wallpaper import " + abs
 }

@@ -29,3 +29,27 @@ func TestMain(m *testing.M) {
 	os.RemoveAll(root)
 	os.Exit(code)
 }
+
+func TestImportLineResolvesRelativePathsInTheCaller(t *testing.T) {
+	dir := t.TempDir()
+	prev, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(prev) })
+	cases := map[string][]string{
+		"wallpaper import " + filepath.Join(dir, "my photo.jpg"):                {"wallpaper", "import", "my", "photo.jpg"},
+		"wallpaper import --screen DP-1 " + filepath.Join(dir, "a.png"):         {"wallpaper", "import", "--screen", "DP-1", "a.png"},
+		"wallpaper import /already/abs.png":                                     {"wallpaper", "import", "/already/abs.png"},
+		"wallpaper set photo.jpg":                                               {"wallpaper", "set", "photo.jpg"},
+		"wallpaper import --screen DP-1 " + filepath.Join(dir, "sub", "b.webp"): {"wallpaper", "import", "--screen", "DP-1", "sub/b.webp"},
+	}
+	for want, args := range cases {
+		if got := clientLine(args); got != want {
+			t.Errorf("clientLine(%q) = %q, want %q", args, got, want)
+		}
+	}
+}
