@@ -69,11 +69,12 @@ Dialog {
         ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
     // moving pictures are a badge holder's, the rule the backend keeps too
     readonly property bool movingAllowed: !!Badge.ownBadge
-    // Built-in styles are owned by verified badge logins. Only authorized styles are selectable.
-    readonly property var styleNames: ({ stand: I18n.tr("Stand"), eidolon: "EIDOLON" })
+    // a card style is one badge holder's own look, set up for them rather than picked here: the
+    // studio offers no choice of style, only the controls of a style the card already wears and
+    // the badge's login owns. Everyone else's look is their own card design
+    readonly property var styleNames: ({ stand: I18n.tr("Stand") })
     readonly property var ownStyles: Badge.ownStyles.filter(style => root.styleNames[style] !== undefined)
     readonly property bool standStyle: root.ownStyles.indexOf("stand") >= 0 && root.val("style", "classic") === "stand"
-    readonly property bool eidolonStyle: root.ownStyles.indexOf("eidolon") >= 0 && root.val("style", "classic") === "eidolon"
     property string cutoutError: ""
     property bool cutting: false
     // Ryogami's wallpaper when it is a video: { video, path, bytes, size, limit }
@@ -344,8 +345,7 @@ Dialog {
                     anchors.fill: parent
                     hoverEnabled: true
                     readonly property Item figure: root.shownView === "card" ? liveCard.figure : (homePlate.item ? homePlate.item.figureItem : null)
-                    cursorShape: root.custom && !(root.eidolonStyle && root.shownView === "card")
-                        ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
+                    cursorShape: root.custom ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
                     property real ox: 0
                     property real oy: 0
                     // the figure's size on screen, scales and all
@@ -357,8 +357,7 @@ Dialog {
                     }
                     onPressed: m => { ox = m.x; oy = m.y; }
                     onPositionChanged: m => {
-                        if (!pressed || !root.custom || (root.eidolonStyle && root.shownView === "card")
-                                || root.hero.zoom <= 1.001 && !root.hero.fit)
+                        if (!pressed || !root.custom || root.hero.zoom <= 1.001 && !root.hero.fit)
                             return;
                         var size = drag.shown(), spare = Math.max(0.05, root.hero.zoom - 1);
                         var fx = Math.max(0, Math.min(1, root.hero.focalX - (m.x - ox) / (size.w * spare)));
@@ -368,7 +367,7 @@ Dialog {
                         root.setHero({ focalX: root.round(fx), focalY: root.round(fy) }, I18n.tr("Card framing"));
                     }
                     onWheel: w => {
-                        if (!root.custom || (root.eidolonStyle && root.shownView === "card")) {
+                        if (!root.custom) {
                             w.accepted = false;
                             return;
                         }
@@ -383,9 +382,7 @@ Dialog {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: root.eidolonStyle && root.shownView === "card"
-                    ? I18n.tr("This card uses a fixed portrait")
-                    : root.custom ? I18n.tr("Drag your picture to move it, scroll to zoom")
+                text: root.custom ? I18n.tr("Drag your picture to move it, scroll to zoom")
                     : I18n.tr("Choose your own picture to frame and adjust it")
                 typeRole: "caption"
                 inkRole: "fg3"
@@ -435,17 +432,8 @@ Dialog {
                     }
 
                     // Picture: the figure
-                    Label {
-                        visible: root.tab === "picture" && root.eidolonStyle && root.shownView === "card"
-                        width: parent.width
-                        text: I18n.tr("EIDOLON uses fixed artwork. Select Classic in Layout to edit your picture.")
-                        typeRole: "body"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
-                    }
                     Column {
-                        visible: root.tab === "picture" && !(root.eidolonStyle && root.shownView === "card")
+                        visible: root.tab === "picture"
                         width: parent.width
                         spacing: LithicTokens.space.s3
                         Flow {
@@ -562,16 +550,7 @@ Dialog {
 
                     // Adjust: your own picture's look, framing and tone
                     Label {
-                        visible: root.tab === "adjust" && root.eidolonStyle && root.shownView === "card"
-                        width: parent.width
-                        text: I18n.tr("EIDOLON has a fixed portrait. Switch to Classic in Layout for picture adjustments.")
-                        typeRole: "body"
-                        inkRole: "fg2"
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideNone
-                    }
-                    Label {
-                        visible: root.tab === "adjust" && !(root.eidolonStyle && root.shownView === "card") && !root.custom
+                        visible: root.tab === "adjust" && !root.custom
                         width: parent.width
                         text: I18n.tr("Choose your own picture in Picture, then frame and tune it here.")
                         typeRole: "body"
@@ -580,7 +559,7 @@ Dialog {
                         elide: Text.ElideNone
                     }
                     Slab {
-                        visible: root.tab === "adjust" && !(root.eidolonStyle && root.shownView === "card") && root.custom
+                        visible: root.tab === "adjust" && root.custom
                         width: parent.width
                         Column {
                             width: parent.width
@@ -985,22 +964,6 @@ Dialog {
                                     }
                                     accessibleName: I18n.tr("Home shows")
                                     onActivated: index => root.put("homeView", "plate", index === 1 ? "card" : "plate", I18n.tr("Home view"))
-                                }
-                            }
-                            SettingRow {
-                                width: parent.width
-                                visible: root.ownStyles.length > 0
-                                title: I18n.tr("Owned card style")
-                                detail: I18n.tr("Available to your verified badge; your choice is saved")
-                                Segmented {
-                                    model: [I18n.tr("Classic")].concat(root.ownStyles.map(style => root.styleNames[style]))
-                                    Binding on currentIndex {
-                                        value: root.ownStyles.indexOf(root.val("style", "classic")) + 1
-                                    }
-                                    accessibleName: I18n.tr("Owned card style")
-                                    onActivated: index => root.put("style", "classic",
-                                        index === 0 ? "classic" : root.ownStyles[index - 1],
-                                        I18n.tr("Card style"))
                                 }
                             }
                             SettingRow {

@@ -165,7 +165,7 @@ func validateProfile(raw json.RawMessage) (profileModel, error) {
 		err = nil
 		switch key {
 		case "style":
-			err = profileChoice(value, "", "classic", "stand", "eidolon")
+			err = profileChoice(value, "", "classic", "stand")
 		case "preset":
 			err = profileChoice(value, "", "full", "minimal")
 		case "heroSide":

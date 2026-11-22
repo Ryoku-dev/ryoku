@@ -44,17 +44,17 @@ Item {
     readonly property color accent: card.palette ? card.palette.accent : Lithic.sel
     readonly property color plate: card.palette ? card.palette.plate : Lithic.stone1
     readonly property bool moving: card.live && card.visible && !Lithic.reduceMotion
-    // Built-in card styles require an owner badge. Traded cards use verified signed records.
-    readonly property string style: card.traded
-        ? (card.badgeVerified && ["stand", "eidolon"].indexOf(card.traded.style) >= 0 ? card.traded.style : "classic")
-        : (Badge.ownStyles.indexOf(card.f("style", "classic")) >= 0 ? card.f("style", "classic") : "classic")
+    // a card style is one badge holder's own look: "stand" draws it as a Stand card
+    // (styles/StandCard.qml). Your card wears it only while your badge's login owns it; a friend's
+    // only from their verified live record, which the binder vouches for the same way
+    readonly property string style: card.traded ? (card.badgeVerified && card.traded.style === "stand" ? "stand" : "classic")
+        : (Badge.ownStyles.indexOf("stand") >= 0 && card.f("style", "classic") === "stand" ? "stand" : "classic")
     readonly property bool classic: card.style === "classic"
     // the classic face's own motion; under another style it stays still and unseen
     readonly property bool classicMoving: card.classic && card.moving
     readonly property vector2d tilt: card.classicMoving ? card.foil : Qt.vector2d(0, 0)
     readonly property bool imagesReady: card.classic
         ? background.ready && artLayers.ready && frameOverlay.ready && (card.cardSpec || cardFigure.ready) && (!card.badge || badgeSeal.ready)
-        : card.style === "eidolon" ? !!eidolonFace.item && eidolonFace.item.ready
         : !!standFace.item && standFace.item.ready
     readonly property var designEffects: card.cardSpec ? card.cardSpec.effects || [] : []
     readonly property real glitchStrength: {
@@ -72,8 +72,7 @@ Item {
     // a tier to show instead of the machine's own (About's rarity ladder previews them), or -1
     property int showLevel: -1
     // the figure, for whoever lets the reader drag it to frame it
-    readonly property Item figure: eidolonFace.item ? eidolonFace.item.figure
-        : standFace.item ? standFace.item.figure : cardFigure
+    readonly property Item figure: standFace.item ? standFace.item.figure : cardFigure
     readonly property bool secret: card.level >= 7
     readonly property bool master: card.level === 8
     // One clock drives all live effects. Still renders always read phase zero.
@@ -717,16 +716,10 @@ Item {
     // a badge holder's Stand card, drawn from this card's facts
     Loader {
         id: standFace
-        active: card.style === "stand"
+        active: !card.classic
         sourceComponent: StandCard {
             host: card
         }
-    }
-
-    Loader {
-        id: eidolonFace
-        active: card.style === "eidolon"
-        sourceComponent: EidolonCard { host: card }
     }
 
     // the card's code: three tick rulers that rule off the parts of the card and carry its
@@ -745,8 +738,7 @@ Item {
             Rectangle {
                 x: -4; y: -2
                 width: card.width - 72; height: 14
-                color: eidolonFace.item ? eidolonFace.item.paper
-                    : standFace.item ? standFace.item.paper : card.plate
+                color: standFace.item ? standFace.item.paper : card.plate
             }
             Repeater {
                 model: ruler.levels.length
@@ -755,9 +747,7 @@ Item {
                     x: index * card.code.pitch
                     width: card.code.tick
                     height: (ruler.levels[index] + 1) * card.code.unit
-                    color: eidolonFace.item ? eidolonFace.item.ink
-                        : standFace.item ? standFace.item.ink
-                        : card.palette ? card.ink : card.level >= 5 ? card.tierMetal : Lithic.fg2
+                    color: standFace.item ? standFace.item.ink : card.palette ? card.ink : card.level >= 5 ? card.tierMetal : Lithic.fg2
                     // the share still is drawn at twice the display scale: at 133% a 2-unit tick
                     // spans 5.33 pixels, and snapped edges made some ticks 5 wide and some 6, so a
                     // wide tick read as the level above. Blended edges keep each tick's ink exact

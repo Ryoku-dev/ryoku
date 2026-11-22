@@ -129,7 +129,7 @@ export async function verifyCode(kind, text, env = {}) {
 // look, signed into a v3 or v4 record, and other holders make theirs through a team design.
 // ryoku-hub keeps the same table (cardStyleOwners in ryoku/hub/backend/cardstyles.go); the
 // shared vectors compare them. Classic cards stay v2 and never name a style.
-export const CARD_STYLE_OWNERS = Object.freeze({ eidolon: Object.freeze(['aethctl']), stand: Object.freeze(['neur0map']) });
+export const CARD_STYLE_OWNERS = Object.freeze({ stand: Object.freeze(['neur0map']) });
 export const CARD_STYLES = Object.freeze(Object.keys(CARD_STYLE_OWNERS));
 export const styleOwnedBy = (style, login) => typeof login === 'string' && Object.hasOwn(CARD_STYLE_OWNERS, style) && CARD_STYLE_OWNERS[style].includes(login.toLowerCase());
 const STYLE = /^[a-z0-9-]{1,32}$/;
