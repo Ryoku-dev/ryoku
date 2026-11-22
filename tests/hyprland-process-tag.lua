@@ -19,17 +19,21 @@ local function gone(pid)
     end
 end
 
-local handlers, dispatched, rules, windows, timers
+local handlers, dispatched, rules, windows, timers, rule_order
 
 local function load(open_windows)
-    handlers, dispatched, rules, windows, timers = {}, {}, {}, open_windows or {}, {}
+    handlers, dispatched, rules, windows, timers, rule_order = {}, {}, {}, open_windows or {}, {}, {}
     local environment = {
         hl = {
             on = function(event, handler)
                 handlers[event] = handlers[event] or {}
                 table.insert(handlers[event], handler)
             end,
-            window_rule = function(rule) rules[rule.name] = rule end,
+            window_rule = function(rule)
+                rules[rule.name] = rule
+                rule_order[rule.name] = #rule_order + 1
+                rule_order[#rule_order + 1] = rule.name
+            end,
             dispatch = function(action) dispatched[#dispatched + 1] = action end,
             dsp = { window = {
                 tag = function(args) return args end,
@@ -190,7 +194,7 @@ assert(ue_rule and ue_rule.match.tag == "unreal-engine", "no rule carries the un
 for _, prop in ipairs({ "no_blur", "no_shadow", "opaque", "idle_inhibit" }) do
     assert(ue_rule[prop] == rules["steam-native"][prop], "unreal-engine rule differs on " .. prop)
 end
-assert(ue_rule.immediate == nil, "the editor UI must not tear")
+assert(ue_rule.immediate == false, "the editor UI must not tear, even when Steam launched it")
 assert(rules["unreal-game"] and rules["unreal-game"].immediate == true, "UE game windows must tear")
 assert(rules["unreal-play-in-editor"] and rules["unreal-play-in-editor"].immediate == true
     and rules["unreal-play-in-editor"].match.tag == "unreal-engine", "the PIE window must tear")
@@ -209,6 +213,15 @@ proc(520, "UnrealEditor", 1, 90, "/opt/ue/Engine/Binaries/Linux/UnrealEditor /p/
 expect(open(520, "ue-game"), "+unreal-engine,+unreal-game", "the editor binary run with -game")
 proc(521, "Game.exe", 1, 91, "/games/Game.exe -game")
 expect(open(521, "not-ue"), "", "-game on a binary that is not Unreal")
+proc(522, "UnrealEditor", 1, 92, "/opt/ue/Engine/Binaries/Linux/UnrealEditor /p/Game.uproject -gamepad")
+expect(open(522, "ue-gamepad"), "+unreal-engine", "an option that only starts with -game")
+
+-- Rule order: the editor's immediate = false follows the steam-game rule, and
+-- the game window rules follow the editor's.
+local at = rule_order
+assert(at["steam-native-launched"] < at["unreal-engine"], "the editor rule must follow the steam-game rule")
+assert(at["unreal-engine"] < at["unreal-game"] and at["unreal-engine"] < at["unreal-play-in-editor"],
+    "the game window rules must follow the editor rule")
 
 -- Browsers are tagged only; the opt-in rule comes from the provider.
 proc(600, "firefox", 1, 80, "/usr/lib/firefox/firefox")

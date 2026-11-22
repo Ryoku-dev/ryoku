@@ -302,10 +302,13 @@ end)
 -- props except tearing: Hyprland tears only a fullscreen window, and a
 -- fullscreened editor UI that tears looks broken. Its game windows tear like
 -- any game: a process run with -game, and the Play In Editor window.
+-- immediate = false, not left out: an editor Steam launched also carries the
+-- steam-game tag, and this later rule has to win over its tearing. The game
+-- window rules below come later still.
 local function steam_native_untorn_rule(name, match)
     local rule = { name = name, match = match }
     for k, v in pairs(steam_native) do rule[k] = v end
-    rule.immediate = nil
+    rule.immediate = false
     hl.window_rule(rule)
 end
 steam_native_untorn_rule("unreal-engine", { tag = "unreal-engine" })
@@ -318,7 +321,7 @@ hl.window_rule({
 local unreal = process_tag.runs({ "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/" })
 process_tag.add("unreal-engine", unreal)
 process_tag.add("unreal-game", function(pid)
-    return process_tag.cmdline(pid):find("\0-game", 1, true) ~= nil and unreal(pid)
+    return process_tag.cmdline(pid):find("\0-game\0", 1, true) ~= nil and unreal(pid)
 end)
 
 -- Browsers are tagged only. Whether they get the untorn steam-native props
