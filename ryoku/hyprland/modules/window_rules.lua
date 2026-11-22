@@ -313,7 +313,7 @@ hl.window_rule({
 -- Settings > Window Manager > Look), since a see-through page is hard to read
 -- for some while others like the look; the provider writes that rule.
 process_tag.add("browser", process_tag.runs({
-    "^firefox", "^chrom", "^google%-chrome", "^brave", "^vivaldi", "^opera", "^msedge",
+    "^firefox", "^chrome$", "^chromium", "^google%-chrome", "^brave", "^vivaldi", "^opera", "^msedge",
     "^zen$", "^zen%-bin$", "^librewolf", "^floorp", "^waterfox", "^mullvadbrowser", "^thorium",
 }))
 

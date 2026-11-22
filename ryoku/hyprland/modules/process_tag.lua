@@ -73,8 +73,7 @@ local launchers = {
 function M.runs(patterns)
     return function(pid)
         local depth = 0
-        for p in M.ancestors(pid) do
-            local comm = M.comm(p)
+        return M.walk(pid, function(p, comm)
             local argv0 = M.cmdline(p):match("^[^\0]*") or ""
             local base = argv0:match("([^/]+)$") or argv0
             for _, pat in ipairs(patterns) do
@@ -82,8 +81,7 @@ function M.runs(patterns)
             end
             depth = depth + 1
             if launchers[comm] or depth >= 5 then return false end
-        end
-        return false
+        end)
     end
 end
 

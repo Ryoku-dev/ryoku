@@ -125,6 +125,34 @@ expect(open(220, "race"), "", "a walk through an exited process")
 proc(203, "bwrap", 202, 23)
 expect(open(220, "race-2"), "+steam-game", "the retry once the chain reads again")
 
+-- Unreal Engine, always opaque: the editor by name, a pop-up helper by its
+-- parent, a build from an engine tree by its path.
+proc(500, "UnrealEditor", 1, 70, "/opt/ue/Engine/Binaries/Linux/UnrealEditor")
+proc(501, "UnrealEditor", 500, 71)
+proc(502, "MyGameEditor", 1, 72, "/home/u/ue/Engine/Binaries/Linux/MyGameEditor -game")
+proc(503, "CrashReportClie", 1, 73)
+load()
+assert(rules["unreal-engine-opaque"] and rules["unreal-engine-opaque"].match.tag == "unreal-engine",
+    "no rule carries the unreal-engine tag")
+expect(open(500, "ue"), "+unreal-engine", "the editor")
+expect(open(501, "ue-popup"), "+unreal-engine", "an editor child process")
+expect(open(502, "ue-path"), "+unreal-engine", "a binary under Engine/Binaries")
+expect(open(503, "ue-crash"), "+unreal-engine", "the crash reporter (comm cut to 15)")
+
+-- Browsers are tagged only; the opt-in rule comes from the provider.
+proc(600, "firefox", 1, 80, "/usr/lib/firefox/firefox")
+proc(601, "chrome", 1, 81, "/opt/google/chrome/chrome --app=https://example.org")
+proc(602, "chromium", 1, 82, "/usr/lib/chromium/chromium")
+proc(603, "chromedriver", 1, 83, "/usr/bin/chromedriver")
+proc(604, "sh", 600, 84)
+proc(605, "kitty", 604, 85)
+assert(not rules["ryoku-opaque-browsers"], "browsers must not be pinned by the shipped rules")
+expect(open(600, "ff"), "+browser", "Firefox")
+expect(open(601, "pwa"), "+browser", "a Chrome app window")
+expect(open(602, "chromium"), "+browser", "Chromium")
+expect(open(603, "driver"), "", "chromedriver is not a browser")
+expect(open(605, "kitty-from-ff"), "", "a terminal a browser started through a shell")
+
 -- A config reload tags the windows already open.
 load({ { pid = 220, address = "open-at-reload", tags = {} } })
 expect(tags_for("open-at-reload"), "+steam-game", "the sweep over open windows")
