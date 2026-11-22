@@ -54,6 +54,33 @@ class ShortcutCatalogueExtractionTest(unittest.TestCase):
                          ["Hyprland has no column model."])
 
 
+class ProviderSchemaExtractionTest(unittest.TestCase):
+    def test_provider_row_copy_is_catalogued(self):
+        rows = [
+            {"tab": "Look", "group": "OPACITY", "key": "wm.x.opaque", "label": "Keep it opaque",
+             "desc": "Draw it solid", "ctl": "sw", "src": "desktop.json", "keywords": "glass"},
+            {"tab": "Layout", "group": "SIZE", "key": "wm.x.mode", "label": "Size",
+             "ctl": "seg", "opts": ["full", "custom"], "optLabels": {"full": "Full page"}},
+            {"label": "Modifier", "opts": ["Super", "<super> <alt>"],
+             "optLabels": {"<super> <alt>": "Super + Alt"}},
+            {"tab": "Rules", "label": "Rules", "ctl": "list", "actionLabel": "Add rule",
+             "fields": [{"name": "action", "label": "Action", "opts": ["float"]}]},
+        ]
+        self.assertEqual(sync.wm_schema_strings(rows), [
+            "Look", "OPACITY", "Keep it opaque", "Draw it solid",
+            "Layout", "SIZE", "Size", "Full page", "custom",
+            "Modifier",
+            "Rules", "Rules", "Add rule", "Action", "float"])
+
+    def test_every_provider_schema_file_is_read(self):
+        keys = sync.extract_keys()
+        for name in ("hyprland/schema.json", "niri/schema_layout.json", "wayfire/schema.json"):
+            path = os.path.join(sync.WM_ROOT, name)
+            rows = json.load(open(path, encoding="utf-8"))
+            label = next(r["label"] for r in rows if r.get("label"))
+            self.assertIn(label, keys, name)
+
+
 class LLMUnavailableTest(unittest.TestCase):
     def test_cmd_sync_returns_three_without_writing_catalog(self):
         lang = next(iter(sync.TARGETS))
