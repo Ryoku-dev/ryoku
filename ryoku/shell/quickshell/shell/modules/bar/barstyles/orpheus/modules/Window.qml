@@ -30,7 +30,7 @@ Item {
     }
     readonly property string title: focused
         ? String(focused.title || focused.appId || "Window") : ""
-    readonly property url iconSource: focused ? Icons.path(focused.appId, true) : ""
+    readonly property url iconSource: focused ? Icons.appIcon(focused.appId) : ""
     readonly property real iconSize: Math.round(16 * K.Style.scale)
     readonly property real contentGap: Math.round(6 * K.Style.scale)
     readonly property real layoutPreferredTextWidth: Math.min(
