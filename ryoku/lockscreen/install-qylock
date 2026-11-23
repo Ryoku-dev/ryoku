@@ -70,12 +70,15 @@ if [[ ! -f $BUNDLE/themes/clockwork/orbital/Main.qml ]]; then
   exit 1
 fi
 
+FACELOCK_AUTH_RULE='auth        sufficient  pam_facelock.so'
+
 bundle_generation() {
   (
     cd "$BUNDLE"
     find quickshell-lockscreen themes/clockwork/orbital -type f -print0 |
       LC_ALL=C sort -z |
       xargs -0 sha256sum
+    printf '%s\n' "$FACELOCK_AUTH_RULE"
   ) | sha256sum | cut -d' ' -f1
 }
 BUNDLE_GENERATION="$(bundle_generation)"
@@ -399,6 +402,13 @@ if [[ ${RYOKU_QYLOCK_USER_ONLY:-0} != 1 ]]; then
 fi
 
 # --- 3. in-session lock (user) -----------------------------------------------
+# The stock password service is the only source for its PAM rules. Generate
+# the variant before replacing any live or staged lockscreen files.
+facelock_service="$(awk -v rule="$FACELOCK_AUTH_RULE" '
+  !inserted && $1 == "auth" { print rule; inserted = 1 }
+  { print }
+  END { if (!inserted) exit 1 }
+' "$BUNDLE/quickshell-lockscreen/assets/pam/ryoku-lock-pw")"
 if [[ $LOCK_DIR == "$LIVE_LOCK_DIR" ]]; then
   user rm -rf "$STAGE_ROOT" "$TARGET_HOME/.local/share/quickshell-lockscreen.next" \
     "$QYLOCK_DIR/themes.next"
@@ -415,6 +425,7 @@ echo "  quickshell lockscreen -> $LOCK_DIR"
 user mkdir -p "$TARGET_HOME/.local/share"
 user rm -rf "$LOCK_DIR"
 user cp -a "$BUNDLE/quickshell-lockscreen" "$LOCK_DIR"
+write_user "$LOCK_DIR/assets/pam/ryoku-lock-pw-facelock" <<<"$facelock_service"
 user chmod +x "$LOCK_DIR/lock.sh" "$LOCK_DIR/unlock.sh" \
   "$LOCK_DIR/ryoku-qylock-unlock-prepare"
 

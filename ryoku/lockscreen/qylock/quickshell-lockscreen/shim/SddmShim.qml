@@ -548,7 +548,8 @@ Item {
     PamContext {
         id: pamPw
         property string pendingPassword: ""
-        config: "ryoku-lock-pw"
+        config: Quickshell.env("RYOKU_QYLOCK_FACELOCK") === "on"
+            ? "ryoku-lock-pw-facelock" : "ryoku-lock-pw"
         configDirectory: Quickshell.shellDir + "/assets/pam"
 
         // Once the secure proof starts this conversation, feed a stashed key

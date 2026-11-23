@@ -22,6 +22,10 @@ chmod +x "$tmp/fakebin/pgrep"
 export PATH="$tmp/fakebin:$PATH"
 export XDG_RUNTIME_DIR="$tmp/runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
+export XDG_CONFIG_HOME="$HOME/alternate-config"
+mkdir -p "$XDG_CONFIG_HOME/qylock"
+face_preference="$XDG_CONFIG_HOME/qylock/facelock"
+printf 'on\n' >"$face_preference"
 printf 'legacy\n' >"$live_lock/version"
 printf 'legacy theme\n' >"$live_theme/clockwork/orbital/Main.qml"
 printf 'before stage\n' >"$live_theme/custom/Main.qml"
@@ -124,6 +128,7 @@ fi
 cat >"$tmp/fakebin/quickshell" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$QS_THEME_PATH" >"$THEME_PATH_OBSERVED"
+printf '%s\n' "${RYOKU_QYLOCK_FACELOCK:-off}" >"$THEME_PATH_OBSERVED.facelock"
 exit 0
 EOF
 chmod +x "$tmp/fakebin/quickshell"
@@ -210,6 +215,37 @@ unset held_lock_pid publisher_pid
   printf 'activation discarded an optional theme changed after staging\n' >&2
   exit 1
 }
+
+probe_face_preference() {
+  local inherited=on
+  [[ $1 != on ]] || inherited=off
+  rm -f "$tmp/facelock-probe.facelock"
+  THEME_PATH_OBSERVED="$tmp/facelock-probe" XDG_SESSION_ID=face-test \
+    XDG_SESSION_TYPE=wayland RYOKU_QYLOCK_FACELOCK="$inherited" \
+    "$repo/ryoku/lockscreen/ryoku-qylock-lock" >/dev/null
+  [[ $(<"$tmp/facelock-probe.facelock") == "$1" ]] || {
+    printf 'promoted qylock did not select expected FaceLock state: %s\n' "$1" >&2
+    exit 1
+  }
+}
+[[ $(<"$face_preference") == on ]]
+probe_face_preference on
+pam_dir="$live_lock/assets/pam"
+# The variant must be generated during staging, not shipped as a second copy.
+[[ ! -e "$repo/ryoku/lockscreen/qylock/quickshell-lockscreen/assets/pam/ryoku-lock-pw-facelock" ]] || {
+  printf 'FaceLock PAM service still duplicates the source password stack\n' >&2
+  exit 1
+}
+face_rule='auth        sufficient  pam_facelock.so'
+[[ $(grep -Fxc "$face_rule" "$pam_dir/ryoku-lock-pw-facelock") == 1 ]]
+[[ $(grep -m1 '^auth' "$pam_dir/ryoku-lock-pw-facelock") == "$face_rule" ]]
+cmp "$pam_dir/ryoku-lock-pw" <(grep -Fvx "$face_rule" "$pam_dir/ryoku-lock-pw-facelock")
+printf 'invalid\n' >"$face_preference"
+probe_face_preference off
+printf 'on\nextra\n' >"$face_preference"
+probe_face_preference off
+rm -- "$face_preference"
+probe_face_preference off
 
 stage_current_qylock() {
   RYOKU_QYLOCK_USER_ONLY=1 RYOKU_QYLOCK_MODE=stage \

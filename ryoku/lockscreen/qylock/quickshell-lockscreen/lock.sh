@@ -61,6 +61,15 @@ sleep_while_session_alive() {
 export QML2_IMPORT_PATH="$DIR/imports:${QML2_IMPORT_PATH:-}"
 export QML_XHR_ALLOW_FILE_READ=1
 
+# Read the opt-in before the client starts its first PAM conversation. This
+# lives outside both the live and staged trees replaced by the installer.
+face_preference="${XDG_CONFIG_HOME:-$HOME/.config}/qylock/facelock"
+export RYOKU_QYLOCK_FACELOCK=off
+if [[ -f $face_preference && ! -L $face_preference ]] &&
+   cmp -s -- "$face_preference" <(printf 'on\n'); then
+    export RYOKU_QYLOCK_FACELOCK=on
+fi
+
 # The lock is spawned by the shell daemon, a systemd user service whose env is
 # whatever was imported at login; a daemon (re)started outside that import has
 # no XCURSOR_*, Qt falls back to the "default" theme, and where that resolves to
