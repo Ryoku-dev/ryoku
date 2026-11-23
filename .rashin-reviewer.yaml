@@ -31,6 +31,8 @@ rules:
       - "release/packages/*/*.bundle"
       # Embedded potion-code-16M model weights, MIT licensed.
       - "ryoku/rashin/internal/index/embed/model/**"
+      # The Points Shop's animated Black Prism background, rendered by ryoku/hub/tools/render-black-prism.py.
+      - "ryoku/hub/quickshell/assets/rewards/black-prism.gif"
     # The R2 retention Worker logs through console.log; wrangler tail reads it.
     debug-leftover: ["release/r2-retention/**"]
     # A Python 2 log helper `go mod vendor` copies beside the cgo uTP sources,
