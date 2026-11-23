@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -223,12 +224,79 @@ func (n *nightlightState) intent(args ...string) error {
 // reflects a completed toggle. The script republishes nothing itself; the
 // marker and temp writes land in the state dir, which wakes the watcher to push
 // the new frame.
+var nlLookPath = exec.LookPath
+
+// nlProbeTimeout bounds the synchronous user-manager probe: a wedged systemctl
+// must never stall a toggle. A var so tests shorten the wait instead of sitting
+// through the deadline.
+var nlProbeTimeout = 1500 * time.Millisecond
+
+// nlProbe runs the user-manager probe with the caller's deadline. It is a seam
+// so tests can simulate a session whose manager has gone away (or hangs) without
+// needing to stop one.
+var nlProbe = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
+// nightlightUserManager reports whether the daemon has a user systemd manager
+// to scope into. `systemd-run --user` finds the user bus through XDG_RUNTIME_DIR
+// on its own, so a missing DBUS_SESSION_BUS_ADDRESS does not rule a manager out;
+// only the manager's own answer is proof. The probe is bounded by
+// nlProbeTimeout: a timeout or a failed probe means the manager is unavailable
+// and the backend must be spawned directly instead of losing the toggle. A
+// known state is accepted even when is-system-running exits nonzero, as it
+// does for degraded and starting managers.
+func nightlightUserManager() bool {
+	systemctl, err := nlLookPath("systemctl")
+	if err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), nlProbeTimeout)
+	defer cancel()
+	out, err := nlProbe(ctx, systemctl, "--user", "is-system-running")
+	if ctx.Err() != nil {
+		return false
+	}
+	switch strings.TrimSpace(string(out)) {
+	case "running", "degraded", "starting":
+		// is-system-running exits nonzero for degraded and starting even
+		// though the manager can still run a scope. A command that ran and
+		// reported one of those states answered the probe; only a failure
+		// before the command ran (or a deadline) rules the manager out.
+		var exitErr *exec.ExitError
+		return err == nil || errors.As(err, &exitErr)
+	}
+	return false
+}
+
+// nightlightCommand wraps the backend in a transient user scope when systemd is
+// available, so the gamma process belongs to app.slice instead of the shell
+// service. The backend must survive a shell restart; without a scope it inherits
+// the daemon's cgroup and doctor reports it as a shell child.
+func nightlightCommand(bin string, args ...string) (string, []string) {
+	runner, err := nlLookPath("systemd-run")
+	if err != nil || !nightlightUserManager() {
+		return bin, args
+	}
+	scoped := []string{
+		"--user",
+		"--scope",
+		"--collect",
+		"--quiet",
+		"--slice=app.slice",
+		"--",
+		bin,
+	}
+	return runner, append(scoped, args...)
+}
+
 func (n *nightlightState) run(args ...string) error {
-	bin, err := exec.LookPath("ryoku-cmd-nightlight")
+	bin, err := nlLookPath("ryoku-cmd-nightlight")
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(bin, args...)
+	name, scopedArgs := nightlightCommand(bin, args...)
+	cmd := exec.Command(name, scopedArgs...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
