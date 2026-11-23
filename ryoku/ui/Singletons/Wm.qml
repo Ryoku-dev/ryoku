@@ -229,8 +229,11 @@ Singleton {
         const buckets = ({});
         for (let i = 0; i < tls.length; i++) {
             const t = tls[i];
+            // During output removal a toplevel's screens list can still hold an
+            // entry for the destroyed screen, which reads as null.
+            const scr = t.screens && t.screens.length ? t.screens[0] : null;
             const k = (t.appId || "") + "\u0000" + (t.title || "") + "\u0000"
-                + (t.screens && t.screens.length ? t.screens[0].name : "");
+                + (scr ? scr.name : "");
             (buckets[k] || (buckets[k] = [])).push(t);
         }
         const cursor = ({});
