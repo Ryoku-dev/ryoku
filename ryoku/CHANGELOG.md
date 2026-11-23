@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **The HDR colour control in Displays appears only where it can be applied.**
+  The default renderer ignores the HDR setting and leaves the output SDR, so the
+  control is now hidden on a live session unless the Vulkan renderer is in use;
+  a renderer override from the session environment also reaches the session
+  again (`wm/wayfire`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

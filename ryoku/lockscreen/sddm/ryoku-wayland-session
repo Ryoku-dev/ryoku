@@ -18,7 +18,9 @@ set -u
 # environment.d is loaded by the user manager, not by the compositor process
 # SDDM starts. Pull only Ryoku's shared session contract into this launcher so
 # apps started directly by compositor keybinds see the same Qt, GTK, cursor,
-# QML and PATH values as user services.
+# QML and PATH values as user services. WLR_RENDERER is included so a user's
+# renderer override reaches the session; colour transforms need the Vulkan
+# renderer, so the choice must survive this launcher.
 import_session_environment() {
   local assignment name
   command -v systemctl >/dev/null 2>&1 || return 0
@@ -30,7 +32,7 @@ import_session_environment() {
       QT_QPA_PLATFORMTHEME|GDK_BACKEND|QT_QPA_PLATFORM|\
       QT_AUTO_SCREEN_SCALE_FACTOR|QT_WAYLAND_DISABLE_WINDOWDECORATION|\
       ELECTRON_OZONE_PLATFORM_HINT|GSK_RENDERER|RYOKU_POLKIT_AGENT|\
-      EDITOR|VISUAL)
+      EDITOR|VISUAL|WLR_RENDERER)
         # systemctl emits shell-escaped assignments, including ANSI-C quoted
         # values for semicolons and wildcard characters.
         eval "export $assignment"
