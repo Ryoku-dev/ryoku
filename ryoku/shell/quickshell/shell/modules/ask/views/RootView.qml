@@ -148,6 +148,9 @@ Item {
             } else if (state === "paused") {
                 out.push({ id: "task-resume", label: I18n.tr("Resume"), glyph: "play_arrow", hint: "Ctrl+P", section: "" });
             } else if (state === "error" || state === "stopped") {
+                // a page only a browser gets past is finished in one
+                if (state === "error" && row.task.error && String(row.task.error.code || "") === "browser_check")
+                    out.push({ id: "task-browser", label: I18n.tr("Open in the browser"), glyph: "open_in_browser", hint: "Ctrl+O", section: "" });
                 out.push({ id: "task-retry", label: I18n.tr("Try again"), glyph: "refresh", hint: "Ctrl+R", section: "" });
             } else {
                 out.push({ id: "task-pause", label: I18n.tr("Pause"), glyph: "pause", hint: "Ctrl+P", section: "" });
@@ -497,7 +500,10 @@ Item {
                 root.downloads.retry(task.id);
             else if (id === "task-copy")
                 root.copy(task.url);
-            else if (id === "task-dismiss") {
+            else if (id === "task-browser") {
+                Spawn.runApp(["xdg-open", String(task.url)], { label: "browser" });
+                root.closeRequested();
+            } else if (id === "task-dismiss") {
                 list.keepNear(row.id);
                 root.downloads.seen([String(task.id)], RootLogic.dismissed(Date.now()));
             } else if (id === "task-remove")

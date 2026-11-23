@@ -217,12 +217,16 @@ Item {
         if (!t || String(t.url || "").length === 0)
             return [];
         const state = String(t.state || "");
+        const out = [];
+        // a page only a browser gets past is finished in one
+        if (state === "error" && t.error && String(t.error.code || "") === "browser_check")
+            out.push({ id: "open-page", text: I18n.tr("Open in the browser"), glyph: "open_in_browser" });
         // a torrent's link is its content, so only a web download can take a new one
         if ((state === "error" || state === "stopped" || state === "paused") && String(t.kind || "") !== "torrent")
-            return [{ id: "refresh-link", text: I18n.tr("Use a new link"), glyph: "link" }];
+            out.push({ id: "refresh-link", text: I18n.tr("Use a new link"), glyph: "link" });
         if (state === "done")
-            return [{ id: "again", text: I18n.tr("Download again"), glyph: "replay" }];
-        return [];
+            out.push({ id: "again", text: I18n.tr("Download again"), glyph: "replay" });
+        return out;
     }
     // a web download that has not landed can take a speed limit of its own, a torrent cannot
     readonly property bool limitable: root.task !== null && ["done", "seeding"].indexOf(String(root.task.state || "")) < 0
@@ -869,6 +873,9 @@ Item {
         } else if (id === "remove-file") {
             d.remove(task.id, true);
             root.hud(I18n.tr("Removed, file deleted"));
+        } else if (id === "open-page") {
+            Spawn.runApp(["xdg-open", String(task.url)], { label: "browser" });
+            root.closeRequested();
         } else if (id === "refresh-link") {
             root.refreshing = String(task.id);
             root.editing = "refresh";
