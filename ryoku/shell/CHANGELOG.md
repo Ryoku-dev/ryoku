@@ -1,6 +1,26 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Kit's Downloads filters, clears and repairs.** Chips over the queue show
+  All, Active, Waiting, Done or Failed with live counts (Alt+1 to Alt+5), Clear
+  finished and Clear failed sit beside them, and Ctrl+K retries every failure.
+  A failed, stopped or paused download takes a new link, a finished one can be
+  downloaded again, each download takes its own speed limit, and the detail
+  pane shows average and peak speed, resumability and a verified checksum. A
+  link already in the list says so, dropped links and torrent files are added,
+  and Settings gains how long finished downloads stay, sorting by type and
+  cover art (`modules/kit/sections/downloads/`).
+- **ryoget downloads faster, recovers more and forgets old entries.** The
+  first request carries data, connections ramp up and learn each host's limit,
+  a slow last piece is raced, free space is checked first, and a resume keeps
+  its partial file only for the same file, even under a fresh link. Bandcamp,
+  TED, Odysee, Rumble and LinkedIn resolve natively, a page that links to files
+  offers them, a bot check or captcha page says it needs a browser and offers
+  to open one, `[001-100]` ranges expand, audio keeps its cover, checksums are
+  verified, files can sort into folders by type, and finished and failed
+  entries leave after a week
+  (`ryoget/internal/`). The transfer and file-type strategies are adapted from
+  Prism (MIT).
 - **The Alt+Space home list shows news, not history.** It lists everything
   moving, then what finished, failed, stopped or paused since you last looked;
   a row it has shown leaves ten minutes later, and one that settled over a day

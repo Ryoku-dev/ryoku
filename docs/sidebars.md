@@ -248,24 +248,46 @@ systemd user unit, or a runit service on Void), keeps working after the bar
 closes, and exits after a minute with nothing to do. No container is involved.
 
 - Files download over up to 16 connections into a `.part` file whose sidecar
-  lets a stopped or crashed download resume where it was.
+  lets a stopped or crashed download resume where it was. The first request
+  already carries data; four connections open first and the rest once those
+  deliver, a host that refuses more is remembered for a day, and a slow last
+  piece is raced by a second connection. Free space is checked before anything
+  is written. A resume keeps the partial file only when the server still serves
+  the same file, so a stopped download can take a fresh link (an expired signed
+  one, say) without starting over.
 - Media links resolve natively for YouTube, X, Instagram, TikTok, Reddit video,
   Bluesky, SoundCloud, Vimeo, Twitch, Streamable, Dailymotion, Pinterest, Tumblr,
-  Bilibili, Loom, OK.ru, Rutube, VK and Facebook; any other site goes through an
-  installed yt-dlp while that fallback is on. ffmpeg joins video and audio
-  without re-encoding.
+  Bilibili, Loom, OK.ru, Rutube, VK, Facebook, Bandcamp, TED, Odysee, Rumble and
+  LinkedIn; any other site goes through an installed yt-dlp while that fallback
+  is on. ffmpeg joins video and audio without re-encoding, and audio keeps its
+  cover picture while cover art is on.
+- A page with no media offers the files it links to, and a plain download form
+  is sent the way a browser would, only once the download starts. A page behind
+  a bot check, or one that hands its file out through a script behind a
+  captcha, fails saying it needs a browser and offers Open in the browser;
+  ryoget does not script its way past either.
+- A pasted range such as `file[001-100].zip` or `photo-[a-f].jpg` expands into
+  its links, 500 at most.
 - Torrents and magnet links download with file selection and seeding limits.
   The torrent client exists only while a torrent runs or seeds.
-- A finished or failed download posts a notification with Open and Show in
-  folder.
+- Each download can have its own speed limit. A link may carry a checksum
+  (`#sha256=`, `#sha1=` or `#md5=`), checked when the file lands; a file that
+  does not match is deleted and the download fails. With sorting by type on,
+  files land in Videos, Music, Documents, Programs, Archives or Pictures inside
+  the download folder.
+- A finished download posts a notification with Open and Show in folder, a
+  failed one with Try again.
+- Finished and failed downloads leave the list a week after they settle (the
+  number of days is a setting, 0 keeps them); the files stay, a failed
+  download's partial data goes.
 
 Settings live in `~/.config/ryoku/downloads.json`, written only by the daemon,
 and the queue in `~/.local/state/ryoku/ryoget/`. `ryoget add`, `list`, `pause`,
-`resume`, `cancel`, `remove` and `retry` drive it from a terminal; `ryoget add -`
-reads any text on standard input and adds every link in it, cleaned the same way
-as a paste. `ryoget.desktop` offers it for magnet links and `.torrent` files
-without claiming them as the default. The wire protocol is in the module's
-README.
+`resume`, `cancel`, `remove`, `retry` and `clear` drive it from a terminal;
+`ryoget add -` reads any text on standard input and adds every link in it,
+cleaned the same way as a paste. `ryoget.desktop` offers it for magnet links and
+`.torrent` files without claiming them as the default. The wire protocol is in
+the module's README.
 
 ### Search engine
 
@@ -398,11 +420,21 @@ layer, the field, then Kit itself.
   removed, short and mobile addresses made normal, duplicates dropped) and shown
   on one card where each fills in as it is read; pick one format for all or per
   link, untick any, and Enter adds the rest. Enter on an empty field takes the
-  links on the clipboard. Each row draws its transfer's live piece map, and the
-  selected download shows beside the list its pieces, its speed over the last
-  minute, its files and its connections or peers. The Settings page holds the
-  folder, downloads at once, connections, speed limits, video quality, audio
-  format, seeding and notifications.
+  links on the clipboard, and links or `.torrent` files dropped on the section
+  are added the same way. A link already in the list says so, with Show in
+  folder when its file is there. Chips over the queue show All, Active,
+  Waiting, Done or Failed with their counts (Alt+1 to Alt+5, remembered), and
+  Clear finished and Clear failed sit beside them: finished files stay on disk,
+  failed partial data goes. Ctrl+K also retries every failed download. Each row
+  draws its transfer's live piece map, and the selected download shows beside
+  the list its pieces, its speed over the last minute with the average and the
+  peak, whether it can resume, a verified checksum, its files and its
+  connections or peers. A download that has not landed takes a speed limit of
+  its own (- and +, or Alt+Left and Alt+Right); a failed, stopped or paused one
+  can take a new link, and a finished one can be downloaded again. The Settings
+  page holds the folder, downloads at once, connections, speed limits, video
+  quality, audio format and cover art, sorting new files into folders by type,
+  seeding, notifications, and how long finished downloads stay in the list.
 - **Keys** lists every shortcut of the running compositor in one scroll, under
   headings that stay in view, with the compositor's own section and the
   shortcuts it cannot honour marked. Search by name in your language or by chord
