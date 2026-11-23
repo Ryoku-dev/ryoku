@@ -1,0 +1,87 @@
+{
+ "fps": 29.97,
+ "w": 1920,
+ "h": 1080,
+ "u": {
+  "mp4": {
+   "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.caa.1.mp4",
+   "meta": {
+    "bitrate": 814,
+    "size": 10546642,
+    "w": 854,
+    "h": 480
+   }
+  },
+  "webm": {
+   "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.daa.1.webm",
+   "meta": {
+    "bitrate": 811,
+    "size": 10508245,
+    "w": 854,
+    "h": 480
+   }
+  }
+ },
+ "ua": {
+  "mp4": {
+   "360": {
+    "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.baa.1.mp4",
+    "meta": {
+     "bitrate": 635,
+     "size": 8231997,
+     "w": 640,
+     "h": 360
+    }
+   },
+   "480": {
+    "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.caa.1.mp4",
+    "meta": {
+     "bitrate": 814,
+     "size": 10546642,
+     "w": 854,
+     "h": 480
+    }
+   },
+   "720": {
+    "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.gaa.1.mp4",
+    "meta": {
+     "bitrate": 1956,
+     "size": 25341532,
+     "w": 1280,
+     "h": 720
+    }
+   },
+   "1080": {
+    "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.haa.1.mp4",
+    "meta": {
+     "bitrate": 2688,
+     "size": 34823447,
+     "w": 1920,
+     "h": 1080
+    }
+   }
+  },
+  "webm": {
+   "480": {
+    "url": "https://hugh.cdn.rumble.cloud/video/s8/2/5/f/x/x/5fxxb.daa.1.webm",
+    "meta": {
+     "bitrate": 811,
+     "size": 10508245,
+     "w": 854,
+     "h": 480
+    }
+   }
+  }
+ },
+ "i": "https://hugh.cdn.rumble.cloud/video/s8/1/5/f/x/x/5fxxb.qR4e.1-small-Moose-The-Dog-Helps-Girls-D.jpg",
+ "title": "Winter-loving dog helps girls dig a snow fort ",
+ "author": {
+  "name": "LovingMontana",
+  "url": "https://rumble.com/c/c-546523"
+ },
+ "duration": 103,
+ "pubDate": "2021-02-07T01:49:38+00:00",
+ "vid": 18507443,
+ "live": 0,
+ "l": "/vdmum1-moose-the-dog-helps-girls-dig-a-snow-fort.html"
+}

@@ -23,6 +23,9 @@ import (
 
 const browserUA = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
 
+// for sites whose bot check stops browser user agents that run no script
+const plainUA = "ryoget/1 (+https://ryoku.dev)"
+
 // pages like Facebook's run past a megabyte before the player data
 const bodyLimit = 16 << 20
 
@@ -91,6 +94,9 @@ func fetch(ctx context.Context, env *plan.Env, r request) (*response, error) {
 		}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		if media.ChallengePage(resp.Header, data) {
+			return out, media.BrowserCheckError()
+		}
 		return out, statusErr(resp.StatusCode)
 	}
 	return out, nil

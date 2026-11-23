@@ -94,10 +94,14 @@ tracking parameters removed (`utm_*`, `fbclid`, `gclid`, `si` on YouTube and Spo
 known sites moved to their usual address (`youtu.be` to the watch link, mobile and mirror
 hosts to the main one, Twitter to `x.com`), and a fragment dropped unless the address needs
 it. Signed links (`X-Amz-*`, `token`, `sig`, `Signature`, `Expires`, ...) and magnets stay
-untouched. `notes` says what changed: `https-added trimmed unwrapped tracking-removed
-canonical`. Every link found is listed; a later one equal to an earlier one after cleaning
-has `duplicate:true`. `total` counts all of them, `cleaned` those with notes, `duplicates`
-the marked ones.
+untouched. Ranges expand first: `file[001-100].zip` gives `file001.zip` to `file100.zip`
+(padding kept), `[1-10:2]` steps, `[10-1]` counts down, `[a-z]` and `[A-F]` run letters,
+and several ranges give every combination, leftmost slowest; one paste grows to at most
+500 links, and brackets that hold no range (`[::1]`) stay as they are. Each expanded link
+keeps the pattern as `raw`. `notes` says what changed: `https-added trimmed unwrapped
+tracking-removed canonical expanded`. Every link found is listed; a later one equal to an
+earlier one after cleaning has `duplicate:true`. `total` counts all of them, `cleaned`
+those with notes other than `expanded`, `duplicates` the marked ones.
 
 ## Command line
 
@@ -114,6 +118,31 @@ ryoget version
 
 A URL is an http(s) link, a magnet, or a local `.torrent` file. With `-`, every link
 found in standard input is cleaned and added once (as `links` would list it).
+
+## Sites
+
+Native resolvers read public, keyless endpoints: YouTube, Vimeo, Twitch, X, Instagram,
+TikTok, Facebook, Reddit (`v.redd.it` links), Dailymotion, SoundCloud, Bilibili,
+Streamable, VK, OK.ru, Bluesky, Pinterest, Tumblr, Loom, Rutube, Bandcamp (a track, or an
+album listing its tracks), TED, Odysee, Rumble and LinkedIn (public posts; feeds,
+profiles and company pages are refused). Reddit post pages answer anonymous clients with
+a script check, so they are left to yt-dlp. Any other link goes to an installed yt-dlp
+when `ytdlpFallback` is on, then to the generic probe: an HLS playlist, a page's
+`og:video` or `og:audio`, or a plain file. yt-dlp gets `--js-runtimes <deno|node|bun>:<path>`
+when it knows that option (asked once per daemon run) and one of them is installed.
+
+A page with no media lists the files it links to (archives, disk images, installers,
+documents, ROMs, audio and video files, or any link with a `download` attribute) as
+items of kind `file`; adding it queues one task per file, each resolved against its own
+host, and a page with just one such link resolves straight to that file with the page as
+`Referer`. A download form with fixed fields is sent the way a browser would; one behind
+a captcha, filled in by script or asking for typed input fails with `browser_check`, as
+does a Cloudflare or DDoS-Guard check page (the `cf-mitigated: challenge` header or a
+small challenge page) where a page or file was expected.
+
+With `coverArt` on, an audio-only download carries its thumbnail as the cover: a picture
+stream in mp3, m4a and flac, a `METADATA_BLOCK_PICTURE` comment in opus and ogg. A
+thumbnail that cannot be fetched or read leaves the file without one.
 
 ## HTTP downloads
 

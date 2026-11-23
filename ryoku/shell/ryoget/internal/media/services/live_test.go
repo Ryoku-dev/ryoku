@@ -59,6 +59,12 @@ var liveCases = []liveCase{
 	{"vk", "vk", "https://vk.com/video-77521_162222515", 0, plan.KindMedia},
 	{"facebook", "facebook", "https://www.facebook.com/cnn/videos/10155529876156509/", 0, plan.KindMedia},
 	{"twitch-vod", "twitch", "https://www.twitch.tv/videos/635475444", 0, plan.KindMedia},
+	{"bandcamp-track", "bandcamp", "https://youtube-dl.bandcamp.com/track/youtube-dl-test-song", 0, plan.KindMedia},
+	{"bandcamp-album", "bandcamp", "https://blazo.bandcamp.com/album/jazz-format-mixtape-vol-1", 10, plan.KindMedia},
+	{"ted", "ted", "https://www.ted.com/talks/dan_dennett_the_illusion_of_consciousness", 0, plan.KindMedia},
+	{"odysee", "odysee", "https://odysee.com/@BrodieRobertson:5/apple-is-tracking-everything-you-do-on:e", 0, plan.KindMedia},
+	{"rumble", "rumble", "https://rumble.com/vdmum1-moose-the-dog-helps-girls-dig-a-snow-fort.html", 0, plan.KindMedia},
+	{"linkedin", "linkedin", "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20", 0, plan.KindMedia},
 }
 
 // recorder saves every live response under $RYOGET_RECORD for building

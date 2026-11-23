@@ -3,6 +3,7 @@ package media
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"ryoget/internal/mux"
 	"ryoget/internal/plan"
 
 	i18n "ryoku-i18n"
@@ -22,6 +24,31 @@ const nameLimit = 180
 // plans its formats (the first video) unless items are selected or it has no
 // formats; then the items land as files in one folder.
 func PlanFor(m *Media, opts Options) (*plan.Plan, error) {
+	pl, err := planFor(m, opts)
+	if err == nil && opts.CoverArt {
+		addCover(pl, m)
+	}
+	return pl, err
+}
+
+// addCover fetches the thumbnail of an audio-only download as an optional part the finish step embeds.
+func addCover(pl *plan.Plan, m *Media) {
+	if (pl.Post != plan.PostAudio && pl.Post != plan.PostTranscode) || !mux.CoverBoxes(pl.Container) {
+		return
+	}
+	u, err := url.Parse(m.Thumb)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return
+	}
+	var h http.Header
+	if ua := m.Headers["User-Agent"]; ua != "" {
+		h = http.Header{"User-Agent": {ua}}
+	}
+	// the extension is left unknown so ffmpeg reads the picture type from its bytes
+	pl.Parts = append(pl.Parts, plan.Part{Kind: plan.PartHTTP, URL: u.String(), Ext: "cover", Size: -1, Role: "cover", Headers: h})
+}
+
+func planFor(m *Media, opts Options) (*plan.Plan, error) {
 	if m == nil {
 		return nil, ErrInvalid
 	}

@@ -3,12 +3,14 @@
 // <angle> links, magnets and bare www. or host/path addresses; trims the
 // punctuation a sentence leaves on them; unwraps redirectors; strips tracking
 // parameters (never on signed download links); moves known sites to their
-// normal address; and marks duplicates that only match once cleaned.
+// normal address; and marks duplicates that only match once cleaned. Ranges
+// like [001-100] and [a-z] expand into the links they stand for.
 package links
 
 import (
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -22,6 +24,8 @@ const (
 	NoteUnwrapped = "unwrapped"
 	NoteTracking  = "tracking-removed"
 	NoteCanonical = "canonical"
+	// one of the links a [1-10] or [a-z] range in the pasted text stands for
+	NoteExpanded = "expanded"
 )
 
 var (
@@ -97,20 +101,37 @@ func Parse(text string) proto.Links {
 
 	res := proto.Links{Links: []proto.Link{}}
 	seen := map[string]bool{}
-	for _, h := range hits {
-		l, ok := clean(h)
-		if !ok {
-			continue
-		}
+	add := func(l proto.Link) {
 		if seen[l.URL] {
 			l.Duplicate = true
 			res.Duplicates++
 		}
 		seen[l.URL] = true
-		if len(l.Notes) > 0 {
+		if slices.ContainsFunc(l.Notes, func(n string) bool { return n != NoteExpanded }) {
 			res.Cleaned++
 		}
 		res.Links = append(res.Links, l)
+	}
+	for _, h := range hits {
+		if !strings.HasPrefix(strings.ToLower(h.raw), "magnet:") {
+			if many, ranged := expandPattern(h.raw, MaxExpanded-len(res.Links)); ranged {
+				for _, raw := range many {
+					l, ok := clean(found{at: h.at, raw: raw, bare: h.bare})
+					if !ok {
+						continue
+					}
+					l.Raw = h.raw
+					l.Notes = append(l.Notes, NoteExpanded)
+					add(l)
+				}
+				continue
+			}
+		}
+		l, ok := clean(h)
+		if !ok {
+			continue
+		}
+		add(l)
 	}
 	res.Total = len(res.Links)
 	return res

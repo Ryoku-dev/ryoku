@@ -77,6 +77,10 @@ func formatsItem(m *Media) int {
 // extension: a known extension (also after "@", as Bluesky's CDN writes it), a
 // format= query (X's image CDN), or a host other than the post's own.
 func directItem(post string, it Item) (string, bool) {
+	// a file a page links to is a task of its own so its host names and sizes it
+	if it.Kind == "file" {
+		return "", false
+	}
 	u, err := url.Parse(it.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return "", false

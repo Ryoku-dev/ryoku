@@ -133,7 +133,7 @@ func Resolve(ctx context.Context, raw string, env *plan.Env, allowYTDLP bool) (*
 		}
 		return nil, err
 	}
-	return probe(ctx, u, env, allowYTDLP)
+	return probeWith(ctx, u, env, allowYTDLP, "", true)
 }
 
 func finish(m *Media, u *url.URL) *Media {
@@ -166,7 +166,7 @@ func magnetMedia(raw string) (*Media, error) {
 // else, so the probe tries both and the media keeps the one that worked.
 var probeAgents = []string{browserUA, plainUA}
 
-func probeGet(ctx context.Context, u *url.URL, env *plan.Env) (*http.Response, string, error) {
+func probeGet(ctx context.Context, u *url.URL, env *plan.Env, referer string) (*http.Response, string, error) {
 	var lastErr error
 	var last *http.Response
 	for i, ua := range probeAgents {
@@ -177,6 +177,9 @@ func probeGet(ctx context.Context, u *url.URL, env *plan.Env) (*http.Response, s
 		req.Header.Set("Range", "bytes=0-")
 		req.Header.Set("User-Agent", ua)
 		req.Header.Set("Accept", "*/*")
+		if referer != "" {
+			req.Header.Set("Referer", referer)
+		}
 		resp, err := httpClient(env).Do(req)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -202,10 +205,11 @@ func probeGet(ctx context.Context, u *url.URL, env *plan.Env) (*http.Response, s
 	return nil, "", fmt.Errorf("%w: %v", ErrNetwork, lastErr)
 }
 
-func probe(ctx context.Context, u *url.URL, env *plan.Env, allowYTDLP bool) (*Media, error) {
+// probeWith reads the start of a link, scan lets a page without media offer its files or download form.
+func probeWith(ctx context.Context, u *url.URL, env *plan.Env, allowYTDLP bool, referer string, scan bool) (*Media, error) {
 	pctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
-	resp, ua, err := probeGet(pctx, u, env)
+	resp, ua, err := probeGet(pctx, u, env, referer)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -213,6 +217,19 @@ func probe(ctx context.Context, u *url.URL, env *plan.Env, allowYTDLP bool) (*Me
 		return nil, err
 	}
 	defer resp.Body.Close()
+	ctype := strings.ToLower(resp.Header.Get("Content-Type"))
+	mt, _, _ := mime.ParseMediaType(ctype)
+	if browserCheckHeader(resp.Header) || (resp.StatusCode >= 400 && (mt == "text/html" || mt == "application/xhtml+xml")) {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, challengeLimit))
+		if ChallengePage(resp.Header, body) {
+			if allowYTDLP {
+				if m, ferr := tryFallback(ctx, u, env); ferr == nil {
+					return m, nil
+				}
+			}
+			return nil, BrowserCheckError()
+		}
+	}
 	switch {
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
 		return nil, fmt.Errorf("%w: %s", ErrUnavailable, resp.Status)
@@ -243,8 +260,6 @@ func probe(ctx context.Context, u *url.URL, env *plan.Env, allowYTDLP bool) (*Me
 	head := make([]byte, 512)
 	n, _ := io.ReadFull(resp.Body, head)
 	head = head[:n]
-	ctype := strings.ToLower(resp.Header.Get("Content-Type"))
-	mt, _, _ := mime.ParseMediaType(ctype)
 	if mt == "" {
 		mt = strings.ToLower(http.DetectContentType(head))
 		mt, _, _ = mime.ParseMediaType(mt)
@@ -255,7 +270,16 @@ func probe(ctx context.Context, u *url.URL, env *plan.Env, allowYTDLP bool) (*Me
 	}
 	if mt == "text/html" || mt == "application/xhtml+xml" {
 		rest, _ := io.ReadAll(io.LimitReader(resp.Body, pageLimit))
-		return withUA(pageMedia(ctx, u, env, append(head, rest...), ua, allowYTDLP))
+		page := append(head, rest...)
+		if ChallengePage(resp.Header, page) {
+			if allowYTDLP {
+				if m, ferr := tryFallback(ctx, u, env); ferr == nil {
+					return m, nil
+				}
+			}
+			return nil, BrowserCheckError()
+		}
+		return withUA(pageMedia(ctx, u, env, page, ua, allowYTDLP, scan))
 	}
 	if mt == "application/x-bittorrent" {
 		return withUA(&Media{Kind: plan.KindTorrent, URL: u.String(), Source: torrentSource(), Name: safeBase(u)}, nil)
@@ -389,17 +413,7 @@ var (
 func metaProps(page []byte) map[string]string {
 	props := map[string]string{}
 	for _, tag := range metaTag.FindAll(page, -1) {
-		attrs := map[string]string{}
-		for _, m := range attrRe.FindAllSubmatch(tag, -1) {
-			v := string(m[3])
-			if v == "" {
-				v = string(m[4])
-			}
-			if v == "" {
-				v = string(m[5])
-			}
-			attrs[strings.ToLower(string(m[1]))] = html.UnescapeString(v)
-		}
+		attrs := tagAttrs(tag)
 		key := attrs["property"]
 		if key == "" {
 			key = attrs["name"]
@@ -415,7 +429,7 @@ func metaProps(page []byte) map[string]string {
 	return props
 }
 
-func pageMedia(ctx context.Context, u *url.URL, env *plan.Env, page []byte, ua string, allowYTDLP bool) (*Media, error) {
+func pageMedia(ctx context.Context, u *url.URL, env *plan.Env, page []byte, ua string, allowYTDLP, scan bool) (*Media, error) {
 	props := metaProps(page)
 	title := props["og:title"]
 	if title == "" {
@@ -479,8 +493,36 @@ func pageMedia(ctx context.Context, u *url.URL, env *plan.Env, page []byte, ua s
 			return nil, ctx.Err()
 		}
 	}
-	return &Media{Kind: plan.KindPage, URL: u.String(), Source: src, Title: title, Thumb: thumb},
-		fmt.Errorf("%w: %s", ErrUnsupported, i18n.T("No video, audio or file was found on this page."))
+	pageOnly := &Media{Kind: plan.KindPage, URL: u.String(), Source: src, Title: title, Thumb: thumb}
+	if scan {
+		switch files := pageFiles(u, page); len(files) {
+		case 0:
+		case 1:
+			fu, _ := url.Parse(files[0].URL)
+			m, err := probeFile(ctx, fu, env, u.String())
+			if err != nil {
+				return pageOnly, err
+			}
+			return m, nil
+		default:
+			return &Media{Kind: plan.KindMedia, URL: u.String(), Source: src, Title: title, Thumb: thumb, Items: files}, nil
+		}
+		if f, ok := downloadForm(u, page); ok {
+			if f.browser {
+				return pageOnly, needsBrowserErr()
+			}
+			// a preview names the page as a file and leaves the post to the download itself
+			if f.method == http.MethodPost && previewing(ctx) {
+				return &Media{Kind: plan.KindFile, URL: u.String(), Source: src, Title: title, Thumb: thumb}, nil
+			}
+			m, err := followForm(ctx, u, env, f, ua)
+			if err != nil {
+				return pageOnly, err
+			}
+			return m, nil
+		}
+	}
+	return pageOnly, fmt.Errorf("%w: %s", ErrUnsupported, i18n.T("No video, audio or file was found on this page."))
 }
 
 func hlsMedia(ctx context.Context, u *url.URL, env *plan.Env, headers http.Header, title, thumb string) (*Media, error) {

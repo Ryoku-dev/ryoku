@@ -110,7 +110,9 @@ func Resolve(ctx context.Context, env *plan.Env, rawURL string) (*media.Media, e
 	}
 	ctx, cancel := context.WithTimeout(ctx, resolveTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, "--ignore-config", "-J", "--no-warnings", "--no-playlist", "--playlist-items", "1", "--", rawURL)
+	args := append([]string{"--ignore-config"}, jsRuntimeArgs(ctx, bin)...)
+	args = append(args, "-J", "--no-warnings", "--no-playlist", "--playlist-items", "1", "--", rawURL)
+	cmd := exec.CommandContext(ctx, bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -334,6 +336,7 @@ func Fetch(ctx context.Context, env *plan.Env, part plan.Part, dst string, p pla
 		"-N", "4", "--continue",
 		"-o", strings.ReplaceAll(dst, "%", "%%"),
 	}
+	args = append(args, jsRuntimeArgs(ctx, bin)...)
 	if env != nil && env.FFmpeg != "" {
 		args = append(args, "--ffmpeg-location", env.FFmpeg)
 	}

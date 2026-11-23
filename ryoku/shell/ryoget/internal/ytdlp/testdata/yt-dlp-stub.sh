@@ -1,5 +1,10 @@
 #!/bin/sh
 # Stands in for yt-dlp: -J prints $STUB_JSON, otherwise it plays a download.
+if [ "$2" = "--help" ]; then
+	[ -n "$STUB_HELP_COUNT" ] && echo x >> "$STUB_HELP_COUNT"
+	[ -n "$STUB_HELP" ] && echo "    --js-runtimes [RUNTIME[:PATH]]  Additional JavaScript runtime to enable"
+	exit 0
+fi
 out="" tmpl="" url="" dumpjson=""
 prev=""
 for a in "$@"; do

@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"ryoget/internal/plan"
+	"ryoget/internal/proto"
 )
 
 var (
@@ -22,7 +23,39 @@ var (
 	ErrRateLimited = errors.New("rate_limited")
 	ErrNetwork     = errors.New("network")
 	ErrInvalid     = errors.New("invalid")
+	// a bot check or script-driven hand-out that only a real browser gets past
+	ErrBrowserCheck = errors.New("browser_check")
 )
+
+type browserCheck struct{ msg string }
+
+func (e browserCheck) Error() string        { return ErrBrowserCheck.Error() + ": " + e.msg }
+func (e browserCheck) Is(target error) bool { return target == ErrBrowserCheck }
+
+// As lets the engine's error mapping read the wire code without a case of its own.
+func (e browserCheck) As(target any) bool {
+	if p, ok := target.(**proto.Error); ok {
+		*p = &proto.Error{Code: proto.CodeBrowserCheck, Message: e.msg}
+		return true
+	}
+	return false
+}
+
+// BrowserCheck is the error for a page or file that only a browser can open.
+func BrowserCheck(msg string) error { return browserCheck{msg} }
+
+type previewKey struct{}
+
+// Preview marks a resolve that only shows a link before it is added: it reads the site but never
+// sends a form, since a post may change something there.
+func Preview(ctx context.Context) context.Context {
+	return context.WithValue(ctx, previewKey{}, true)
+}
+
+func previewing(ctx context.Context) bool {
+	on, _ := ctx.Value(previewKey{}).(bool)
+	return on
+}
 
 type Source struct {
 	ID   string
@@ -80,6 +113,8 @@ type Options struct {
 	Format      string
 	// selected Items of a multi-item post; empty means all
 	Items []int
+	// an audio-only download gets Media.Thumb embedded as its cover picture
+	CoverArt bool
 }
 
 type Service interface {

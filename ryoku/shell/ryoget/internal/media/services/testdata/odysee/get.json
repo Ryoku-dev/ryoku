@@ -1,0 +1,7 @@
+{
+ "jsonrpc": "2.0",
+ "result": {
+  "streaming_url": "https://player.odycdn.com/v6/streams/e6b46b4ae2bb25c67915dad71ac5d202e47dba25/baac0c.mp4"
+ },
+ "id": 1
+}

@@ -51,6 +51,10 @@ func Finish(ctx context.Context, ffmpeg string, pl *plan.Plan, inputs []string, 
 	}
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-y"}
 	title := strings.TrimSuffix(pl.Name, filepath.Ext(pl.Name))
+	cover := ""
+	if i := roleIndex(pl, "cover", -1); i >= 0 && i < len(inputs) {
+		cover = inputs[i]
+	}
 
 	switch pl.Post {
 	case plan.PostMerge:
@@ -68,13 +72,16 @@ func Finish(ctx context.Context, ffmpeg string, pl *plan.Plan, inputs []string, 
 	case plan.PostMute:
 		args = append(args, "-i", inputs[0], "-map", "0:v", "-c", "copy", "-an")
 	case plan.PostAudio:
-		args = append(args, "-i", inputs[audioInput(pl)], "-map", "0:a:0", "-vn", "-c:a", "copy")
+		args = append(args, "-i", inputs[audioInput(pl)])
+		args = append(args, withCover(ctx, bin, box, cover, out)...)
+		args = append(args, "-c:a", "copy")
 	case plan.PostTranscode:
 		enc, ok := encoders[box]
 		if !ok {
 			return fmt.Errorf("mux: no encoder for %s", box)
 		}
-		args = append(args, "-i", inputs[audioInput(pl)], "-map", "0:a:0", "-vn")
+		args = append(args, "-i", inputs[audioInput(pl)])
+		args = append(args, withCover(ctx, bin, box, cover, out)...)
 		args = append(args, enc...)
 	default:
 		return fmt.Errorf("mux: unknown step %q", pl.Post)
@@ -88,6 +95,8 @@ func Finish(ctx context.Context, ffmpeg string, pl *plan.Plan, inputs []string, 
 	tmp := filepath.Join(filepath.Dir(out), "."+filepath.Base(out)+".ryoget-mux")
 	args = append(args, "-f", muxer, tmp)
 	defer os.Remove(tmp)
+	defer os.Remove(coverFile(out))
+	defer os.Remove(coverMeta(out))
 	if err := run(ctx, bin, args); err != nil {
 		return err
 	}

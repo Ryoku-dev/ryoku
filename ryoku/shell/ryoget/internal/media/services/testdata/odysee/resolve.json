@@ -1,0 +1,42 @@
+{
+ "jsonrpc": "2.0",
+ "result": {
+  "lbry://@BrodieRobertson#5/apple-is-tracking-everything-you-do-on#e": {
+   "canonical_url": "lbry://@BrodieRobertson#5/apple-is-tracking-everything-you-do-on#e",
+   "claim_id": "e6b46b4ae2bb25c67915dad71ac5d202e47dba25",
+   "name": "apple-is-tracking-everything-you-do-on",
+   "normalized_name": "apple-is-tracking-everything-you-do-on",
+   "permanent_url": "lbry://apple-is-tracking-everything-you-do-on#e6b46b4ae2bb25c67915dad71ac5d202e47dba25",
+   "short_url": "lbry://apple-is-tracking-everything-you-do-on#e",
+   "value_type": "stream",
+   "signing_channel": {
+    "name": "@BrodieRobertson",
+    "canonical_url": "lbry://@BrodieRobertson#5",
+    "value": {
+     "title": "Brodie Robertson | Linux Tips & Tricks"
+    }
+   },
+   "value": {
+    "source": {
+     "hash": "4813cdd96ed4533fc92f2ea3885662b499171273fff0f8ca97b59b9af0b6b0994512424761f4c1712262780e0d4cb651",
+     "media_type": "video/mp4",
+     "name": "apple-is-tracking-everything.mp4",
+     "sd_hash": "baac0ccd5021c40894ed0e2a4367c5d3b079b0f247cc439a2d7b1142802a197e9f34687a534424ecfad72d806adcc0bb",
+     "size": "79159050"
+    },
+    "stream_type": "video",
+    "thumbnail": {
+     "url": "https://thumbnails.lbry.com/SAFaipfXN_0"
+    },
+    "title": "Apple Is Tracking EVERYTHING You Do On Big Sur",
+    "video": {
+     "duration": 745,
+     "height": 1080,
+     "width": 1920
+    },
+    "release_time": "1605547801"
+   }
+  }
+ },
+ "id": 1
+}

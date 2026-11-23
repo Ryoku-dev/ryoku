@@ -182,7 +182,7 @@ func planSig(pl *plan.Plan) string {
 
 func (e *Engine) runMedia(ctx context.Context, t *task, rec record, m *media.Media) error {
 	s := e.Settings()
-	opts := media.Options{Mode: rec.Mode, Quality: s.VideoQuality, AudioFormat: s.AudioFormat, Items: rec.Sel}
+	opts := media.Options{Mode: rec.Mode, Quality: s.VideoQuality, AudioFormat: s.AudioFormat, Items: rec.Sel, CoverArt: s.CoverArt}
 	if rec.Format != nil {
 		opts.Format = rec.Format.ID
 	}
@@ -255,6 +255,14 @@ func (e *Engine) runMedia(ctx context.Context, t *task, rec record, m *media.Med
 			return perr(proto.CodeUnsupported, i18n.T("This kind of stream cannot be downloaded yet."))
 		}
 		if err := f.Fetch(ctx, part, dst, pps[i]); err != nil {
+			// the cover picture is a nicety, the audio lands without it
+			if part.Role == "cover" && ctx.Err() == nil {
+				_ = os.Remove(dst)
+				pps[i].complete(0)
+				inputs = inputs[:len(inputs)-1]
+				pl.Parts = slices.Delete(slices.Clone(pl.Parts), i, i+1)
+				continue
+			}
 			return err
 		}
 	}
@@ -422,7 +430,7 @@ func (e *Engine) Resolve(ctx context.Context, raw string) (proto.Resolved, error
 	if kind == "torrent" {
 		return e.resolveTorrent(ctx, link)
 	}
-	m, err := e.parts.Resolver.Resolve(ctx, link)
+	m, err := e.parts.Resolver.Resolve(media.Preview(ctx), link)
 	if err != nil {
 		return proto.Resolved{}, mapErr(err)
 	}
