@@ -116,3 +116,24 @@ func TestSnapshotRestoresPackagedVoxtypeUnitState(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotRejectsUnknownServiceStateInsteadOfTreatingItAsDisabled(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	host := "#!/bin/sh\nif [ \"$1\" = init ]; then echo systemd; exit 0; fi\n" +
+		"if [ \"$1\" = svc ] && [ \"$3\" = is-enabled ]; then exit 1; fi\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte(host), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	if _, err := snapshotVoxtypeSetState(); err == nil || !strings.Contains(err.Error(), "query is-enabled state for phonon-2") {
+		t.Fatalf("snapshot error = %v, want unknown enabled-state query failure", err)
+	}
+}
