@@ -128,7 +128,7 @@ FocusScope {
             anchors.verticalCenter: parent.verticalCenter
             visible: input.text.length === 0 && input.preeditText.length === 0
             text: root.engine && root.engine.mode === "ask"
-                ? I18n.tr("Ask Rashin") : I18n.tr("Search apps, windows and files")
+                ? I18n.tr("Ask Rashin") : I18n.tr("Search apps and more")
             color: K.Style.inkMuted
             font.family: K.Style.font
             font.pixelSize: K.Style.headline
