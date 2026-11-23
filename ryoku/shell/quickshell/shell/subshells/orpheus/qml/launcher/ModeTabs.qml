@@ -26,7 +26,6 @@ Item {
         case "windows": return I18n.tr("Windows");
         case "files": return I18n.tr("Files");
         case "actions": return I18n.tr("Actions");
-        case "ask": return I18n.tr("Ask");
         default: return mode;
         }
     }

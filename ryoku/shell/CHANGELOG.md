@@ -1,6 +1,30 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Orpheus launcher's highlight stays on the row you picked.** Once the
+  list scrolled, the selection sat a few rows away from the selected app, over
+  rows it did not mean; it now lives in the list's content and follows the
+  selected row wherever it scrolls or moves (`subshells/orpheus/qml/launcher/TrackList.qml`,
+  `Bead.qml`).
+- **The Orpheus launcher opens without a stall.** Its rows, lead and height are
+  filled as the open is asked for instead of a third of the way into the pour,
+  which held a frame for up to a tenth of a second, and the card stays built
+  while the launcher host lives (15 s after a close), so a reopen only pours
+  (`launcher/Sheet.qml`, `cards/LauncherCard.qml`, `components/CardHost.qml`).
+- **The Orpheus launcher numbers every row, shows open windows' memory and can
+  kill a window's program.** Numbers run past nine (Alt+1 to Alt+9 still run
+  the first nine); the Windows tab and an app's open windows show what each
+  program holds in memory, read once when the window first shows; Kill (a
+  button, a window's action, or Shift+Delete) arms on the first press and stops
+  the program on the second. Actions in the Actions tab say in a few words what
+  they do, and rows that come into view while you type rise in. The daemon
+  answers `windows.memory` and `windows.kill` from the compositor's window list,
+  so a caller names a window, never a pid (`ipc/windowprocs.go`,
+  `launcher/TrackRow.qml`, `launcher/Lead.qml`, `launcher/KillButton.qml`,
+  `modules/launcher/shared/providers/actions/catalog.js`).
+- **Ask left the Orpheus launcher.** Its tab, the backslash prefix and its pane
+  are gone; Rashin's ask stays in Hero and on Alt+Space
+  (`subshells/orpheus/qml/launcher/`).
 - **Orpheus is the new default launcher.** The Orpheus subshell provides it
   (`[[provides.launcher]]` id `orpheus`): with Orpheus as the bar, Super+Space
   pours it out of the voice island as one liquid body with the bar, and under

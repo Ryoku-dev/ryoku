@@ -5,7 +5,7 @@ function text(value) {
     return String(value == null ? "" : value);
 }
 
-// "app" | "window" | "calc" | "web" | "file" | "action" | "media" | "ask" | "other"
+// "app" | "window" | "calc" | "web" | "file" | "action" | "media" | "other"
 function kindKey(row) {
     var provider = text(row && row.providerId);
     switch (provider) {
@@ -17,7 +17,6 @@ function kindKey(row) {
     case "recent": return "file";
     case "actions": return "action";
     case "mpris": return "media";
-    case "ask": return "ask";
     default: return "other";
     }
 }
@@ -32,7 +31,6 @@ function glyphFor(row) {
     case "web": return "public";
     case "action": return "bolt";
     case "media": return "music_note";
-    case "ask": return "auto_awesome";
     case "file":
         if (type === "Folder") return "folder";
         if (type === "Image") return "image";
@@ -54,12 +52,38 @@ function parentFolder(path, home) {
     return folder;
 }
 
-// Rows 1 to 9 carry the Alt+N index; Lithic sets it as two print digits.
-function indexLabel(index, lithic) {
-    var n = Number(index) + 1;
-    if (!(n >= 1 && n <= 9))
+// Every row is numbered. Lithic sets print digits padded to the longest
+// number in the list (at least two); the other designs use plain numbers.
+function indexDigits(count, lithic) {
+    var digits = String(Math.max(1, Math.floor(Number(count) || 0))).length;
+    return lithic ? Math.max(2, digits) : digits;
+}
+
+function indexLabel(index, lithic, digits) {
+    var n = Math.floor(Number(index)) + 1;
+    if (!(n >= 1))
         return "";
-    return lithic ? "0" + n : String(n);
+    var label = String(n);
+    if (!lithic)
+        return label;
+    var width = Math.max(2, Math.floor(Number(digits) || 0));
+    while (label.length < width)
+        label = "0" + label;
+    return label;
+}
+
+// What a program holds in memory, the way a task manager writes it.
+function memoryLabel(bytes) {
+    var value = Number(bytes);
+    if (!(value > 0))
+        return "";
+    var mib = value / 1048576;
+    if (mib < 1)
+        return "<1 MB";
+    if (mib < 1024)
+        return Math.round(mib) + " MB";
+    var gib = mib / 1024;
+    return (gib < 10 ? gib.toFixed(1) : String(Math.round(gib))) + " GB";
 }
 
 function countLabel(count, lithic) {
@@ -123,7 +147,9 @@ if (typeof module !== "undefined" && module.exports) {
         kindKey: kindKey,
         glyphFor: glyphFor,
         parentFolder: parentFolder,
+        indexDigits: indexDigits,
         indexLabel: indexLabel,
+        memoryLabel: memoryLabel,
         countLabel: countLabel,
         sameApp: sameApp,
         signature: signature

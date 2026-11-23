@@ -17,7 +17,7 @@ Scope {
     // the Orpheus scene the launcher pours from, null while it uses its own window
     property var scene: null
     property bool standaloneOpen: false
-    // the standalone window is built on first use and released once it has closed
+    // the standalone window is built on first use and kept, unmapped, while this host lives
     property bool standaloneWanted: false
 
     readonly property bool sceneShown: root.scene !== null && root.scene.launcherShown === true
@@ -92,6 +92,11 @@ Scope {
         }
     }
 
+    // the shell drops this host fifteen seconds after a close; until then the
+    // Orpheus card stays built so a reopen only pours
+    Component.onCompleted: Vessels.hold()
+    Component.onDestruction: Vessels.release()
+
     SharedProviders.Providers {
         id: sharedProviders
     }
@@ -104,11 +109,6 @@ Scope {
             monitor: root.monitor
             open: root.standaloneOpen
             onDismissed: root.hide()
-            onShownChanged: if (!shown && !root.standaloneOpen)
-                Qt.callLater(function() {
-                    if (!root.standaloneOpen && !root.standaloneShown)
-                        root.standaloneWanted = false;
-                })
         }
     }
 }

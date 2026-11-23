@@ -22,6 +22,10 @@ PanelWindow {
 
     signal dismissed()
 
+    // the sheet fills as the open is asked for, before the pour starts
+    onOpenChanged: if (open) sheet.prepare()
+    Component.onCompleted: if (open) sheet.prepare()
+
     screen: {
         const screens = Quickshell.screens;
         for (let i = 0; i < screens.length; ++i) {

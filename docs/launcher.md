@@ -66,40 +66,54 @@ liquid shape, its shoulders melting into the edge; when that bar holds the top
 edge, the launcher hangs from the bar's lower edge instead of covering it.
 
 - **Search line.** The 力 seal in Lithic, a search glyph in the other designs;
-  the glyph changes with the mode (`/` actions, `=` calculator, `?` web, Ask).
+  the glyph changes with the mode (`/` actions, `=` calculator, `?` web).
   The query sets in large type with a faint completion of the top app after the
   caret, which Right or End accepts. Tabs on the right switch between All,
-  Apps, Windows, Files and Actions, plus Ask while Rashin is on.
-- **Track list.** The left column numbers its rows (Alt+1 to Alt+9 run one)
+  Apps, Windows, Files and Actions.
+- **Track list.** Every row is numbered (Alt+1 to Alt+9 run the first nine),
   with the icon, the title with the matched letters in full ink, and a kind
   line. An app with open windows carries a running dot and its window count;
-  the app playing music shows live equaliser bars. With an empty query it lists
-  your pinned apps, then the ones you use most; a fresh account gets a set by
+  the app playing music shows live equaliser bars. An action from the Actions
+  tab says in a few words what it does. With an empty query it lists your
+  pinned apps, then the ones you use most; a fresh account gets a set by
   category (browser, terminal, files, media and so on), never A to Z. The
-  selection is a liquid bead that stretches as it travels and settles with a
-  small squash.
+  selection is a liquid bead that glides to the row you pick, stretching as it
+  travels and settling with a small squash, and it stays on its row however the
+  list scrolls.
 - **Lead.** The right column shows the selected result in detail. An app shows
   its icon, name and description, its actions (the launch first, then desktop
-  actions such as New window), its open windows (Enter focuses one) and, while
-  it is the player, the track with previous, play or pause, and next. A
-  calculation shows large and Enter copies it; a file shows a picture preview or
-  its icon with Open and Show in folder; windows, web searches, the player and
-  Ask have views of their own.
-- **Music edge.** The sheet's height follows its results like a liquid level.
-  While music plays its lower edge ripples with the music, the way the Orpheus
-  drops do. Rows ripple in once per open; typing never animates row content.
+  actions such as New window), its open windows and, while it is the player,
+  the track with previous, play or pause, and next. A calculation shows large
+  and Enter copies it; a file shows a picture preview or its icon with Open and
+  Show in folder; windows, web searches and the player have views of their own.
+- **Open windows.** The Windows tab and an app's open windows show what each
+  window's program holds in memory. The daemon reads it once, the first time a
+  window shows during an open (`windows.memory`, the program plus the helpers
+  it started that own no window of their own, by proportional set size), and
+  never polls. Kill stops a window's program: its button in the list, its entry
+  in a window's actions, or Shift+Delete. The first press arms it and a second
+  press within three seconds kills; the daemon looks the window up itself, sends
+  SIGTERM, and SIGKILL three seconds later through a pidfd if the program is
+  still running (`windows.kill`). It refuses the desktop's own windows,
+  Xwayland, and another user's programs, and says why.
+- **Motion.** The sheet's height follows its results like a liquid level, and
+  while music plays its lower edge ripples with the music, the way the Orpheus
+  drops do. Rows ripple in once per open. While you type, rows that come into
+  view rise in with a short cascade; rows already in view stay where they are.
 - **Keyboard.** Up and Down, Ctrl+J and Ctrl+K, or Ctrl+N and Ctrl+P move;
   PageUp and PageDown move five; Enter runs; Tab enters the lead's actions;
-  Ctrl+1 to Ctrl+6 switch tabs. Esc leaves the actions, then clears the query,
-  then closes.
+  Ctrl+1 to Ctrl+5 switch tabs; Shift+Delete kills the selected window's
+  program. Esc leaves the actions, then clears the query, then closes.
 
 It draws in the four designs (Lithic, Material, Adwaita, Fluent) through
 Orpheus's kit; a design changes corners, planes and motion, never colour.
 Motion you cause follows the micro-motion setting, passive motion (the music
 edge, the equaliser bars) the ambient one, and reduced motion stills both. The
-card is released when it closes, and its providers 15 s later. Its
-`settings.json` asks for `hiddenApps` and `pinnedApps`, so Settings offers
-Hidden apps and Favourites for it.
+sheet fills its rows and lead as the open is asked for, so the pour never
+stalls to build them, and while the launcher host lives (until 15 s after a
+close) the card stays built, so a reopen only pours. Its `settings.json` asks
+for `hiddenApps` and `pinnedApps`, so Settings offers Hidden apps and
+Favourites for it.
 
 ## Structure and contracts
 
@@ -260,9 +274,10 @@ leaving the palette.
 The launcher is one resident process. While open it has no RAM ceiling (album-art
 decode, mpv, blur). At rest it sheds the heavy work: no media process runs until a
 track is played, the clipboard is read on demand (not watched), and file/package
-searches only fork past a length gate. Keystroke-to-result never animates; the
-motion budget is spent on the window show/hide and the action-panel open
-(`shared/Singletons/Motion.qml`).
+searches only fork past a length gate. Keystroke-to-result is never delayed by
+motion: Hero spends its motion budget on the window show/hide and the
+action-panel open (`shared/Singletons/Motion.qml`), and Orpheus's rise-in for
+rows that come into view runs on rows already placed.
 
 ## Theming
 

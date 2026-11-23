@@ -17,7 +17,14 @@ FocusScope {
     implicitHeight: sheet.level
     focus: true
 
+    // The card host calls this when it shows a card it kept built; a new card
+    // fills itself as it is created. Either way the sheet is full before the pour.
+    function prepare() {
+        sheet.prepare();
+    }
+
     onShownChanged: if (shown) Qt.callLater(sheet.focusSearch)
+    Component.onCompleted: sheet.prepare()
 
     // swallows clicks on the paper so the scene's click-away only fires off the card
     MouseArea {

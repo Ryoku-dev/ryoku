@@ -102,6 +102,10 @@ LITHIC_QML_ROOT = os.path.join(REPO, "docs", "lithic", "library", "qml", "Lithic
 HUB_ROOT = os.path.join(REPO, "ryoku", "hub", "quickshell")
 KIT_COMMANDS_ROOT = os.path.join(REPO, "ryoku", "shell", "quickshell", "shell",
                              "modules", "kit", "sections", "commands", "catalog")
+# the launcher's system actions: data in a JS literal, shown through I18n.tr
+LAUNCHER_ACTIONS = os.path.join(REPO, "ryoku", "shell", "quickshell", "shell", "modules",
+                                "launcher", "shared", "providers", "actions", "catalog.js")
+ACTION_FIELD = re.compile(r'\b(?:name|description):\s*"((?:[^"\\]|\\.)*)"')
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
              "ryoku/shell/ipc", "ryoku/shell/ryoget", "ryoku/hub/backend",
@@ -256,6 +260,17 @@ def _scan_command_catalogue(keys, root_dir):
                     keys.add(value.strip())
 
 
+def _scan_launcher_actions(keys, path):
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        return
+    for body in ACTION_FIELD.findall(text):
+        s = _unescape(body).strip()
+        if _copy(s):
+            keys.add(s)
+
+
 def _scan_hub_data(keys, hub_root):
     # keywords stay English: search matches them beside the translated titles
     for sub in ("registry", "schema"):
@@ -344,6 +359,7 @@ def extract_keys(store_root=None):
         _scan_qml(keys, root, include_model_fields=True)
     _scan_hub_data(keys, HUB_ROOT)
     _scan_command_catalogue(keys, KIT_COMMANDS_ROOT)
+    _scan_launcher_actions(keys, LAUNCHER_ACTIONS)
     pages = os.path.join(HUB_ROOT, "pages")
     if os.path.isdir(pages):
         for f in os.listdir(pages):

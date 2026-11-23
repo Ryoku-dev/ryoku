@@ -15,15 +15,20 @@ import "lib/text.js" as Words
 Item {
     id: root
 
-    required property var modelData
+    required property string key
     required property int index
-    readonly property var row: root.modelData
+    property var row: null
+    // how many digits the list's numbers run to, and the column that fits them
+    property int digits: 2
+    property real indexWidth: 16
     property var engine: null
     property bool selected: false
     property string highlight: ""
     property bool live: false
     // 0 hidden to 1 settled, from the list's open ripple
     property real intro: 1
+    // 0 hidden to 1 settled, when the row comes into view as you type
+    property real entry: 1
 
     signal pointed(point scenePosition)
     signal activated()
@@ -39,6 +44,8 @@ Item {
         && root.engine.isPlayingApp(root.row)
     readonly property string workspace: root.engine && root.kind === "window"
         ? root.engine.workspaceFor(root.row) : ""
+    readonly property string memory: root.engine && root.kind === "window"
+        ? Rows.memoryLabel((root.engine.windowInfo[String(root.row.windowAddress)] || {}).bytes) : ""
     property real pinch: 0
 
     implicitHeight: K.Style.rowH
@@ -79,9 +86,8 @@ Item {
                 ? Rows.parentFolder(row.subtitle, Quickshell.env("HOME") || "")
                 : String(row.subtitle || "");
         case "action":
-            return row.category ? I18n.tr(String(row.category)) : String(row.subtitle || "");
-        case "ask":
-            return I18n.tr("Ask Rashin");
+            return row.description ? String(row.description)
+                : row.category ? I18n.tr(String(row.category)) : String(row.subtitle || "");
         default:
             return String(row.subtitle || "");
         }
@@ -105,6 +111,18 @@ Item {
             pinchAnimation.restart();
     }
 
+    // a quick rise, staggered by the row's place among the rows arriving with it
+    function enter(order) {
+        entryAnimation.stop();
+        if (!K.Look.microMotion || K.Style.still) {
+            root.entry = 1;
+            return;
+        }
+        root.entry = 0;
+        entryPause.duration = Math.min(6, Math.max(0, order)) * 16;
+        entryAnimation.restart();
+    }
+
     NumberAnimation {
         id: pinchAnimation
         target: root
@@ -115,19 +133,31 @@ Item {
         easing.type: Easing.OutCubic
     }
 
+    SequentialAnimation {
+        id: entryAnimation
+        PauseAnimation { id: entryPause }
+        NumberAnimation {
+            target: root
+            property: "entry"
+            to: 1
+            duration: K.Style.ms(170)
+            easing.type: Easing.OutCubic
+        }
+    }
+
     Item {
         id: body
         anchors.fill: parent
-        opacity: root.intro * (root.row && root.row.disabled ? 0.5 : 1)
-        transform: Translate { y: (1 - root.intro) * 6 }
+        opacity: root.intro * root.entry * (root.row && root.row.disabled ? 0.5 : 1)
+        transform: Translate { y: (1 - root.intro) * 6 + (1 - root.entry) * 6 * K.Style.scale }
 
         Text {
             id: indexLabel
             anchors.left: parent.left
             anchors.leftMargin: K.Style.s3
             anchors.verticalCenter: parent.verticalCenter
-            width: K.Look.lithic ? 16 : 10
-            text: Rows.indexLabel(root.index, K.Look.lithic)
+            width: root.indexWidth
+            text: Rows.indexLabel(root.index, K.Look.lithic, root.digits)
             color: root.onBone ? root.inkKind : K.Style.inkFaint
             font.family: K.Look.lithic ? K.Style.mono : K.Style.font
             font.pixelSize: K.Style.caption
@@ -201,6 +231,29 @@ Item {
                 }
             }
 
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.memory.length > 0
+                spacing: K.Style.s1
+
+                K.Glyph {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "memory"
+                    size: 14
+                    color: root.inkKind
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.memory
+                    color: root.inkKind
+                    font.family: K.Look.lithic ? K.Style.mono : K.Style.font
+                    font.pixelSize: K.Style.caption
+                    font.features: K.Style.tabular
+                    renderType: Text.NativeRendering
+                }
+            }
+
             KeyCap {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.selected
@@ -237,7 +290,7 @@ Item {
                 color: root.inkKind
                 font.family: K.Style.font
                 font.pixelSize: K.Style.caption
-                elide: Text.ElideMiddle
+                elide: root.kind === "file" ? Text.ElideMiddle : Text.ElideRight
                 maximumLineCount: 1
                 renderType: Text.NativeRendering
             }

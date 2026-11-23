@@ -45,6 +45,7 @@ Provider {
             id: "action:" + entry.id,
             title: I18n.tr(entry.name),
             subtitle: "",
+            description: I18n.tr(entry.description),
             icon: "",
             type: entry.category,
             score: 0,

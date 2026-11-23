@@ -28,6 +28,7 @@ ok(validate([{ id: "z", name: "Z", category: "System" }]).some(p => p.indexOf("e
 ok(validate([{ id: "w", name: "W", category: "System", verb: "lock", exec: ["a"] }]).some(p => p.indexOf("exactly one") !== -1), "validate flags an entry with two actions");
 ok(validate([{ id: "v", name: "V", category: "System", surface: "" }]).some(p => p.indexOf("empty surface") !== -1), "validate flags an empty surface");
 ok(validate([{ id: "u", name: "U", category: "System", exec: ["ryoku-shell", "lock"] }]).some(p => p.indexOf("instead of a verb") !== -1), "validate flags a spawned ryoku-shell");
+ok(validate([{ id: "t", name: "T", category: "System", verb: "lock" }]).some(p => p.indexOf("missing description") !== -1), "validate flags an action that does not say what it does");
 
 const entry = id => CATALOG.find(action => action.id === id) || {};
 ok(entry("open-clipboard").surface === "clipboard", "Clipboard History uses the dedicated clipboard surface");

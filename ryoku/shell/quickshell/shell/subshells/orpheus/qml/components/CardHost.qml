@@ -73,13 +73,35 @@ Item {
         return host.activeLoader === firstLoader ? secondLoader : firstLoader;
     }
 
+    // The launcher card stays built between opens while the launcher is warm,
+    // so Super+Space reopens it without building it again.
+    function keptLauncher(loader) {
+        return host.scene.launcherWarm === true && loader.loadedKey === "launcher"
+            && loader.status === Loader.Ready && loader.item !== null;
+    }
+
+    function freeLoader() {
+        return host.keptLauncher(firstLoader) ? secondLoader : firstLoader;
+    }
+
     function loadCard() {
         const source = host.sourceFor(host.retainedKey);
         if (source.toString() === "") {
             Qt.callLater(host.scene.closeCard);
             return;
         }
-        const loader = host.activeLoader === null ? firstLoader : host.inactiveLoader();
+        if (host.retainedKey === "launcher") {
+            const kept = host.keptLauncher(firstLoader) ? firstLoader
+                : host.keptLauncher(secondLoader) ? secondLoader : null;
+            if (kept !== null) {
+                kept.loadedArgs = host.retainedArgs;
+                host.pendingLoader = kept;
+                host.activate(kept);
+                kept.item.prepare();
+                return;
+            }
+        }
+        const loader = host.activeLoader === null ? host.freeLoader() : host.inactiveLoader();
         loader.selected = false;
         loader.loadedKey = host.retainedKey;
         loader.loadedArgs = host.retainedArgs;
@@ -111,8 +133,24 @@ Item {
         host.pendingLoader = null;
         firstLoader.selected = false;
         secondLoader.selected = false;
-        firstLoader.source = "";
-        secondLoader.source = "";
+        if (!host.keptLauncher(firstLoader))
+            host.unload(firstLoader);
+        if (!host.keptLauncher(secondLoader))
+            host.unload(secondLoader);
+    }
+
+    function unload(loader) {
+        loader.source = "";
+        loader.loadedKey = "";
+    }
+
+    // the launcher host went away, so a launcher card kept for it goes too
+    function dropKeptLauncher() {
+        for (const loader of [firstLoader, secondLoader]) {
+            if (loader.loadedKey === "launcher" && loader !== host.activeLoader
+                    && loader !== host.pendingLoader)
+                host.unload(loader);
+        }
     }
 
     onCardKeyChanged: {
@@ -136,6 +174,14 @@ Item {
         function onCardProgressChanged() {
             if (host.body.cardProgress <= 0.001 && host.cardKey === "")
                 host.releaseCards();
+        }
+    }
+
+    Connections {
+        target: host.scene
+        function onLauncherWarmChanged() {
+            if (!host.scene.launcherWarm)
+                host.dropKeptLauncher();
         }
     }
 

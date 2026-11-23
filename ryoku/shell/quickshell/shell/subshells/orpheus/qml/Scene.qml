@@ -41,6 +41,8 @@ Item {
     readonly property bool launcherShown: launcherOpen
         || (cardKey === "" && cards.retainedKey === "launcher")
     readonly property var launcherSheet: cards.launcherSheet
+    // a launcher host is alive, so the card host keeps the launcher card built
+    readonly property bool launcherWarm: V.Vessels.warm
     readonly property real textRoom: Math.max(64,
         Math.max(Number(prefs.mediaWidth) || 220,
             Number(prefs.windowWidth) || 240) - win.overflow)

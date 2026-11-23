@@ -21,7 +21,7 @@ Column {
         ? I18n.tr("No app called “%1”").arg(String(root.engine ? root.engine.query : ""))
         : root.row ? String(root.row.title || "") : ""
     property string subtitle: root.row ? String(root.row.subtitle || "") : ""
-    property string description: ""
+    property string description: root.row && root.row.description ? String(root.row.description) : ""
     property string iconSource: root.row ? String(root.row.icon || "") : ""
     property string glyph: root.empty ? "search_off" : root.row ? Rows.glyphFor(root.row) : "apps"
     property alias body: bodySlot.data
@@ -32,7 +32,9 @@ Column {
     IconPlate {
         source: root.iconSource
         glyph: root.glyph
-        rank: root.empty || !root.engine ? -1 : root.engine.selectedIndex
+        numeral: root.empty || !root.engine || root.engine.selectedIndex < 0 ? ""
+            : Rows.indexLabel(root.engine.selectedIndex, true,
+                Rows.indexDigits(root.engine.resultCount, true))
         rise: root.lead ? root.lead.rise : 0
     }
 

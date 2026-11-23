@@ -9,7 +9,7 @@ import "../kit" as K
 Item {
     id: root
 
-    // [{ label, meta, glyph, primary }]
+    // [{ label, meta, detail, glyph, primary, danger, kill, armed }]
     property var items: []
     // the focused entry, -1 while the keyboard is in the track list
     property int focusIndex: -1
@@ -22,6 +22,8 @@ Item {
     readonly property bool micro: K.Look.microMotion && !K.Style.still
 
     signal activated(int index)
+    // a track's kill button was pressed (open windows)
+    signal killRequested(int index)
 
     implicitWidth: 240
     implicitHeight: root.items.length * root.rowH
@@ -180,7 +182,30 @@ Item {
                     anchors.right: parent.right
                     anchors.rightMargin: K.Style.s3
                     anchors.verticalCenter: parent.verticalCenter
+                    // above the track's own press, so its kill button takes the click
+                    z: 1
                     spacing: K.Style.s2
+
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: String(track.modelData.detail || "").length > 0
+                        spacing: K.Style.s1
+
+                        K.Glyph {
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "memory"
+                            size: 14
+                            tone: track.onBone ? "onBone" : "muted"
+                        }
+
+                        K.Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: String(track.modelData.detail || "")
+                            role: "caption"
+                            tone: track.onBone ? "onBone" : "muted"
+                            numeric: true
+                        }
+                    }
 
                     K.Label {
                         anchors.verticalCenter: parent.verticalCenter
@@ -197,6 +222,13 @@ Item {
                         text: "Enter"
                         inverse: track.onBone
                     }
+
+                    KillButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: track.modelData.kill === true
+                        armed: track.modelData.armed === true
+                        onClicked: root.killRequested(track.index)
+                    }
                 }
 
                 K.Label {
@@ -207,7 +239,9 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: String(track.modelData.label || "")
                     role: track.modelData.primary === true ? "bodyStrong" : "body"
-                    tone: track.onBone ? "onBone" : track.focused || track.modelData.primary === true ? "ink" : "dim"
+                    tone: track.onBone ? "onBone"
+                        : track.modelData.danger === true ? "alert"
+                        : track.focused || track.modelData.primary === true ? "ink" : "dim"
                 }
 
                 K.Press {

@@ -11,7 +11,6 @@ import "lib/modes.js" as Modes
 import "lib/rest.js" as Rest
 import "lib/rows.js" as Rows
 import "lib/text.js" as Words
-import "lib/rashin.js" as Rashin
 
 // The launcher's query and selection model. Provider queries are impure, so
 // rows are an imperative snapshot refreshed on the next tick after the query,
@@ -32,12 +31,9 @@ Item {
     readonly property string selectedKey: engine._key
     readonly property int resultCount: engine._rows.length
     readonly property string section: engine._section
-    readonly property bool askAvailable: engine._askAvailable
-    readonly property var modes: Modes.modesFor(engine.askAvailable)
+    readonly property var modes: Modes.MODES
     readonly property var route: Modes.routeFor(engine.mode, engine.query,
-        function (text) { return LS.Dispatcher.route(text); }, engine.askAvailable)
-    readonly property bool askMode: engine.route.ask === true
-    readonly property string askQuestion: engine.askMode ? engine.route.query : ""
+        function (text) { return LS.Dispatcher.route(text); })
     readonly property bool resting: engine.route.rest === true
     // "seal" is the design's own search mark, anything else a Material symbol
     readonly property string glyph: Modes.glyphFor(engine.route)
@@ -45,7 +41,7 @@ Item {
     readonly property bool busy: {
         void LS.Dispatcher.busyRevision;
         const busy = LS.Dispatcher.busyProviders;
-        if (engine.route.ask || engine.route.rest)
+        if (engine.route.rest)
             return false;
         if (engine.route.provider.length > 0)
             return Boolean(busy[engine.route.provider]);
@@ -58,7 +54,7 @@ Item {
     }
     readonly property string ghost: {
         const route = engine.route;
-        if (engine._rows.length === 0 || route.ask || route.rest || route.prefix.length > 0)
+        if (engine._rows.length === 0 || route.rest || route.prefix.length > 0)
             return "";
         if (engine.mode !== "all" && engine.mode !== "apps")
             return "";
@@ -93,6 +89,13 @@ Item {
         return out;
     }
 
+    // What each open window's program holds, by window id: read from the daemon
+    // once per open, when a view first shows that window, never polled.
+    property var windowInfo: ({})
+    property var _infoAsked: ({})
+    // the window a first kill press armed; a second press within three seconds kills
+    property string armedKill: ""
+
     property var _rows: []
     property int _index: -1
     property string _key: ""
@@ -104,10 +107,11 @@ Item {
     // the selection rides the top result until the user moves it, so a row an
     // async provider adds above (the calculator) takes it
     property bool _followTop: true
-    property bool _askAvailable: false
 
     signal closeRequested()
     signal flashed(string text)
+    // the user moved the selection (keys, hover, click), so the bead travels to it
+    signal stepped()
     // a row ran and the vessel is closing: its icon pinches
     signal ran(string resultKey)
 
@@ -117,25 +121,10 @@ Item {
         if (engine.active)
             engine.schedule();
     }
-    onAskAvailableChanged: {
-        if (!engine.askAvailable && engine.mode === "ask")
-            engine.mode = "all";
-        engine.requery();
-    }
 
     Connections {
         target: LS.Dispatcher
         function onRevisionChanged() { engine.schedule(); }
-    }
-
-    FileView {
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-            + "/ryoku/rashin.json"
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        onLoaded: engine._askAvailable = Rashin.rashinEnabled(text())
-        onLoadFailed: engine._askAvailable = false
     }
 
     function requery() {
@@ -150,19 +139,23 @@ Item {
         Qt.callLater(engine.evaluate);
     }
 
+    // A fresh open: the query and the tab start over, and the first rows land
+    // in the same frame so the level starts at its height. The rows are not
+    // emptied first, so a list that comes back the same keeps its delegates.
     function reset() {
         engine._prefer = "";
         engine._token = "";
         engine._signature = "";
-        engine.query = "";
-        engine.mode = "all";
         engine._followTop = true;
-        engine._rows = [];
         engine._index = -1;
         engine._key = "";
         engine._section = "";
-        // the first rows land in the same frame the sheet opens, so the level
-        // starts at its height instead of growing from four rows
+        engine.windowInfo = ({});
+        engine._infoAsked = ({});
+        engine.armedKill = "";
+        disarm.stop();
+        engine.query = "";
+        engine.mode = "all";
         engine.evaluate();
     }
 
@@ -187,36 +180,15 @@ Item {
         return out;
     }
 
-    function askRowFor(question) {
-        return {
-            id: "ask",
-            type: "Ask",
-            title: question,
-            question: question,
-            subtitle: "",
-            icon: "",
-            score: 0,
-            actions: [{
-                id: "ask",
-                name: I18n.tr("Ask Rashin"),
-                icon: "",
-                closeOnExecute: false,
-                execute: function () {}
-            }]
-        };
-    }
-
     function evaluate() {
         engine._queued = false;
         if (!engine.active)
             return;
         const route = engine.route;
-        const token = [engine.mode, route.provider, route.prefix, route.ask, route.rest].join("|");
+        const token = [engine.mode, route.provider, route.prefix, route.rest].join("|");
         let section = "";
         let next;
-        if (route.ask) {
-            next = Results.normalizeRows("ask", [engine.askRowFor(route.query)]);
-        } else if (route.rest) {
+        if (route.rest) {
             const rest = Rest.restOrder(LS.Dispatcher.resultsFor("apps", "", "", 0),
                 engine.pinnedList(), LS.Frecency.usage, engine.categoriesOf, Rest.REST_LIMIT);
             next = rest.rows;
@@ -238,6 +210,11 @@ Item {
             engine._signature = signature;
             engine._rows = next;
         }
+        // windows that show up in the list get their memory read, once per open
+        const windowIds = next.filter(row => row.providerId === "windows")
+            .map(row => String(row.windowAddress || ""));
+        if (windowIds.length > 0)
+            engine.needWindowInfo(windowIds);
         engine.reselect();
     }
 
@@ -284,12 +261,14 @@ Item {
             return;
         engine._followTop = false;
         engine.select(engine._index < 0 ? 0 : engine._index + delta);
+        engine.stepped();
     }
 
     // a selection the user made (hover, click) that later rows must not move
     function pick(index) {
         engine._followTop = false;
         engine.select(index);
+        engine.stepped();
     }
 
     function run(row, action) {
@@ -408,5 +387,62 @@ Item {
             return true;
         return Boolean(entry) && String(player.identity || "").toLowerCase()
             === String(entry.name || "").toLowerCase();
+    }
+
+    // Asks the daemon what the given windows' programs hold, skipping any
+    // already asked during this open.
+    function needWindowInfo(ids) {
+        const asked = Object.assign({}, engine._infoAsked);
+        const missing = [];
+        for (let i = 0; i < ids.length; i++) {
+            const id = String(ids[i] || "");
+            if (id.length === 0 || asked[id])
+                continue;
+            asked[id] = true;
+            missing.push(id);
+        }
+        if (missing.length === 0)
+            return;
+        engine._infoAsked = asked;
+        Bus.call("windows.memory", { ids: missing }, function (ok, result) {
+            if (!ok || !result || !Array.isArray(result.windows))
+                return;
+            const next = Object.assign({}, engine.windowInfo);
+            for (let i = 0; i < result.windows.length; i++) {
+                const info = result.windows[i];
+                if (info && info.id !== undefined)
+                    next[String(info.id)] = info;
+            }
+            engine.windowInfo = next;
+        });
+    }
+
+    // Kill is destructive, so the first press only arms it.
+    function requestKill(id) {
+        const key = String(id || "");
+        if (key.length === 0)
+            return;
+        const info = engine.windowInfo[key];
+        if (info && info.killable === false) {
+            engine.flashed(String(info.reason || I18n.tr("Ryoku can't stop that program.")));
+            return;
+        }
+        if (engine.armedKill !== key) {
+            engine.armedKill = key;
+            disarm.restart();
+            engine.flashed(I18n.tr("Press again to kill it"));
+            return;
+        }
+        engine.armedKill = "";
+        disarm.stop();
+        Bus.call("windows.kill", { id: key }, function (ok, result, error) {
+            engine.flashed(ok ? I18n.tr("Killed") : String(error || I18n.tr("Ryoku couldn't stop that program.")));
+        });
+    }
+
+    Timer {
+        id: disarm
+        interval: 3000
+        onTriggered: engine.armedKill = ""
     }
 }

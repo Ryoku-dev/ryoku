@@ -2,25 +2,36 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
 const require = createRequire(import.meta.url);
-const { kindKey, glyphFor, parentFolder, indexLabel, countLabel, sameApp } = require("./rows.js");
+const { kindKey, glyphFor, parentFolder, indexDigits, indexLabel, memoryLabel, countLabel, sameApp } = require("./rows.js");
 
-test("only the first nine rows carry an Alt+N index", () => {
+test("every row carries a number, not only the first nine", () => {
   assert.equal(indexLabel(0, false), "1");
-  assert.equal(indexLabel(8, false), "9");
-  assert.equal(indexLabel(9, false), "");
+  assert.equal(indexLabel(9, false), "10");
+  assert.equal(indexLabel(77, false), "78");
   assert.equal(indexLabel(-1, false), "");
 });
 
-test("Lithic sets the index and the count as print digits", () => {
-  assert.equal(indexLabel(0, true), "01");
-  assert.equal(indexLabel(8, true), "09");
+test("Lithic pads every number to the longest one in the list", () => {
+  assert.equal(indexLabel(0, true, indexDigits(9, true)), "01");
+  assert.equal(indexLabel(11, true, indexDigits(78, true)), "12");
+  assert.equal(indexLabel(4, true, indexDigits(120, true)), "005");
+  assert.equal(indexLabel(119, true, indexDigits(120, true)), "120");
+  assert.equal(indexDigits(120, false), 3);
   assert.equal(countLabel(41, true), "041");
   assert.equal(countLabel(41, false), "41");
   assert.equal(countLabel(1234, true), "1234");
 });
 
+test("memory reads in megabytes, then gigabytes", () => {
+  assert.equal(memoryLabel(0), "");
+  assert.equal(memoryLabel(512 * 1024), "<1 MB");
+  assert.equal(memoryLabel(412 * 1048576), "412 MB");
+  assert.equal(memoryLabel(1.25 * 1073741824), "1.3 GB");
+  assert.equal(memoryLabel(12 * 1073741824), "12 GB");
+});
+
 test("each kind of result gets its own symbol when it has no icon", () => {
-  const symbols = ["apps", "windows", "calc", "web", "actions", "mpris", "ask"]
+  const symbols = ["apps", "windows", "calc", "web", "actions", "mpris"]
     .map(providerId => glyphFor({ providerId }));
   assert.equal(new Set(symbols).size, symbols.length);
   assert.equal(glyphFor({ providerId: "find", type: "Folder" }), "folder");

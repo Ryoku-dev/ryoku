@@ -40,6 +40,18 @@ class CatalogueExtractionTest(unittest.TestCase):
             sync._scan_command_catalogue(keys, catalog)
         self.assertEqual(keys, {"Show a version", "Read the installed version.", "Linux", "Files & folders"})
 
+    def test_launcher_action_names_and_descriptions_are_catalogued(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "catalog.js")
+            with open(path, "w", encoding="utf-8") as source:
+                source.write('var CATALOG = [\n'
+                             '    { id: "lock-screen", name: "Lock Screen", '
+                             'description: "Locks the screen right away", category: "System", '
+                             'icon: "lock", verb: "lock" }\n];\n')
+            keys = set()
+            sync._scan_launcher_actions(keys, path)
+        self.assertEqual(keys, {"Lock Screen", "Locks the screen right away"})
+
     def test_translation_bridge_call_is_catalogued(self):
         calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")\n'
                                      'accessibleName: Lithic.tr("Reset %1").arg(title)')

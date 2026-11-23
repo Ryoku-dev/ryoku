@@ -41,9 +41,8 @@ FocusScope {
     readonly property real labelHeight: root.engine.section.length > 0 ? 24 : 0
     readonly property real chrome: root.pad + root.searchHeight + root.gap + root.labelHeight
         + root.gap + root.footHeight + K.Style.s1
-    // Ask answers live in the lead, so asking keeps the full list block open.
     readonly property var layout: Geometry.sheetLevel({
-        count: root.engine.askMode ? Geometry.MAX_ROWS : root.engine.resultCount,
+        count: root.engine.resultCount,
         rowHeight: K.Style.rowH,
         chrome: root.chrome,
         waveRoom: root.waveRoom,
@@ -81,20 +80,26 @@ FocusScope {
         };
     }
 
-    function syncShown() {
-        if (!root.shown) {
-            root.engine.active = false;
-            return;
-        }
+    // Fills the sheet before it shows: the rows, the lead and the level are
+    // laid out as the vessel starts to pour, so the reveal costs nothing.
+    function prepare() {
         root.levelAnimated = false;
         root.actionsFocused = false;
         foot.flashText = "";
         root.engine.active = true;
         root.engine.reset();
-        list.armOpen();
-        root.focusSearch();
+        list.prepare();
         // the open starts at its level, only later changes pour
         Qt.callLater(function () { root.levelAnimated = true; });
+    }
+
+    function syncShown() {
+        if (!root.shown) {
+            root.engine.active = false;
+            return;
+        }
+        list.armOpen();
+        root.focusSearch();
     }
 
     function runSelected() {
@@ -128,11 +133,10 @@ FocusScope {
     function handleKey(event) {
         const intent = KeyMap.intentFor(event.key, event.modifiers, {
             actionsFocused: root.actionsFocused,
-            leadKeys: root.engine.askMode,
             ghost: root.engine.ghost.length > 0,
             caretAtEnd: search.caretAtEnd,
             queryEmpty: root.engine.query.length === 0,
-            askBusy: lead.askBusy,
+            canKill: lead.killTarget.length > 0,
             modeCount: root.engine.modes.length
         });
         if (!intent)
@@ -160,9 +164,6 @@ FocusScope {
         case "leaveActions":
             root.actionsFocused = false;
             break;
-        case "cancelAsk":
-            lead.cancelAsk();
-            break;
         case "clear":
             root.engine.query = "";
             break;
@@ -178,6 +179,9 @@ FocusScope {
         case "mode":
             root.engine.setMode(root.engine.modes[intent.n - 1]);
             break;
+        case "kill":
+            root.engine.requestKill(lead.killTarget);
+            break;
         default:
             break;
         }
@@ -188,15 +192,11 @@ FocusScope {
     function overrideKey(event) {
         if (event.key !== Qt.Key_Escape)
             return;
-        if (root.engine.query.length > 0 || root.actionsFocused || lead.askBusy)
+        if (root.engine.query.length > 0 || root.actionsFocused)
             event.accepted = true;
     }
 
     onShownChanged: root.syncShown()
-    Component.onCompleted: {
-        if (root.shown)
-            root.syncShown();
-    }
 
     // Keys from anything else focused inside the sheet: navigation still
     // works and typing lands in the field.
@@ -288,17 +288,14 @@ FocusScope {
                     anchors.bottom: parent.bottom
                     engine: root.engine
                     live: root.shown
-                    matchText: root.engine.askMode || root.engine.resting ? "" : root.engine.route.query
+                    matchText: root.engine.resting ? "" : root.engine.route.query
                     onHovered: index => {
                         if (index !== root.engine.selectedIndex)
                             root.engine.pick(index);
                     }
                     onPicked: index => {
                         root.engine.pick(index);
-                        if (root.engine.askMode)
-                            lead.runAction();
-                        else
-                            root.engine.run(root.engine.rows[index], null);
+                        root.engine.run(root.engine.rows[index], null);
                         root.focusSearch();
                     }
                 }
@@ -343,7 +340,7 @@ FocusScope {
             height: root.footHeight
             engine: root.engine
             actionsFocused: root.actionsFocused
-            askBusy: lead.askBusy
+            killTarget: lead.killTarget
         }
     }
 }

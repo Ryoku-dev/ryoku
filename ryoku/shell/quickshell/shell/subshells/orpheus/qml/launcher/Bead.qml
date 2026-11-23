@@ -2,32 +2,50 @@ import QtQuick
 import "../kit" as K
 import "lib/geometry.js" as Geometry
 
-// The selection: one liquid bead behind the rows. It stretches along its travel
-// and squashes as it lands. Lithic sets it as the print language's bone plate,
-// Material a tonal pill, Adwaita a rounded tint, Fluent a tint with a hairline.
+// The selection: one liquid bead behind the rows. It glides to a row the user
+// picks, stretching along its travel and squashing as it lands, and stays glued
+// to a selected row that slides. Lithic sets it as the print language's bone
+// plate, Material a tonal pill, Adwaita a rounded tint, Fluent a tint with a hairline.
 Item {
     id: root
 
-    property real targetY: 0
     property real rowHeight: K.Style.rowH
-    readonly property bool animated: K.Look.microMotion && !K.Style.still
-
-    property real travelY: root.targetY
+    property real targetY: 0
+    property real travelY: 0
     property real squash: 0
+    readonly property bool animated: K.Look.microMotion && !K.Style.still
 
     height: Geometry.beadHeight(root.rowHeight, root.travelY - root.targetY) * (1 - 0.08 * root.squash)
     y: root.travelY + root.rowHeight / 2 - root.height / 2
 
-    Behavior on travelY {
-        enabled: root.animated
-        NumberAnimation {
-            duration: K.Style.ms(K.Look.stateMs + 60)
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: K.Look.enterCurve
-            onFinished: {
-                if (root.animated)
-                    land.restart();
-            }
+    function moveTo(y, glide) {
+        root.targetY = y;
+        if (glide && root.animated && Math.abs(y - root.travelY) > 0.5) {
+            travel.from = root.travelY;
+            travel.to = y;
+            travel.restart();
+            return;
+        }
+        travel.stop();
+        root.travelY = y;
+    }
+
+    function follow(y) {
+        travel.stop();
+        root.targetY = y;
+        root.travelY = y;
+    }
+
+    NumberAnimation {
+        id: travel
+        target: root
+        property: "travelY"
+        duration: K.Style.ms(K.Look.stateMs + 60)
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: K.Look.enterCurve
+        onFinished: {
+            if (root.animated)
+                land.restart();
         }
     }
 

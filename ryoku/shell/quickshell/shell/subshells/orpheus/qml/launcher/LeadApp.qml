@@ -34,7 +34,8 @@ LeadGeneric {
             items: root.lead ? root.lead.windowItems : []
             focusIndex: root.lead ? root.lead.windowFocus : -1
             scroller: root.lead ? root.lead.scroller : null
-            onActivated: index => root.lead.runAt(root.lead.actions.length + index)
+            onActivated: index => root.lead.runAt(root.lead.actionItems.length + index)
+            onKillRequested: index => root.lead.killWindowAt(index)
         }
     }
 

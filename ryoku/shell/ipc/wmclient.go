@@ -32,6 +32,7 @@ func (d *daemon) startWM() {
 		// caller; actions that print nothing answer with an empty result.
 		return d.wmc.ActOutput(wm.Action(a.Action), a.Args...)
 	})
+	d.registerWindowProcs()
 	d.kbMemory = newKbLayoutMemory(kbLayoutPath(), func() error {
 		return d.wmc.Act(wm.ActionKeyboardCycleLayout)
 	})

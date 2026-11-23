@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import "../kit" as K
-import "lib/rows.js" as Rows
 
 // The lead's icon on its plate, per design: Lithic a cut plate ruled by a
 // hairline over a giant faint rank numeral, Material a tonal circle, Adwaita the
@@ -14,8 +13,8 @@ Item {
     // an image url or path (app and window icons), else the symbol is drawn
     property string source: ""
     property string glyph: "apps"
-    // the selected row's index, -1 for none
-    property int rank: -1
+    // the selected row's number as the list prints it, "" for none
+    property string numeral: ""
     // the selection-change rise, in px, applied to the icon only
     property real rise: 0
 
@@ -32,7 +31,7 @@ Item {
         visible: K.Look.lithic && text.length > 0
         x: root.plateSize + K.Style.s3
         anchors.verticalCenter: plate.verticalCenter
-        text: root.rank >= 0 ? Rows.indexLabel(root.rank, true) : ""
+        text: root.numeral
         color: K.Style.alpha(K.Style.inkFaint, 0.6)
         font.family: K.Style.mono
         font.pixelSize: Math.round(root.plateSize * 0.86)

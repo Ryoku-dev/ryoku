@@ -12,24 +12,24 @@ Item {
 
     property var engine: null
     property bool actionsFocused: false
-    property bool askBusy: false
+    // the window Shift+Delete would stop, "" when none is in reach
+    property string killTarget: ""
     property string flashText: ""
 
     readonly property var hints: {
+        const kill = root.killTarget.length > 0 ? [[I18n.tr("Shift+Del"), I18n.tr("Kill")]] : [];
         if (root.actionsFocused)
-            return [[I18n.tr("Enter"), I18n.tr("Run")], [I18n.tr("Esc"), I18n.tr("Back")]];
-        if (root.engine && root.engine.askMode)
-            return [[I18n.tr("Enter"), I18n.tr("Ask")],
-                [I18n.tr("Esc"), root.askBusy ? I18n.tr("Stop") : I18n.tr("Clear")]];
+            return [[I18n.tr("Enter"), I18n.tr("Run")]].concat(kill, [[I18n.tr("Esc"), I18n.tr("Back")]]);
         return [
             [I18n.tr("Enter"), I18n.tr("Open")],
-            [I18n.tr("Tab"), I18n.tr("Actions")],
+            [I18n.tr("Tab"), I18n.tr("Actions")]
+        ].concat(kill, [
             [I18n.tr("Alt+1-9"), I18n.tr("Pick")],
             ["=", I18n.tr("Calculate")],
             ["?", I18n.tr("Web")],
             ["/", I18n.tr("Actions")],
             [I18n.tr("Esc"), I18n.tr("Close")]
-        ];
+        ]);
     }
 
     function flash(text) {

@@ -54,7 +54,9 @@ Column {
     IconPlate {
         visible: !root.showImage
         glyph: root.row ? Rows.glyphFor(root.row) : "description"
-        rank: root.engine ? root.engine.selectedIndex : -1
+        numeral: !root.engine || root.engine.selectedIndex < 0 ? ""
+            : Rows.indexLabel(root.engine.selectedIndex, true,
+                Rows.indexDigits(root.engine.resultCount, true))
         rise: root.lead ? root.lead.rise : 0
     }
 
