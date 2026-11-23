@@ -87,15 +87,15 @@ edge, the launcher hangs from the bar's lower edge instead of covering it.
   and Enter copies it; a file shows a picture preview or its icon with Open and
   Show in folder; windows, web searches and the player have views of their own.
 - **Open windows.** The Windows tab and an app's open windows show what each
-  window's program holds in memory. The daemon reads it once, the first time a
+  window's program holds in RAM. The daemon reads it once, the first time a
   window shows during an open (`windows.memory`, the program plus the helpers
-  it started that own no window of their own, by proportional set size), and
-  never polls. Kill stops a window's program: its button in the list, its entry
-  in a window's actions, or Shift+Delete. The first press arms it and a second
-  press within three seconds kills; the daemon looks the window up itself, sends
-  SIGTERM, and SIGKILL three seconds later through a pidfd if the program is
-  still running (`windows.kill`). It refuses the desktop's own windows,
-  Xwayland, and another user's programs, and says why.
+  it started that own no window of their own, by proportional set size, swapped
+  pages left out), and never polls. Kill stops a window's program: its button in
+  the list, its entry in a window's actions, or Shift+Delete. The first press
+  arms it and a second press within three seconds kills; the daemon looks the
+  window up itself, sends SIGTERM, and SIGKILL three seconds later through a
+  pidfd if the program is still running (`windows.kill`). It refuses the
+  desktop's own windows, Xwayland, and another user's programs, and says why.
 - **Motion.** The sheet's height follows its results like a liquid level, and
   while music plays its lower edge ripples with the music, the way the Orpheus
   drops do. Rows ripple in once per open. While you type, rows that come into

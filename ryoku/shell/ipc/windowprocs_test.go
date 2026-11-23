@@ -60,9 +60,9 @@ func entriesByID(entries []windowMemoryEntry) map[string]windowMemoryEntry {
 func TestWindowMemorySumsHelpersButNotOtherWindows(t *testing.T) {
 	uid := os.Getuid()
 	root := writeFakeProcs(t,
-		// browser: smaps_rollup wins over its status numbers
+		// browser: smaps_rollup wins over its status numbers, swapped pages left out
 		fakeProc{pid: 100, ppid: 50, comm: "browser", uid: uid, rssKB: 999999, swapKB: 999999, pssKB: 1000, swapPssKB: 100},
-		// a helper with no readable rollup falls back to status
+		// a helper with no readable rollup falls back to its resident size
 		fakeProc{pid: 101, ppid: 100, comm: "Web Content", uid: uid, rssKB: 200, swapKB: 20},
 		// a comm that would fake ppid 1 if read up to the first ')'
 		fakeProc{pid: 102, ppid: 101, comm: "gpu) S 1 (x", uid: uid, rssKB: 30, swapKB: 3},
@@ -82,10 +82,10 @@ func TestWindowMemorySumsHelpersButNotOtherWindows(t *testing.T) {
 	if len(all) != 4 {
 		t.Fatalf("every window should be answered, got %+v", all)
 	}
-	if got, want := all["a"].Bytes, uint64(1000+100+200+20+30+3)<<10; got != want {
-		t.Fatalf("browser memory = %d, want %d (itself and helpers, not the editor)", got, want)
+	if got, want := all["a"].Bytes, uint64(1000+200+30)<<10; got != want {
+		t.Fatalf("browser memory = %d, want %d (itself and helpers in RAM, not the editor)", got, want)
 	}
-	if got, want := all["b"].Bytes, uint64(500+50+40)<<10; got != want {
+	if got, want := all["b"].Bytes, uint64(500+40)<<10; got != want {
 		t.Fatalf("editor memory = %d, want %d", got, want)
 	}
 	if all["a"].Shared != 1 || all["b"].Shared != 2 || all["c"].Shared != 2 {

@@ -134,15 +134,15 @@ func processTreeMemory(procRoot string, root int, children map[int][]int, owners
 	return total
 }
 
-// procMemory prefers proportional set size, so pages shared between helpers
-// are not counted once per helper. smaps_rollup is unreadable for some
-// processes, so resident plus swap from status is the fallback.
+// procMemory is what a process holds in RAM, by proportional set size so pages
+// shared between helpers are not counted once per helper. Swapped-out pages
+// are left out, as a system monitor leaves them out. smaps_rollup is
+// unreadable for some processes, so resident size from status is the fallback.
 func procMemory(procRoot string, pid int) uint64 {
 	dir := filepath.Join(procRoot, strconv.Itoa(pid))
 	if b, err := os.ReadFile(filepath.Join(dir, "smaps_rollup")); err == nil {
 		if pss, ok := readKBField(strings.NewReader(string(b)), "Pss"); ok {
-			swap, _ := readKBField(strings.NewReader(string(b)), "SwapPss")
-			return pss + swap
+			return pss
 		}
 	}
 	f, err := os.Open(filepath.Join(dir, "status"))
@@ -150,8 +150,8 @@ func procMemory(procRoot string, pid int) uint64 {
 		return 0
 	}
 	defer f.Close()
-	mem, _ := processMemoryReader(f)
-	return mem
+	rss, _ := readKBField(f, "VmRSS")
+	return rss
 }
 
 // procChildren maps every pid under procRoot to its children.

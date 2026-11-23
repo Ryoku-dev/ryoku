@@ -14,7 +14,7 @@
 - **The Orpheus launcher numbers every row, shows open windows' memory and can
   kill a window's program.** Numbers run past nine (Alt+1 to Alt+9 still run
   the first nine); the Windows tab and an app's open windows show what each
-  program holds in memory, read once when the window first shows; Kill (a
+  program holds in RAM, read once when the window first shows; Kill (a
   button, a window's action, or Shift+Delete) arms on the first press and stops
   the program on the second. Actions in the Actions tab say in a few words what
   they do, and rows that come into view while you type rise in. The daemon
