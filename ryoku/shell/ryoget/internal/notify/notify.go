@@ -21,6 +21,7 @@ const (
 	appIcon   = "folder-download"
 	ActOpen   = "default"
 	ActFolder = "folder"
+	ActRetry  = "retry"
 	// how long a notice may keep the daemon up waiting for a press
 	PendingFor = 120 * time.Second
 )
@@ -29,6 +30,20 @@ type Notice struct {
 	Title, Body string
 	// the finished file and its folder; a notice with a path offers Open and Show in folder
 	Path, Dir string
+	// the failed download, so the notice offers Try again
+	Retry string
+}
+
+// Actions are the buttons a notice offers, as the spec's flat key, label list.
+func Actions(notice Notice) []string {
+	var actions []string
+	if notice.Path != "" {
+		actions = append(actions, ActOpen, i18n.T("Open"), ActFolder, i18n.T("Show in folder"))
+	}
+	if notice.Retry != "" {
+		actions = append(actions, ActRetry, i18n.T("Try again"))
+	}
+	return actions
 }
 
 type posted struct {
@@ -78,10 +93,7 @@ func (n *Notifier) Post(ctx context.Context, notice Notice) error {
 	if err != nil {
 		return err
 	}
-	var actions []string
-	if notice.Path != "" {
-		actions = []string{ActOpen, i18n.T("Open"), ActFolder, i18n.T("Show in folder")}
-	}
+	actions := Actions(notice)
 	hints := map[string]dbus.Variant{}
 	call := conn.Object(busName, busPath).CallWithContext(ctx, busIface+".Notify", 0,
 		appName, uint32(0), appIcon, notice.Title, notice.Body, actions, hints, int32(-1))

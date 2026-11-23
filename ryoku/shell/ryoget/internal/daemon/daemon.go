@@ -298,11 +298,15 @@ func (s *Server) onFail(t proto.Task) {
 	if !s.notify.Load() {
 		return
 	}
+	go s.post(failNotice(t))
+}
+
+func failNotice(t proto.Task) notify.Notice {
 	body := t.Title
 	if t.Error != nil && t.Error.Message != "" {
 		body = fmt.Sprintf("%s\n%s", t.Title, t.Error.Message)
 	}
-	go s.post(notify.Notice{Title: i18n.T("Download failed"), Body: body})
+	return notify.Notice{Title: i18n.T("Download failed"), Body: body, Retry: t.ID}
 }
 
 func (s *Server) post(n notify.Notice) {
@@ -319,6 +323,11 @@ func (s *Server) onAction(n notify.Notice, action string) {
 		_ = openPath(n.Path)
 	case notify.ActFolder:
 		reveal(n.Path, n.Dir)
+	case notify.ActRetry:
+		if _, err := s.eng.Retry(n.Retry); err != nil {
+			s.log.Printf("retry %s: %v", n.Retry, err)
+		}
+		s.kick()
 	}
 }
 
@@ -449,7 +458,12 @@ func (s *Server) dispatch(req proto.Request) (any, error) {
 		}
 		ctx, cancel := context.WithTimeout(s.ctx, resolveLimit)
 		defer cancel()
-		return e.Resolve(ctx, p.URL)
+		r, err := e.Resolve(ctx, p.URL)
+		if err != nil {
+			return nil, err
+		}
+		r.Existing = e.Existing(p.URL)
+		return r, nil
 	case "links":
 		var p struct {
 			Text string `json:"text"`
@@ -500,6 +514,27 @@ func (s *Server) dispatch(req proto.Request) (any, error) {
 			return nil, err
 		}
 		return e.Retry(p.ID)
+	case "limit":
+		var p struct {
+			ID  string `json:"id"`
+			KiB *int64 `json:"kib"`
+		}
+		if err := decode(req.Params, &p); err != nil {
+			return nil, err
+		}
+		if p.KiB == nil {
+			return nil, &proto.Error{Code: proto.CodeInvalid, Message: "missing kib"}
+		}
+		return e.SetLimit(p.ID, *p.KiB)
+	case "refresh":
+		var p struct {
+			ID  string `json:"id"`
+			URL string `json:"url"`
+		}
+		if err := decode(req.Params, &p); err != nil {
+			return nil, err
+		}
+		return e.Refresh(p.ID, p.URL)
 	case "move":
 		var p struct {
 			ID    string `json:"id"`

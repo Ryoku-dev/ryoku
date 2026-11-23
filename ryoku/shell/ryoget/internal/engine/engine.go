@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -74,6 +75,12 @@ type record struct {
 	Headers  map[string]string `json:"headers,omitempty"`
 	// this task is one item of a post that was split into a task per item; it never splits again
 	Expanded bool `json:"expanded,omitempty"`
+	// "algo:hex" the finished file is held to, kept off the wire
+	Checksum string `json:"checksum,omitempty"`
+	// the base folder when downloads are sorted by type, so resolving can refile the task
+	Sort string `json:"sort,omitempty"`
+	// added with request headers: a plain file fetched with them, never resolved (resolvers cannot send them)
+	Direct bool `json:"direct,omitempty"`
 }
 
 type stateFile struct {
@@ -89,6 +96,7 @@ type runState struct {
 type task struct {
 	record
 	run       *runState
+	lim       *rate.Limiter
 	want      string
 	delFile   bool
 	prog      *progress
@@ -641,14 +649,28 @@ func (e *Engine) Add(p proto.AddParams) (proto.Task, error) {
 	default:
 		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("Unknown download mode."))
 	}
+	sum := ""
+	if kind == "" {
+		if link, sum, err = takeChecksum(link, p.Checksum); err != nil {
+			return proto.Task{}, err
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	dir := e.settings.Dir
+	dir, sortBase := e.settings.Dir, ""
 	if p.Dir != "" {
 		dir = filepath.Clean(paths.Expand(p.Dir))
 		if !filepath.IsAbs(dir) {
 			return proto.Task{}, perr(proto.CodeInvalid, i18n.T("The folder must be an absolute path."))
 		}
+	} else if e.settings.SortByType && kind == "" {
+		sortBase = dir
+		// a mode only media has says what it is before resolving does
+		guess := "file"
+		if mode != "auto" {
+			guess = "media"
+		}
+		dir = sortedDir(dir, guess, mode, link)
 	}
 	host := ""
 	if u, err := url.Parse(link); err == nil {
@@ -668,10 +690,12 @@ func (e *Engine) Add(p proto.AddParams) (proto.Task, error) {
 		Pieces:  emptyPieces,
 		Files:   []proto.File{},
 		Mode:    mode,
-	}, Sel: p.Files}}
+	}, Sel: p.Files, Checksum: sum, Sort: sortBase}}
 	if kind == "torrent" {
 		t.Kind, t.Known = "torrent", true
 		t.Source = proto.Source{ID: "torrent", Name: "BitTorrent"}
+	} else if h := keepHeaders(p.Headers); h != nil {
+		t.Headers, t.Direct, t.Known, t.Kind = h, true, true, "file"
 	}
 	if p.Format != "" {
 		t.Format = &proto.FormatRef{ID: p.Format}
@@ -705,6 +729,25 @@ func clientTitle(s string) string {
 		s = string(r[:300])
 	}
 	return s
+}
+
+// sendable are the request headers a client may hand over for a download
+var sendable = map[string]bool{"Cookie": true, "Referer": true, "User-Agent": true, "Authorization": true, "Origin": true}
+
+// keepHeaders drops every header but the sendable ones, and any value that could split a request.
+func keepHeaders(in map[string]string) map[string]string {
+	var out map[string]string
+	for k, v := range in {
+		k, v = http.CanonicalHeaderKey(strings.TrimSpace(k)), strings.TrimSpace(v)
+		if !sendable[k] || v == "" || strings.ContainsAny(v, "\r\n\x00") {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // maxBatch bounds one addMany; a paste of thousands of links is a mistake, not a queue.
@@ -808,6 +851,102 @@ func (e *Engine) Retry(id string) (proto.Task, error) {
 		out = t.snap()
 	}
 	return out, nil
+}
+
+// maxLimit matches the settings' cap on the global limits, in KiB/s.
+const maxLimit = 1 << 30
+
+// SetLimit caps one download at kib KiB/s (0 lifts it), and a running one follows at once.
+func (e *Engine) SetLimit(id string, kib int64) (proto.Task, error) {
+	if kib < 0 {
+		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("A speed limit cannot be negative."))
+	}
+	kib = min(kib, maxLimit)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	t := e.tasks[id]
+	if t == nil {
+		return proto.Task{}, notFound()
+	}
+	t.Limit = kib
+	if t.lim != nil {
+		t.lim.SetLimit(limitFor(kib))
+	}
+	e.dirty()
+	e.emitTask(t)
+	return t.snap(), nil
+}
+
+// Refresh gives a stopped download a new link (an expired signed one), keeping its partial for the fetcher to reuse
+func (e *Engine) Refresh(id, raw string) (proto.Task, error) {
+	kind, link, err := classify(strings.TrimSpace(raw))
+	if err != nil {
+		return proto.Task{}, err
+	}
+	sum := ""
+	if kind == "" {
+		if link, sum, err = takeChecksum(link, ""); err != nil {
+			return proto.Task{}, err
+		}
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	t := e.tasks[id]
+	if t == nil {
+		return proto.Task{}, notFound()
+	}
+	switch {
+	case kind == "torrent" || t.Kind == "torrent":
+		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("Only web downloads can take a new link."))
+	case t.run != nil:
+		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("Pause this download before giving it a new link."))
+	case t.State == proto.StateDone:
+		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("This download already finished."))
+	}
+	t.URL, t.FetchURL = link, ""
+	// a direct download stays one: resolving cannot send its headers
+	t.Known = t.Direct
+	if sum != "" {
+		t.Checksum = sum
+	}
+	if !e.requeue(t) {
+		e.dirty()
+		e.emitTask(t)
+	}
+	e.schedule()
+	return t.snap(), nil
+}
+
+// Existing is the newest download in the list for a link, with its file when it finished and is still there.
+func (e *Engine) Existing(raw string) *proto.Existing {
+	kind, link, err := classify(strings.TrimSpace(raw))
+	if err != nil {
+		return nil
+	}
+	if kind == "" {
+		if link, _, err = takeChecksum(link, ""); err != nil {
+			return nil
+		}
+	}
+	e.mu.Lock()
+	var found *proto.Existing
+	for i := len(e.order) - 1; i >= 0; i-- {
+		t := e.tasks[e.order[i]]
+		if t.URL == link || t.FetchURL == link {
+			found = &proto.Existing{ID: t.ID, State: t.State}
+			if t.State == proto.StateDone {
+				found.Path = t.Path
+			}
+			break
+		}
+	}
+	e.mu.Unlock()
+	if found != nil && found.Path != "" {
+		if _, err := os.Stat(found.Path); err != nil {
+			found.Path = ""
+		}
+	}
+	return found
 }
 
 func (e *Engine) Cancel(id string) error {
@@ -1137,10 +1276,11 @@ func (e *Engine) schedule() {
 }
 
 func (e *Engine) start(t *task) {
-	ctx, cancel := context.WithCancel(e.ctx)
+	t.lim = rate.NewLimiter(limitFor(t.Limit), limitBurst)
+	ctx, cancel := context.WithCancel(plan.WithLimit(e.ctx, t.lim))
 	rs := &runState{cancel: cancel, done: make(chan struct{})}
 	t.run, t.want, t.delFile = rs, "", false
-	t.State, t.Stage, t.Error = proto.StateResolving, "", nil
+	t.State, t.Stage, t.Error, t.Verified = proto.StateResolving, "", nil, ""
 	if t.Started == "" {
 		t.Started = now()
 	}
@@ -1154,7 +1294,14 @@ func (e *Engine) start(t *task) {
 		defer e.wg.Done()
 		err := e.work(ctx, t)
 		cancel()
+		if err == nil {
+			err = e.verify(t)
+		}
 		e.mu.Lock()
+		if err == nil && (t.want == wantPaused || t.want == wantQueued) {
+			// the file landed before the pause took hold: nothing is left to pause
+			t.want = ""
+		}
 		e.finish(t, err)
 		stale := e.releaseTorrents()
 		e.mu.Unlock()
@@ -1167,7 +1314,7 @@ func (e *Engine) start(t *task) {
 
 func (e *Engine) finish(t *task, err error) {
 	e.sampleTask(t, tickEvery.Seconds())
-	t.run = nil
+	t.run, t.lim = nil, nil
 	t.Speed, t.UpSpeed, t.Conns, t.ETA, t.speed = 0, 0, 0, -1, 0
 	t.histDown, t.histUp = nil, nil
 	want := t.want
@@ -1194,6 +1341,8 @@ func (e *Engine) finish(t *task, err error) {
 	case err == nil:
 		t.State, t.Stage, t.Error, t.Seen = proto.StateDone, "", nil, ""
 		t.Finished = now()
+		// what a site needed to hand the file over is not kept past it
+		t.Headers = nil
 		if t.Size <= 0 && t.Path != "" {
 			if fi, serr := os.Stat(t.Path); serr == nil && fi.Mode().IsRegular() {
 				t.Size = fi.Size()

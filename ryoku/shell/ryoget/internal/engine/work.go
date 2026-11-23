@@ -67,6 +67,7 @@ func (e *Engine) adopt(ctx context.Context, t *task, m *media.Media) {
 	e.with(t, func() {
 		t.Known = true
 		t.Kind = string(m.Kind)
+		e.placeByKind(t)
 		if m.Title != "" {
 			t.Title = m.Title
 		} else if m.Name != "" {

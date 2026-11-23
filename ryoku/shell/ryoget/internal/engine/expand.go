@@ -61,7 +61,7 @@ func (e *Engine) expand(ctx context.Context, t *task, items []media.Item) error 
 			Pieces:  emptyPieces,
 			Files:   []proto.File{},
 			Mode:    t.Mode,
-		}, Expanded: true}}
+		}, Expanded: true, Sort: t.Sort}}
 		e.tasks[n.ID] = n
 		added = append(added, n)
 	}
@@ -74,6 +74,8 @@ func (e *Engine) expand(ctx context.Context, t *task, items []media.Item) error 
 	t.URL, t.Title, t.Expanded = first.URL, itemTitle(first), true
 	t.Known, t.Kind, t.Sel, t.Format = false, "file", nil, nil
 	t.FetchURL, t.Headers, t.Name, t.Path, t.Thumb, t.Size = "", nil, "", "", "", -1
+	// a checksum named the pasted link's file, not an item's
+	t.Checksum = ""
 	e.dirty()
 	e.emitTask(t)
 	for _, n := range added {

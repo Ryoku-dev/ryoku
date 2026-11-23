@@ -46,14 +46,16 @@ no_space browser_check checksum`.
 | method | params | result |
 |---|---|---|
 | `hello` | `{client, version:1}` | `{version, settings, tasks, stats}`; the connection then receives events |
-| `resolve` | `{url}` | `Resolved` |
-| `add` | `{url, mode?:"auto"\|"audio"\|"mute", format?, dir?, name?, files?:[int], title?, paused?}`; `title` is shown until the task's own resolution names it | `Task` |
+| `resolve` | `{url}` | `Resolved`; `existing:{id, state, path?}` names the newest download already in the list for that link (`path` only when it finished and the file is still there) |
+| `add` | `{url, mode?:"auto"\|"audio"\|"mute", format?, dir?, name?, files?:[int], title?, paused?, headers?:{...}, checksum?}`; `title` is shown until the task's own resolution names it. `headers` keeps only `Cookie`, `Referer`, `User-Agent`, `Authorization` and `Origin`; a link added with them is fetched as one plain file with them, and they are forgotten once it finishes. `checksum` is `"sha256:<hex>"`, `"sha1:<hex>"` or `"md5:<hex>"` (a `#sha256=<hex>` fragment on the link says the same and is stripped); a finished file that matches gets `Task.verified`, one that does not is deleted and fails with `checksum`. Torrents ignore both, media ignores the checksum | `Task` |
 | `addMany` | `{items:[{url, mode?, format?, files?, title?}], dir?, paused?}`, at most 500 | `{tasks:[Task], errors:[{index, code, message}]}`; each item on its own, `index` into `items`, both lists always present |
 | `links` | `{text}`: any pasted text, no network | `{links:[{raw, url, kind:"url"\|"magnet"\|"torrent", host, notes, duplicate}], total, cleaned, duplicates}` (see below) |
 | `pause` / `resume` | `{id}` or `{all:true}` | `{}` |
 | `cancel` | `{id}`: stop and delete partial data | `{}` |
 | `remove` | `{id, deleteFile?}` | `{}` |
 | `retry` | `{id}` | `Task` |
+| `limit` | `{id, kib}`: this download's own speed limit in KiB/s, `0` for none, on top of `downLimit`; a running one changes at once | `Task` |
+| `refresh` | `{id, url}`: a new link for a failed, stopped, paused or queued web download (a running one must be paused first); it resolves again and keeps its partial data when the file is the same | `Task` |
 | `move` | `{id, index}`: position among queued tasks | `{}` |
 | `files` | `{id, selected:[int]}`: torrent file selection | `Task` |
 | `open` / `reveal` | `{id}` | `{}` |
@@ -78,6 +80,11 @@ Settled tasks (finished, failed or stopped) are forgotten `keepDays` days after 
 stopped (`0` keeps them until cleared): when the daemon starts, after a task settles,
 on `hello` and when the setting changes, so nothing wakes the daemon for it. A finished
 file stays on disk; a failed download's partial data goes with its entry.
+
+With `sortByType` on, a web download added without `dir` lands in a folder per kind inside
+`dir`: a file by the extension of its link (`Videos`, `Music`, `Documents`, `Programs`,
+`Archives`, `Pictures`, in the reader's language; anything else stays in `dir`), a video in
+`Videos` and an audio download in `Music`. Torrents stay in `dir`.
 
 `links` finds plain links, Markdown `[text](url)` and `<url>` links, magnets, and bare `www.`
 or `host.tld/path` addresses, in text order. Each is cleaned: trailing punctuation and
