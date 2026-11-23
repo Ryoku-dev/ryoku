@@ -5,11 +5,13 @@
 ### Added
 - **The AI usage widget tracks Grok.** A new `grok-usage` collector sums the
   Grok CLI's finished turns from its local session logs, once each, into the
-  same cache the other agents use. Grok gets a bar chip ("Grok 23M today") and
-  a panel card with tokens and API value today, the last seven days and a
-  per-model breakdown. It shows no percentage: Grok keeps its plan limit off
-  disk, so the widget does not invent one. Tick it under Widgets, AI usage,
-  Tools (`rashin/usage/`, `shell/services/AiUsage.qml`, `qsbar`, `orpheus`).
+  same cache the other agents use, and reads the weekly plan limit (percent
+  used, reset and tier, as `/usage` shows it) from the last reading Grok's CLI
+  logged. Grok gets a bar chip ("Grok 5% · 5d 4h") and a panel card with the
+  weekly meter and pace, tokens and API value today, the last seven days and a
+  per-model breakdown. With no current reading the chip shows today's tokens
+  instead. Tick it under Widgets, AI usage, Tools (`rashin/usage/`,
+  `shell/services/AiUsage.qml`, `qsbar`, `orpheus`).
 
 ### Fixed
 - **The battery readout follows the real charge on two-battery laptops.** The

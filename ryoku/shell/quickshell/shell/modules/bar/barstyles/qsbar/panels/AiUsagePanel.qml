@@ -73,8 +73,9 @@ PanelWindow {
     readonly property var    ocRecent:    root.aiOcRecent
     readonly property var    ocExtras:    ocHas ? [{ label: "5h", pct: ocPct5h, resetTs: 0 }] : []
 
-    // ── Grok ── (no allowance on disk: tokens and API value, no meter)
+    // ── Grok ── (weekly allowance when its CLI logged a current reading)
     readonly property bool   gkHas:       root.aiGkHas
+    readonly property bool   gkHas7d:     root.aiGkHas7d
     readonly property bool   gkFresh:     root.aiGkFresh
     readonly property var    gkModels:    root.aiGkModels
     readonly property var    gkRecent:    root.aiGkRecent
@@ -116,7 +117,7 @@ PanelWindow {
         property string plan: ""
         property string emptyText: I18n.tr("no data")
         property bool metered: true  // false ⇒ no allowance: summary replaces "% used" and the meter
-        property string summary: ""
+        property string summary: ""  // with an allowance, shown on its own line under the pace
         property var recent: []
         property var extras: []      // [{label, pct, resetTs}] of the other windows
 
@@ -204,6 +205,14 @@ PanelWindow {
                 color: aiPanel.root.sumi
                 font.family: aiPanel.root.mono; font.pixelSize: 11
             }
+        }
+
+        UiText {
+            visible: pcard.has && pcard.metered && pcard.summary !== ""
+            width: parent.width
+            text: pcard.summary
+            color: pcard.sub
+            font.family: aiPanel.root.mono; font.pixelSize: 11
         }
 
         // LAST 7 DAYS token bar chart
@@ -540,8 +549,11 @@ PanelWindow {
                     visible: aiPanel.gkShow
                     name: "Grok"
                     logo: Qt.resolvedUrl("../assets/grok.svg"); logoSize: Qt.size(36, 36)
-                    has: aiPanel.gkHas; fresh: aiPanel.gkFresh
-                    metered: false; summary: aiPanel.gkSummary
+                    has: aiPanel.gkHas; fresh: aiPanel.gkFresh; plan: root.aiGkPlan
+                    metered: aiPanel.gkHas7d; summary: aiPanel.gkSummary
+                    pct: root.aiGkPct7d
+                    resetTs: aiPanel.gkHas7d ? root.aiGkReset7dTs : 0
+                    paceTs: aiPanel.gkHas7d ? root.aiGkReset7dTs : 0
                     recent: aiPanel.gkRecent
                 }
 

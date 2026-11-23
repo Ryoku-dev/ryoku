@@ -82,9 +82,45 @@ check "source is the session logs" _source sessions "$cache"
 check "each turn counted once" _today_tokens 1750 "$cache"
 check "7-day total" _7d_tokens 1750 "$cache"
 check "cost is ticks / 1e10" _cost_today 2.0 "$cache"
-check "no invented allowance" 7d-utilization "" "$cache"
+check "no log means no allowance" 7d-utilization "" "$cache"
 
-# --- 2. a turn older than the 7-day window does not count ---
+# --- 2. the newest current plan reading in Grok's log is the weekly allowance ---
+mkdir -p "$d/grok/logs"
+python3 - "$d/grok/logs/unified.jsonl" <<'PY'
+import json, sys, time
+from datetime import datetime, timezone
+iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+now = int(time.time())
+marker = "billing: fetched credits config"
+def reading(pct, end, at):
+    return {"ts": iso(at), "msg": marker, "ctx": {"subscriptionTier": "SuperGrok Plus",
+            "config": {"creditUsagePercent": pct, "currentPeriod": {
+                "type": "USAGE_PERIOD_TYPE_WEEKLY", "start": iso(end - 7 * 86400), "end": iso(end)}}}}
+with open(sys.argv[1], "w") as f:
+    for line in (reading(2.0, now + 86400, now - 600),
+                 reading(5.0, now + 86400, now - 60),
+                 {"ts": iso(now), "msg": "user typed: " + marker, "ctx": {"config": {"creditUsagePercent": 99}}}):
+        f.write(json.dumps(line) + "\n")
+PY
+HOME="$d/home" GROK_HOME="$d/grok" "$collector"
+check "newest reading wins" 7d-utilization 0.0500 "$cache"
+check "plan tier from the log" _plan "SuperGrok Plus" "$cache"
+check "tokens still counted with a limit" _today_tokens 1750 "$cache"
+
+# --- 3. a reading whose period has ended is not shown as current ---
+python3 - "$d/grok/logs/unified.jsonl" <<'PY'
+import json, sys, time
+from datetime import datetime, timezone
+iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+now = int(time.time())
+json.dump({"ts": iso(now - 3 * 86400), "msg": "billing: fetched credits config",
+           "ctx": {"config": {"creditUsagePercent": 80.0,
+                              "currentPeriod": {"end": iso(now - 3600)}}}}, open(sys.argv[1], "w"))
+PY
+HOME="$d/home" GROK_HOME="$d/grok" "$collector"
+check "expired period drops the allowance" 7d-utilization "" "$cache"
+
+# --- 4. a turn older than the 7-day window does not count ---
 d="$work/old"
 mkdir -p "$d/home/.cache" "$d/grok/sessions/%2Fold/s9"
 python3 - "$d/grok/sessions/%2Fold/s9/updates.jsonl" <<'PY'
@@ -98,7 +134,7 @@ PY
 HOME="$d/home" GROK_HOME="$d/grok" "$collector"
 check "old turns are outside the window" _7d_tokens 0 "$d/home/.cache/grok-usage.json"
 
-# --- 3. no Grok home degrades to stale, never a crash ---
+# --- 5. no Grok home degrades to stale, never a crash ---
 d="$work/none"
 mkdir -p "$d/home/.cache"
 echo '{"_source":"sessions","_today_tokens":9}' > "$d/home/.cache/grok-usage.json"

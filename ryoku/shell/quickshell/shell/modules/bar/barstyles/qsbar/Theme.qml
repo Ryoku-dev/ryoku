@@ -1124,6 +1124,11 @@ Item {
     readonly property var aiGkData: AiUsage.tool("grok")
     readonly property bool aiGkHas: aiGkData.has
     readonly property bool aiGkFresh: aiGkData.fresh
+    readonly property bool aiGkHas7d: aiGkData.has7d
+    readonly property int aiGkPct7d: aiGkData.pct7d
+    readonly property int aiGkReset7dTs: aiGkData.reset7d
+    readonly property string aiGkPlan: aiGkData.plan
+    readonly property int aiGkLimitCheckedAt: aiGkData.limitCheckedAt
     readonly property string aiGkModel: aiGkData.model
     readonly property int aiGkToday: aiGkData.today
     readonly property int aiGkTokens7d: aiGkData.tokens7d
@@ -1232,6 +1237,7 @@ Item {
         for (var i = 0; i < list.length; i++) p = Math.max(p, aiDayTokens(list[i]))
         return p
     }
+    function aiFmtClock(ts) { return ts > 0 ? TimeFormat.format(new Date(ts * 1000)) : "" }
     function aiUsd(v) { return "$" + (Number(v) || 0).toFixed(2) }
     function aiTokenCount(v) {
         var a = Math.max(0, v || 0)

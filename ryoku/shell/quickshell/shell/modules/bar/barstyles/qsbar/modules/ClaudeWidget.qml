@@ -7,8 +7,8 @@ import Ryoku.Ui.Singletons
 // AI-usage bar display in the omarchy-agent-usage presentation: one inline chip
 // per tracked provider (Claude Code · OpenAI Codex · OpenCode · Grok), each showing
 // the provider mark, its WEEKLY allowance used, and the countdown to reset:
-// "Claude 31% · 15h 59m". Grok has no allowance on disk, so its chip shows the
-// tokens it spent today instead. A provider turns red when it is burning faster than
+// "Claude 31% · 15h 59m". Grok's allowance is the last reading its CLI logged;
+// with none current, its chip shows today's tokens. A provider turns red when it is burning faster than
 // the seven-day clock (behind pace). Click opens the AiUsagePanel; right/middle
 // click regenerates. root.modClaude gates the whole display.
 Item {
@@ -65,6 +65,11 @@ Item {
     readonly property real gkCostToday: root.aiGkCostToday
     readonly property real gkCost7d: root.aiGkCost7d
     readonly property string gkModel: root.aiGkModel
+    readonly property bool gkHas7d:  root.aiGkHas7d
+    readonly property int  gkPct7d:  root.aiGkPct7d
+    readonly property int  gkReset7dTs: root.aiGkReset7dTs
+    readonly property string gkPlan: root.aiGkPlan
+    readonly property int  gkLimitCheckedAt: root.aiGkLimitCheckedAt
 
     // ── which providers earn a chip ──
     // the user chooses which agents ride the bar; a chosen one still has to have
@@ -122,10 +127,19 @@ Item {
         }
         if (showGk) {
             if (lines.length) lines.push("")
-            lines.push(I18n.tr("Grok") + (gkFresh ? "" : "  · " + I18n.tr("stale, last refresh failed")))
+            lines.push(I18n.tr("Grok") + (gkPlan ? "  (" + gkPlan + ")" : "")
+                + (gkFresh ? "" : "  · " + I18n.tr("stale, last refresh failed")))
+            if (gkHas7d) {
+                var g7 = root.aiFmtReset(gkReset7dTs)
+                lines.push(I18n.tr("Weekly") + ": " + gkPct7d + "%" + (g7 ? "  (" + I18n.tr("reset in %1").arg(g7) + ")" : ""))
+                var gkp = root.aiPaceText(gkPct7d, gkReset7dTs)
+                if (gkp) lines.push(I18n.tr("pace: %1").arg(gkp))
+                if (gkLimitCheckedAt > 0)
+                    lines.push(I18n.tr("limit as of %1").arg(root.aiFmtClock(gkLimitCheckedAt)))
+            }
             lines.push(I18n.tr("today: %1 tokens · %2").arg(root.aiTokenCount(gkToday)).arg(root.aiUsd(gkCostToday)))
             lines.push(I18n.tr("7d: %1 tokens · %2").arg(root.aiTokenCount(gkTokens7d)).arg(root.aiUsd(gkCost7d)))
-            lines.push(I18n.tr("Plan limit not readable locally; cost is API value"))
+            if (!gkHas7d) lines.push(I18n.tr("No current plan limit; open grok to refresh it"))
             if (gkModel) lines.push(gkModel)
         }
         return lines.length ? lines.join("\n") : I18n.tr("AI usage")
@@ -302,8 +316,10 @@ Item {
             visible: rootMod.showGk
             name: "Grok"
             logo: Qt.resolvedUrl("../assets/grok.svg"); logoSize: Qt.size(28, 28)
-            pct: 0; resetTs: 0; paceTs: 0
-            valueText: I18n.tr("%1 today").arg(rootMod.root.aiTokenCount(rootMod.gkToday))
+            pct: rootMod.gkPct7d
+            resetTs: rootMod.gkHas7d ? rootMod.gkReset7dTs : 0
+            paceTs: rootMod.gkHas7d ? rootMod.gkReset7dTs : 0
+            valueText: rootMod.gkHas7d ? "" : I18n.tr("%1 today").arg(rootMod.root.aiTokenCount(rootMod.gkToday))
             fresh: rootMod.gkFresh
         }
     }

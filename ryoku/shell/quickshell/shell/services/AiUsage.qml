@@ -47,6 +47,7 @@ Singleton {
             tokens7d: 0,
             costToday: 0,
             cost7d: 0,
+            limitCheckedAt: 0,
             recent: [],
             model: "",
             models: [],
@@ -219,6 +220,7 @@ Singleton {
         result.tokens7d = parseInt(data._7d_tokens) || 0;
         result.costToday = Number(data._cost_today) || 0;
         result.cost7d = Number(data._cost_7d) || 0;
+        result.limitCheckedAt = parseInt(data._limit_checked_at) || 0;
         result.recent = data._recent_days instanceof Array ? data._recent_days : [];
         result.model = String(data._model || "");
         result.models = data._models instanceof Array ? data._models : [];
