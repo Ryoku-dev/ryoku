@@ -37,7 +37,7 @@ Item {
     property var design: card.traded ? (card.badgeVerified ? card.traded.design || null : null) : Badge.ownDesign
     readonly property var designSpec: card.design ? card.design.spec || card.design : null
     readonly property var cardSpec: card.designSpec && card.designSpec.card ? card.designSpec.card : null
-    readonly property var palette: card.cardSpec ? card.cardSpec.palette : card.traded ? null : Progression.activePalette
+    readonly property var palette: card.cardSpec ? card.cardSpec.palette : null
     readonly property color ink: card.palette ? card.palette.ink : Lithic.fg
     readonly property color mutedInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.72) : Lithic.fg2
     readonly property color quietInk: card.palette ? Lithic.mix(card.palette.plate, card.palette.ink, 0.58) : Lithic.fg3

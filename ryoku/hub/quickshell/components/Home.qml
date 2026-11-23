@@ -45,8 +45,7 @@ Item {
     readonly property bool needsYou: Updates.available || Attention.items.length > 0 || root.failures.length > 0
     readonly property string continuePage: {
         var id = Registry.resolve(root.hub.lastSection);
-        return id !== "" && id !== "achievements" && id !== "points-shop"
-            && root.hub.pageAvailable(id) && !Registry.page(id).handoff ? id : "";
+        return id !== "" && root.hub.pageAvailable(id) && !Registry.page(id).handoff ? id : "";
     }
 
     // the profile's design, shared with the system card
@@ -458,77 +457,6 @@ Item {
             width: flick.width
             height: Math.max(flick.height, column.y + column.height + LithicTokens.space.s5 + (root.hub.noticeInset || 0))
 
-            Item {
-                id: profileBackground
-                anchors.fill: parent
-                readonly property string chosen: Progression.canvas.background || ""
-                readonly property string customImage: Progression.canvas.image || ""
-                readonly property var collection: Progression.cosmetics.find(c => c.id === chosen)
-                readonly property string galleryArt: collection && collection.art ? collection.art : ""
-                readonly property color surfaceAccent: chosen === "bg-ember" ||
-                    chosen === "bg-archive" ? Lithic.gold : Lithic.lapis
-                visible: chosen !== "" || customImage !== ""
-                Image {
-                    anchors.fill: parent
-                    source: profileBackground.customImage
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    sourceSize.width: Math.min(1920, Math.round(width))
-                    sourceSize.height: Math.min(1200, Math.round(height))
-                    visible: profileBackground.customImage !== ""
-                    opacity: 0.8
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    visible: profileBackground.customImage === "" &&
-                        profileBackground.chosen !== Progression.completionScene.id
-                    color: Lithic.mix(Lithic.ground, profileBackground.surfaceAccent, 0.09)
-                }
-                BlackPrism {
-                    anchors.fill: parent
-                    visible: profileBackground.chosen === Progression.completionScene.id &&
-                        profileBackground.customImage === ""
-                    live: root.shown && !root.preview
-                }
-                Image {
-                    visible: profileBackground.customImage === "" && profileBackground.galleryArt !== ""
-                    source: profileBackground.galleryArt !== "" ?
-                        Qt.resolvedUrl("../assets/" + profileBackground.galleryArt) : ""
-                    asynchronous: true
-                    fillMode: Image.PreserveAspectFit
-                    anchors.centerIn: parent
-                    width: parent.width * 0.83
-                    height: parent.height * 0.90
-                    sourceSize.width: Math.min(1250, Math.round(width))
-                    sourceSize.height: Math.min(900, Math.round(height))
-                    opacity: 0.31
-                }
-                Repeater {
-                    model: profileBackground.customImage !== "" ||
-                           profileBackground.chosen === Progression.completionScene.id ? 0 :
-                           Math.ceil(profileBackground.width / 62)
-                    delegate: Rectangle {
-                        x: index * 62
-                        width: 1
-                        height: profileBackground.height
-                        color: Lithic.mix(Lithic.fg3, profileBackground.surfaceAccent, 0.3)
-                        opacity: 0.16
-                    }
-                }
-                Repeater {
-                    model: profileBackground.customImage !== "" ||
-                           profileBackground.chosen === Progression.completionScene.id ? 0 :
-                           Math.ceil(profileBackground.height / 62)
-                    delegate: Rectangle {
-                        y: index * 62
-                        width: profileBackground.width
-                        height: 1
-                        color: Lithic.mix(Lithic.fg3, profileBackground.surfaceAccent, 0.3)
-                        opacity: 0.16
-                    }
-                }
-            }
-
             HoverHandler {
                 id: pointer
                 enabled: root.depthOn
@@ -684,191 +612,10 @@ Item {
                 }
             }
 
-            Repeater {
-                model: Progression.canvas.stickers || []
-                delegate: Item {
-                    id: placedSticker
-                    required property var modelData
-                    required property int index
-                    readonly property var art: Progression.stickerArt(modelData.item)
-                    property real displayedSize: modelData.size
-                    property real displayedRotation: modelData.rotation
-                    onModelDataChanged: {
-                        displayedSize = modelData.size;
-                        displayedRotation = modelData.rotation;
-                    }
-                    width: displayedSize
-                    height: width
-                    x: modelData.x * plate.width
-                    y: modelData.y * plate.height
-                    rotation: displayedRotation
-                    z: 1 + index / 100
-
-                    ArchiveSeal {
-                        badgeId: placedSticker.art && placedSticker.art.type === "badge" ?
-                            placedSticker.modelData.item : ""
-                        anchors.fill: parent
-                        visible: !placedSticker.art || placedSticker.art.type === "badge"
-                        title: placedSticker.art ? placedSticker.art.name : "RYOKU"
-                        sigil: placedSticker.art && placedSticker.art.sigil ? placedSticker.art.sigil : "力"
-                        category: "ARCHIVE"
-                        rarity: placedSticker.art && placedSticker.art.rarity ? placedSticker.art.rarity : "common"
-                        animateFoil: false
-                    }
-                    StickerArtwork {
-                        anchors.fill: parent
-                        visible: placedSticker.art && placedSticker.art.type === "sticker"
-                        artwork: placedSticker.art ? placedSticker.art.art || "" : ""
-                        fallbackGlyph: placedSticker.art ? placedSticker.art.glyph : "auto_awesome"
-                        tint: placedSticker.art ? placedSticker.art.tint : Lithic.gold
-                    }
-                    Rectangle {
-                        anchors.fill: parent
-                        visible: Progression.editMode && Progression.selectedSticker === placedSticker.modelData.slot
-                        color: "transparent"
-                        border.color: Lithic.gold
-                        border.width: 1
-                        radius: 4
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        enabled: Progression.editMode && !root.preview
-                        cursorShape: Qt.OpenHandCursor
-                        onPressed: Progression.selectedSticker = placedSticker.modelData.slot
-                        onWheel: wheel => {
-                            Progression.selectedSticker = placedSticker.modelData.slot;
-                            var sign = wheel.angleDelta.y >= 0 ? 1 : -1;
-                            var rotate = (wheel.modifiers & Qt.ShiftModifier) !== 0;
-                            var step = (wheel.modifiers & Qt.ControlModifier) !== 0 ? 2 : 20;
-                            Progression.moveSticker(placedSticker.modelData.slot,
-                                placedSticker.modelData.x, placedSticker.modelData.y,
-                                rotate ? placedSticker.displayedSize :
-                                    placedSticker.displayedSize + sign * step,
-                                placedSticker.displayedRotation + (rotate ? sign * step : 0));
-                            wheel.accepted = true;
-                        }
-                        drag.target: placedSticker
-                        drag.minimumX: -placedSticker.width * 0.80
-                        drag.maximumX: Math.max(0, plate.width - placedSticker.width * 0.20)
-                        drag.minimumY: -placedSticker.height * 0.80
-                        drag.maximumY: Math.max(0, plate.height - placedSticker.height * 0.20)
-                        onReleased: {
-                            Progression.moveSticker(placedSticker.modelData.slot,
-                                placedSticker.x / Math.max(1, plate.width),
-                                placedSticker.y / Math.max(1, plate.height),
-                                placedSticker.width, placedSticker.rotation);
-                        }
-                    }
-                    Rectangle {
-                        id: rotationGrip
-                        visible: Progression.editMode && !root.preview &&
-                            Progression.selectedSticker === placedSticker.modelData.slot
-                        z: 16
-                        width: 28
-                        height: 28
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.rightMargin: -13
-                        anchors.topMargin: -13
-                        radius: 5
-                        color: Lithic.ground
-                        border.color: Lithic.gold
-                        border.width: 2
-                        Label {
-                            anchors.centerIn: parent
-                            text: "⟳"
-                            typeRole: "detail"
-                            ink: Lithic.gold
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.SizeAllCursor
-                            property real angleAtStart: 0
-                            property real rotationAtStart: 0
-                            onPressed: mouse => {
-                                var pointer = rotationGrip.mapToItem(plate, mouse.x, mouse.y);
-                                var center = placedSticker.mapToItem(plate,
-                                    placedSticker.width / 2, placedSticker.height / 2);
-                                angleAtStart = Math.atan2(pointer.y - center.y,
-                                    pointer.x - center.x) * 180 / Math.PI;
-                                rotationAtStart = placedSticker.displayedRotation;
-                            }
-                            onPositionChanged: mouse => {
-                                if (!pressed) return;
-                                var pointer = rotationGrip.mapToItem(plate, mouse.x, mouse.y);
-                                var center = placedSticker.mapToItem(plate,
-                                    placedSticker.width / 2, placedSticker.height / 2);
-                                var now = Math.atan2(pointer.y - center.y,
-                                    pointer.x - center.x) * 180 / Math.PI;
-                                placedSticker.displayedRotation = rotationAtStart + now - angleAtStart;
-                            }
-                            onReleased: {
-                                Progression.moveSticker(placedSticker.modelData.slot,
-                                    placedSticker.x / Math.max(1, plate.width),
-                                    placedSticker.y / Math.max(1, plate.height),
-                                    placedSticker.displayedSize,
-                                    placedSticker.displayedRotation);
-                            }
-                        }
-                    }
-                    Rectangle {
-                        id: resizeGrip
-                        visible: Progression.editMode && !root.preview &&
-                            Progression.selectedSticker === placedSticker.modelData.slot
-                        z: 15
-                        width: 28
-                        height: 28
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.rightMargin: -12
-                        anchors.bottomMargin: -12
-                        radius: 5
-                        color: Lithic.ground
-                        border.color: Lithic.gold
-                        border.width: 2
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "↘"
-                            typeRole: "sentence"
-                            ink: Lithic.gold
-                        }
-                        MouseArea {
-                            id: resizeMouse
-                            anchors.fill: parent
-                            cursorShape: Qt.SizeFDiagCursor
-                            property real startX: 0
-                            property real startY: 0
-                            property real startSize: 0
-                            onPressed: mouse => {
-                                var pos = resizeGrip.mapToItem(plate, mouse.x, mouse.y);
-                                startX = pos.x;
-                                startY = pos.y;
-                                startSize = placedSticker.width;
-                            }
-                            onPositionChanged: mouse => {
-                                if (!pressed) return;
-                                var pos = resizeGrip.mapToItem(plate, mouse.x, mouse.y);
-                                var delta = ((pos.x - startX) + (pos.y - startY)) / 2;
-                                placedSticker.displayedSize = Math.max(8,
-                                    Math.min(4096, startSize + delta));
-                            }
-                            onReleased: {
-                                Progression.moveSticker(placedSticker.modelData.slot,
-                                    placedSticker.x / Math.max(1, plate.width),
-                                    placedSticker.y / Math.max(1, plate.height),
-                                    placedSticker.displayedSize, placedSticker.rotation);
-                            }
-                        }
-                    }
-                }
-            }
-
             // the top bar: where the reader left off, and the look; a narrow window, whose
             // sidebar is put away, keeps the search here too, clear of the drawer's button
             Item {
                 id: topBar
-                z: 8
                 visible: !root.preview
                 x: root.side + (root.hub.wide ? 0 : 40)
                 y: LithicTokens.space.s3
@@ -895,7 +642,7 @@ Item {
                 }
                 Plaque {
                     id: expandPlaque
-                    anchors.right: achievementsPlaque.left
+                    anchors.right: binderPlaque.left
                     anchors.rightMargin: LithicTokens.space.s2
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "quiet"
@@ -904,30 +651,6 @@ Item {
                     text: ""
                     accessibleName: I18n.tr("Show your system card large")
                     onClicked: root.expandCard()
-                }
-                Plaque {
-                    id: achievementsPlaque
-                    anchors.right: shopPlaque.left
-                    anchors.rightMargin: LithicTokens.space.s2
-                    anchors.verticalCenter: parent.verticalCenter
-                    kind: "quiet"
-                    small: true
-                    glyph: "workspace_premium"
-                    text: topBar.width >= 740 ? I18n.tr("Achievements") : ""
-                    accessibleName: I18n.tr("Open achievements")
-                    onClicked: root.hub.navigate("achievements", "")
-                }
-                Plaque {
-                    id: shopPlaque
-                    anchors.right: binderPlaque.left
-                    anchors.rightMargin: LithicTokens.space.s2
-                    anchors.verticalCenter: parent.verticalCenter
-                    kind: "quiet"
-                    small: true
-                    glyph: "storefront"
-                    text: topBar.width >= 740 ? I18n.tr("Points Shop") : ""
-                    accessibleName: I18n.tr("Open Points Shop")
-                    onClicked: root.hub.navigate("points-shop", "")
                 }
                 Plaque {
                     id: binderPlaque
@@ -975,23 +698,14 @@ Item {
                     kind: "quiet"
                     small: true
                     glyph: "edit"
-                    text: Progression.editMode ? I18n.tr("Finish") :
-                        topBar.width >= 420 ? I18n.tr("Customise") : ""
-                    accessibleName: Progression.editMode ? I18n.tr("Finish decorating") : I18n.tr("Customise")
-                    onClicked: {
-                        if (Progression.editMode) {
-                            Progression.editMode = false;
-                            Progression.selectedSticker = "";
-                        } else {
-                            root.customise();
-                        }
-                    }
+                    text: topBar.width >= 420 ? I18n.tr("Customise") : ""
+                    accessibleName: I18n.tr("Customise")
+                    onClicked: root.customise()
                 }
             }
 
             Column {
                 id: column
-                z: 5
                 // the near plane: a little with the pointer
                 transform: Translate { x: root.tiltX * 4; y: root.tiltY * 2 }
                 x: root.roomy && root.heroLeft ? plate.width - root.side - width : root.side
@@ -1013,7 +727,6 @@ Item {
                         width: parent.width
                         text: root.f("text.name", SysInfo.sysUser)
                         typeRole: root.width >= 640 ? "name" : "sentence"
-                        font.family: Progression.fontFamily("name", Lithic.font.sans)
                     }
                     Row {
                         spacing: LithicTokens.space.s3
@@ -1021,7 +734,6 @@ Item {
                             anchors.baseline: clock.baseline
                             text: SysInfo.sysUser + "@" + SysInfo.sysHost
                             typeRole: "mono"
-                            font.family: Progression.fontFamily("hostname", Lithic.font.mono)
                             inkRole: "fg2"
                         }
                         Label {
@@ -1032,51 +744,11 @@ Item {
                             numeric: true
                         }
                     }
-                    Item {
-                        id: featuredSeal
-                        readonly property var badge: Progression.achievements.find(a => a.id === Progression.featuredBadge)
-                        visible: featuredSeal.badge !== undefined
-                        width: Math.min(parent.width, 220)
-                        height: visible ? 62 : 0
-
-                        ArchiveSeal {
-                            badgeId: featuredSeal.badge ? featuredSeal.badge.id : ""
-                            x: 0
-                            y: 0
-                            width: 62
-                            height: 62
-                            title: featuredSeal.badge ? featuredSeal.badge.title : ""
-                            sigil: featuredSeal.badge ? featuredSeal.badge.sigil : "力"
-                            rarity: featuredSeal.badge ? featuredSeal.badge.rarity : "common"
-                            category: featuredSeal.badge ? featuredSeal.badge.category : "RYOKU"
-                        }
-                        Column {
-                            x: 70
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
-                            Label {
-                                text: I18n.tr("FEATURED BADGE")
-                                typeRole: "monoSm"
-                                inkRole: "fg2"
-                            }
-                            Label {
-                                text: featuredSeal.badge ? I18n.tr(featuredSeal.badge.title) : ""
-                                typeRole: "sentence"
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: !root.preview
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.customise("layout")
-                        }
-                    }
                     Label {
                         width: parent.width
                         visible: text.length > 0
                         text: root.f("text.tagline", I18n.tr("For the sake of power and beauty."))
                         typeRole: "proof"
-                        font.family: Progression.fontFamily("tagline", Lithic.font.sans)
                         inkRole: "fg2"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone

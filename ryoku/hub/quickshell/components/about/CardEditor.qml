@@ -24,12 +24,7 @@ Dialog {
     property var binderOpener: null
     // the tab to open on
     property string tab: "picture"
-    property bool badgePickerOpen: false
     readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge"]
-    Connections {
-        target: ProfileStore
-        function onDataChanged() { Progression.inspectProfile(ProfileStore.data); }
-    }
     // what the preview shows; Share always shows the card it copies
     property string view: "card"
     readonly property string shownView: root.tab === "share" || root.tab === "badge" ? "card" : root.view
@@ -44,10 +39,7 @@ Dialog {
 
     function openOn(tab) {
         root.tab = root.tabs.indexOf(tab) >= 0 ? tab : "picture";
-        root.badgePickerOpen = false;
         CardCode.updateDisplays();
-        Progression.award("welcome");
-        Progression.inspectProfile(ProfileStore.data);
         root.open();
     }
 
@@ -218,12 +210,7 @@ Dialog {
             try { root.wallpaper = ok ? JSON.parse(out) || ({}) : ({}); } catch (e) { root.wallpaper = ({}); }
         });
     }
-    onTabChanged: {
-        if (root.tab === "share")
-            Progression.award("explorer");
-        if (root.opened && root.tab === "picture" && root.movingAllowed)
-            root.readWallpaper();
-    }
+    onTabChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
     onOpenedChanged: if (root.opened && root.tab === "picture" && root.movingAllowed) root.readWallpaper()
 
     // the body takes its size from its first child, so the choosers live beside it
@@ -424,7 +411,7 @@ Dialog {
                     id: page
                     width: flick.width - LithicTokens.space.s4
                     spacing: LithicTokens.space.s5
-                     BadgeTab {
+                    BadgeTab {
                         visible: root.tab === "badge"
                         width: parent.width
                         hub: root.hub
@@ -693,252 +680,6 @@ Dialog {
                                                 root.put(wordRow.modelData.key, [], text.split(",").map(w => w.trim()).filter(w => w.length > 0), wordRow.modelData.label);
                                             else
                                                 root.put(wordRow.modelData.key, "", text, wordRow.modelData.label);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Slab {
-                        visible: root.tab === "words"
-                        width: parent.width
-                        Column {
-                            width: parent.width
-                            spacing: LithicTokens.space.s3
-                            Label {
-                                text: I18n.tr("Profile typography")
-                                typeRole: "section"
-                            }
-                            Repeater {
-                                model: [
-                                    { id: "name", title: "Display name" },
-                                    { id: "hostname", title: "Hostname" },
-                                    { id: "tagline", title: "Tagline" }
-                                ]
-                                delegate: Column {
-                                    id: fontRole
-                                    required property var modelData
-                                    width: parent.width
-                                    spacing: LithicTokens.space.s2
-                                    Label {
-                                        text: I18n.tr(fontRole.modelData.title)
-                                        typeRole: "detail"
-                                    }
-                                    Flow {
-                                        width: parent.width
-                                        spacing: LithicTokens.space.s2
-                                        Plaque {
-                                            small: true
-                                            kind: Progression.canvas.fonts[fontRole.modelData.id] ? "line" : "gold"
-                                            text: I18n.tr("Default")
-                                            onClicked: Progression.setFont(fontRole.modelData.id, "")
-                                        }
-                                        Repeater {
-                                            model: Progression.cosmetics.filter(c =>
-                                                c.type === "font" && Progression.data.owned[c.id] === true)
-                                            delegate: Plaque {
-                                                required property var modelData
-                                                small: true
-                                                kind: Progression.canvas.fonts[fontRole.modelData.id] === modelData.id ?
-                                                    "gold" : "line"
-                                                text: I18n.tr(modelData.name)
-                                                onClicked: Progression.setFont(fontRole.modelData.id, modelData.id)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Label {
-                                text: I18n.tr("Additional fonts are available in Points Shop.")
-                                typeRole: "detail"
-                                inkRole: "fg2"
-                            }
-                        }
-                    }
-
-                    // Profile controls belong in Customise, not on the profile itself
-                    Slab {
-                        visible: root.tab === "layout"
-                        width: parent.width
-                        Column {
-                            width: parent.width
-                            spacing: LithicTokens.space.s3
-                            Label {
-                                text: I18n.tr("Profile")
-                                typeRole: "section"
-                            }
-                            SettingRow {
-                                width: parent.width
-                                title: I18n.tr("Featured badge")
-                                detail: {
-                                    var badge = Progression.achievements.find(a => a.id === Progression.featuredBadge);
-                                    return badge ? I18n.tr(badge.title) : I18n.tr("None selected");
-                                }
-                                Row {
-                                    spacing: LithicTokens.space.s2
-                                    Plaque {
-                                        small: true
-                                        kind: root.badgePickerOpen ? "gold" : "line"
-                                        text: Progression.featuredBadge ? I18n.tr("Change") : I18n.tr("Choose")
-                                        onClicked: root.badgePickerOpen = !root.badgePickerOpen
-                                    }
-                                    Plaque {
-                                        visible: Progression.featuredBadge !== ""
-                                        small: true
-                                        kind: "quiet"
-                                        text: I18n.tr("Clear")
-                                        onClicked: Progression.featureBadge("")
-                                    }
-                                }
-                            }
-                            Flow {
-                                visible: root.badgePickerOpen
-                                width: parent.width
-                                spacing: LithicTokens.space.s2
-                                Repeater {
-                                    model: Progression.achievements.filter(a => Progression.data.claimed[a.id] === true)
-                                    delegate: Item {
-                                        id: badgeChoice
-                                        required property var modelData
-                                        width: 94
-                                        height: 105
-                                        ArchiveSeal {
-                                            badgeId: modelData.id
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            width: 70
-                                            height: 70
-                                            title: badgeChoice.modelData.title
-                                            sigil: badgeChoice.modelData.sigil
-                                            rarity: badgeChoice.modelData.rarity
-                                            category: badgeChoice.modelData.category
-                                        }
-                                        Label {
-                                            y: 76
-                                            width: parent.width
-                                            text: I18n.tr(badgeChoice.modelData.title)
-                                            typeRole: "monoSm"
-                                            horizontalAlignment: Text.AlignHCenter
-                                            elide: Text.ElideRight
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                Progression.featureBadge(badgeChoice.modelData.id);
-                                                root.badgePickerOpen = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Label {
-                                visible: root.badgePickerOpen &&
-                                    Progression.achievements.every(a => Progression.data.claimed[a.id] !== true)
-                                text: I18n.tr("Claim a badge in Achievements to feature it here.")
-                                typeRole: "detail"
-                                inkRole: "fg2"
-                            }
-                            SettingRow {
-                                width: parent.width
-                                title: I18n.tr("Decorate profile")
-                                detail: I18n.tr("Drag and resize stickers directly on Home")
-                                Plaque {
-                                    small: true
-                                    kind: "gold"
-                                    glyph: "draw"
-                                    text: I18n.tr("Decorate")
-                                    onClicked: {
-                                        Progression.selectedSticker = "";
-                                        Progression.editMode = true;
-                                        root.close();
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Slab {
-                        visible: root.tab === "layout" &&
-                            Progression.canvas.stickers.length > 0
-                        width: parent.width
-                        Column {
-                            width: parent.width
-                            spacing: LithicTokens.space.s2
-                            Label {
-                                text: I18n.tr("Placed decorations")
-                                typeRole: "section"
-                            }
-                            Label {
-                                width: parent.width
-                                text: I18n.tr("Drag to move, use the corner grips to size and rotate. Shift + wheel rotates, Ctrl + wheel makes fine adjustments.")
-                                typeRole: "detail"
-                                inkRole: "fg2"
-                                wrapMode: Text.Wrap
-                                elide: Text.ElideNone
-                            }
-                            Repeater {
-                                model: Progression.canvas.stickers
-                                delegate: SettingRow {
-                                    id: decoration
-                                    required property var modelData
-                                    readonly property var asset: Progression.stickerArt(modelData.item)
-                                    width: parent.width
-                                    title: asset ? I18n.tr(asset.name) : ""
-                                    detail: Math.round(modelData.size) + " px · " +
-                                        Math.round(modelData.rotation) + "°"
-                                    Flow {
-                                        width: Math.min(340, decoration.width * 0.68)
-                                        spacing: LithicTokens.space.s2
-                                        Plaque {
-                                            small: true
-                                            kind: "line"
-                                            text: "−"
-                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
-                                                decoration.modelData.x, decoration.modelData.y,
-                                                decoration.modelData.size - 20, decoration.modelData.rotation)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "line"
-                                            text: "+"
-                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
-                                                decoration.modelData.x, decoration.modelData.y,
-                                                decoration.modelData.size + 20, decoration.modelData.rotation)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "line"
-                                            text: "↶"
-                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
-                                                decoration.modelData.x, decoration.modelData.y,
-                                                decoration.modelData.size, decoration.modelData.rotation - 5)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "line"
-                                            text: "↷"
-                                            onClicked: Progression.moveSticker(decoration.modelData.slot,
-                                                decoration.modelData.x, decoration.modelData.y,
-                                                decoration.modelData.size, decoration.modelData.rotation + 5)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "quiet"
-                                            text: I18n.tr("Back")
-                                            onClicked: Progression.reorderSticker(decoration.modelData.slot, -1)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "quiet"
-                                            text: I18n.tr("Front")
-                                            onClicked: Progression.reorderSticker(decoration.modelData.slot, 1)
-                                        }
-                                        Plaque {
-                                            small: true
-                                            kind: "quiet"
-                                            text: I18n.tr("Remove")
-                                            onClicked: Progression.removeSticker(decoration.modelData.slot)
                                         }
                                     }
                                 }

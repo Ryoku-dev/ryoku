@@ -165,7 +165,6 @@ Item {
                 root.error = root.refusal(job, err);
                 return;
             }
-            Progression.award("showcase");
             if (job === "copy")
                 root.message = I18n.tr("Copied. Send the picture to a friend; they can paste it into their binder.");
             else if (job === "save")

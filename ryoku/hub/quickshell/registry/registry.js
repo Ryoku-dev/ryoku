@@ -24,8 +24,6 @@ var categories = [
 var ryogamiTheme = ["ryogami", "wallpaper", "settings", "colours"];
 var ryogamiWallpaper = ["ryogami", "wallpaper", "settings"];
 
-var homePages = ["achievements", "points-shop"];
-
 var pages = {
     "style": { title: "Style", category: "appearance", file: "Style",
         keywords: ["style", "design", "design language", "look", "material", "material you", "lithic", "adwaita", "gnome", "fluent", "windows 11", "rounded", "shape", "colour scheme"] },
@@ -108,10 +106,6 @@ var pages = {
         keywords: ["users", "accounts", "people", "password", "picture", "admin", "profiles"] },
     "sign-in": { title: "Sign-in & security", category: "accounts", file: "SignIn",
         keywords: ["sign in", "login", "keyring", "fingerprint", "security keys", "sudo", "pam", "fido"] },
-    "achievements": { title: "Achievements & badges", category: "accounts", file: "Achievements",
-        keywords: ["achievements", "badges", "trophies", "profile", "credits", "rewards", "collection", "cosmetics"] },
-    "points-shop": { title: "Points Shop", category: "accounts", file: "PointsShop",
-        keywords: ["points", "shop", "stickers", "fonts", "backgrounds", "profile", "store", "credits", "rewards"] },
 
     "power": { title: "Power & battery", category: "system", file: "Power",
         keywords: ["power", "battery", "charge limit", "power saver", "idle", "sleep", "suspend", "lock after", "cpu", "epp", "aspm", "governor"] },
@@ -217,7 +211,7 @@ var kanji = {
     "wifi": "無線", "ethernet": "有線", "vpn": "隧道", "dns": "名前", "bluetooth": "近接", "phone": "電話",
     "installed-apps": "導入", "default-apps": "既定", "startup-apps": "始動", "terminal": "端末", "screen-capture": "録画",
     "voice-typing": "音声", "rashin": "羅針", "add-ons": "拡張",
-    "users": "人々", "sign-in": "認証", "achievements": "実績",
+    "users": "人々", "sign-in": "認証",
     "power": "電力", "graphics": "演算", "performance": "性能", "time-language": "言語",
     "backup-import": "取込", "about": "概要", "updates": "更新"
 };
@@ -239,7 +233,7 @@ var glyphs = {
     "wifi": "wifi", "ethernet": "settings_ethernet", "vpn": "vpn_key", "dns": "dns", "bluetooth": "bluetooth", "phone": "smartphone",
     "installed-apps": "apps", "default-apps": "star", "startup-apps": "rocket_launch", "terminal": "terminal",
     "screen-capture": "screenshot_monitor", "voice-typing": "mic", "rashin": "explore", "add-ons": "extension",
-    "users": "group", "sign-in": "fingerprint", "achievements": "military_tech",
+    "users": "group", "sign-in": "fingerprint",
     "power": "battery_charging_full", "graphics": "developer_board", "performance": "speed",
     "time-language": "language", "backup-import": "backup", "about": "info",
     "updates": "system_update"
@@ -289,5 +283,5 @@ function allPageIds() {
     var out = [];
     for (var i = 0; i < categories.length; i++)
         out = out.concat(categories[i].pages);
-    return out.concat(homePages);
+    return out;
 }

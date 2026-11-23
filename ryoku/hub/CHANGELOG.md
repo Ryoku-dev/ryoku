@@ -7,15 +7,11 @@
   links Jan Sechovec's download manager, the source of ryoget's split and
   resumed transfers, download folders and checksums
   (`quickshell/schema/about.js`, `../../NOTICE`).
-- **Hyperion adds Ryoku-wide achievements and a cosmetic Points Shop.** Earn and claim
-  category and secret badges for points, collect stickers, backgrounds and fonts, and
-  customise the profile canvas and hardware card. Card rarity now uses generation-aware
-  hardware scoring and all connected displays, with nine tiers calibrated around a Steam
-  Hardware Survey reference. The archive has distinct vector badges and mastery goals,
-  while the complete shop unlocks the animated Black Prism background. Progress is stored
-  locally, with startup load failures protected against overwriting existing saves
-  (quickshell/registry/rarity.js, quickshell/registry/progression.js,
-  quickshell/Singletons/Progression.qml, quickshell/components/about/).
+- **Card rarity counts generation-aware hardware and every connected display.**
+  Nine tiers, Common to Master, are calibrated around a Steam Hardware Survey
+  reference, and the card studio's Share tab lists what each display adds
+  (`quickshell/registry/rarity.js`, `quickshell/Singletons/CardCode.qml`,
+  `CARD-RARITY.md`).
 - **Hub Credits now names oh-my-pi as the source of Rashin's native agent
   engine and self-improvement workflows (MIT).** The About page links to
   the project and names Can Bölük and Mario Zechner
@@ -29,6 +25,18 @@
   by default, with what it costs said beside it: the clipboard reads copied
   pictures only while it is open and for two minutes after, about 100 MB for a
   second or two a picture (`quickshell/schema/clipboard.js`).
+
+### Removed
+
+- **Achievements and the Points Shop leave Settings.** They will move to the
+  Ryoku Shop, the online store, as part of the profile section in its layout.
+  Their profile decorations go with them: stickers, backgrounds including the
+  animated Black Prism, profile fonts, card palettes and the featured badge.
+  Saved progress stays in `~/.local/share/ryoku/progression.json` for the move,
+  and `1b3834fb0` on origin/hyperion holds the last version with the whole
+  feature (`quickshell/registry/progression.js`,
+  `quickshell/Singletons/Progression.qml`, `quickshell/pages/Achievements.qml`,
+  `quickshell/pages/PointsShop.qml`).
 
 ### Changed
 
