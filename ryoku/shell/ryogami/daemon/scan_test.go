@@ -328,3 +328,31 @@ func keys(m map[string]Entry) []string {
 	}
 	return out
 }
+
+// Startup sweeps the temps left by transcodes a previous daemon lost
+// mid-run, and nothing else in the cache.
+func TestSweepTmpFilesRemovesOnlyTemps(t *testing.T) {
+	dir := t.TempDir()
+	vids := filepath.Join(dir, "wallpaper", "video-thumbs")
+	thumbs := filepath.Join(dir, "wallpaper", "thumbs")
+	for _, d := range []string{vids, thumbs} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := filepath.Join(vids, "we--2215418014-prev.mp4")
+	dead := filepath.Join(vids, "we--2215418014-prev.tmp.4938-1795126831842862467.mp4")
+	webp := filepath.Join(thumbs, "photo.tmp.webp")
+	for _, p := range []string{keep, dead, webp} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sweepTmpFiles(dir)
+	if !fileExists(keep) {
+		t.Fatal("sweep removed a finished artifact")
+	}
+	if fileExists(dead) || fileExists(webp) {
+		t.Fatal("sweep left an orphan temp behind")
+	}
+}

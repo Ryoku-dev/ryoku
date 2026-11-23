@@ -230,6 +230,10 @@ func runDaemon() error {
 			}
 			d.restoreActiveWorkspaces()
 		}
+		// Temps from transcodes a previous daemon lost mid-run would leak
+		// forever; startup, before the first scan, is the only moment no
+		// generator can hold a live one.
+		sweepTmpFiles(cfg.cacheDir())
 		d.rescan(false)
 		d.playlists.resumeAll()
 		d.broadcast("ryogami.wall.scan_done", map[string]interface{}{})

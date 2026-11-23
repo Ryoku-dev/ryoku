@@ -32,6 +32,7 @@ func weVideoSource(cacheDir string, e Entry) (scanned, bool) {
 		mtime:     st.ModTime().Unix(),
 		filesize:  st.Size(),
 		thumbPath: filepath.Join(cacheDir, "wallpaper", "video-thumbs", "we--"+e.WeID+".webp"),
+		we:        true,
 	}, true
 }
 
