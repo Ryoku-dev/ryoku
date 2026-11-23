@@ -17,7 +17,7 @@ import (
 // record`), pins the Whisper engine + model, and manages the user service.
 // Models download and remove in-process, so the Hub never shells out to a
 // terminal. Only engines that work without a root binary swap are offered:
-// local Whisper, the installed Redux adapter, and a remote Whisper API.
+// local Whisper, the Redux adapter, the local Phonon server, and a remote API.
 //
 //	ryoku-hub voxtype get             presets + current state as JSON
 //	ryoku-hub voxtype set <json>      apply a preset (writes config, manages service)
@@ -46,7 +46,7 @@ type voxtypePreset struct {
 	KeyKind   string `json:"keyKind"` // "openai" or ""
 	Present   bool   `json:"present"` // local model on disk (get only; cloud = true)
 
-	model string // whisper model name (local) or remote_model (cloud)
+	model string // Whisper model name or remote_model for an API endpoint
 	lang  string // whisper language
 }
 
@@ -69,6 +69,17 @@ func voxtypePresets() []voxtypePreset {
 				presets = append(presets, voxtypePreset{})
 				copy(presets[i+1:], presets[i:])
 				presets[i] = redux
+				break
+			}
+		}
+	}
+	if hostUsesSystemd() {
+		phonon := voxtypePreset{Key: phononPresetKey, Label: "Phonon-2", Provider: "Fermion Research", Detail: "English only. Installs its local CPU runtime with the model.", Size: "158 MB + CPU runtime", SizeBytes: 158_127_742, Group: "english", Language: "English", Speed: "fast", model: "phonon-2", lang: "en"}
+		for i, p := range presets {
+			if p.Key == "whisper-fast" {
+				presets = append(presets, voxtypePreset{})
+				copy(presets[i+2:], presets[i+1:])
+				presets[i+1] = phonon
 				break
 			}
 		}
@@ -106,6 +117,9 @@ func voxtypeUnitPath() string {
 
 // whisper models land in ~/.local/share/voxtype/models as ggml-<model>.bin.
 func modelFilePath(p voxtypePreset) string {
+	if p.Key == phononPresetKey {
+		return phononModelPath()
+	}
 	if p.Key == reduxPresetKey {
 		return reduxModelPath()
 	}
@@ -146,6 +160,9 @@ func voxtypeGet() error {
 	presets := voxtypePresets()
 	for i := range presets {
 		presets[i].Present = presets[i].Cloud || fileExists(modelFilePath(presets[i]))
+		if presets[i].Key == phononPresetKey {
+			presets[i].Present = phononInstalled()
+		}
 		if presets[i].Key == reduxPresetKey {
 			presets[i].Present = reduxInstalled()
 			if info, err := os.Stat(reduxModelPath()); err == nil {
@@ -160,7 +177,7 @@ func voxtypeGet() error {
 		"packageReason":    reason,
 		"selected":         selectedPreset(text),
 		"enabled":          voxtypeServiceEnabled(),
-		"openaiKeySet":     extractConfigString(text, "remote_api_key") != "" || os.Getenv("VOXTYPE_WHISPER_API_KEY") != "",
+		"openaiKeySet":     storedVoxtypeOpenAIKey() != "" || os.Getenv("VOXTYPE_WHISPER_API_KEY") != "",
 		"presets":          presets,
 	}
 	b, err := json.Marshal(out)
@@ -195,14 +212,41 @@ func voxtypeSet(arg string) error {
 		if p.Key == reduxPresetKey && !reduxInstalled() {
 			return fmt.Errorf("install Redux and its adapter from the model card first")
 		}
+		if p.Key == phononPresetKey && !phononInstalled() {
+			return fmt.Errorf("install Phonon-2 and its CPU runtime from the model card first")
+		}
+		if p.Key == reduxPresetKey && !fileExists(reduxReceiptPath()) {
+			if err := runReduxSetup("adopt"); err != nil {
+				return err
+			}
+		}
+		if p.Key == phononPresetKey && !fileExists(phononReceiptPath()) {
+			if err := runPhononSetup("adopt"); err != nil {
+				return err
+			}
+		}
+		// Bring Phonon up and verify readiness before changing the active preset.
+		if p.Key == phononPresetKey && req.Enabled {
+			if err := startPhononService(); err != nil {
+				return err
+			}
+		}
 		openaiKey := req.OpenAIKey
 		if openaiKey == "" {
-			openaiKey = extractConfigString(readFileString(voxtypeConfigPath()), "remote_api_key")
+			openaiKey = storedVoxtypeOpenAIKey()
+		}
+		if openaiKey != "" {
+			if err := atomicWrite(voxtypeOpenAIKeyPath(), []byte(openaiKey), 0o600); err != nil {
+				return err
+			}
 		}
 		if err := atomicWrite(voxtypeConfigPath(), []byte(buildVoxtypeConfig(p, openaiKey)), 0o600); err != nil {
 			return err
 		}
 		if err := configureReduxService(p.Key == reduxPresetKey, req.Enabled); err != nil {
+			return err
+		}
+		if err := configurePhononService(p.Key == phononPresetKey); err != nil {
 			return err
 		}
 	}
@@ -224,6 +268,11 @@ func voxtypeSet(arg string) error {
 			if err := userService("disable", "--now", "voxtype-redux"); err != nil {
 				return err
 			}
+		}
+	}
+	if !custom && (p.Key != phononPresetKey || !req.Enabled) && fileExists(phononUnitPath()) {
+		if err := userService("disable", "--now", "phonon-2"); err != nil {
+			return err
 		}
 	}
 	fmt.Println("ok")
@@ -267,6 +316,12 @@ func voxtypeDownload(key string) error {
 	p, ok := presetByKey(key)
 	if !ok {
 		return fmt.Errorf("unknown preset: %s", key)
+	}
+	if p.Key == phononPresetKey {
+		if phononInstalled() {
+			return runPhononSetup("adopt")
+		}
+		return runPhononSetup("install")
 	}
 	if p.Key == reduxPresetKey {
 		if reduxInstalled() {
@@ -315,6 +370,9 @@ func voxtypeRmModel(key string) error {
 	if !ok {
 		return fmt.Errorf("unknown preset: %s", key)
 	}
+	if p.Key == phononPresetKey {
+		return removePhonon()
+	}
 	if p.Key == reduxPresetKey {
 		return removeRedux()
 	}
@@ -338,7 +396,7 @@ func buildVoxtypeConfig(p voxtypePreset, openaiKey string) string {
 	b.WriteString("state_file = \"auto\"\n\n")
 	b.WriteString("[hotkey]\nenabled = false\n\n")
 	duration := 60
-	if p.Key == reduxPresetKey {
+	if p.Key == reduxPresetKey || p.Key == phononPresetKey {
 		duration = 120
 	}
 	fmt.Fprintf(&b, "[audio]\ndevice = \"default\"\nsample_rate = 16000\nmax_duration_secs = %d\npause_media = true\n\n", duration)
@@ -349,6 +407,9 @@ func buildVoxtypeConfig(p voxtypePreset, openaiKey string) string {
 		if openaiKey != "" {
 			fmt.Fprintf(&b, "remote_api_key = %q\n", openaiKey)
 		}
+	} else if p.Key == phononPresetKey {
+		b.WriteString("mode = \"remote\"\nmodel = \"phonon-2\"\nlanguage = \"en\"\ntranslate = false\n")
+		fmt.Fprintf(&b, "remote_endpoint = %q\nremote_model = %q\n", phononEndpoint, p.model)
 	} else if p.Cloud {
 		b.WriteString("mode = \"remote\"\n")
 		b.WriteString("model = \"base.en\"\n")
@@ -421,6 +482,17 @@ func hasVoxtypeOnDemandSetting(configText string) bool {
 
 // --- small helpers -------------------------------------------------------
 
+func voxtypeOpenAIKeyPath() string {
+	return filepath.Join(configHome(), "voxtype", "openai-api-key")
+}
+
+func storedVoxtypeOpenAIKey() string {
+	if key := strings.TrimSpace(readFileString(voxtypeOpenAIKeyPath())); key != "" {
+		return key
+	}
+	return extractConfigString(readFileString(voxtypeConfigPath()), "remote_api_key")
+}
+
 func readFileString(path string) string {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -476,8 +548,11 @@ func selectedPreset(configText string) string {
 				return p.Key
 			}
 		case "remote":
-			if p.Cloud && config.Whisper.RemoteModel == p.model &&
-				strings.TrimRight(config.Whisper.RemoteEndpoint, "/") == "https://api.openai.com/v1" {
+			endpoint := strings.TrimRight(config.Whisper.RemoteEndpoint, "/")
+			if p.Key == phononPresetKey && config.Whisper.RemoteModel == p.model && endpoint == phononEndpoint {
+				return p.Key
+			}
+			if p.Cloud && config.Whisper.RemoteModel == p.model && endpoint == "https://api.openai.com/v1" {
 				return p.Key
 			}
 		case "cli":

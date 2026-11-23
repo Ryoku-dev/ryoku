@@ -1,0 +1,6 @@
+#!/bin/sh
+# Extend dictation locally while keeping the other Hub commands packaged.
+if [ "${1:-}" = voxtype ]; then
+    exec "$HOME/.local/libexec/ryoku-hub-phonon" "$@"
+fi
+exec /usr/bin/ryoku-hub "$@"
