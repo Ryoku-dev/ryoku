@@ -24,16 +24,20 @@ MODEL_RELATIVE = Path('.cache/fermion/speech/FermionResearch__Phonon-2/model_pho
 
 
 def layout():
-    home = Path.home()
+    home = Path.home().absolute()
     data = Path(os.environ.get('XDG_DATA_HOME', home / '.local/share')).absolute()
     config = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')).absolute()
+    state = Path(os.environ.get('XDG_STATE_HOME', home / '.local/state')).absolute()
+    service_root = Path(os.environ.get('RYOKU_USER_SERVICE_DIR', home / '.config/service')).absolute()
     manager = os.environ.get('RYOKU_PHONON_SERVICE_MANAGER', 'systemd')
     if manager not in ('systemd', 'runit'):
         raise RuntimeError(f'Unsupported Phonon service manager: {manager}')
     root = data / 'phonon-2'
-    paths = {'manager': manager, 'runtime': root / 'venv', 'model': home / MODEL_RELATIVE.parent,
+    paths = {'manager': manager, 'home': home, 'data_home': data, 'config_home': config,
+             'state_home': state, 'service_root': service_root,
+             'runtime': root / 'venv', 'model': home / MODEL_RELATIVE.parent,
              'unit': config / 'systemd/user/phonon-2.service' if manager == 'systemd' else None,
-             'service': Path(os.environ.get('RYOKU_USER_SERVICE_DIR', home / '.config/service')).absolute() / 'phonon-2',
+             'service': service_root / 'phonon-2',
              'receipt': root / 'hub-install.json'}
     return paths
 
@@ -46,23 +50,47 @@ def require_runit_service(paths):
     if paths['manager'] != 'runit':
         return
     service = paths['service']
-    no_symlink_ancestors(service)
+    no_symlink_ancestors(service, paths['service_root'])
     run = service / 'run'
     if not service.is_dir() or run.is_symlink() or not run.is_file() or not os.access(run, os.X_OK):
         raise RuntimeError(f'Phonon-2 runit service is not provisioned: {service}')
 
 
-def no_symlink_ancestors(path):
-    for candidate in reversed((path, *path.parents)):
+def no_symlink_ancestors(path, trusted_root=None):
+    path = Path(path).absolute()
+    if trusted_root is None:
+        candidates = reversed((path, *path.parents))
+    else:
+        trusted_root = Path(trusted_root).absolute()
+        if trusted_root.exists() or trusted_root.is_symlink():
+            try:
+                root_info = trusted_root.stat()
+            except OSError as error:
+                raise RuntimeError(f'Cannot resolve Phonon configured root: {trusted_root}: {error}') from None
+            if not stat.S_ISDIR(root_info.st_mode) or root_info.st_uid != os.getuid():
+                raise RuntimeError(f'Phonon configured root is not a user-owned directory: {trusted_root}')
+        try:
+            path.relative_to(trusted_root)
+        except ValueError:
+            raise RuntimeError(f'Phonon path is outside its configured root: {path}') from None
+        if path == trusted_root:
+            candidates = (path,)
+        else:
+            candidates = (path,)
+            parent = path.parent
+            while parent != trusted_root:
+                candidates = (*candidates, parent)
+                parent = parent.parent
+    for candidate in candidates:
         if candidate.is_symlink():
             raise RuntimeError(f'Refusing symlink in Phonon installation path: {candidate}')
 
 
 @contextmanager
 def installation_lock():
-    state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state'))
+    state = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')).absolute()
     path = state / 'ryoku/locks/phonon-2.lock'
-    no_symlink_ancestors(path)
+    no_symlink_ancestors(path, state)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
@@ -87,7 +115,9 @@ def digest(path):
 
 def manifest(root):
     """Inventory links themselves, including bin/python, without following them."""
-    no_symlink_ancestors(root)
+    # Callers validate the path from its configured root; only this managed
+    # directory itself must be checked here so symlinked HOME/XDG roots work.
+    no_symlink_ancestors(root, Path(root).parent)
     result = {}
 
     def walk(fd, relative):
@@ -159,8 +189,8 @@ def validate_runtime(root):
     run(root / 'bin/phonon', '--help', env=env, capture=True)
 
 
-def validate_model(root):
-    no_symlink_ancestors(root)
+def validate_model(root, trusted_root=None):
+    no_symlink_ancestors(root, trusted_root)
     name = MODEL_RELATIVE.name
     if any(child.name not in (name, name + '.lock') for child in root.iterdir()):
         raise RuntimeError('Phonon model repository contains unrelated files or profiles')
@@ -168,7 +198,7 @@ def validate_model(root):
     if lock.is_symlink() or (lock.exists() and (not lock.is_file() or lock.stat().st_size != 0)):
         raise RuntimeError('Phonon model repository contains an unrecognized lock')
     root = root / name
-    no_symlink_ancestors(root)
+    no_symlink_ancestors(root, trusted_root)
     for name in ('model.fermion', 'config.json', 'packed_manifest.json'):
         file = root / name
         if file.is_symlink() or not file.is_file():
@@ -198,7 +228,7 @@ def receipt_document(paths, adopted=False):
 
 
 def read_receipt(paths):
-    no_symlink_ancestors(paths['receipt'])
+    no_symlink_ancestors(paths['receipt'], paths['data_home'])
     if not paths['receipt'].is_file():
         raise RuntimeError('Phonon has no managed installation receipt; adopt it first')
     doc = json.loads(paths['receipt'].read_text())
@@ -226,15 +256,15 @@ def read_receipt(paths):
 
 def validate_remove(paths):
     doc = read_receipt(paths)
-    for name in ('runtime', 'model'):
-        no_symlink_ancestors(paths[name])
+    for name, root in (('runtime', paths['data_home']), ('model', paths['home'])):
+        no_symlink_ancestors(paths[name], root)
         if paths[name].exists():
             current = manifest(paths[name])
             expected = doc['trees'][name]
             if any(key not in expected or value != expected[key] for key, value in current.items()):
                 raise RuntimeError(f'Phonon files were changed; leaving installation intact: {paths[name]}')
     if paths['unit'] is not None:
-        no_symlink_ancestors(paths['unit'])
+        no_symlink_ancestors(paths['unit'], paths['config_home'])
     if paths['unit'] is not None and paths['unit'].exists():
         current = {'sha256': digest(paths['unit']), 'mode': stat.S_IMODE(paths['unit'].stat().st_mode)}
         if current != doc['unit']:
@@ -242,14 +272,14 @@ def validate_remove(paths):
     return doc
 
 
-def publish_file(source, target):
-    no_symlink_ancestors(target)
+def publish_file(source, target, trusted_root=None):
+    no_symlink_ancestors(target, trusted_root)
     os.link(source, target, follow_symlinks=False)
 
 
-def publish_directory(source, target):
+def publish_directory(source, target, trusted_root=None):
     """Linux no-replace rename also refuses pre-existing empty directories."""
-    no_symlink_ancestors(target)
+    no_symlink_ancestors(target, trusted_root)
     libc = ctypes.CDLL(None, use_errno=True)
     rename = libc.renameat2
     rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
@@ -269,7 +299,7 @@ def write_receipt(paths, adopted=False, published=None):
             stream.write('\n')
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
         try:
-            publish_file(tmp, paths['receipt'])
+            publish_file(tmp, paths['receipt'], paths['data_home'])
             if published is not None:
                 published.append(('file', paths['receipt']))
         finally:
@@ -302,12 +332,14 @@ def remove(paths):
 def adopt(paths):
     if paths['receipt'].exists() or paths['receipt'].is_symlink():
         return validate_remove(paths)
-    for path in managed_paths(paths):
-        no_symlink_ancestors(path)
+    for name, root in (('runtime', paths['data_home']), ('model', paths['home'])):
+        no_symlink_ancestors(paths[name], root)
+    if paths['unit'] is not None:
+        no_symlink_ancestors(paths['unit'], paths['config_home'])
     require_runit_service(paths)
     if paths['unit'] is None:
         validate_runtime(paths['runtime'])
-        validate_model(paths['model'])
+        validate_model(paths['model'], paths['home'])
         return write_receipt(paths, adopted=True)
     if not paths['unit'].is_file():
         raise RuntimeError('Existing Phonon installation has no recognizable service')
@@ -317,7 +349,7 @@ def adopt(paths):
     if normalized(original.decode()) not in [normalized(text) for text in known]:
         raise RuntimeError('Existing Phonon service was changed or is not recognizable')
     validate_runtime(paths['runtime'])
-    validate_model(paths['model'])
+    validate_model(paths['model'], paths['home'])
     # Upgrade only the recognized session-created unit, before its final hash
     # is captured, so later imports cannot mutate the owned runtime with pyc.
     replacement = unit_text(paths).encode()
@@ -341,7 +373,7 @@ def adopt(paths):
             paths['receipt'].unlink(missing_ok=True)
         if (original != replacement and not paths['unit'].is_symlink() and
                 paths['unit'].is_file() and paths['unit'].read_bytes() == replacement):
-            no_symlink_ancestors(paths['unit'])
+            no_symlink_ancestors(paths['unit'], paths['config_home'])
             fd, name = tempfile.mkstemp(prefix='.phonon-restore-', dir=paths['unit'].parent)
             tmp = Path(name)
             try:
@@ -358,8 +390,13 @@ def install(paths, stage=None):
     if shutil.which('uv') is None:
         raise RuntimeError('Phonon installation needs uv; install uv first')
     require_runit_service(paths)
-    for path in (*managed_paths(paths), paths['receipt']):
-        no_symlink_ancestors(path)
+    install_targets = (('runtime', paths['data_home']), ('model', paths['home']),
+                       ('unit', paths['config_home']), ('receipt', paths['data_home']))
+    for name, root in install_targets:
+        path = paths[name]
+        if path is None:
+            continue
+        no_symlink_ancestors(path, root)
         if path.exists():
             raise RuntimeError(f'Phonon installation files already exist; adopt or remove them first: {path}')
     root = paths['runtime'].parent
@@ -409,7 +446,7 @@ def install(paths, stage=None):
                                 XDG_CACHE_HOME=str(model_home / '.cache'))
             run(venv / 'bin/python', '-I', '-B', '-c',
                 'import fermion; fermion.load_speech("phonon-2")', env=download_env)
-            validate_model(staged_model)
+            validate_model(staged_model, paths['home'])
             print('90%', flush=True)
             staged_unit = None
             if unit_tmp is not None:
@@ -419,12 +456,12 @@ def install(paths, stage=None):
             blocked = {signal.SIGTERM, signal.SIGINT}
             previous = signal.pthread_sigmask(signal.SIG_BLOCK, blocked)
             try:
-                publish_directory(venv, paths['runtime'])
+                publish_directory(venv, paths['runtime'], paths['data_home'])
                 published.append(('tree', paths['runtime']))
-                publish_directory(staged_model, paths['model'])
+                publish_directory(staged_model, paths['model'], paths['home'])
                 published.append(('tree', paths['model']))
                 if staged_unit is not None:
-                    publish_file(staged_unit, paths['unit'])
+                    publish_file(staged_unit, paths['unit'], paths['config_home'])
                     published.append(('file', paths['unit']))
             finally:
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous)

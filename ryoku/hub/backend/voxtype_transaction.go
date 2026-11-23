@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -22,6 +23,7 @@ type voxtypeUserServiceSnapshot struct {
 	name              string
 	tracked           bool
 	definitionPresent bool
+	servicePresent    bool
 	enabled           bool
 	active            bool
 }
@@ -29,6 +31,72 @@ type voxtypeUserServiceSnapshot struct {
 type voxtypeSetSnapshot struct {
 	files    []voxtypeFileSnapshot
 	services []voxtypeUserServiceSnapshot
+}
+
+// withVoxtypeMutationLock keeps selection, service startup and model removal
+// from taking snapshots or rolling back across another Hub process' changes.
+func withVoxtypeMutationLock(fn func() error) error {
+	stateHome := os.Getenv("XDG_STATE_HOME")
+	if stateHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("find the user state directory: %w", err)
+		}
+		stateHome = filepath.Join(home, ".local", "state")
+	}
+	stateHome, err := filepath.Abs(stateHome)
+	if err != nil {
+		return fmt.Errorf("resolve the user state directory: %w", err)
+	}
+	path := filepath.Join(stateHome, "ryoku", "locks", "voxtype.lock")
+	if err := validateVoxtypeLockPath(stateHome, path); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create the dictation lock directory: %w", err)
+	}
+	if err := validateVoxtypeLockPath(stateHome, path); err != nil {
+		return err
+	}
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDWR|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return fmt.Errorf("open the dictation operation lock: %w", err)
+	}
+	lock := os.NewFile(uintptr(fd), path)
+	defer lock.Close()
+	info, err := lock.Stat()
+	if err != nil {
+		return fmt.Errorf("inspect the dictation operation lock: %w", err)
+	}
+	owner, ok := info.Sys().(*syscall.Stat_t)
+	if !info.Mode().IsRegular() || !ok || owner.Uid != uint32(os.Getuid()) {
+		return fmt.Errorf("dictation operation lock is not a user-owned regular file")
+	}
+	if err := syscall.Flock(fd, syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("lock dictation changes: %w", err)
+	}
+	defer syscall.Flock(fd, syscall.LOCK_UN)
+	return fn()
+}
+
+func validateVoxtypeLockPath(root, path string) error {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("dictation lock is outside the configured state directory")
+	}
+	for current := path; current != root; current = filepath.Dir(current) {
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("inspect dictation lock path %s: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing symlink in dictation lock path: %s", current)
+		}
+	}
+	return nil
 }
 
 func snapshotVoxtypeSetState() (*voxtypeSetSnapshot, error) {
@@ -142,25 +210,32 @@ func snapshotVoxtypeUserService(initSystem, name string) (voxtypeUserServiceSnap
 	case "systemd":
 		path = filepath.Join(configHome(), "systemd", "user", name+".service")
 		snapshot.definitionPresent = fileExists(path)
-		if name == "voxtype" && !snapshot.definitionPresent && onPath("voxtype") {
-			snapshot.tracked = true
-			return snapshot, nil
-		}
 	case "runit":
 		path = filepath.Join(runitUserServicePath(name), "run")
 		snapshot.definitionPresent = fileExists(path)
+		if !snapshot.definitionPresent {
+			return snapshot, nil
+		}
 	default:
 		return snapshot, nil
 	}
-	if !snapshot.definitionPresent {
-		return snapshot, nil
-	}
-	snapshot.tracked = true
 	var err error
 	snapshot.enabled, err = queryVoxtypeServiceState("is-enabled", name)
 	if err != nil {
+		if serviceStateIsAbsent(err) {
+			// A packaged systemd unit can be known to the user manager without a
+			// user-local definition. Conversely, an installed Voxtype binary with
+			// no known unit may create one during selection, so keep a cleanup
+			// snapshot for that case too.
+			if initSystem == "systemd" && name == "voxtype" && onPath("voxtype") {
+				snapshot.tracked = true
+			}
+			return snapshot, nil
+		}
 		return snapshot, err
 	}
+	snapshot.tracked = true
+	snapshot.servicePresent = true
 	snapshot.active, err = queryVoxtypeServiceState("is-active", name)
 	if err != nil {
 		return snapshot, err
@@ -184,7 +259,8 @@ func (s *voxtypeSetSnapshot) restore() error {
 	var rollbackErrors []error
 	for i := len(s.services) - 1; i >= 0; i-- {
 		snapshot := &s.services[i]
-		if !snapshot.tracked || snapshot.definitionPresent || snapshot.name != "voxtype" || hostInitName() != "systemd" {
+		if !snapshot.tracked || snapshot.definitionPresent || snapshot.servicePresent ||
+			snapshot.name != "voxtype" || hostInitName() != "systemd" {
 			continue
 		}
 		if fileExists(voxtypeUnitPath()) {

@@ -620,7 +620,7 @@
       "wer": 0.059233449477351915
     }
   ],
-  "command": "python3 benchmarks/phonon-redux/run.py --run --rounds 3 --output /tmp/phonon-redux-repeat",
+  "command": "python3 benchmarks/phonon-redux/run.py --run --manifest \"$HOME\"/Projects/voxtype-redux-adapter/benchmarks/audio/manifest.json --cases clean-5s clean-15s clean-30s noise-30s-20db clean-60s clean-120s --rounds 3 --endpoint http://127.0.0.1:8010 --socket \"$XDG_RUNTIME_DIR\"/voxtype-redux/worker.sock --redux-model \"$HOME\"/.local/share/voxtype/models/redux-packed.gguf --output /tmp/phonon-redux-repeat/reproduction-legacy",
   "memory": {
     "phonon": {
       "pid": 1812470,
@@ -667,5 +667,21 @@
   "artifacts": {
     "redux_model_sha256": "574614b9a4d9f72ab202877a7ad6a1f4bf819dd1d27b9d42dfe8cd429fcebdd5",
     "phonon_model_sha256": "11ecbe2a8a7b308cfc54d96f13b3c910d28f496dd9b265794e86b942d8bc9e70"
+  },
+  "configuration": {
+    "manifest": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/manifest.json",
+    "cases": [
+      "clean-5s",
+      "clean-15s",
+      "clean-30s",
+      "noise-30s-20db",
+      "clean-60s",
+      "clean-120s"
+    ],
+    "endpoint": "http://127.0.0.1:8010",
+    "socket": "$XDG_RUNTIME_DIR/voxtype-redux/worker.sock",
+    "redux_model": "$HOME/.local/share/voxtype/models/redux-packed.gguf",
+    "output": "/tmp/phonon-redux-repeat",
+    "provenance": "Reconstructed from the archived six-case corpus, recorded rounds/output, and installed service defaults; the previous harness did not save CLI overrides."
   }
 }

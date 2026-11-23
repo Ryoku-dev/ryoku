@@ -48,9 +48,11 @@
 ### Fixed
 - **Dictation changes roll back when a service action fails.** The previous
   config, engine dependencies and service states are restored together.
-  Disabling a user-edited Custom config also stops Phonon without overwriting
-  that config. Uninstalling Phonon redirects a Custom config that still targets
-  its local server to Base English and keeps Voxtype enabled when it was on.
+  Changes serialize across Hub operations and preserve packaged Voxtype service
+  state. Disabling or re-enabling a user-edited Custom config starts and stops
+  Phonon without overwriting that config. Uninstalling Phonon makes sure Base
+  English is available before redirecting a config that targets its local server,
+  and keeps Voxtype enabled when it was on.
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.

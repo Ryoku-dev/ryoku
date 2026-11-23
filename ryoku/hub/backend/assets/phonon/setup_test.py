@@ -206,6 +206,34 @@ class InstallerTests(unittest.TestCase):
             self.install()
         self.assertEqual(list(foreign.iterdir()), [])
 
+    def test_symlinked_home_and_xdg_roots_install_and_remove(self):
+        roots = {}
+        for name in ('home', 'data', 'config', 'state'):
+            target = self.root / f'real-{name}'
+            target.mkdir()
+            alias = self.root / name
+            alias.symlink_to(target, target_is_directory=True)
+            roots[name] = (alias, target)
+
+        with patch.dict(os.environ, {
+            'HOME': str(roots['home'][0]),
+            'XDG_DATA_HOME': str(roots['data'][0]),
+            'XDG_CONFIG_HOME': str(roots['config'][0]),
+            'XDG_STATE_HOME': str(roots['state'][0]),
+        }):
+            paths = m.layout()
+            with m.installation_lock():
+                self.assertTrue((roots['state'][1] / 'ryoku/locks/phonon-2.lock').is_file())
+            m.install(paths)
+            self.assertTrue(paths['runtime'].is_dir())
+            self.assertTrue(paths['model'].is_dir())
+            self.assertTrue(paths['unit'].is_file())
+            m.remove(paths)
+            self.assertFalse(paths['runtime'].exists())
+            self.assertFalse(paths['model'].exists())
+            self.assertFalse(paths['unit'].exists())
+            self.assertFalse(paths['receipt'].exists())
+
     def test_unknown_adoption_unit_and_cuda_runtime_are_refused(self):
         self.install()
         self.paths['receipt'].unlink()
@@ -245,10 +273,10 @@ class InstallerTests(unittest.TestCase):
 
     def test_publication_failure_rolls_back_created_trees(self):
         original = m.publish_file
-        def fail(source, target):
+        def fail(source, target, trusted_root=None):
             if target == self.paths['unit']:
                 raise OSError('disk full')
-            return original(source, target)
+            return original(source, target, trusted_root)
         with patch.object(m, 'publish_file', fail):
             with self.assertRaisesRegex(OSError, 'disk full'):
                 self.install()
@@ -256,10 +284,10 @@ class InstallerTests(unittest.TestCase):
 
     def test_racing_foreign_directory_is_not_replaced(self):
         original = m.publish_directory
-        def race(source, target):
+        def race(source, target, trusted_root=None):
             if target == self.paths['model']:
                 target.mkdir()
-            return original(source, target)
+            return original(source, target, trusted_root)
         with patch.object(m, 'publish_directory', race):
             with self.assertRaises(OSError):
                 self.install()
@@ -292,8 +320,8 @@ class InstallerTests(unittest.TestCase):
             raise KeyboardInterrupt()
         previous = signal.signal(signal.SIGTERM, cancel)
         self.addCleanup(signal.signal, signal.SIGTERM, previous)
-        def interrupt(source, target):
-            original(source, target)
+        def interrupt(source, target, trusted_root=None):
+            original(source, target, trusted_root)
             if target == self.paths['receipt']:
                 signal.raise_signal(signal.SIGTERM)
         with patch.object(m, 'publish_file', interrupt):

@@ -78,7 +78,7 @@ func voxtypePresets() []voxtypePreset {
 		}
 	}
 	if initSystem == "systemd" || initSystem == "runit" {
-		phonon := voxtypePreset{Key: phononPresetKey, Label: "Phonon-2", Provider: "Fermion Research", Detail: "English only. Installs its local CPU runtime with the model.", Size: "158 MB + CPU runtime", SizeBytes: 158_127_742, Group: "english", Language: "English", Speed: "fast", model: "phonon-2", lang: "en"}
+		phonon := voxtypePreset{Key: phononPresetKey, Label: "Phonon-2", Provider: "Fermion Research", Detail: "English only. Installs its local CPU runtime with the model.", Size: "164 MB + CPU runtime", SizeBytes: 164_000_000, Group: "english", Language: "English", Speed: "fast", model: "phonon-2", lang: "en"}
 		for i, p := range presets {
 			if p.Key == "whisper-fast" {
 				presets = append(presets, voxtypePreset{})
@@ -146,9 +146,19 @@ func runVoxtype(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("voxtype needs get|set|ensure|download|rmmodel")
 	}
-	switch args[0] {
-	case "get":
+	if args[0] == "get" {
 		return voxtypeGet()
+	}
+	if args[0] != "set" && args[0] != "ensure" && args[0] != "download" && args[0] != "rmmodel" {
+		return fmt.Errorf("unknown voxtype command: %s", args[0])
+	}
+	return withVoxtypeMutationLock(func() error {
+		return runVoxtypeMutation(args)
+	})
+}
+
+func runVoxtypeMutation(args []string) error {
+	switch args[0] {
 	case "set":
 		if len(args) < 2 {
 			return fmt.Errorf("voxtype set needs a JSON argument")
@@ -225,7 +235,7 @@ func voxtypeSet(arg string) (returnErr error) {
 		return fmt.Errorf("unknown preset: %s", req.Preset)
 	}
 	if !custom {
-		if p.Key == reduxPresetKey && !reduxInstalled() {
+		if p.Key == reduxPresetKey && !reduxFilesPresent() {
 			return fmt.Errorf("install Redux and its adapter from the model card first")
 		}
 		if p.Key == phononPresetKey && !phononInstalled() {
@@ -255,6 +265,17 @@ func voxtypeSet(arg string) (returnErr error) {
 			}
 		}
 	}()
+	if custom && req.Enabled && voxtypeConfigUsesPhononEndpoint(readFileString(voxtypeConfigPath())) {
+		// Custom configurations remain user-owned, but a custom endpoint that
+		// still targets Phonon needs its server back before Voxtype is restarted.
+		operationTouched = true
+		if err := startPhononService(); err != nil {
+			return err
+		}
+		if err := configurePhononService(true); err != nil {
+			return err
+		}
+	}
 	if !custom {
 		// Bring Phonon up and verify readiness before changing the active preset.
 		if p.Key == phononPresetKey && req.Enabled {
@@ -375,7 +396,10 @@ func voxtypeDownload(key string) error {
 		return runPhononSetup("install")
 	}
 	if p.Key == reduxPresetKey {
-		if reduxInstalled() {
+		if reduxFilesPresent() {
+			if !fileExists(reduxReceiptPath()) {
+				return runReduxSetup("adopt")
+			}
 			return nil
 		}
 		return runReduxSetup("install")
@@ -651,10 +675,29 @@ func phononEndpointMatches(endpoint string) bool {
 		return false
 	}
 	phonon, err := url.Parse(phononEndpoint)
-	if err != nil || !strings.EqualFold(target.Scheme, phonon.Scheme) || target.Port() != phonon.Port() {
+	if err != nil || !strings.EqualFold(target.Scheme, phonon.Scheme) || target.Port() != phonon.Port() ||
+		target.User != nil || target.RawQuery != "" || target.Fragment != "" ||
+		!phononEndpointPathMatches(target.Path, phonon.Path) {
 		return false
 	}
-	return isLoopbackHost(target.Hostname()) && isLoopbackHost(phonon.Hostname())
+	return isLoopbackHost(target.Hostname()) && isLoopbackHost(phonon.Hostname()) &&
+		phononEndpointHostsMatch(target.Hostname(), phonon.Hostname())
+}
+
+func phononEndpointPathMatches(targetPath, phononPath string) bool {
+	targetPath = strings.TrimRight(targetPath, "/")
+	phononPath = strings.TrimRight(phononPath, "/")
+	return targetPath == phononPath || targetPath == phononPath+"/v1"
+}
+
+func phononEndpointHostsMatch(targetHost, phononHost string) bool {
+	targetHost = strings.TrimSuffix(strings.ToLower(targetHost), ".")
+	phononHost = strings.TrimSuffix(strings.ToLower(phononHost), ".")
+	if targetHost == phononHost {
+		return true
+	}
+	return (targetHost == "localhost" && phononHost == "127.0.0.1") ||
+		(targetHost == "127.0.0.1" && phononHost == "localhost")
 }
 
 func isLoopbackHost(host string) bool {

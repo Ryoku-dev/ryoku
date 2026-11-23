@@ -27,7 +27,9 @@ func TestRemovingSelectedPhononStopsDictationBeforeDeleting(t *testing.T) {
 	setupLog := filepath.Join(root, "setup-calls")
 	write(filepath.Join(bin, "ryoku-host"), "#!/bin/sh\nif [ \"$1\" = init ]; then echo systemd; exit 0; fi\nprintf '%s\\n' \"$*\" >> '"+hostLog+"'\n", 0700)
 	write(filepath.Join(bin, "python3"), "#!/bin/sh\nprintf '%s\\n' \"$2\" >> '"+setupLog+"'\n", 0700)
-	for _, path := range []string{filepath.Join(dataHome(), "phonon-2/venv/bin/phonon"), phononModelPath(), phononUnitPath(), phononReceiptPath()} {
+	base, _ := presetByKey("whisper-fast")
+	for _, path := range []string{filepath.Join(dataHome(), "phonon-2/venv/bin/phonon"), phononModelPath(),
+		modelFilePath(base), phononUnitPath(), phononReceiptPath()} {
 		write(path, "fixture", 0600)
 	}
 	p, _ := presetByKey(phononPresetKey)

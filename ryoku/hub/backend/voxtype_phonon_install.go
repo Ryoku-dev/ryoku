@@ -72,6 +72,12 @@ func removePhonon() error {
 	}
 	if voxtypeConfigUsesPhononEndpoint(readFileString(voxtypeConfigPath())) {
 		enabled := voxtypeServiceEnabled()
+		baseEnglish, _ := presetByKey("whisper-fast")
+		if !fileExists(modelFilePath(baseEnglish)) {
+			if err := voxtypeDownload(baseEnglish.Key); err != nil {
+				return fmt.Errorf("install Base English before removing Phonon-2: %w", err)
+			}
+		}
 		if err := voxtypeSet(fmt.Sprintf(`{"preset":"whisper-fast","enabled":%t}`, enabled)); err != nil {
 			return err
 		}

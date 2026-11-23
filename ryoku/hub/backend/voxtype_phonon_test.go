@@ -35,7 +35,8 @@ func TestInstalledPhononIsLocalAndSelectable(t *testing.T) {
 		}
 	}
 	p, ok := presetByKey(phononPresetKey)
-	if !ok || p.Cloud || p.KeyKind != "" || p.Language != "English" {
+	if !ok || p.Cloud || p.KeyKind != "" || p.Language != "English" ||
+		p.Size != "164 MB + CPU runtime" || p.SizeBytes != 164_000_000 {
 		t.Fatalf("invalid installed Phonon preset: %#v", p)
 	}
 	presets := voxtypePresets()
@@ -98,6 +99,33 @@ func TestInstalledPhononIsLocalAndSelectable(t *testing.T) {
 	}
 	if readFileString(voxtypeConfigPath()) != previous || fileExists(dropin) {
 		t.Fatal("a failed Phonon start changed the current preset or its dependency")
+	}
+}
+
+func TestPhononEndpointMatchesOnlyItsLocalAPI(t *testing.T) {
+	previousEndpoint := phononEndpoint
+	phononEndpoint = "http://127.0.0.1:8010"
+	t.Cleanup(func() { phononEndpoint = previousEndpoint })
+
+	for _, tc := range []struct {
+		endpoint string
+		want     bool
+	}{
+		{"http://127.0.0.1:8010", true},
+		{"http://127.0.0.1:8010/", true},
+		{"http://127.0.0.1:8010/v1", true},
+		{"http://127.0.0.1:8010/v1/", true},
+		{"http://localhost:8010/v1", true},
+		{"http://127.0.0.1:8010/unrelated", false},
+		{"http://127.0.0.1:8010/unrelated/v1", false},
+		{"http://127.0.0.2:8010", false},
+		{"http://127.0.0.1:8011", false},
+		{"http://user@127.0.0.1:8010", false},
+		{"http://127.0.0.1:8010?service=other", false},
+	} {
+		if got := phononEndpointMatches(tc.endpoint); got != tc.want {
+			t.Errorf("phononEndpointMatches(%q) = %v, want %v", tc.endpoint, got, tc.want)
+		}
 	}
 }
 
@@ -272,6 +300,77 @@ func TestDisablingCustomVoxtypeStopsPhononWithoutChangingConfig(t *testing.T) {
 	}
 }
 
+func TestEnablingCustomPhononEndpointRestartsRunitServer(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	serviceDir := filepath.Join(root, "services")
+	t.Setenv("RYOKU_USER_SERVICE_DIR", serviceDir)
+	bin := filepath.Join(root, "bin")
+	state := filepath.Join(root, "service-state")
+	if err := os.MkdirAll(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeFakeVoxtypeRunitHost(t, bin, state)
+	for _, name := range []string{"phonon-2", "voxtype"} {
+		run := filepath.Join(serviceDir, name, "run")
+		if err := os.MkdirAll(filepath.Dir(run), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(run, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, stateName := range []string{"enabled", "active"} {
+			path := filepath.Join(state, stateName, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	config := "[whisper]\nmode = \"remote\"\nremote_model = \"user-model\"\nremote_endpoint = \"http://127.0.0.1:8010/v1\"\n"
+	if err := os.MkdirAll(filepath.Dir(voxtypeConfigPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(voxtypeConfigPath(), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "model": phononPresetKey})
+	}))
+	defer server.Close()
+	previousEndpoint := phononEndpoint
+	phononEndpoint = server.URL
+	t.Cleanup(func() { phononEndpoint = previousEndpoint })
+	config = strings.Replace(config, "http://127.0.0.1:8010/v1", server.URL+"/v1", 1)
+	if err := os.WriteFile(voxtypeConfigPath(), []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := voxtypeSet(`{"preset":"custom","enabled":false}`); err != nil {
+		t.Fatal(err)
+	}
+	if fileExists(filepath.Join(state, "active", "phonon-2")) {
+		t.Fatal("disabling Custom did not stop Phonon")
+	}
+	if err := voxtypeSet(`{"preset":"custom","enabled":true}`); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFileString(voxtypeConfigPath()); got != config {
+		t.Fatalf("enabling Custom rewrote the user's config:\n%s", got)
+	}
+	for _, name := range []string{"phonon-2", "voxtype"} {
+		for _, stateName := range []string{"enabled", "active"} {
+			if !fileExists(filepath.Join(state, stateName, name)) {
+				t.Errorf("enabling Custom did not restore %s %s state", name, stateName)
+			}
+		}
+	}
+}
+
 func TestVoxtypeConfigUsesEditedPhononEndpoint(t *testing.T) {
 	tests := []struct {
 		name string
@@ -307,6 +406,12 @@ func TestRemovePhononRedirectsCustomConfigAndKeepsVoxtypeEnabled(t *testing.T) {
 	t.Setenv("PHONON_TEST_ACTIONS", actions)
 	python := "#!/bin/sh\nprintf '%s\\n' \"$2\" >> \"$PHONON_TEST_ACTIONS\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "python3"), []byte(python), 0700); err != nil {
+		t.Fatal(err)
+	}
+	voxtype := "#!/bin/sh\nif [ \"$1\" = setup ] && [ \"$2\" = --download ]; then\n" +
+		"  mkdir -p \"$XDG_DATA_HOME/voxtype/models\"\n" +
+		"  printf base-english > \"$XDG_DATA_HOME/voxtype/models/ggml-base.en.bin\"\nfi\n"
+	if err := os.WriteFile(filepath.Join(bin, "voxtype"), []byte(voxtype), 0700); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{phononUnitPath(), phononReceiptPath(), voxtypeUnitPath()} {
@@ -352,6 +457,10 @@ func TestRemovePhononRedirectsCustomConfigAndKeepsVoxtypeEnabled(t *testing.T) {
 	}
 	if got := readFileString(actions); got != "check-remove\nremove\n" {
 		t.Fatalf("unexpected installer lifecycle: %q", got)
+	}
+	base, _ := presetByKey("whisper-fast")
+	if got := readFileString(modelFilePath(base)); got != "base-english" {
+		t.Fatalf("uninstall did not prepare the Base English fallback model: %q", got)
 	}
 }
 
@@ -519,6 +628,8 @@ verb=$3
 case "$verb" in
   is-enabled|is-active)
     name=$4
+    unit_file="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$name.service"
+    if [ ! -e "$unit_file" ] && [ ! -e "$state_dir/known/$name" ]; then exit 4; fi
     state_name=enabled
     [ "$verb" = is-active ] && state_name=active
     [ -e "$state_dir/$state_name/$name" ] && exit 0

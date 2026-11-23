@@ -175,6 +175,56 @@ def environment():
             "loadavg": list(os.getloadavg())}
 
 
+def reproduction_command(args, cases, output):
+    """Build a replay command from every effective benchmark input."""
+    manifest = args.manifest.resolve()
+    socket_path = args.socket.absolute()
+    model_path = args.redux_model.absolute()
+    argv = ["python3", "benchmarks/phonon-redux/run.py", "--run",
+            "--manifest", replay_path_arg(manifest), "--cases",
+            *(shlex.quote(case["id"]) for case in cases),
+            "--rounds", str(args.rounds), "--endpoint", shlex.quote(args.endpoint.rstrip("/")),
+            "--socket", replay_path_arg(socket_path), "--redux-model", replay_path_arg(model_path),
+            "--output", replay_path_arg(output)]
+    return " ".join(argv)
+
+
+def replay_path_arg(path):
+    """Quote a path, using shell variables for this user's home/runtime roots."""
+    path = Path(path).resolve()
+    roots = []
+    if os.environ.get("HOME"):
+        roots.append(("HOME", Path.home().resolve()))
+    if os.environ.get("XDG_RUNTIME_DIR"):
+        roots.append(("XDG_RUNTIME_DIR", Path(os.environ["XDG_RUNTIME_DIR"]).resolve()))
+    for variable, root in roots:
+        try:
+            relative = path.relative_to(root)
+        except ValueError:
+            continue
+        if str(relative) == ".":
+            return f'"${variable}"'
+        return f'"${variable}"/{shlex.quote(relative.as_posix())}'
+    return shlex.quote(str(path))
+
+
+def recorded_path(path):
+    """Normalize machine-local roots in JSON metadata as the corpus does."""
+    path = Path(path).resolve()
+    roots = []
+    if os.environ.get("HOME"):
+        roots.append(("HOME", Path.home().resolve()))
+    if os.environ.get("XDG_RUNTIME_DIR"):
+        roots.append(("XDG_RUNTIME_DIR", Path(os.environ["XDG_RUNTIME_DIR"]).resolve()))
+    for variable, root in roots:
+        try:
+            relative = path.relative_to(root)
+        except ValueError:
+            continue
+        return f"${variable}" if str(relative) == "." else f"${variable}/{relative.as_posix()}"
+    return str(path)
+
+
 def report(result, destination):
     rows = result["trials"]
     lines = ["# Phonon-2 versus Redux Parakeet", "", result["environment"]["timestamp"], "",
@@ -221,6 +271,9 @@ def report(result, destination):
     for engine, row in result["memory"].items():
         lines.append(f"| {engine} | {row['sampled_peak_rss_mib']:.1f} MiB | {row['after']['VmHWM_mib']:.1f} MiB | "
                      f"{row['after']['VmSwap_mib']:.1f} MiB |")
+    provenance = result.get("configuration", {}).get("provenance")
+    if provenance:
+        lines += ["", "Replay metadata note: " + provenance]
     lines += ["", "RSS is sampled from each service's main process every 50 ms. It includes loaded libraries and "
               "workspace; shared pages may appear in both processes. Lifetime high-water RSS can include activity "
               "before this benchmark, so it is reported separately.", "",
@@ -231,10 +284,10 @@ def report(result, destination):
               "as if they were independent test samples.", "",
               "WER uses the existing Redux benchmark normalization: lowercase, expand Mr./Mrs., then extract words "
               "while preserving internal ASCII apostrophes and digits. Raw references, hypotheses, edit counts, "
-              "WAV hashes, runtime settings and every trial are preserved in `results.json`.", "",
+              "WAV hashes, effective input paths, runtime settings and every trial are preserved in `results.json`.", "",
               "Corpus source: [LibriSpeech ASR corpus](https://openslr.org/12/). "
               "The original corpus builder is `voxtype-redux-adapter/benchmarks/prepare_audio.py`.", "",
-              "Reproduce with both services already running:", "", "```bash",
+              "From the repository root, reproduce with both services already running:", "", "```bash",
               result["command"], "```", ""]
     (destination / "REPORT.md").write_text("\n".join(lines))
 
@@ -268,12 +321,19 @@ def main():
     if redux.get("backend") != "cpp" or redux.get("pool_threads") != 4 or redux.get("chunk_seconds") != 30:
         raise RuntimeError("expected Redux CPP pool4/chunk30 runtime")
     pids = {engine: service_pid(unit) for engine, unit in (("phonon", "phonon-2.service"), ("redux", "voxtype-redux.service"))}
+    replay_output = args.output.resolve() / ("reproduction-" + uuid.uuid4().hex[:8])
+    configuration = {"manifest": recorded_path(args.manifest.resolve()),
+                     "cases": [case["id"] for case in cases],
+                     "endpoint": args.endpoint.rstrip("/"),
+                     "socket": recorded_path(args.socket.absolute()),
+                     "redux_model": recorded_path(args.redux_model.absolute()),
+                     "output": recorded_path(args.output.resolve())}
     result = {"environment": environment(), "rounds": args.rounds, "corpus": cases,
+              "configuration": configuration,
               "settings": {"phonon": phonon, "redux": redux}, "warmups": [], "trials": [],
               "artifacts": {"redux_model_sha256": sha256_file(args.redux_model),
                             "phonon_model_sha256": phonon.get("sha256")},
-              "command": "python3 benchmarks/phonon-redux/run.py --run --rounds " + str(args.rounds) +
-                         " --output " + shlex.quote(str(args.output))}
+              "command": reproduction_command(args, cases, replay_output)}
 
     def infer(engine, case):
         if engine == "phonon":

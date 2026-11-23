@@ -39,32 +39,18 @@ These are resident-engine request timings after the complete WAV is available. P
 | phonon | 1135.6 MiB | 1135.6 MiB | 0.0 MiB |
 | redux | 673.6 MiB | 673.0 MiB | 0.0 MiB |
 
+Replay metadata note: Reconstructed from the archived six-case corpus, recorded rounds/output, and installed service defaults; the previous harness did not save CLI overrides.
+
 RSS is sampled from each service's main process every 50 ms. It includes loaded libraries and workspace; shared pages may appear in both processes. Lifetime high-water RSS can include activity before this benchmark, so it is reported separately.
-
-## CPU thread tuning
-
-To choose the service's CPU thread count, the same two Phonon test clips ran on a second server at port 8011 with 1, 2, 4, 8 and Fermion's default thread setting (8 on this eight-logical-CPU machine). Each setting was measured three times in a rotating order. Each fresh server first processed the 5-second clip, then the 30-second clip; the first result is the first inference after startup and the second follows that warm request. The installed four-thread server on port 8010 remained loaded but idle. The Redux service was inactive, so these numbers compare Phonon settings only.
-
-| Phonon threads | 5 s first-request median (range) | 30 s median (range) | WER, 5 s / 30 s |
-|---:|---:|---:|---:|
-| 1 | 1.956 s (1.769 to 2.293) | 11.516 s (10.699 to 11.997) | 0.00% / 10.29% |
-| 2 | 1.140 s (0.932 to 1.141) | 6.160 s (5.793 to 6.239) | 0.00% / 10.29% |
-| 4 | 0.804 s (0.733 to 0.843) | 4.610 s (4.558 to 4.715) | 0.00% / 10.29% |
-| 8 | 1.342 s (0.976 to 1.380) | 4.368 s (3.787 to 4.499) | 0.00% / 10.29% |
-| Automatic (8) | 1.052 s (0.990 to 1.912) | 4.399 s (3.894 to 5.294) | 0.00% / 10.29% |
-
-Four threads stayed selected: it was about 24% faster than the automatic setting on the first five-second request, while the automatic setting was about 5% faster on the 30-second clip. Every setting returned the same five-second text. On the 30-second clip, the 1, 2 and 4 thread trials returned “Lynnell's”; the 8 thread and automatic trials returned “Linell's”. Both spellings had the same 10.29% WER here. The short-request advantage better fits ordinary dictation; the automatic setting's small long-clip gain does not justify its first-request latency here. This was a live desktop run, not an isolated fixed-frequency benchmark. The raw trials are in `thread-sweep.json`.
 
 This small English corpus uses LibriSpeech validation samples and contains one speaker. Whole utterances were assembled with 0.2-second gaps and recur across duration cases. The noisy case adds deterministic white noise at 20 dB SNR. This is neither a general accuracy benchmark nor a test of microphone dictation, meetings, accents or multilingual recognition. Do not aggregate overlapping clips as if they were independent test samples.
 
-WER uses the existing Redux benchmark normalization: lowercase, expand Mr./Mrs., then extract words while preserving internal ASCII apostrophes and digits. Raw references, hypotheses, edit counts, WAV hashes, runtime settings and every trial are preserved in `results.json`.
-
-Machine-local home and runtime-directory prefixes in the raw JSON are normalized to `$HOME` and `$XDG_RUNTIME_DIR`.
+WER uses the existing Redux benchmark normalization: lowercase, expand Mr./Mrs., then extract words while preserving internal ASCII apostrophes and digits. Raw references, hypotheses, edit counts, WAV hashes, effective input paths, runtime settings and every trial are preserved in `results.json`.
 
 Corpus source: [LibriSpeech ASR corpus](https://openslr.org/12/). The original corpus builder is `voxtype-redux-adapter/benchmarks/prepare_audio.py`.
 
-Reproduce with both services already running:
+From the repository root, reproduce with both services already running:
 
 ```bash
-python3 benchmarks/phonon-redux/run.py --run --rounds 3 --output /tmp/phonon-redux-repeat
+python3 benchmarks/phonon-redux/run.py --run --manifest "$HOME"/Projects/voxtype-redux-adapter/benchmarks/audio/manifest.json --cases clean-5s clean-15s clean-30s noise-30s-20db clean-60s clean-120s --rounds 3 --endpoint http://127.0.0.1:8010 --socket "$XDG_RUNTIME_DIR"/voxtype-redux/worker.sock --redux-model "$HOME"/.local/share/voxtype/models/redux-packed.gguf --output /tmp/phonon-redux-repeat/reproduction-legacy
 ```
