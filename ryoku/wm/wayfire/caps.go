@@ -24,7 +24,10 @@ import (
 // reopens the configured path and restores reloads after that swap.
 //
 // CapOutputHdr: wayfire 0.11 has an HDR toggle but no wide-gamut mode or
-// separate SDR-brightness control. The supported HDR boolean is still claimed.
+// separate SDR-brightness control. The supported HDR boolean is still claimed,
+// but a live session only claims it when the renderer applies colour
+// transforms: wlroots 0.20's default GLES2 renderer ignores hdr = true and
+// leaves the output SDR. Offline probes keep the manifest entry.
 //
 // CapSubmap, CapGlobalShortcuts, CapFocusGrab, CapScreenShader: wayfire
 // implements none of these subsystems.
@@ -154,6 +157,18 @@ var wayfirePluginDirs = func() []string {
 
 func availableCaps() []wm.Capability {
 	out := append([]wm.Capability(nil), capsManifest...)
+	if live() && os.Getenv("WLR_RENDERER") != "vulkan" {
+		// GLES2 cannot apply the colour transform the HDR toggle needs, so
+		// a live session on it must not offer the control. Offline probes
+		// never reach this branch and keep the full manifest.
+		kept := out[:0]
+		for _, c := range out {
+			if c != wm.CapOutputHdr {
+				kept = append(kept, c)
+			}
+		}
+		out = kept
+	}
 	if (!live() && wayfirePluginAvailable("wsets")) ||
 		specialWorkspaceMethodsAvailable() {
 		out = append(out, wm.CapSpecialWorkspace)
