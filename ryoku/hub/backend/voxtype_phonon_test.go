@@ -36,7 +36,8 @@ func TestInstalledPhononIsLocalAndSelectable(t *testing.T) {
 	}
 	p, ok := presetByKey(phononPresetKey)
 	if !ok || p.Cloud || p.KeyKind != "" || p.Language != "English" ||
-		p.Size != "164 MB + CPU runtime" || p.SizeBytes != 164_000_000 {
+		p.Size != "164 MB + CPU runtime" || p.SizeBytes != 164_000_000 ||
+		!strings.Contains(p.Detail, "164 MB download, 177 MB on disk") {
 		t.Fatalf("invalid installed Phonon preset: %#v", p)
 	}
 	presets := voxtypePresets()

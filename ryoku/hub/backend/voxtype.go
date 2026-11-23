@@ -78,7 +78,7 @@ func voxtypePresets() []voxtypePreset {
 		}
 	}
 	if initSystem == "systemd" || initSystem == "runit" {
-		phonon := voxtypePreset{Key: phononPresetKey, Label: "Phonon-2", Provider: "Fermion Research", Detail: "English only. Installs its local CPU runtime with the model.", Size: "164 MB + CPU runtime", SizeBytes: 164_000_000, Group: "english", Language: "English", Speed: "fast", model: "phonon-2", lang: "en"}
+		phonon := voxtypePreset{Key: phononPresetKey, Label: "Phonon-2", Provider: "Fermion Research", Detail: "English only. 164 MB download, 177 MB on disk. Installs its local CPU runtime.", Size: "164 MB + CPU runtime", SizeBytes: 164_000_000, Group: "english", Language: "English", Speed: "fast", model: "phonon-2", lang: "en"}
 		for i, p := range presets {
 			if p.Key == "whisper-fast" {
 				presets = append(presets, voxtypePreset{})

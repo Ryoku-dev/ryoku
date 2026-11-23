@@ -60,9 +60,10 @@ and runtime ABI. An unrecognized install is left untouched.
 
 ## Phonon-2
 
-Phonon-2 is an English-only local model. The Hub card installs its pinned
-CPU-only runtime and model. Systemd editions get a per-user unit; Void gets
-Ryoku's package-provisioned on-demand runit service. Voxtype sends recordings to
+Phonon-2 is an English-only local model. Its 164 MB download is 177 MB on disk;
+the Hub card installs the model and its pinned CPU-only runtime. Systemd
+editions get a per-user unit; Void gets Ryoku's package-provisioned on-demand
+runit service. Voxtype sends recordings to
 that service on localhost; no cloud key is needed. Selecting another model or
 turning dictation off stops and disables the Phonon service. Removing the card
 validates its ownership receipt before deleting the model and runtime, and
