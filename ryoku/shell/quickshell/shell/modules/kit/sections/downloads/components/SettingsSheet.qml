@@ -39,6 +39,8 @@ Item {
     readonly property var conns: [1, 2, 4, 6, 8, 12, 16]
     readonly property var ratios: [0.5, 1, 1.5, 2, 3, 5]
     readonly property var minutes: [5, 15, 30, 60, 120, 360, 1440]
+    // how long a finished, failed or stopped download stays listed, 0 for ever
+    readonly property var keeps: [1, 7, 30, 0]
 
     function tilde(path) {
         const value = String(path || "");
@@ -56,6 +58,14 @@ Item {
     }
     function audioText(value) {
         return value === "best" ? I18n.tr("As it comes") : String(value).toUpperCase();
+    }
+    // a day count the sheet does not offer lands on the nearest one it does
+    function keepOf(value) {
+        const n = value === undefined || value === null ? 7 : Number(value) || 0;
+        return n <= 0 ? 0 : n < 4 ? 1 : n < 19 ? 7 : 30;
+    }
+    function keepText(value) {
+        return value === 1 ? I18n.tr("A day") : value === 7 ? I18n.tr("A week") : value === 30 ? I18n.tr("A month") : I18n.tr("Never");
     }
 
     function stepRow(id, title, list, value, text, detail) {
@@ -77,6 +87,7 @@ Item {
         return [
             { id: "general", title: I18n.tr("General"), rows: [
                 root.textRow("dir", I18n.tr("Folder"), root.tilde(v.dir), ""),
+                root.toggleRow("sortByType", I18n.tr("Sort new files into folders by type"), v.sortByType, I18n.tr("Videos, Music, Pictures and so on, inside the folder")),
                 root.stepRow("maxActive", I18n.tr("Downloads at once"), root.actives, Number(v.maxActive), String(v.maxActive || ""), ""),
                 root.stepRow("connections", I18n.tr("Connections per download"), root.conns, Number(v.connections), String(v.connections || ""), ""),
                 root.stepRow("downLimit", I18n.tr("Download limit"), Logic.LIMITS, Number(v.downLimit), root.limitText(v.downLimit), ""),
@@ -85,7 +96,8 @@ Item {
             { id: "media", title: I18n.tr("Video and audio"), rows: [
                 root.stepRow("videoQuality", I18n.tr("Video quality"), root.qualities, String(v.videoQuality), root.qualityText(String(v.videoQuality || "best")), I18n.tr("the most a video is fetched at")),
                 root.stepRow("audioFormat", I18n.tr("Audio format"), root.audios, String(v.audioFormat), root.audioText(String(v.audioFormat || "best")), I18n.tr("for audio-only downloads")),
-                root.toggleRow("ytdlpFallback", I18n.tr("Fall back to yt-dlp"), v.ytdlpFallback, I18n.tr("for sites the engine cannot read itself"))
+                root.toggleRow("ytdlpFallback", I18n.tr("Fall back to yt-dlp"), v.ytdlpFallback, I18n.tr("for sites the engine cannot read itself")),
+                root.toggleRow("coverArt", I18n.tr("Add cover art to music"), v.coverArt !== false, I18n.tr("the picture the site shows, inside the audio file"))
             ] },
             { id: "torrents", title: I18n.tr("Torrents"), rows: [
                 root.toggleRow("seed", I18n.tr("Seed when a torrent finishes"), v.seed, "")
@@ -95,7 +107,8 @@ Item {
             ] : []) },
             { id: "behaviour", title: I18n.tr("Behaviour"), rows: [
                 root.toggleRow("notify", I18n.tr("Notify when a download finishes"), v.notify, ""),
-                root.toggleRow("resumeOnStart", I18n.tr("Resume unfinished downloads"), v.resumeOnStart, I18n.tr("when the engine starts"))
+                root.toggleRow("resumeOnStart", I18n.tr("Resume unfinished downloads"), v.resumeOnStart, I18n.tr("when the engine starts")),
+                root.stepRow("keepDays", I18n.tr("Forget finished downloads after"), root.keeps, root.keepOf(v.keepDays), root.keepText(root.keepOf(v.keepDays)), I18n.tr("failed and stopped ones too; finished files stay on disk"))
             ] },
             { id: "advanced", title: I18n.tr("Advanced"), rows: [
                 root.textRow("port", I18n.tr("Torrent port"), Number(v.port) > 0 ? String(v.port) : I18n.tr("Random"), I18n.tr("0 picks a free one")),

@@ -35,9 +35,15 @@ Item {
     property string note: ""
     property string reason: ""
     property string recovery: ""
+    // the link is already in the queue: what to say, where it stands, the way to it
+    property string knownTitle: ""
+    property string knownNote: ""
+    property string knownAction: ""
+    property bool knownDone: false
 
     signal chipPicked(int index)
     signal entryToggled(int index)
+    signal knownPicked()
 
     readonly property real pad: Math.round(20 * root.s)
     readonly property bool pictured: root.thumb.length > 0
@@ -156,6 +162,53 @@ Item {
 
                         Line { width: parent.width; s: root.s; size: 16; text: root.title; font.weight: Font.Medium; wrapMode: Text.Wrap; maximumLineCount: 2 }
                         Line { width: parent.width; visible: text.length > 0; s: root.s; size: 12.5; text: root.sub; ink: Lithic.fg2 }
+                    }
+                }
+
+                Shape {
+                    id: known
+                    width: parent.width
+                    height: Math.max(knownWords.implicitHeight, knownButton.height) + Math.round(16 * root.s)
+                    visible: root.phase === "ready" && root.knownTitle.length > 0
+                    s: root.s
+                    cutSize: Look.cutRow
+                    fill: Look.plate
+                    strokeColor: Look.plateStroke
+                    strokeWidth: Qt.colorEqual(Look.plateStroke, "transparent") ? 0 : 1
+                    opacity: known.visible ? 1 : 0
+                    Behavior on opacity {
+                        NumberAnimation { duration: Look.dur(Look.viewMs); easing.type: Easing.BezierSpline; easing.bezierCurve: Look.arrive }
+                    }
+
+                    Symbol {
+                        id: knownGlyph
+                        x: Math.round(10 * root.s)
+                        anchors.verticalCenter: parent.verticalCenter
+                        s: root.s
+                        name: root.knownDone ? "check_circle" : "download"
+                        size: 18
+                        ink: root.knownDone ? Lithic.jade : Look.plateMark
+                        chosen: true
+                    }
+                    Column {
+                        id: knownWords
+                        x: knownGlyph.x + knownGlyph.width + Math.round(8 * root.s)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: knownButton.x - x - Math.round(8 * root.s)
+                        spacing: Math.round(2 * root.s)
+
+                        Line { width: parent.width; s: root.s; size: 13; text: root.knownTitle; font.weight: Font.Medium; ink: Look.plateInk }
+                        Line { width: parent.width; visible: text.length > 0; s: root.s; size: 12; text: root.knownNote; ink: Lithic.alpha(Look.plateInk, 0.72); elide: Text.ElideMiddle }
+                    }
+                    Chip {
+                        id: knownButton
+                        x: parent.width - width - Math.round(8 * root.s)
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.knownAction.length > 0
+                        s: root.s
+                        tier: "line"
+                        text: root.knownAction
+                        onClicked: root.knownPicked()
                     }
                 }
 

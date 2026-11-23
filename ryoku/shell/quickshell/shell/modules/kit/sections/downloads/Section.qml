@@ -11,6 +11,7 @@ import "../../parts"
 import "../../../ask/lib/downloads.js" as Logic
 import "../../../ask/lib/format.js" as Format
 import "../../../ask/lib/root.js" as RootLogic
+import "drop.js" as Drop
 
 Item {
     id: root
@@ -38,6 +39,7 @@ Item {
 
     readonly property string title: root.settingsOpen ? I18n.tr("Download settings") : I18n.tr("Downloads")
     readonly property string placeholder: root.editing === "dir" ? I18n.tr("The folder new downloads land in")
+        : root.editing === "refresh" ? I18n.tr("The new link for this download")
         : root.editing === "port" ? I18n.tr("A port number, 0 for a random one")
         : root.editing === "batch-dir" ? I18n.tr("The folder these links land in")
         : root.settingsOpen ? I18n.tr("Filter settings")
@@ -65,15 +67,15 @@ Item {
     // what the field holds: a link to read, or words to filter by
     // here a bare "name.iso" is a file to find in the queue, so only a link that
     // says it is one (a scheme, a magnet, www.) is read
-    readonly property var typedLink: root.settingsOpen || !/^\s*(magnet:|[a-z][a-z0-9+.-]*:\/\/|www\.)/i.test(root.query) ? null : RootLogic.detectLink(root.query)
+    readonly property var typedLink: root.settingsOpen || root.editing.length > 0 || !/^\s*(magnet:|[a-z][a-z0-9+.-]*:\/\/|www\.)/i.test(root.query) ? null : RootLogic.detectLink(root.query)
     property string handedLink: ""
     readonly property string link: root.typedLink ? String(root.typedLink.url) : root.handedLink
     readonly property bool intake: root.link.length > 0 && !root.offline && !root.batch
-    readonly property string filter: root.typedLink || root.settingsOpen || root.batch ? "" : root.query.trim()
+    readonly property string filter: root.typedLink || root.settingsOpen || root.batch || root.editing.length > 0 ? "" : root.query.trim()
 
     // several links: typed together, or held (handed over, or lifted out of the
     // field while it is used to type the batch's folder)
-    readonly property bool typedMany: !root.settingsOpen && root.editing !== "batch-dir" && RootLogic.countLinks(root.query) >= 2
+    readonly property bool typedMany: !root.settingsOpen && root.editing.length === 0 && RootLogic.countLinks(root.query) >= 2
     property string heldBatch: ""
     property string batchFolder: ""
     readonly property string batchText: root.typedMany ? root.query : root.heldBatch
@@ -164,17 +166,75 @@ Item {
         };
     }
 
-    readonly property var grouped: Logic.group(root.tasks, root.filter)
+    // the filter chip, kept in Kit's memory like a section's page
+    property string shown: "all"
+    property bool shownRestored: false
+    function restoreShown() {
+        if (root.shownRestored || !root.memory)
+            return;
+        root.shownRestored = true;
+        const saved = String(root.memory.get("downloads.chip", "all"));
+        root.shown = Logic.FILTERS.indexOf(saved) >= 0 ? saved : "all";
+    }
+    onMemoryChanged: root.restoreShown()
+    onShownChanged: {
+        if (Logic.FILTERS.indexOf(root.shown) < 0) {
+            root.shown = "all";
+            return;
+        }
+        if (root.shownRestored && root.memory)
+            root.memory.set("downloads.chip", root.shown);
+        list.selectFirst();
+    }
+    readonly property var filters: [
+        { id: "all", label: I18n.tr("All"), verb: I18n.tr("Show all") },
+        { id: "active", label: I18n.tr("Active"), verb: I18n.tr("Show active") },
+        { id: "waiting", label: I18n.tr("Waiting"), verb: I18n.tr("Show waiting") },
+        { id: "done", label: I18n.tr("Done"), verb: I18n.tr("Show done") },
+        { id: "failed", label: I18n.tr("Failed"), verb: I18n.tr("Show failed") }
+    ]
+    readonly property var counts: Logic.counts(root.tasks)
+    // what the two clear buttons would take: done files stay, failed parts go
+    readonly property var doneIds: Logic.idsIn(root.tasks, ["done"])
+    readonly property var failedIds: Logic.idsIn(root.tasks, ["error", "stopped"])
+    // stopped means cancelled with its partial gone, so only errors are tried again
+    readonly property var retryIds: Logic.idsIn(root.tasks, ["error"])
+    readonly property var grouped: Logic.lanes(root.tasks, root.filter, root.shown)
     readonly property var sections: [
         { id: "active", title: I18n.tr("Active"), note: String(root.grouped.active.length), rows: root.grouped.active.map(root.rowOf) },
         { id: "waiting", title: I18n.tr("Waiting"), note: String(root.grouped.waiting.length), rows: root.grouped.waiting.map(root.rowOf) },
-        { id: "finished", title: I18n.tr("Finished"), note: String(root.grouped.finished.length), rows: root.grouped.finished.map(root.rowOf) }
-    ]
+        { id: "failed", title: I18n.tr("Failed"), note: String(root.grouped.failed.length), rows: root.grouped.failed.map(root.rowOf) },
+        { id: "done", title: I18n.tr("Done"), note: String(root.grouped.done.length), rows: root.grouped.done.map(root.rowOf) }
+    ].filter(section => section.rows.length > 0)
 
     // the selection, read fresh from the daemon's list
     readonly property var task: !root.intake && list.current ? list.current.task : null
     readonly property string taskId: root.task ? String(root.task.id) : ""
     readonly property var can: Logic.can(root.task)
+    // what else the selection offers beyond the usual verbs
+    readonly property var offers: {
+        const t = root.task;
+        if (!t || String(t.url || "").length === 0)
+            return [];
+        const state = String(t.state || "");
+        // a torrent's link is its content, so only a web download can take a new one
+        if ((state === "error" || state === "stopped" || state === "paused") && String(t.kind || "") !== "torrent")
+            return [{ id: "refresh-link", text: I18n.tr("Use a new link"), glyph: "link" }];
+        if (state === "done")
+            return [{ id: "again", text: I18n.tr("Download again"), glyph: "replay" }];
+        return [];
+    }
+    // a web download that has not landed can take a speed limit of its own, a torrent cannot
+    readonly property bool limitable: root.task !== null && ["done", "seeding"].indexOf(String(root.task.state || "")) < 0
+        && String(root.task.kind || "") !== "torrent"
+    function limitWord(kib) {
+        return Number(kib) > 0 ? Format.speed(Number(kib) * 1024) : I18n.tr("No limit");
+    }
+    // a string changes only with its content, so the pane's marks fade in once, not on every tick
+    readonly property string marksKey: root.task && root.task.resumable === true && String(root.task.state) !== "done" ? "resumable" : ""
+    readonly property var marks: root.marksKey === "resumable" ? [{ glyph: "history", text: I18n.tr("Resumable") }] : []
+    // which task the field is taking a new link for
+    property string refreshing: ""
 
     // a row asked for by id is taken once it is in the list
     property string wanted: ""
@@ -189,6 +249,10 @@ Item {
                 return;
             }
         }
+        // a chip that hides the row asked for steps aside
+        const task = root.downloads ? root.downloads.task(root.wanted) : null;
+        if (task && root.shown !== "all" && Logic.lane(String(task.state || "")) !== root.shown)
+            root.shown = "all";
     }
     onSectionsChanged: Qt.callLater(root.take)
 
@@ -374,6 +438,8 @@ Item {
     readonly property var primaryAction: {
         if (root.offline || root.engine === "connecting" || root.engine === "idle")
             return root.offline ? { label: I18n.tr("Try again") } : null;
+        if (root.editing === "refresh")
+            return { label: I18n.tr("Use this link") };
         if (root.settingsOpen) {
             const row = root.sheet ? root.sheet.current : null;
             if (root.editing.length > 0)
@@ -404,7 +470,7 @@ Item {
         return root.ready && root.tasks.length === 0 ? { label: I18n.tr("Paste a link") } : null;
     }
     readonly property var secondaryAction: {
-        if (root.settingsOpen || root.offline)
+        if (root.settingsOpen || root.offline || root.editing === "refresh")
             return null;
         if (root.batch)
             return root.card && root.card.rowListed && root.editing.length === 0
@@ -430,7 +496,8 @@ Item {
             out.push({ id: "settings", label: I18n.tr("Back to downloads"), glyph: "arrow_back", hint: "Ctrl+,", section: "" });
             return out;
         }
-        if (root.offline)
+        // while the new link is typed the field needs its own keys back
+        if (root.offline || root.editing === "refresh")
             return out;
         if (root.batch) {
             // while the folder is typed the field needs its own keys back
@@ -478,14 +545,32 @@ Item {
                 out.push({ id: "remove", label: I18n.tr("Remove from the list"), glyph: "playlist_remove", hint: "Ctrl+Delete", section: own });
             if (root.can.removeFile)
                 out.push({ id: "remove-file", label: I18n.tr("Remove and delete the file"), glyph: "delete", hint: "Ctrl+Shift+Delete", section: own, destructive: true });
+            for (var o = 0; o < root.offers.length; o++)
+                out.push({ id: root.offers[o].id, label: root.offers[o].text, glyph: root.offers[o].glyph, hint: "", section: own });
+            if (root.limitable) {
+                if (Number(root.task.limit) > 0)
+                    out.push({ id: "limit-up", label: I18n.tr("Raise its speed limit"), glyph: "speed", hint: "Alt+Right", section: own });
+                out.push({ id: "limit-down", label: I18n.tr("Lower its speed limit"), glyph: "slow_motion_video", hint: "Alt+Left", section: own });
+            }
+        }
+        if (root.ready && !root.intake && root.tasks.length > 0) {
+            const show = I18n.tr("Show");
+            for (var f = 0; f < root.filters.length; f++) {
+                const item = root.filters[f];
+                out.push({ id: "show-" + item.id, label: item.verb, glyph: root.shown === item.id ? "radio_button_checked" : "radio_button_unchecked", hint: "Alt+" + (f + 1), section: show });
+            }
         }
         if (root.ready) {
-            if (root.grouped.active.length + root.grouped.waiting.length > 0) {
+            if (root.counts.active + root.counts.waiting > 0) {
                 out.push({ id: "pause-all", label: I18n.tr("Pause all"), glyph: "pause_circle", hint: "Ctrl+Shift+P", section: all });
                 out.push({ id: "resume-all", label: I18n.tr("Resume all"), glyph: "play_circle", hint: "Ctrl+Shift+R", section: all });
             }
-            if (root.grouped.finished.length > 0)
-                out.push({ id: "clear", label: I18n.tr("Clear finished"), glyph: "clear_all", hint: "Ctrl+Shift+L", section: all });
+            if (root.doneIds.length > 0)
+                out.push({ id: "clear-done", label: I18n.tr("Clear finished"), glyph: "clear_all", hint: "Ctrl+Shift+L", section: all });
+            if (root.retryIds.length > 0)
+                out.push({ id: "retry-failed", label: I18n.tr("Retry all failed"), glyph: "replay", hint: "", section: all });
+            if (root.failedIds.length > 0)
+                out.push({ id: "clear-failed", label: I18n.tr("Clear failed, partial data goes"), glyph: "delete_sweep", hint: "", section: all, destructive: true });
             out.push({ id: "settings", label: I18n.tr("Download settings"), glyph: "settings", hint: "Ctrl+,", section: all });
         }
         // an intake's own Ctrl+Shift+P wins over pause all
@@ -519,10 +604,13 @@ Item {
 
     implicitHeight: root.batch ? (root.card ? root.card.implicitHeight : Math.round(96 * root.s))
         : root.settingsOpen ? (root.sheet ? root.sheet.implicitHeight : 0)
-        : root.paned ? Math.min(root.maximumHeight, Math.max(list.count > 0 ? list.layout.height : 0, Math.round(464 * root.s)))
+        : root.paned ? Math.min(root.maximumHeight, Math.max((list.count > 0 ? list.layout.height : 0) + root.listTop - Math.round(10 * root.s), Math.round(464 * root.s)))
         : blank.implicitHeight
 
     function move(delta) {
+        // the download being given a new link stays the one in view
+        if (root.editing === "refresh")
+            return;
         if (root.batch) {
             if (root.card && root.editing.length === 0)
                 root.card.move(delta);
@@ -537,6 +625,8 @@ Item {
         }
     }
     function jumpSection(delta) {
+        if (root.editing === "refresh")
+            return;
         if (root.batch)
             { if (root.card && root.editing.length === 0) root.card.jumpSection(delta); }
         else if (root.settingsOpen)
@@ -547,6 +637,8 @@ Item {
             list.jumpSection(delta);
     }
     function page(delta) {
+        if (root.editing === "refresh")
+            return;
         if (root.batch)
             { if (root.card && root.editing.length === 0) root.card.page(delta); }
         else if (root.settingsOpen)
@@ -576,8 +668,9 @@ Item {
             return true;
         }
         if (root.editing.length > 0) {
-            root.editing = "";
+            // cleared first so the field's text never reads as a link or a filter
             root.queryRequested("");
+            root.editing = "";
             return true;
         }
         if (root.settingsOpen) {
@@ -601,6 +694,8 @@ Item {
                     root.downloads.state = "idle";
                 root.downloads.open();
             }
+        } else if (root.editing === "refresh") {
+            root.useNewLink();
         } else if (root.editing === "batch-dir") {
             var path = root.query.trim();
             if (path === "~" || path.indexOf("~/") === 0)
@@ -640,7 +735,7 @@ Item {
     }
 
     function activateSecondary() {
-        if (root.settingsOpen || root.offline)
+        if (root.settingsOpen || root.offline || root.editing === "refresh")
             return;
         if (root.batch) {
             if (root.card && root.editing.length === 0)
@@ -728,9 +823,19 @@ Item {
         } else if (id === "resume-all") {
             d.resume();
             root.hud(I18n.tr("All resumed"));
-        } else if (id === "clear") {
-            d.clear();
-            root.hud(I18n.tr("Finished downloads cleared"));
+        } else if (id === "clear" || id === "clear-done") {
+            d.clear(["done"]);
+            root.hud(I18n.tr("Finished downloads cleared, the files stay"));
+        } else if (id === "clear-failed") {
+            d.clear(["error", "stopped"]);
+            root.hud(I18n.tr("Failed downloads cleared with their partial data"));
+        } else if (id === "retry-failed") {
+            const failing = root.retryIds;
+            for (var r = 0; r < failing.length; r++)
+                d.retry(failing[r]);
+            root.hud(I18n.tr("Retrying %1").arg(failing.length));
+        } else if (id.indexOf("show-") === 0) {
+            root.shown = id.slice(5);
         } else if (!task) {
             return;
         } else if (root.keep() && id === "pause") {
@@ -764,7 +869,106 @@ Item {
         } else if (id === "remove-file") {
             d.remove(task.id, true);
             root.hud(I18n.tr("Removed, file deleted"));
+        } else if (id === "refresh-link") {
+            root.refreshing = String(task.id);
+            root.editing = "refresh";
+            root.queryRequested(String(task.url || ""));
+        } else if (id === "again") {
+            root.again(task);
+        } else if ((id === "limit-up" || id === "limit-down") && root.limitable) {
+            const next = Logic.loosen(task.limit, id === "limit-up" ? 1 : -1);
+            d.limit(task.id, next);
+            root.hud(I18n.tr("Speed limit: %1").arg(root.limitWord(next)));
         }
+    }
+
+    // the field holds the new link, and the engine keeps the part already
+    // fetched when the file behind it is the same
+    function useNewLink() {
+        const typed = root.query.trim();
+        const link = RootLogic.detectLink(typed);
+        const url = link && !/^magnet:/i.test(String(link.url)) ? String(link.url) : "";
+        if (url.length === 0) {
+            root.alert(I18n.tr("That doesn't look like a link."));
+            return;
+        }
+        const id = root.refreshing;
+        // cleared first so the new link never reads as a typed link or a filter
+        root.queryRequested("");
+        root.editing = "";
+        root.downloads.refresh(id, url, function(result, error) {
+            if (error)
+                root.alert(root.reasonOf(error));
+            else
+                root.hud(I18n.tr("New link set"));
+        });
+    }
+
+    // the same link fetched once more, as it was asked for the first time
+    function again(task) {
+        const params = { url: String(task.url) };
+        if (String(task.mode || "").length > 0 && task.mode !== "auto")
+            params.mode = String(task.mode);
+        if (task.format && String(task.format.id || "").length > 0)
+            params.format = String(task.format.id);
+        if (String(task.title || "").length > 0)
+            params.title = String(task.title);
+        if (String(task.dir || "").length > 0)
+            params.dir = String(task.dir);
+        // a torrent fetched again keeps only the files chosen for it
+        if (task.kind === "torrent") {
+            const files = task.files || [];
+            const chosen = [];
+            for (var i = 0; i < files.length; i++) {
+                if (files[i].selected !== false)
+                    chosen.push(i);
+            }
+            if (chosen.length > 0 && chosen.length < files.length)
+                params.files = chosen;
+        }
+        root.downloads.add(params, function(added, error) {
+            if (error) {
+                root.alert(root.reasonOf(error));
+                return;
+            }
+            root.hud(I18n.tr("Downloading it again"));
+            root.wanted = String(added.id || "");
+            Qt.callLater(root.take);
+        });
+    }
+
+    // a drop: one link or torrent file is read on the card, several links go
+    // to the batch card, and torrent files beside them are added as they are
+    function takeDrop(urls, text) {
+        const got = Drop.read(urls, text, RootLogic.detectLink);
+        if (got.links.length + got.files.length === 0) {
+            root.alert(got.skipped > 0 ? I18n.tr("Only links and .torrent files can be downloaded") : I18n.tr("There's no link in what was dropped"));
+            return;
+        }
+        root.pageId = "queue";
+        root.editing = "";
+        root.heldBatch = "";
+        root.batchFolder = "";
+        root.handedLink = "";
+        if (root.query.length > 0)
+            root.queryRequested("");
+        var direct = got.files;
+        if (got.links.length >= 2) {
+            root.heldBatch = got.links.join("\n");
+        } else if (got.links.length === 1) {
+            root.handedLink = got.links[0];
+        } else if (got.files.length === 1) {
+            root.handedLink = got.files[0];
+            direct = [];
+        }
+        for (var i = 0; i < direct.length; i++) {
+            root.downloads.add({ url: direct[i] }, function(added, error) {
+                if (error)
+                    root.alert(root.reasonOf(error));
+            });
+        }
+        if (direct.length > 0)
+            root.hud(direct.length === 1 ? I18n.tr("Torrent file added") : I18n.tr("%1 torrent files added").arg(direct.length));
     }
 
     function adopt() {
@@ -792,7 +996,10 @@ Item {
         }
     }
     onArgsChanged: root.adopt()
-    Component.onCompleted: root.adopt()
+    Component.onCompleted: {
+        root.restoreShown();
+        root.adopt();
+    }
     onActiveChanged: {
         if (root.active && root.downloads)
             root.downloads.open();
@@ -803,7 +1010,11 @@ Item {
         if (root.active && root.downloads)
             root.downloads.open();
     }
-    onFilterChanged: list.selectFirst()
+    // the download being given a new link keeps its place while the field holds the link
+    onFilterChanged: {
+        if (root.editing !== "refresh")
+            list.selectFirst();
+    }
 
     // ---- what the selection says in the pane ----
     function clock(stamp) {
@@ -840,6 +1051,11 @@ Item {
         } else {
             out = [landed, started];
         }
+        if (String(t.verified || "").length > 0)
+            out.push({ label: I18n.tr("Verified"), value: String(t.verified).toUpperCase().replace("SHA", "SHA-") });
+        // the pane's own control shows the limit of a download still under way
+        if (Number(t.limit) > 0 && !root.limitable)
+            out.push({ label: I18n.tr("Speed limit"), value: root.limitWord(t.limit) });
         return out.filter(fact => String(fact.value || "").length > 0);
     }
     readonly property var paneFiles: {
@@ -879,12 +1095,110 @@ Item {
         }
     }
 
+    // a state in a word, for a download met somewhere else than its row
+    function stateWord(state) {
+        return state === "active" ? I18n.tr("Downloading")
+            : state === "queued" ? I18n.tr("Queued")
+            : state === "paused" ? I18n.tr("Paused")
+            : state === "resolving" ? I18n.tr("Reading the link")
+            : state === "merging" ? I18n.tr("Putting it together")
+            : state === "seeding" ? I18n.tr("Seeding")
+            : state === "stopped" ? I18n.tr("Stopped")
+            : state === "error" ? I18n.tr("Failed")
+            : state === "done" ? I18n.tr("Done") : "";
+    }
+    // the link being read is one the queue already holds, but a finished one whose file is gone is not
+    readonly property var known: root.resolved && root.resolved.existing && String(root.resolved.existing.id || "").length > 0
+        && !(String(root.resolved.existing.state) === "done" && String(root.resolved.existing.path || "").length === 0) ? root.resolved.existing : null
+    readonly property bool knownDone: root.known !== null && String(root.known.state) === "done"
+    function goKnown() {
+        const k = root.known;
+        if (!k || !root.downloads)
+            return;
+        if (root.knownDone) {
+            root.downloads.reveal(String(k.id));
+            root.closeRequested();
+            return;
+        }
+        root.leaveIntake();
+        root.wanted = String(k.id);
+        Qt.callLater(root.take);
+    }
+
+    readonly property var pace: Logic.pace(root.samples)
+    readonly property bool traced: root.task !== null && ["active", "seeding", "merging"].indexOf(String(root.task.state)) >= 0
+    readonly property bool editingLink: root.editing === "refresh"
+
+    // the filters over the queue, and the clearing they invite
+    readonly property bool headed: root.paned && root.tasks.length > 0
+    readonly property real listTop: root.headed ? head.y + head.height + Math.round(6 * root.s) : Math.round(10 * root.s)
+    readonly property bool clearsDone: (root.shown === "all" || root.shown === "done") && root.doneIds.length > 0
+    readonly property bool clearsFailed: (root.shown === "all" || root.shown === "failed") && root.failedIds.length > 0
+
+    Item {
+        id: head
+        x: Math.round(18 * root.s)
+        y: Math.round(12 * root.s)
+        width: parent.width - x * 2
+        height: Math.round(28 * root.s)
+        visible: root.headed
+        opacity: root.intake ? 0.55 : 1
+        Behavior on opacity {
+            NumberAnimation { duration: Look.dur(Look.stateMs) }
+        }
+
+        Row {
+            spacing: Math.round(6 * root.s)
+
+            Repeater {
+                model: root.filters
+
+                delegate: FilterChip {
+                    required property var modelData
+
+                    s: root.s
+                    label: String(modelData.label)
+                    count: Number(root.counts[modelData.id] || 0)
+                    current: root.shown === modelData.id
+                    onClicked: root.shown = String(modelData.id)
+                }
+            }
+        }
+        Row {
+            anchors.right: parent.right
+            spacing: Math.round(4 * root.s)
+
+            Chip {
+                s: root.s
+                glyph: "clear_all"
+                text: I18n.tr("Clear finished")
+                opacity: root.clearsDone ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity {
+                    NumberAnimation { duration: Look.dur(Look.stateMs * 2) }
+                }
+                onClicked: root.act("clear-done")
+            }
+            Chip {
+                s: root.s
+                glyph: "delete_sweep"
+                text: I18n.tr("Clear failed, partial data goes")
+                opacity: root.clearsFailed ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity {
+                    NumberAnimation { duration: Look.dur(Look.stateMs * 2) }
+                }
+                onClicked: root.act("clear-failed")
+            }
+        }
+    }
+
     ResultList {
         id: list
         x: Math.round(10 * root.s)
-        y: Math.round(10 * root.s)
+        y: root.listTop
         width: root.stacked ? parent.width - 20 * root.s : Math.round((parent.width - 30 * root.s) * 0.47)
-        height: root.stacked ? Math.round((parent.height - 30 * root.s) * 0.42) : parent.height - 20 * root.s
+        height: root.stacked ? Math.round((parent.height - 30 * root.s) * 0.42) - (root.listTop - Math.round(10 * root.s)) : parent.height - root.listTop - Math.round(10 * root.s)
         visible: root.paned
         s: root.s
         sections: root.sections
@@ -898,18 +1212,46 @@ Item {
         }
     }
 
-    // a filter that leaves nothing, beside a card or a pane that still stands
+    // a chip or a filter that leaves nothing, beside a card or a pane that still stands
     Line {
+        id: emptyLine
         x: Math.round(20 * root.s)
-        y: Math.round(18 * root.s)
-        width: list.width - x * 2
+        y: root.listTop + Math.round(8 * root.s)
+        width: list.width - Math.round(20 * root.s)
         visible: root.paned && list.count === 0
         s: root.s
         size: 13.5
-        text: root.filter.length > 0 ? I18n.tr("Nothing in the queue matches \u201c%1\u201d").arg(root.filter) : I18n.tr("Nothing in the queue yet")
+        text: root.filter.length > 0 ? (root.shown === "all" ? I18n.tr("Nothing in the queue matches \u201c%1\u201d").arg(root.filter) : I18n.tr("Nothing here matches \u201c%1\u201d").arg(root.filter))
+            : root.shown === "active" ? I18n.tr("Nothing is downloading")
+            : root.shown === "waiting" ? I18n.tr("Nothing is waiting")
+            : root.shown === "done" ? I18n.tr("Nothing finished yet")
+            : root.shown === "failed" ? I18n.tr("Nothing failed")
+            : I18n.tr("Nothing in the queue yet")
         ink: Lithic.fg2
         wrapMode: Text.WordWrap
         maximumLineCount: 3
+        onTextChanged: if (visible && !Look.still) emptyIn.restart()
+        onVisibleChanged: if (visible && !Look.still) emptyIn.restart()
+        NumberAnimation {
+            id: emptyIn
+            target: emptyLine
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: Look.dur(Look.viewMs)
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Look.arrive
+        }
+    }
+    Row {
+        x: emptyLine.x
+        y: emptyLine.y + emptyLine.height + Math.round(10 * root.s)
+        visible: emptyLine.visible && root.shown !== "all"
+        opacity: emptyLine.opacity
+        spacing: Math.round(8 * root.s)
+
+        KeyHint { anchors.verticalCenter: parent.verticalCenter; s: root.s; hint: "Alt+1" }
+        Line { anchors.verticalCenter: parent.verticalCenter; s: root.s; size: 12.5; text: I18n.tr("show every download"); ink: Lithic.fg2 }
     }
 
     // the pane and a link's card share one place; whichever takes it lands the
@@ -918,7 +1260,7 @@ Item {
     Item {
         id: paneSlot
         x: root.stacked ? Math.round(10 * root.s) : list.x + list.width + Math.round(10 * root.s)
-        y: root.stacked ? list.y + list.height + Math.round(10 * root.s) : Math.round(10 * root.s)
+        y: root.stacked ? list.y + list.height + Math.round(10 * root.s) : Math.max(Math.round(10 * root.s), root.listTop - Math.round(8 * root.s))
         width: parent.width - x - Math.round(10 * root.s)
         height: parent.height - y - Math.round(10 * root.s)
         opacity: Math.min(1, 0.25 + root.landed)
@@ -959,7 +1301,7 @@ Item {
             mapped: root.task !== null && String(root.task.state) !== "error" && String(root.task.state) !== "resolving"
             headline: root.paneHeadline
             samples: root.samples
-            traced: root.task !== null && ["active", "seeding", "merging"].indexOf(String(root.task.state)) >= 0
+            traced: root.traced
             rate: root.task ? Format.speed(String(root.task.state) === "seeding" ? root.task.upSpeed : root.task.speed) : ""
             facts: root.paneFacts
             reason: root.task ? root.reasonOf(root.task.error) : ""
@@ -982,6 +1324,15 @@ Item {
                         root.alert(root.reasonOf(error));
                 });
             }
+            marks: root.marks
+            average: root.traced && root.pace.peak > 0 ? Format.speed(root.pace.average) : ""
+            peak: root.traced && root.pace.peak > 0 ? Format.speed(root.pace.peak) : ""
+            limitable: root.limitable && !root.editingLink
+            limitText: root.task ? root.limitWord(root.task.limit) : ""
+            editingLink: root.editingLink
+            offers: root.offers
+            onLimitStepped: delta => root.act(delta > 0 ? "limit-up" : "limit-down")
+            onOffered: id => root.act(id)
         }
 
         IntakeCard {
@@ -1024,6 +1375,11 @@ Item {
             note: root.resolved ? String(root.resolved.note || "") : ""
             reason: root.reasonOf(root.failure)
             recovery: root.detailOf(root.failure)
+            knownTitle: root.known ? (root.knownDone ? I18n.tr("Already downloaded") : I18n.tr("Already in your downloads")) : ""
+            knownNote: root.known ? (root.knownDone ? root.tilde(root.known.path) : root.stateWord(String(root.known.state))) : ""
+            knownAction: root.known ? (root.knownDone ? I18n.tr("Show in folder") : I18n.tr("Show it")) : ""
+            knownDone: root.knownDone
+            onKnownPicked: root.goKnown()
             onChipPicked: index => root.chip = index
             onEntryToggled: index => {
                 root.cursor = index;
@@ -1144,6 +1500,65 @@ Item {
                 Item { width: Math.round(8 * root.s); height: 1 }
                 KeyHint { anchors.verticalCenter: parent.verticalCenter; s: root.s; hint: "Ctrl+," }
                 Line { anchors.verticalCenter: parent.verticalCenter; s: root.s; size: 12.5; text: I18n.tr("settings"); ink: Lithic.fg2 }
+            }
+        }
+    }
+
+    // links, magnets and .torrent files dragged in from a browser or the file manager
+    DropArea {
+        id: dropZone
+        anchors.fill: parent
+        enabled: !root.offline
+        keys: ["text/uri-list", "text/plain"]
+        onDropped: drop => {
+            drop.acceptProposedAction();
+            root.takeDrop(drop.hasUrls ? Array.from(drop.urls).map(url => String(url)) : [], drop.hasText ? String(drop.text) : "");
+        }
+    }
+    Shape {
+        id: dropSign
+        anchors.fill: parent
+        anchors.margins: Math.round(8 * root.s)
+        s: root.s
+        cutSize: Look.cutCard
+        fill: Lithic.alpha(Look.frame, 0.94)
+        strokeColor: Lithic.sel
+        strokeWidth: 1
+        opacity: dropZone.containsDrag ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity {
+            NumberAnimation { duration: Look.dur(Look.stateMs * 2) }
+        }
+
+        Column {
+            anchors.centerIn: parent
+            spacing: Math.round(8 * root.s)
+            scale: dropZone.containsDrag ? 1 : 0.94
+            Behavior on scale {
+                NumberAnimation { duration: Look.dur(Look.viewMs); easing.type: Easing.BezierSpline; easing.bezierCurve: Look.arrive }
+            }
+
+            Symbol {
+                anchors.horizontalCenter: parent.horizontalCenter
+                s: root.s
+                name: "download"
+                size: 34
+                ink: Lithic.sel
+                chosen: true
+            }
+            Line {
+                anchors.horizontalCenter: parent.horizontalCenter
+                s: root.s
+                size: 15
+                font.weight: Font.Medium
+                text: I18n.tr("Drop to download")
+            }
+            Line {
+                anchors.horizontalCenter: parent.horizontalCenter
+                s: root.s
+                size: 12.5
+                ink: Lithic.fg2
+                text: I18n.tr("Links, magnets and .torrent files")
             }
         }
     }

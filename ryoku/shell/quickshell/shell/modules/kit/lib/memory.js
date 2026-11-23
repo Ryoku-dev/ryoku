@@ -4,6 +4,7 @@
 //   commands.rail, phone.rail       the page those sections were on
 //   devtools.tool, devtools.options.<tool>
 //   typing.*                        settings, history.results, history.personalBests
+//   downloads.chip                  the filter chip the queue last showed
 // New keys: <section>.count (what a section last counted, for its tab's figure).
 
 var SECTION_KEY = "frame.tab";

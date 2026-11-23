@@ -20,13 +20,33 @@ const tasks = [
     { id: "g", name: "new.zip", state: "done", finished: "2026-11-18T12:00:00Z" }
 ];
 const ids = list => list.map(task => task.id);
-const grouped = D.group(tasks, "");
-equal([ids(grouped.active), ids(grouped.waiting), ids(grouped.finished)], [["a"], ["b", "d"], ["f", "g", "e", "c"]],
-    "moving and waiting keep the daemon's order, finished is newest first and holds what is seeding");
-equal(ids(D.group(tasks, "ISO").waiting), ["b"], "a filter matches the name without case");
-equal(ids(D.group(tasks, "youtube sprite").active), ["a"], "every word must match, in any field");
-equal(ids(D.group(tasks, "paused").waiting), ["d"], "a state can be typed");
-equal(D.group(tasks, "nothing-here"), { active: [], waiting: [], finished: [] }, "a filter can empty the list");
+equal(ids(D.lanes(tasks, "ISO", "all").waiting), ["b"], "a filter matches the name without case");
+equal(ids(D.lanes(tasks, "youtube sprite", "all").active), ["a"], "every word must match, in any field");
+equal(ids(D.lanes(tasks, "paused", "all").waiting), ["d"], "a state can be typed");
+equal(D.lanes(tasks, "nothing-here", "all"), { active: [], waiting: [], failed: [], done: [] }, "a filter can empty the list");
+
+const mixed = tasks.concat([
+    { id: "h", name: "cut.mkv", state: "stopped", finished: "2026-11-18T13:00:00Z" },
+    { id: "i", name: "reading", state: "resolving" },
+    { id: "j", name: "glue.mp4", state: "merging" }
+]);
+equal(["resolving", "active", "merging", "queued", "paused", "seeding", "done", "error", "stopped"].map(D.lane),
+    ["active", "active", "active", "waiting", "waiting", "done", "done", "failed", "failed"], "a stopped download sits with what failed, a seeding one with what is done");
+equal(D.counts(mixed), { all: 10, active: 3, waiting: 2, done: 3, failed: 2 }, "each filter counts its own, all counts everything");
+equal(D.counts([]), { all: 0, active: 0, waiting: 0, done: 0, failed: 0 }, "an empty queue counts nothing");
+const all = D.lanes(mixed, "", "all");
+equal([ids(all.active), ids(all.waiting), ids(all.failed), ids(all.done)], [["a", "i", "j"], ["b", "d"], ["h", "e"], ["f", "g", "c"]],
+    "four groups: moving and waiting in the daemon's order, failed and done newest first");
+const failedOnly = D.lanes(mixed, "", "failed");
+equal([failedOnly.active.length, failedOnly.waiting.length, ids(failedOnly.failed), failedOnly.done.length], [0, 0, ["h", "e"], 0], "a filter keeps one group");
+equal(ids(D.lanes(mixed, "zip", "done").done), ["g", "c"], "typed words narrow a filter");
+equal(ids(D.lanes(mixed, "zip", "unknown").done), ["g", "c"], "an unknown filter shows everything");
+equal(D.idsIn(mixed, ["error", "stopped"]), ["e", "h"], "a group's ids, for acting on it at once");
+
+equal(D.pace([]), { average: 0, peak: 0 }, "no samples, no pace");
+equal(D.pace([0, 0, 100, 300, 200]), { average: 200, peak: 300 }, "the quiet before the start is not averaged");
+equal(D.pace([100, 0, 200]), { average: 100, peak: 200 }, "a stall after the start is");
+equal(D.pace([0, 0, 0]), { average: 0, peak: 0 }, "a minute of nothing");
 
 equal(["active", "queued", "merging", "seeding", "paused", "stopped", "error", "done", ""].map(state => D.primary({ state })),
     ["pause", "pause", "pause", "pause", "resume", "resume", "retry", "open", ""], "Enter follows the state");
@@ -76,6 +96,9 @@ equal(D.selectedSize([{ size: 0 }], [0]), -1, "nothing known is unknown");
 
 equal([D.step(D.LIMITS, 0, 1), D.step(D.LIMITS, 0, -1), D.step(D.LIMITS, 102400, 1), D.step(D.LIMITS, 300, 1), D.step(D.LIMITS, 300, -1)],
     [128, 0, 102400, 512, 256], "a limit steps through its list and stops at the ends");
+equal([D.loosen(0, 1), D.loosen(0, -1), D.loosen(102400, 1), D.loosen(128, -1), D.loosen(300, 1), D.loosen(300, -1), D.loosen(512, 1)],
+    [0, 102400, 0, 128, 512, 256, 1024], "one download's limit eases up to none and tightens from none to the top step");
+equal([D.loosen(50, -1), D.loosen(50, 1)], [50, 128], "lowering a limit under the smallest step leaves it, raising takes the smallest step");
 equal([D.number("6881", 0, 65535, true), D.number("1,5", 0, 100, false), D.number("70000", 0, 65535, true), D.number("1.5", 0, 10, true), D.number("abc", 0, 9, true)],
     [6881, 1.5, null, null, null], "a typed figure is checked against its range");
 

@@ -5,15 +5,6 @@
 var MOVING = ["resolving", "active", "merging", "seeding"];
 var WAITING = ["queued", "paused"];
 
-// a seeding torrent has landed: it sits with what is finished, still sending
-function bucket(state) {
-    if (state === "seeding")
-        return "finished";
-    if (MOVING.indexOf(state) >= 0)
-        return "active";
-    return WAITING.indexOf(state) >= 0 ? "waiting" : "finished";
-}
-
 // tone names the mineral a state wears: "" moving, "paused", "done", "error",
 // and "idle" for what has not started or was stopped.
 function tone(state) {
@@ -71,18 +62,57 @@ function matches(task, query) {
     return true;
 }
 
-// group sorts the daemon's list into what is moving, what waits and what is
-// over (newest first), keeping the daemon's order inside the first two.
-function group(tasks, query) {
-    var out = { active: [], waiting: [], finished: [] };
+// The manager's four groups and the five filters over them. A stopped download
+// sits with what failed, both having left a part behind, and a seeding torrent
+// has landed, so it sits with what is done while it still sends.
+var FILTERS = ["all", "active", "waiting", "done", "failed"];
+
+function lane(state) {
+    if (state === "error" || state === "stopped")
+        return "failed";
+    if (MOVING.indexOf(state) >= 0 && state !== "seeding")
+        return "active";
+    return WAITING.indexOf(state) >= 0 ? "waiting" : "done";
+}
+
+// counts: how many transfers each filter shows, whatever is typed.
+function counts(tasks) {
+    var out = { all: 0, active: 0, waiting: 0, done: 0, failed: 0 };
     var list = tasks || [];
     for (var i = 0; i < list.length; i++) {
-        if (matches(list[i], query))
-            out[bucket(String(list[i].state || ""))].push(list[i]);
+        out.all++;
+        out[lane(String(list[i].state || ""))]++;
     }
-    out.finished.sort(function(a, b) {
+    return out;
+}
+
+// lanes: the list in its four groups under one filter and the typed words.
+// The first two keep the daemon's order, the last two run newest first.
+function lanes(tasks, query, filter) {
+    var out = { active: [], waiting: [], failed: [], done: [] };
+    var only = FILTERS.indexOf(filter) > 0 ? filter : "";
+    var list = tasks || [];
+    for (var i = 0; i < list.length; i++) {
+        var at = lane(String(list[i].state || ""));
+        if ((only.length === 0 || at === only) && matches(list[i], query))
+            out[at].push(list[i]);
+    }
+    var newest = function(a, b) {
         return stamp(b.finished || b.created) - stamp(a.finished || a.created);
-    });
+    };
+    out.failed.sort(newest);
+    out.done.sort(newest);
+    return out;
+}
+
+// ids: the transfers in a state, for acting on a whole group at once.
+function idsIn(tasks, states) {
+    var out = [];
+    var list = tasks || [];
+    for (var i = 0; i < list.length; i++) {
+        if (states.indexOf(String(list[i].state || "")) >= 0)
+            out.push(String(list[i].id));
+    }
     return out;
 }
 
@@ -147,6 +177,24 @@ function trace(samples, slots) {
         points.push({ x: (n - (list.length - i)) / (n - 1), y: value });
     }
     return { points: points, peak: peak };
+}
+
+// pace: the average and the peak of a minute of samples. The quiet stretch
+// before the transfer first moved is not part of its average.
+function pace(samples) {
+    var list = samples || [];
+    var from = 0;
+    while (from < list.length && !(Number(list[from]) > 0))
+        from++;
+    var sum = 0;
+    var peak = 0;
+    for (var i = from; i < list.length; i++) {
+        var value = Math.max(0, Number(list[i]) || 0);
+        sum += value;
+        peak = Math.max(peak, value);
+    }
+    var n = list.length - from;
+    return { average: n > 0 ? sum / n : 0, peak: peak };
 }
 
 // ceiling rounds a rate up to a scale a reader can name: 1, 2 or 5 times a
@@ -382,6 +430,22 @@ function step(list, value, delta) {
     return list[Math.max(0, Math.min(list.length - 1, at + (delta < 0 ? -1 : 1)))];
 }
 
+// loosen moves one download's own limit by how fast it lets it go: up eases it,
+// down tightens it, and no limit (0) is the fastest of all.
+function loosen(kib, delta) {
+    var steps = LIMITS.slice(1);
+    var top = steps[steps.length - 1];
+    var value = Number(kib) || 0;
+    if (value <= 0)
+        return delta < 0 ? top : 0;
+    if (delta > 0 && value >= top)
+        return 0;
+    // a limit under the smallest step has nothing tighter, and up is that step
+    if (value < steps[0])
+        return delta < 0 ? value : steps[0];
+    return step(steps, value, delta);
+}
+
 function clamp(value, low, high) {
     return Math.max(low, Math.min(high, value));
 }
@@ -399,9 +463,10 @@ function number(text, low, high, whole) {
 
 if (typeof module !== "undefined" && module.exports)
     module.exports = {
-        bucket: bucket, tone: tone, stamp: stamp, nameOf: nameOf, glyph: glyph, matches: matches, group: group,
-        primary: primary, can: can, blend: blend, same: same, trace: trace, ceiling: ceiling,
+        tone: tone, stamp: stamp, nameOf: nameOf, glyph: glyph, matches: matches,
+        FILTERS: FILTERS, lane: lane, counts: counts, lanes: lanes, idsIn: idsIn,
+        primary: primary, can: can, blend: blend, same: same, trace: trace, pace: pace, ceiling: ceiling,
         chips: chips, BATCH: BATCH, batchChoices: batchChoices, batchPick: batchPick, batchNext: batchNext,
         batchItem: batchItem, named: named, everything: everything, toggle: toggle, selectedSize: selectedSize,
-        LIMITS: LIMITS, step: step, clamp: clamp, number: number
+        LIMITS: LIMITS, step: step, loosen: loosen, clamp: clamp, number: number
     };
