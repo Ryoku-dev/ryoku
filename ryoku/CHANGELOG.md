@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- Optional FaceLock unlock stays enabled after Ryoku regenerates the in-session
+  lockscreen. If FaceLock cannot authenticate, password unlock is still available
+  (`lockscreen/qylock`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

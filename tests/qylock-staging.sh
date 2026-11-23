@@ -231,6 +231,11 @@ probe_face_preference() {
 [[ $(<"$face_preference") == on ]]
 probe_face_preference on
 pam_dir="$live_lock/assets/pam"
+# The variant must be generated during staging, not shipped as a second copy.
+[[ ! -e "$repo/ryoku/lockscreen/qylock/quickshell-lockscreen/assets/pam/ryoku-lock-pw-facelock" ]] || {
+  printf 'FaceLock PAM service still duplicates the source password stack\n' >&2
+  exit 1
+}
 face_rule='auth        sufficient  pam_facelock.so'
 [[ $(grep -Fxc "$face_rule" "$pam_dir/ryoku-lock-pw-facelock") == 1 ]]
 [[ $(grep -m1 '^auth' "$pam_dir/ryoku-lock-pw-facelock") == "$face_rule" ]]

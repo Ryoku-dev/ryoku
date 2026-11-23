@@ -89,9 +89,10 @@ mkdir -p -- "$config_dir"
 printf 'on\n' >"$config_dir/facelock"
 ```
 
-The next lock uses a bundled PAM service that tries FaceLock before the
-unchanged password stack. Missing or unsuccessful FaceLock falls through to
-password; FaceLock can delay the password prompt until its attempt returns.
+The next lock uses a PAM service generated from the stock password service,
+with one FaceLock rule before the unchanged password stack. Missing or
+unsuccessful FaceLock falls through to password; FaceLock can delay the
+password prompt until its attempt returns.
 Remove the preference file to return to password-only behavior. An unreadable,
 symlinked, absent, or malformed preference does not enable FaceLock.
 
