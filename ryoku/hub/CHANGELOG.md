@@ -53,6 +53,9 @@
   Phonon without overwriting that config. Uninstalling Phonon makes sure Base
   English is available before redirecting a config that targets its local server,
   and keeps Voxtype enabled when it was on.
+- **Existing Redux files can be selected without an ownership receipt.** The
+  Hub adopts only files that match its pinned model, adapter, runtime ABI,
+  service unit and license bundle; unrecognized files are left untouched.
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.

@@ -56,6 +56,27 @@ class InstallerTests(unittest.TestCase):
             lib.return_value.parakeet_capi_abi_version.return_value = 10
             m.install(self.paths, self.stage, m.Progress(self.out))
 
+    def prepare_adoptable_install(self):
+        model = b'pinned Redux model fixture'
+        adapter = Path(__file__).with_name('adapter.py').read_bytes()
+        expected_license = b'\n'.join([
+            Path(__file__).with_name('UPSTREAM.md').read_bytes(),
+            Path(__file__).with_name('LICENSE').read_bytes(),
+        ])
+        contents = {
+            'model': model,
+            'client': adapter,
+            'worker': adapter,
+            'library': b'native runtime fixture',
+            'license': expected_license + b'\nnative license\n\nggml license\n',
+            'unit': m.worker_unit(self.paths).encode(),
+        }
+        for key, value in contents.items():
+            path = self.paths[key]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(value)
+        return m.digest(self.paths['model'])
+
     def test_install_remove_and_reinstall(self):
         unrelated = self.root / 'data/voxtype/models/keep.gguf'
         unrelated.parent.mkdir(parents=True)
@@ -137,6 +158,58 @@ class InstallerTests(unittest.TestCase):
     def test_removal_without_a_receipt_is_refused(self):
         with self.assertRaisesRegex(RuntimeError, 'not installed from Ryoku Settings'):
             m.remove(self.paths)
+
+    def test_adopt_records_recognized_files_and_allows_safe_removal(self):
+        model_sha = self.prepare_adoptable_install()
+        previous_handler = m.signal.getsignal(m.signal.SIGTERM)
+        try:
+            with patch.object(m, 'MODEL_SHA', model_sha), \
+                    patch.object(m.ctypes, 'CDLL') as lib, \
+                    patch.object(m.sys, 'argv', ['setup.py', 'adopt']):
+                lib.return_value.parakeet_capi_abi_version.return_value = 10
+                m.main()
+        finally:
+            m.signal.signal(m.signal.SIGTERM, previous_handler)
+        receipt = m.read_receipt(self.paths)
+        self.assertTrue(receipt['adopted'])
+        self.assertEqual(len(receipt['files']), 6)
+        m.validate_remove(self.paths)
+        m.remove(self.paths)
+        self.assertFalse(any(path.exists() for path in self.paths.values()))
+
+    def test_adoption_rejects_an_unrecognized_model_without_claiming_files(self):
+        self.prepare_adoptable_install()
+        with self.assertRaisesRegex(RuntimeError, 'model does not match'):
+            m.adopt(self.paths)
+        self.assertFalse(self.paths['receipt'].exists())
+        self.assertTrue(self.paths['model'].exists())
+
+    def test_adoption_rejects_changed_service_unit(self):
+        model_sha = self.prepare_adoptable_install()
+        self.paths['unit'].write_text('[Service]\nExecStart=/bin/other\n')
+        with patch.object(m, 'MODEL_SHA', model_sha):
+            with self.assertRaisesRegex(RuntimeError, 'service unit differs'):
+                m.adopt(self.paths)
+        self.assertFalse(self.paths['receipt'].exists())
+        self.assertTrue(self.paths['unit'].exists())
+
+    def test_adoption_rejects_unusable_native_runtime(self):
+        model_sha = self.prepare_adoptable_install()
+        with patch.object(m, 'MODEL_SHA', model_sha), patch.object(m.ctypes, 'CDLL', side_effect=OSError('bad ABI')):
+            with self.assertRaisesRegex(RuntimeError, 'native runtime is not usable'):
+                m.adopt(self.paths)
+        self.assertFalse(self.paths['receipt'].exists())
+
+    def test_adoption_rejects_symlinked_install_file(self):
+        self.prepare_adoptable_install()
+        outside = self.root / 'outside'
+        outside.write_text('keep')
+        self.paths['client'].unlink()
+        self.paths['client'].symlink_to(outside)
+        with self.assertRaisesRegex(RuntimeError, 'regular installed file'):
+            m.adopt(self.paths)
+        self.assertFalse(self.paths['receipt'].exists())
+        self.assertEqual(outside.read_text(), 'keep')
 
 
 if __name__ == '__main__':

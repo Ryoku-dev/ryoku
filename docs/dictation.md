@@ -47,6 +47,9 @@ socket in `$XDG_RUNTIME_DIR/voxtype-redux`. A drop-in on `voxtype.service` makes
 it start the worker. Picking another model stops and disables the worker and
 keeps the files for a quick switch back. The minus button removes every file the
 receipt lists; files changed since the install are reported and kept.
+If the Redux files already exist without a Hub receipt, selecting Redux adopts
+them only after checking the pinned model, adapter, service unit, license bundle
+and runtime ABI. An unrecognized install is left untouched.
 
 | File | What it is |
 |---|---|
