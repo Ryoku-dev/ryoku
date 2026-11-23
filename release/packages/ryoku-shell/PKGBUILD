@@ -13,7 +13,8 @@ epoch=1
 pkgdesc="Ryoku shell IPC daemon: supervises the Quickshell desktop"
 arch=('x86_64')
 url="https://ryoku.dev"
-license=('GPL-3.0-or-later')
+# ryoget adapts download code from Prism, so Prism's MIT license ships too
+license=('GPL-3.0-or-later' 'MIT')
 # uv provisions the ryostage engine's Python 3.13 venv (ryostage install); the
 # system python rolls ahead of onnxruntime's wheels, so the engine can't use it.
 # Python's built-in equalizer needs the processor and its LV2 effects at runtime.

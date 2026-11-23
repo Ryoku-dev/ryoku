@@ -36,6 +36,9 @@ install)
 	install -Dm755 "$RYOKU_BUILD_DIR/ryoseek" "$destdir/usr/bin/ryoseek"
 	install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/packaging/ryoget.desktop" \
 		"$destdir/usr/share/applications/ryoget.desktop"
+	# ryoget adapts download code from Prism, whose MIT license has to ship with it
+	install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/LICENSE.prism" \
+		"$destdir/usr/share/licenses/ryoku-shell/LICENSE.prism"
 	if [ "$init" = systemd ]; then
 		install -Dm644 "$RYOKU_SRC/ryoku/shell/ryoget/packaging/systemd/ryoget.service" \
 			"$destdir/usr/lib/systemd/user/ryoget.service"

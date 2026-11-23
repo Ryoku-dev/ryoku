@@ -39,6 +39,8 @@ pkgs.stdenv.mkDerivation {
 
     install -Dm755 ryoget "$out/bin/ryoget"
     install -Dm755 ryoseek "$out/bin/ryoseek"
+    # ryoget adapts download code from Prism, whose MIT license has to ship with it
+    install -Dm644 LICENSE.prism "$out/share/licenses/ryoku-shell/LICENSE.prism"
 
     runHook postInstall
   '';
@@ -46,7 +48,10 @@ pkgs.stdenv.mkDerivation {
   meta = {
     description = "Ryoku download engine (ryoget) and search daemon (ryoseek) behind the bar";
     homepage = "https://github.com/Ryoku-dev/ryoku";
-    license = pkgs.lib.licenses.gpl3Only;
+    license = [
+      pkgs.lib.licenses.gpl3Only
+      pkgs.lib.licenses.mit
+    ];
     platforms = [ "x86_64-linux" ];
   };
 }

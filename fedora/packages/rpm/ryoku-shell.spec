@@ -3,7 +3,7 @@ Version:        0.1
 Epoch:          1
 Release:        1%{?dist}
 Summary:        ryoku-shell desktop component
-License:        GPL-3.0-or-later
+License:        GPL-3.0-or-later AND MIT
 URL:            https://ryoku.dev
 Source0:        ryoku-%{version}.tar.gz
 %global debug_package %{nil}

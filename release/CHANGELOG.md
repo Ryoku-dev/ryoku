@@ -16,6 +16,13 @@
   anacrolix/torrent (MPL-2.0), whose source ships in the vendor tree
   (`packages/ryoku-shell/`, `../void/packages/srcpkgs/ryoku-shell/`,
   `../fedora/packages/rpm/ryoku-shell.spec`, `../nix/packages/ryoku-ryoget.nix`).
+- **`ryoku-shell` ships Prism's license.** `ryoget` adapts its ranged
+  transfers, categories, checksums and a few site rules from Prism by Jan
+  Sechovec, so every edition declares MIT beside GPL-3.0-or-later and installs
+  `/usr/share/licenses/ryoku-shell/LICENSE.prism` from
+  `ryoku/shell/ryoget/LICENSE.prism`; the root `NOTICE` says what was adapted
+  (`packages/ryoku-shell/`, `../void/packages/srcpkgs/ryoku-shell/`,
+  `../fedora/packages/rpm/ryoku-shell.spec`, `../nix/packages/ryoku-ryoget.nix`).
 - **Rashin no longer needs external coding harnesses.** Arch, CachyOS, Fedora,
   Void and Nix package its native engine; llama.cpp and model weights are
   downloads the user chooses, not shipped files. Adapted engine work credits
