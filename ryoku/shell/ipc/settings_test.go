@@ -1182,6 +1182,26 @@ func TestSettingsBoolAt(t *testing.T) {
 	}
 }
 
+// the clipboard reads pictures in Theia's OCR languages, and a hand-edited list must
+// not hand tesseract an empty or non-string language
+func TestSettingsStringsAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shell.json")
+	body := `{"sight":{"ocrLanguages":["eng","",3,"jpn"],"mode":"explain"}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	s := newSettingsStore(path)
+	if got := s.stringsAt("sight.ocrLanguages"); !reflect.DeepEqual(got, []string{"eng", "jpn"}) {
+		t.Errorf("stringsAt(sight.ocrLanguages) = %#v, want eng and jpn", got)
+	}
+	if got := s.stringsAt("sight.mode"); got != nil {
+		t.Errorf("stringsAt on a string = %#v, want nil", got)
+	}
+	if got := s.stringsAt("sight.missing"); got != nil {
+		t.Errorf("stringsAt on a missing leaf = %#v, want nil", got)
+	}
+}
+
 func startSettingsWatch(t *testing.T, s *settingsStore) {
 	t.Helper()
 	quit := make(chan struct{})

@@ -423,7 +423,8 @@ Singleton {
             "sidebar": "ryoku"
         })
         property var clipboard: ({
-            "pruneWeekly": false
+            "pruneWeekly": false,
+            "readPictures": false
         })
         property var phone: ({
             "enabled": false,

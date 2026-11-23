@@ -280,29 +280,347 @@ function read(entry) {
     return out;
 }
 
-// words the search matches besides the text itself, so "link" or "png" finds them
+// kind words search also matches, none for plain text, whose mime would match "text" everywhere
 function keywords(entry, info) {
-    var words = [String(entry && entry.mime || ""), info.kind];
+    var mime = String(entry && entry.mime || "");
     if (info.kind === "image")
-        words.push("image", "picture", "screenshot");
-    else if (info.kind === "link")
-        words.push("link", "url", info.link.host);
-    else if (info.kind === "colour")
-        words.push("colour", "color", info.colour.hex);
-    else if (info.kind === "files")
-        words.push("file", "files", "folder", info.files.dir);
-    else if (info.kind === "command")
-        words.push("command", "terminal");
-    else if (info.kind === "code")
-        words.push("code");
-    return words;
+        return [mime, "image", "picture", "screenshot"];
+    if (info.kind === "binary")
+        return [mime];
+    if (info.kind === "link")
+        return ["link", "url", info.link.host];
+    if (info.kind === "colour")
+        return ["colour", "color", info.colour.hex];
+    if (info.kind === "files")
+        return ["file", "files", "folder", info.files.dir];
+    if (info.kind === "command")
+        return ["command", "terminal"];
+    if (info.kind === "code")
+        return ["code"];
+    return [];
 }
 
-function searchable(entry, info) {
-    var name = info.kind === "image" || info.kind === "binary" ? String(entry && entry.mime || "")
-        : info.kind === "files" ? info.files.names.join(" ")
-        : String(info.text || "").replace(/\s+/g, " ").trim();
-    return { name: name, keywords: keywords(entry, info) };
+// Qt's regex engine has no \p{L}, so past ASCII a letter is anything outside the punctuation, symbol, space and surrogate blocks
+var WORD_CLASS = "0-9A-Za-z\\u00c0-\\u00d6\\u00d8-\\u00f6\\u00f8-\\u1fff\\u2070-\\u209f\\u20d0-\\u218f\\u2c00-\\u2dff"
+    + "\\u2e80-\\u2fff\\u3040-\\ud7ff\\ue000-\\ufe2f\\ufe70-\\ufeff\\uff10-\\uff19\\uff21-\\uff3a\\uff41-\\uff5a\\uff66-\\uffef";
+var WORD_RUN = new RegExp("[" + WORD_CLASS + "]+", "g");
+var WORD_CHAR = new RegExp("^[" + WORD_CLASS + "]$");
+// a run that needs a closer look for words inside it: camelCase, or anything past ASCII
+var INNER = /[a-z][A-Z]|[^\x00-\x7f]/;
+
+function wordChar(c) {
+    return WORD_CHAR.test(c);
+}
+
+// Thai, Lao, Myanmar, Khmer, kana and Han write words without spaces, so any character can start one
+function unspaced(code) {
+    return (code >= 0x0e00 && code <= 0x0eff) || (code >= 0x1000 && code <= 0x109f) || (code >= 0x1780 && code <= 0x17ff)
+        || (code >= 0x3040 && code <= 0x30ff) || (code >= 0x3400 && code <= 0x4dbf) || (code >= 0x4e00 && code <= 0x9fff)
+        || (code >= 0xf900 && code <= 0xfaff);
+}
+
+function lowered(raw) {
+    var low = raw.toLowerCase();
+    if (low.length === raw.length)
+        return low;
+    var out = "";
+    for (var i = 0; i < raw.length; i++) {
+        var c = raw.charAt(i).toLowerCase();
+        out += c.length === 1 ? c : raw.charAt(i);
+    }
+    return out;
+}
+
+// camelCase parts and each character of a script written without spaces start words too, so typing a part finds it
+function field(text) {
+    var raw = String(text || "");
+    var starts = [];
+    WORD_RUN.lastIndex = 0;
+    for (var m = WORD_RUN.exec(raw); m !== null; m = WORD_RUN.exec(raw)) {
+        var at = m.index;
+        var run = m[0];
+        starts.push(at);
+        if (!INNER.test(run))
+            continue;
+        for (var i = 1; i < run.length; i++) {
+            var c = run.charAt(i);
+            var p = run.charAt(i - 1);
+            if (unspaced(c.charCodeAt(0)) || (p !== p.toUpperCase() && c !== c.toLowerCase()))
+                starts.push(at + i);
+        }
+    }
+    return { raw: raw, low: lowered(raw), starts: starts };
+}
+
+function wordEnd(f, at) {
+    var i = at;
+    while (i < f.raw.length && wordChar(f.raw.charAt(i)))
+        i++;
+    return i;
+}
+
+// title is what the row shows, body the rest of what was copied, a picture's body the words read in it
+function prepare(entry, info, words) {
+    var body = info.kind === "image" ? String(words || "")
+        : info.kind === "files" ? info.files.names.join("\n") + "\n" + info.files.dir
+        : info.kind === "binary" ? String(info.mime || "")
+        : String(info.text || "");
+    return {
+        title: field(info.kind === "image" || info.kind === "binary" ? "" : info.title),
+        keys: field(keywords(entry, info).join(" ")),
+        body: field(body)
+    };
+}
+
+function terms(query) {
+    var out = [];
+    var parts = String(query || "").toLowerCase().split(/\s+/);
+    for (var i = 0; i < parts.length; i++) {
+        if (parts[i].length > 0 && out.indexOf(parts[i]) < 0)
+            out.push(parts[i]);
+    }
+    return out;
+}
+
+function startHit(f, term) {
+    for (var i = 0; i < f.starts.length; i++) {
+        if (f.low.startsWith(term, f.starts[i]))
+            return f.starts[i];
+    }
+    return -1;
+}
+
+// one edit apart: a letter added, dropped, changed, or two neighbours swapped
+function oneEdit(a, b) {
+    if (a === b)
+        return true;
+    var la = a.length, lb = b.length;
+    if (Math.abs(la - lb) > 1)
+        return false;
+    var i = 0;
+    while (i < la && i < lb && a.charAt(i) === b.charAt(i))
+        i++;
+    if (la > lb)
+        return a.slice(i + 1) === b.slice(i);
+    if (la < lb)
+        return a.slice(i) === b.slice(i + 1);
+    if (a.slice(i + 1) === b.slice(i + 1))
+        return true;
+    return a.charAt(i) === b.charAt(i + 1) && a.charAt(i + 1) === b.charAt(i) && a.slice(i + 2) === b.slice(i + 2);
+}
+
+// a slip of the finger, or of the reader, against the start of a word beginning with the same letter
+function typoHits(f, term, every) {
+    var out = [];
+    var first = term.charAt(0);
+    for (var i = 0; i < f.starts.length; i++) {
+        var s = f.starts[i];
+        if (f.low.charAt(s) !== first)
+            continue;
+        var room = wordEnd(f, s) - s;
+        for (var k = term.length - 1; k <= term.length + 1; k++) {
+            if (k >= 1 && k <= room && oneEdit(term, f.low.substr(s, k))) {
+                out.push({ at: s, len: k });
+                if (!every)
+                    return out;
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+function typoHit(f, term) {
+    var hits = typoHits(f, term, false);
+    return hits.length > 0 ? hits[0] : null;
+}
+
+// the letters in order, the first at a word start, for short titles only
+function scatterHit(f, term) {
+    if (f.raw.length > 40 || term.length < 2)
+        return null;
+    for (var i = 0; i < f.starts.length; i++) {
+        if (f.low.charAt(f.starts[i]) !== term.charAt(0))
+            continue;
+        var spans = [{ start: f.starts[i], len: 1 }];
+        var at = f.starts[i] + 1;
+        for (var j = 1; j < term.length && spans !== null; j++) {
+            var next = f.low.indexOf(term.charAt(j), at);
+            if (next < 0) {
+                spans = null;
+            } else {
+                spans.push({ start: next, len: 1 });
+                at = next + 1;
+            }
+        }
+        if (spans !== null)
+            return spans;
+    }
+    return null;
+}
+
+// tier 0 starts a title or kind word, 1 starts a word further in or sits inside one, 2 is one edit off, 3 scattered
+function hit(ix, term) {
+    var at = startHit(ix.title, term);
+    if (at >= 0)
+        return { where: "title", tier: 0, spans: [{ start: at, len: term.length }] };
+    if (startHit(ix.keys, term) >= 0)
+        return { where: "keys", tier: 0, spans: [] };
+    if (term.length >= 3 && (at = ix.title.low.indexOf(term)) >= 0)
+        return { where: "title", tier: 1, spans: [{ start: at, len: term.length }] };
+    if ((at = startHit(ix.body, term)) >= 0 || (term.length >= 3 && (at = ix.body.low.indexOf(term)) >= 0))
+        return { where: "body", tier: 1, spans: [{ start: at, len: term.length }] };
+    if (term.length >= 5) {
+        var t = typoHit(ix.title, term);
+        if (t)
+            return { where: "title", tier: 2, spans: [{ start: t.at, len: t.len }] };
+        if (typoHit(ix.keys, term))
+            return { where: "keys", tier: 2, spans: [] };
+        if ((t = typoHit(ix.body, term)))
+            return { where: "body", tier: 2, spans: [{ start: t.at, len: t.len }] };
+    }
+    var scattered = scatterHit(ix.title, term);
+    return scattered ? { where: "title", tier: 3, spans: scattered } : null;
+}
+
+// a line around the first word found, with every word found in it marked once
+function excerpt(f, first, list) {
+    var raw = f.raw;
+    var lineStart = raw.lastIndexOf("\n", first.start - 1) + 1;
+    var lineEnd = raw.indexOf("\n", first.start);
+    if (lineEnd < 0)
+        lineEnd = raw.length;
+    var from = Math.max(lineStart, first.start - 28);
+    var to = Math.min(lineEnd, first.start + first.len + 60);
+    for (var n = 0; n < 12 && from > lineStart && wordChar(raw.charAt(from - 1)); n++)
+        from--;
+    for (var m = 0; m < 12 && to < lineEnd && wordChar(raw.charAt(to)); m++)
+        to++;
+    var lead = from > lineStart ? "\u2026" : "";
+    var spans = [];
+    var mark = function(start, len) {
+        for (var k = 0; k < spans.length; k++) {
+            if (spans[k].start === start && spans[k].len === len)
+                return;
+        }
+        spans.push({ start: start, len: len });
+    };
+    if (first.start >= from && first.start + first.len <= to)
+        mark(lead.length + first.start - from, first.len);
+    var low = f.low.slice(from, to);
+    for (var i = 0; i < list.length; i++) {
+        var at = low.indexOf(list[i]);
+        if (at >= 0)
+            mark(lead.length + at, list[i].length);
+    }
+    return { text: lead + raw.slice(from, to) + (to < lineEnd ? "\u2026" : ""), spans: spans, line: lineStart };
+}
+
+// a line holding more of the words typed, so the excerpt shows them together
+function densest(f, list, first) {
+    var best = first;
+    var most = 1;
+    for (var from = 0; from <= f.low.length;) {
+        var end = f.low.indexOf("\n", from);
+        if (end < 0)
+            end = f.low.length;
+        var line = f.low.slice(from, end);
+        var count = 0;
+        var at = -1;
+        for (var i = 0; i < list.length; i++) {
+            var p = line.indexOf(list[i]);
+            if (p >= 0) {
+                count++;
+                if (at < 0 || p < at)
+                    at = p;
+            }
+        }
+        if (count > most) {
+            most = count;
+            var word = list.filter(function(t) { return line.indexOf(t) === at; })[0];
+            best = { start: from + at, len: word.length };
+        }
+        from = end + 1;
+    }
+    return best;
+}
+
+// a title outranks the body, and a match the row cannot show, in the body or far along a long title, comes with an excerpt
+function match(ix, list) {
+    if (!ix || list.length === 0)
+        return null;
+    var score = 0;
+    var title = [];
+    var inBody = null;
+    var late = null;
+    for (var i = 0; i < list.length; i++) {
+        var h = hit(ix, list[i]);
+        if (!h)
+            return null;
+        score += h.tier + (h.where === "body" ? 0.5 : 0);
+        if (h.where === "title") {
+            title = title.concat(h.spans);
+            if (late === null && h.spans[0].start >= 40)
+                late = h.spans[0];
+        } else if (h.where === "body" && inBody === null) {
+            inBody = h.spans[0];
+        }
+    }
+    if (list.length > 1 && ix.title.low.indexOf(list.join(" ")) >= 0)
+        score = Math.max(0, score - 1);
+    if (inBody && list.length > 1)
+        inBody = densest(ix.body, list, inBody);
+    var cut = inBody ? excerpt(ix.body, inBody, list) : late ? excerpt(ix.title, late, list) : null;
+    return { score: score, title: title, excerpt: cut, inBody: inBody !== null };
+}
+
+// short words only where a word starts, or every letter would light up, and a long one one edit off when it is nowhere as typed
+function marks(text, list) {
+    var f = field(text);
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        var t = list[i];
+        var before = out.length;
+        if (t.length >= 3) {
+            for (var at = f.low.indexOf(t); at >= 0; at = f.low.indexOf(t, at + t.length))
+                out.push({ start: at, len: t.length });
+        } else {
+            for (var k = 0; k < f.starts.length; k++) {
+                if (f.low.startsWith(t, f.starts[k]))
+                    out.push({ start: f.starts[k], len: t.length });
+            }
+        }
+        if (out.length === before && t.length >= 5) {
+            var slips = typoHits(f, t, true);
+            for (var j = 0; j < slips.length; j++)
+                out.push({ start: slips[j].at, len: slips[j].len });
+        }
+    }
+    return out;
+}
+
+function escaped(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// rich text with the spans underlined, "" when there is nothing to mark
+function markup(text, spans) {
+    var t = String(text || "");
+    var list = (spans || []).filter(function(s) { return s.len > 0 && s.start >= 0 && s.start < t.length; })
+        .sort(function(a, b) { return a.start - b.start; });
+    if (list.length === 0)
+        return "";
+    var out = "";
+    var at = 0;
+    for (var i = 0; i < list.length; i++) {
+        var start = Math.max(at, list[i].start);
+        var end = Math.min(t.length, list[i].start + list[i].len);
+        if (end <= start)
+            continue;
+        out += escaped(t.slice(at, start)) + "<u>" + escaped(t.slice(start, end)) + "</u>";
+        at = end;
+    }
+    return out + escaped(t.slice(at));
 }
 
 function ago(at, now) {
@@ -365,5 +683,6 @@ if (typeof module !== "undefined" && module.exports)
     module.exports = {
         lines: lines, firstLine: firstLine, utf8Length: utf8Length, colour: colour, link: link,
         files: files, command: command, code: code, read: read, keywords: keywords,
-        searchable: searchable, ago: ago, day: day, groups: groups, baseName: baseName, dirName: dirName
+        prepare: prepare, terms: terms, match: match, markup: markup, marks: marks, oneEdit: oneEdit,
+        ago: ago, day: day, groups: groups, baseName: baseName, dirName: dirName
     };

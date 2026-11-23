@@ -292,8 +292,15 @@ palette the same way and follows a change live.
 
 The tabs at the end of the field switch between **Recent**, everything newest first under
 Today, Yesterday and Earlier, and **Starred**, only what you starred. Tab switches them, and
-the search reads whichever is open. It matches the text, a link's host, file names, and kinds
-such as image, link, colour or code, and underlines what matched.
+the search reads whichever is open.
+
+Search matches words, not scattered letters: every word typed has to be found in an item, in
+its text, a link's host, file names, kinds such as image, link, colour or code, and, when it is
+turned on, the text in a picture. A word that starts a word of the title ranks first, then one
+that starts a word further in or sits inside one, then a word of five letters or more with one
+slip (a letter missing, extra, wrong or swapped), then letters scattered through a short title.
+Ties go to the newest. The title underlines what matched, and when the match is out of sight,
+further into the text or in a picture, the row shows that line with the words underlined.
 
 Each row is drawn for what it holds: a picture's thumbnail with its pixel size, a colour's
 swatch, a link as host and path, a command or code in mono, a file list by its first name and
@@ -301,10 +308,11 @@ folder, and text by its first line and length. The time it was copied sits at th
 star when it is starred. While Ctrl is held the first nine rows show the number that copies
 them.
 
-The preview reads the selected item closer: the picture whole, the colour as a swatch with its
-RGB and HSL values, the link's full address, files one per line, and text set to read. Text
-longer than the daemon's 200-character preview says so. Under it are its type, size and when it
-was copied, and Copy, Open (for links), Star and Delete for the pointer.
+The preview reads the selected item closer: the picture whole, with the text read in it under
+it, the colour as a swatch with its RGB and HSL values, the link's full address, files one per
+line, and text set to read. Text longer than the daemon's 200-character preview says so. Under
+it are its type, size and when it was copied, and Copy, Copy text (for a picture with text),
+Open (for links), Star and Delete for the pointer.
 
 Picking an item copies it and closes the palette; paste it as usual with Ctrl+V, or
 Ctrl+Shift+V in a terminal. Delete removes the selected item after a five-second undo (Ctrl+Z,
@@ -327,8 +335,29 @@ Clipboard**, which asks first; the action list leads there.
 | Ctrl+K | Every action for the selected item |
 | Escape | Close the actions, clear the field, leave Starred, then close |
 
-The history is the daemon's (`ryoku/shell/ipc/clipboard.go`): 100 entries, items up to 10 MiB,
-an image thumbnail each, and the time each was copied, kept across restarts.
+The history is the daemon's (`ryoku/shell/ipc/clipboard.go`, the picture reader in
+`clipboard_read.go`): 100 entries, items up to 10 MiB, an image thumbnail each, the time each was
+copied and the text read in each picture, kept across restarts.
+
+### Text in pictures
+
+**Find pictures by the text in them** makes a screenshot of an error, a receipt or a chat
+findable by what it says. It is off by default, because reading a picture costs memory for a
+moment, and turns on in **Ryoku Settings > Desktop > Clipboard** or from `Ctrl+K` in the palette,
+where it also turns off.
+
+- The daemon reads only while the clipboard is in use: from opening it until two minutes after
+  it closes. The palette asks for that on open, once a minute while open, and as it closes, and
+  outside that window nothing runs, so a closed clipboard costs nothing.
+- Pictures are read newest first, each once, by tesseract in short-lived processes at the
+  lowest priority on one thread: about 100 MB for a second or two a picture (about 150 MB for
+  a 4K screenshot), gone when the picture is read. A screenshot is read at full size, a small one
+  enlarged first; a photo only from its thumbnail, where big lettering still reads. Only words
+  tesseract is sure of are kept, so a photo's grain adds nothing, and a QR code's text is read
+  too.
+- It reads in Theia's OCR languages, the ones installed for tesseract, else English.
+- The text stays with the history on this computer and survives a restart. Turning the switch
+  off forgets it. **Copy text** in the preview copies a picture's text.
 
 ## Kit
 

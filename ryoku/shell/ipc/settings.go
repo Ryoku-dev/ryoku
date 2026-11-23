@@ -1014,6 +1014,24 @@ func (s *settingsStore) boolAt(path string) bool {
 	return b
 }
 
+// a hand-edited list may hold anything, only its strings count
+func (s *settingsStore) stringsAt(path string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, err := getByPath(s.raw, strings.Split(path, "."))
+	list, ok := v.([]any)
+	if err != nil || !ok {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, item := range list {
+		if str, ok := item.(string); ok && str != "" {
+			out = append(out, str)
+		}
+	}
+	return out
+}
+
 // deepCopyMap clones a decoded JSON object so a patch can be validated on a copy
 // and only committed if it holds together.
 func deepCopyMap(m map[string]any) map[string]any {

@@ -18,6 +18,10 @@ var rows = [
       detail: "Everything you copied, to search, star and copy again. Super+V opens it too",
       keywords: ["open", "show", "super v", "history", "paste"], control: "action",
       command: ["ryoku-shell", "clipboard"], actionText: "Open" },
+    { id: "read-pictures", section: "panel", label: "Find pictures by the text in them",
+      detail: "While the clipboard is open, reads the words in pictures you copy so a search finds them. Each picture takes about 100 MB for a second or two",
+      keywords: ["ocr", "text in pictures", "text in images", "screenshot text", "search pictures", "read text", "tesseract"],
+      control: "toggle", bind: s("clipboard.readPictures", false), "default": false },
 
     { id: "history-size", section: "history", label: "History size", template: true,
       detail: "How many items the history holds and the space they take",

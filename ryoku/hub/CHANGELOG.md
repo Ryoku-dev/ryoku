@@ -12,6 +12,10 @@
   the references the download manager and its link handling were designed
   from, and Wiktionary for the definitions in web search (CC BY-SA 4.0); the
   yt-dlp row names Downloads' fallback too (`quickshell/schema/about.js`).
+- **The Clipboard page can turn on finding pictures by the text in them.** Off
+  by default, with what it costs said beside it: the clipboard reads copied
+  pictures only while it is open and for two minutes after, about 100 MB for a
+  second or two a picture (`quickshell/schema/clipboard.js`).
 
 ### Changed
 

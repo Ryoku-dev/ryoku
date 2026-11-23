@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell
 import Lithic
-import Ryoku.Text
 import Ryoku.Ui.Singletons
 import shell.services
 import "../ask/bar"
@@ -50,32 +50,48 @@ FocusScope {
         && (root.view !== "starred" || e.starred === true))
     readonly property int total: root.entries.filter(e => e && !root.isPending(e)).length
     readonly property int starredCount: root.entries.filter(e => e && e.starred === true && !root.isPending(e)).length
+    // what was read in each picture, asked for while the palette is open
+    property var words: ({})
+    readonly property bool readingOn: (Config.clipboard || {}).readPictures === true
+    readonly property bool searching: root.query.length > 0
+    readonly property string readIds: root.entries.filter(e => e && e.read === true).map(e => e.id).join(",")
+    // built only while searching, so opening the palette never pays for it
+    readonly property var index: {
+        const out = {};
+        if (!root.searching)
+            return out;
+        for (const e of root.entries) {
+            if (e)
+                out[String(e.id)] = Clip.prepare(e, root.infos[String(e.id)] || Clip.read(e), root.words[String(e.id)] || "");
+        }
+        return out;
+    }
     readonly property var ranked: {
-        if (root.query.length === 0)
+        if (!root.searching)
             return null;
-        const q = root.query.toLowerCase();
+        const terms = Clip.terms(root.query);
         const hits = [];
         for (let i = 0; i < root.pool.length; i++) {
             const e = root.pool[i];
-            const score = FuzzyRanker.score(Clip.searchable(e, root.infos[String(e.id)] || Clip.read(e)), q);
-            if (score < 99)
-                hits.push({ entry: e, score: score, at: i });
+            const match = Clip.match(root.index[String(e.id)], terms);
+            if (match)
+                hits.push({ entry: e, match: match, at: i });
         }
-        hits.sort((a, b) => a.score !== b.score ? a.score - b.score : a.at - b.at);
-        return hits.map(hit => hit.entry);
+        hits.sort((a, b) => a.match.score !== b.match.score ? a.match.score - b.match.score : a.at - b.at);
+        return hits;
     }
     readonly property var built: {
         let n = 0;
-        const toRow = e => root.rowOf(e, ++n <= 9 ? n : 0);
+        const toRow = (e, match) => root.rowOf(e, ++n <= 9 ? n : 0, match || null);
         if (root.ranked !== null)
-            return root.ranked.length > 0 ? [{ id: "hits", title: "", rows: root.ranked.map(toRow) }] : [];
+            return root.ranked.length > 0 ? [{ id: "hits", title: "", rows: root.ranked.map(hit => toRow(hit.entry, hit.match)) }] : [];
         if (root.view === "starred")
-            return root.pool.length > 0 ? [{ id: "starred", title: "", rows: root.pool.map(toRow) }] : [];
+            return root.pool.length > 0 ? [{ id: "starred", title: "", rows: root.pool.map(e => toRow(e)) }] : [];
         return Clip.groups(root.pool, root.now).map(group => ({
             id: group.id,
             title: root.dayTitle(group.id),
             note: group.id === "all" ? "" : String(group.rows.length),
-            rows: group.rows.map(toRow)
+            rows: group.rows.map(e => toRow(e))
         }));
     }
     readonly property var sections: root.frozen !== null ? root.frozen : root.built
@@ -84,13 +100,19 @@ FocusScope {
     readonly property var detail: root.current ? root.detailOf(root.current) : null
 
     readonly property string status: {
-        if (root.query.length > 0) {
+        let base = "";
+        if (root.searching) {
             const hits = root.ranked ? root.ranked.length : 0;
-            return hits === 1 ? I18n.tr("1 match") : I18n.tr("%1 matches").arg(hits);
+            base = hits === 1 ? I18n.tr("1 match") : I18n.tr("%1 matches").arg(hits);
+        } else if (root.view === "starred") {
+            base = root.starredCount === 1 ? I18n.tr("1 starred") : I18n.tr("%1 starred").arg(root.starredCount);
+        } else {
+            base = root.total === 1 ? I18n.tr("1 item") : I18n.tr("%1 items").arg(root.total);
         }
-        if (root.view === "starred")
-            return root.starredCount === 1 ? I18n.tr("1 starred") : I18n.tr("%1 starred").arg(root.starredCount);
-        return root.total === 1 ? I18n.tr("1 item") : I18n.tr("%1 items").arg(root.total);
+        const n = root.readingOn ? Clipboard.reading : 0;
+        if (n <= 0)
+            return base;
+        return [base, n === 1 ? I18n.tr("reading 1 picture") : I18n.tr("reading %1 pictures").arg(n)].join(" \u00b7 ");
     }
 
     readonly property var actions: {
@@ -98,11 +120,15 @@ FocusScope {
         const out = [];
         if (e) {
             out.push({ id: "copy", label: I18n.tr("Copy"), glyph: "content_copy", hint: "Enter", section: "" });
+            if (root.wordsOf(e).length > 0)
+                out.push({ id: "copy-text", label: I18n.tr("Copy the text in it"), glyph: "text_fields", hint: "", section: "" });
             if (root.current.info.kind === "link")
                 out.push({ id: "open", label: I18n.tr("Open in the browser"), glyph: "open_in_new", hint: "Ctrl+Enter", section: "" });
             out.push({ id: "star", label: e.starred === true ? I18n.tr("Remove the star") : I18n.tr("Star"), glyph: "star", hint: "Ctrl+S", section: "" });
             out.push({ id: "delete", label: I18n.tr("Delete"), glyph: "delete", hint: "Delete", section: "", destructive: true });
         }
+        out.push({ id: "read", label: root.readingOn ? I18n.tr("Stop finding pictures by their text") : I18n.tr("Find pictures by the text in them"),
+            glyph: "image_search", hint: "", section: I18n.tr("History") });
         out.push({ id: "manage", label: I18n.tr("Clear or manage the history"), glyph: "settings", hint: "", section: I18n.tr("History") });
         return out;
     }
@@ -200,16 +226,33 @@ FocusScope {
         return root.lengthOf(info);
     }
 
-    function rowOf(e, number) {
+    function wordsOf(entry) {
+        return entry ? String(root.words[String(entry.id)] || "") : "";
+    }
+
+    function rowOf(e, number, match) {
         const info = root.infos[String(e.id)] || Clip.read(e);
+        const title = info.kind === "image" ? I18n.tr("Image") : info.title;
         return {
-            id: String(e.id), size: "two", entry: e, info: info,
+            id: String(e.id), size: "two", entry: e, info: info, match: match,
             kind: info.kind, glyph: root.glyphOf(info), thumb: String(e.thumb || ""),
             swatch: info.kind === "colour" ? info.colour.hex : "",
-            title: info.kind === "image" ? I18n.tr("Image") : info.title,
+            title: title, marked: match ? Clip.markup(title, match.title) : "",
+            excerpt: match && match.excerpt ? Clip.markup(match.excerpt.text, match.excerpt.spans) : "",
             mono: info.mono === true, meta: root.metaOf(info), time: root.shortAgo(e.at),
             starred: e.starred === true, number: number
         };
+    }
+
+    // a screenshot's lines are mostly short labels, so they run on with dots between them
+    function wordsView(row) {
+        const all = root.wordsOf(row.entry);
+        if (all.length === 0)
+            return { text: "", marked: "" };
+        const m = row.match;
+        const from = m && m.inBody && m.excerpt ? m.excerpt.line : 0;
+        const text = (from > 0 ? "\u2026 " : "") + all.slice(from).split("\n").join(" \u00b7 ");
+        return { text: text, marked: root.searching ? Clip.markup(text, Clip.marks(text, Clip.terms(root.query))) : "" };
     }
 
     function detailOf(row) {
@@ -240,7 +283,9 @@ FocusScope {
             thumb: String(e.thumb || ""), thumbW: Number(e.thumbW) || 0, thumbH: Number(e.thumbH) || 0,
             swatch: row.swatch, link: info.link || null, mime: info.mime,
             files: names.slice(0, 8), more: names.length > 8 ? I18n.tr("%1 more").arg(names.length - 8) : "",
-            facts: facts, starred: e.starred === true
+            facts: facts, starred: e.starred === true,
+            words: root.wordsView(row),
+            reading: root.readingOn && info.kind === "image" && e.read !== true && Clipboard.reading > 0
         };
     }
 
@@ -264,6 +309,34 @@ FocusScope {
         const rows = list.layout.rows;
         if (n >= 1 && n <= rows.length)
             root.copy(rows[n - 1].row.entry);
+    }
+
+    function copyText(entry) {
+        const text = root.wordsOf(entry);
+        if (text.length === 0 || root.copiedId.length > 0)
+            return;
+        root.commitPending();
+        root.frozen = root.built;
+        Quickshell.clipboardText = text;
+        root.copiedId = String(entry.id);
+        foot.flash(I18n.tr("Text copied"), false);
+        leave.restart();
+    }
+
+    function fetchWords() {
+        Clipboard.words(map => root.words = map);
+    }
+
+    // the setting lands before the wake, so the daemon reads it already changed
+    function toggleReading() {
+        const on = !root.readingOn;
+        ShellSettings.patch("clipboard.readPictures", on, ok => {
+            if (!ok)
+                return;
+            Clipboard.wake();
+            root.fetchWords();
+        });
+        foot.flash(on ? I18n.tr("Reading the text in pictures") : I18n.tr("Pictures are no longer read"), false);
     }
 
     function open(entry) {
@@ -349,12 +422,16 @@ FocusScope {
         const e = root.currentEntry;
         if (id === "copy")
             root.copy(e);
+        else if (id === "copy-text")
+            root.copyText(e);
         else if (id === "open")
             root.open(e);
         else if (id === "star")
             root.star(e);
         else if (id === "delete")
             root.remove(e);
+        else if (id === "read")
+            root.toggleReading();
         else if (id === "manage") {
             Bus.run("hub open clipboard");
             root.requestClose();
@@ -420,12 +497,20 @@ FocusScope {
             root.ctrlHeld = false;
     }
 
+    function opened() {
+        root.now = Date.now();
+        Clipboard.wake();
+        root.fetchWords();
+        Qt.callLater(root.focusField);
+    }
+
+    Component.onCompleted: if (root.active) root.opened()
     onActiveChanged: {
         if (root.active) {
-            root.now = Date.now();
-            Qt.callLater(root.focusField);
+            root.opened();
             return;
         }
+        Clipboard.wake();
         leave.stop();
         root.commitPending();
         panel.open = false;
@@ -436,6 +521,7 @@ FocusScope {
         field.clear();
         list.selectFirst();
     }
+    onReadIdsChanged: if (root.active) wordsSoon.restart()
 
     Timer {
         id: leave
@@ -452,6 +538,17 @@ FocusScope {
         repeat: true
         running: root.active
         onTriggered: root.now = Date.now()
+    }
+    Timer {
+        interval: 60000
+        repeat: true
+        running: root.active
+        onTriggered: Clipboard.wake()
+    }
+    Timer {
+        id: wordsSoon
+        interval: 250
+        onTriggered: root.fetchWords()
     }
 
     SearchField {
@@ -510,7 +607,6 @@ FocusScope {
             rowDelegate: Component {
                 ClipRow {
                     id: clipRow
-                    query: root.query
                     numbers: root.ctrlHeld
                     copied: root.copiedId.length > 0 && clipRow.row.id === root.copiedId
                 }
@@ -526,10 +622,12 @@ FocusScope {
             visible: root.roomy && list.count > 0
             s: root.s
             item: root.detail
+            live: root.active
             onCopyRequested: root.copy(root.currentEntry)
             onOpenRequested: root.open(root.currentEntry)
             onStarRequested: root.star(root.currentEntry)
             onDeleteRequested: root.remove(root.currentEntry)
+            onCopyTextRequested: root.copyText(root.currentEntry)
         }
 
         Column {
@@ -566,7 +664,8 @@ FocusScope {
                 horizontalAlignment: Text.AlignHCenter
                 text: !Bus.connected ? I18n.tr("It comes back with the desktop.")
                     : parent.searching ? (root.view === "starred" ? I18n.tr("Only what you starred is searched here. Tab searches everything.")
-                        : I18n.tr("Search reads the text, links, file names, and kinds like image or link."))
+                        : root.readingOn ? I18n.tr("Search reads the text, links, file names, words in pictures, and kinds like image or link.")
+                        : I18n.tr("Search reads the text, links, file names, and kinds like image or link. Ctrl+K can read the words in pictures too."))
                     : root.view === "starred" ? I18n.tr("Ctrl+S stars what is selected. Starred items stay when the history is cleared.")
                     : I18n.tr("Copy text, a link or a picture and it shows up here.")
                 color: Lithic.fg2

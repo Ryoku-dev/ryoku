@@ -10,14 +10,19 @@ Item {
 
     required property real s
     property var item: null
+    // false while the palette is closed but still loaded, so nothing animates unseen
+    property bool live: true
 
     signal copyRequested()
+    signal copyTextRequested()
     signal openRequested()
     signal starRequested()
     signal deleteRequested()
 
     readonly property real pad: Math.round(16 * root.s)
     readonly property string kind: root.item ? String(root.item.kind || "") : ""
+    readonly property var words: root.item && root.item.words ? root.item.words : ({ text: "", marked: "" })
+    readonly property bool hasWords: String(root.words.text || "").length > 0
 
     // a new item fades in, unless the hand is running down the list
     property string shownId: ""
@@ -74,30 +79,73 @@ Item {
                 height: Math.max(0, facts.y - Math.round(14 * root.s))
                 clip: true
 
-                // never larger than its own pixels
-                Shape {
-                    readonly property real natW: Math.max(1, Number(root.item && root.item.thumbW) || 1)
-                    readonly property real natH: Math.max(1, Number(root.item && root.item.thumbH) || 1)
-                    readonly property real fit: Math.min(1, stage.width / natW, stage.height / natH)
-                    anchors.centerIn: parent
-                    width: Math.round(natW * fit)
-                    height: Math.round(natH * fit)
+                // never larger than its own pixels, and above the text read in it
+                Item {
+                    id: picture
+                    width: parent.width
+                    height: Math.max(0, stage.height - (picText.visible ? picText.height + Math.round(12 * root.s) : 0))
                     visible: root.kind === "image"
-                    s: root.s
-                    cutSize: Look.cutRow
-                    fill: Look.well
-                    strokeColor: Look.lithic ? Lithic.vein : "transparent"
-                    strokeWidth: Look.lithic ? 1 : 0
-                    clip: true
 
-                    Image {
-                        anchors.fill: parent
-                        source: root.kind === "image" && root.item && String(root.item.thumb || "").length > 0 ? "file://" + root.item.thumb : ""
-                        sourceSize: Qt.size(parent.natW, parent.natH)
-                        fillMode: Image.PreserveAspectFit
-                        asynchronous: true
-                        smooth: true
-                        mipmap: true
+                    Shape {
+                        readonly property real natW: Math.max(1, Number(root.item && root.item.thumbW) || 1)
+                        readonly property real natH: Math.max(1, Number(root.item && root.item.thumbH) || 1)
+                        readonly property real fit: Math.min(1, picture.width / natW, picture.height / natH)
+                        anchors.centerIn: parent
+                        width: Math.round(natW * fit)
+                        height: Math.round(natH * fit)
+                        s: root.s
+                        cutSize: Look.cutRow
+                        fill: Look.well
+                        strokeColor: Look.lithic ? Lithic.vein : "transparent"
+                        strokeWidth: Look.lithic ? 1 : 0
+                        clip: true
+
+                        Image {
+                            anchors.fill: parent
+                            source: root.kind === "image" && root.item && String(root.item.thumb || "").length > 0 ? "file://" + root.item.thumb : ""
+                            sourceSize: Qt.size(parent.natW, parent.natH)
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            smooth: true
+                            mipmap: true
+                        }
+                    }
+                }
+
+                Column {
+                    id: picText
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    visible: root.kind === "image" && (root.hasWords || (root.item !== null && root.item.reading === true))
+                    spacing: Math.round(6 * root.s)
+
+                    Micro {
+                        id: picLabel
+                        s: root.s
+                        text: root.hasWords ? I18n.tr("Text in it") : I18n.tr("Reading the text in it")
+                        SequentialAnimation on opacity {
+                            running: picText.visible && !root.hasWords && root.live && !Look.still
+                            loops: Animation.Infinite
+                            alwaysRunToEnd: true
+                            NumberAnimation { to: 0.4; duration: 700; easing.type: Easing.InOutSine }
+                            NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: root.hasWords
+                        text: String(root.words.marked || "").length > 0 ? root.words.marked : String(root.words.text || "")
+                        textFormat: String(root.words.marked || "").length > 0 ? Text.StyledText : Text.PlainText
+                        color: Lithic.fg
+                        font.family: Look.sans
+                        font.pixelSize: Math.round(12.5 * root.s)
+                        lineHeight: Math.round(18 * root.s)
+                        lineHeightMode: Text.FixedHeight
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 4
+                        elide: Text.ElideRight
+                        renderType: Text.NativeRendering
                     }
                 }
 
@@ -328,6 +376,14 @@ Item {
                     glyph: "content_copy"
                     text: I18n.tr("Copy")
                     onClicked: root.copyRequested()
+                }
+                Chip {
+                    visible: root.hasWords
+                    s: root.s
+                    tier: "line"
+                    glyph: "text_fields"
+                    text: I18n.tr("Copy text")
+                    onClicked: root.copyTextRequested()
                 }
                 Chip {
                     visible: root.kind === "link"

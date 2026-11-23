@@ -237,11 +237,15 @@ The QML stays presentation; the hot loops moved into the `Ryoku.Blobs` plugin
 - `BlobWave` caps its wave frames and stops once settled;
 - `PlaybackClock` carries the music position between MPRIS polls and finds the
   lyric line by binary search, and sleeps while nothing shows it;
-- `Ryoku.Text` holds the translation catalog (`TextCatalog`), the launcher and
-  clipboard ranking (`FuzzyRanker`) and Ryoku Settings' search
-  (`HubSearchIndex`), each matching the JavaScript it replaced result for
-  result. Measured at rest these moved little memory (a Spanish shell was within
-  3 MB either way); what they remove is per-keystroke and per-tick JavaScript.
+- `Ryoku.Text` holds the translation catalog (`TextCatalog`), the launcher's
+  ranking (`FuzzyRanker`) and Ryoku Settings' search (`HubSearchIndex`), each
+  matching the JavaScript it replaced result for result. Measured at rest these
+  moved little memory (a Spanish shell was within 3 MB either way); what they
+  remove is per-keystroke and per-tick JavaScript. The clipboard's search went
+  the other way: it matches words through picture text and shows the line that
+  matched, which `FuzzyRanker` does not do, and in `clip.js` it costs 0 to 3 ms a
+  keystroke over a full history, after about 15 ms of indexing when a search
+  starts.
 
 ## Next to other Quickshell shells
 

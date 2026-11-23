@@ -64,9 +64,63 @@ equal(C.read(text("  \n  hello   world  \nnext")).title, "hello world", "the tit
 equal(C.read({ kind: "image", mime: "image/png", size: 2048, w: 1920, h: 1080 }), { kind: "image", title: "", size: 2048, w: 1920, h: 1080, mime: "image/png", mono: false }, "an image keeps its pixel size");
 equal(C.read({ kind: "binary", mime: "application/pdf", size: 9 }).kind, "binary", "anything else is binary");
 
-// search words
-equal(C.searchable({ mime: "image/png" }, C.read({ kind: "image", mime: "image/png" })), { name: "image/png", keywords: ["image/png", "image", "image", "picture", "screenshot"] }, "an image is found by its kind");
-equal(C.searchable(text("https://ryoku.dev"), C.read(text("https://ryoku.dev"))).keywords.slice(-3), ["link", "url", "ryoku.dev"], "a link by its host");
+// search: what each kind is found by
+const picture = { id: 1, kind: "image", mime: "image/png" };
+equal(C.keywords(picture, C.read(picture)), ["image/png", "image", "picture", "screenshot"], "a picture by its kind and type");
+equal(C.keywords(text("https://ryoku.dev"), C.read(text("https://ryoku.dev"))), ["link", "url", "ryoku.dev"], "a link by its host");
+equal(C.keywords(text("hello there"), C.read(text("hello there"))), [], "plain text by nothing but itself");
+
+// search: every word typed must be found, a title's word starts first, then the newest
+const item = (e, words) => ({ e, ix: C.prepare(e, C.read(e), words) });
+const find = (query, items) => items.map((x, at) => ({ id: x.e.id, at, m: C.match(x.ix, C.terms(query)) }))
+    .filter(x => x.m).sort((a, b) => a.m.score - b.m.score || a.at - b.at).map(x => x.id);
+const shot = item({ id: 1, kind: "image", mime: "image/png" }, "Invoice #4471 Total 82.40\nDue Friday 14:00");
+const note = item({ id: 2, ...text("Friday plans: invoice the studio") });
+const other = item({ id: 3, ...text("lunch with the team on monday") });
+const grain = item({ id: 4, kind: "image", mime: "image/jpeg" }, "");
+const all = [shot, note, other, grain];
+equal(find("friday", all), [2, 1], "a word in a picture finds it, after a title that starts with it");
+equal(find("due friday", all), [1], "every word must be found");
+equal(find("4471", all), [1], "numbers in a picture");
+equal(find("fdy", [shot, grain]), [], "letters scattered through a picture's words find nothing");
+equal(find("invocie", all), [2, 1], "one swapped pair of letters still finds the word");
+equal(find("fryday", all), [2, 1], "so does one wrong letter");
+equal(find("dux", all), [], "short words need to be spelled right");
+equal(find("image", all), [1, 4], "pictures by their kind");
+equal(find("jpeg", all), [4], "and by their type");
+equal(find("plain", [other]), [], "plain text is not found by its type");
+equal(find("udio", all), [2], "three letters inside a word");
+equal(find("ud", all), [], "two letters only at the start of one");
+
+const short = item({ id: 5, ...text("git commit --amend") });
+const wordy = item({ id: 6, ...text("a very long sentence that goes past forty characters with git and commit in it") });
+equal(find("gca", [short, wordy]), [5], "scattered letters, only in a short title");
+equal(C.match(short.ix, C.terms("gca")).score, 3, "and below every other kind of match");
+
+const camel = item({ id: 7, ...text("ClipPalette.qml") });
+equal(C.match(camel.ix, C.terms("pal")).title, [{ start: 4, len: 3 }], "camelCase parts start words");
+const station = item({ id: 8, kind: "image", mime: "image/png" }, "東京駅 cafe");
+equal(find("駅", [station]), [8], "one CJK character is a word");
+const scripts = item({ id: 11, kind: "image", mime: "image/png" }, "مرحبا بالعالم\nनमस्ते दुनिया\nสวัสดีครับ\n“quoted”\u2013dash…");
+equal([find("بالع", [scripts]), find("दुनि", [scripts]), find("ครับ", [scripts])], [[11], [11], [11]], "words start in scripts without case, and anywhere in Thai");
+equal(C.match(scripts.ix, C.terms("quoted")).score, 1.5, "a word after a curly quote starts a word");
+
+// search: the part of a picture or text that matched, marked, for the row and the preview
+equal(C.match(shot.ix, C.terms("friday")).excerpt, { text: "Due Friday 14:00", spans: [{ start: 4, len: 6 }], line: 26 }, "the matched line of the picture, and where it starts");
+const essay = item({ id: 9, ...text("We met at the old harbour before sunrise, then walked along the coast to the lighthouse where the keeper showed us the lens and told us about the storms that shaped the coast for a hundred years") });
+const cut = C.match(essay.ix, C.terms("keeper")).excerpt;
+equal([cut.text.startsWith("\u2026"), cut.text.endsWith("\u2026"), cut.text.slice(cut.spans[0].start, cut.spans[0].start + 6)], [true, true, "keeper"], "a long line is cut around the match");
+const screen = item({ id: 10, kind: "image", mime: "image/png" }, "HOME ORPHEUS\nContinue in Style\nAPPEARANCE WINDOW STYLE ORPHEUS 13:04");
+equal(C.match(screen.ix, C.terms("orpheus style")).excerpt.text, "APPEARANCE WINDOW STYLE ORPHEUS 13:04", "the line holding the most of the words typed");
+equal(C.match(note.ix, C.terms("friday")).excerpt, null, "a title match needs no excerpt");
+equal(C.markup("a<b>&c", [{ start: 2, len: 1 }]), "a&lt;<u>b</u>&gt;&amp;c", "marks escape the rest");
+equal(C.marks("Due Friday, friday at 4", ["friday", "4", "du"]), [{ start: 4, len: 6 }, { start: 12, len: 6 }, { start: 22, len: 1 }, { start: 0, len: 2 }], "every place a word shows up, short words at word starts only");
+equal(C.marks("Appearance and more Appearance", ["apperance"]), [{ start: 0, len: 10 }, { start: 20, len: 10 }], "a misspelt word marks every word it found");
+equal(C.markup("abcdef", [{ start: 1, len: 3 }, { start: 2, len: 3 }]), "a<u>bcd</u><u>e</u>f", "overlapping marks do not repeat letters");
+equal(C.markup("abc", []), "", "nothing to mark");
+
+equal([C.oneEdit("invoice", "invoce"), C.oneEdit("invoice", "invocie"), C.oneEdit("invoice", "invoise"), C.oneEdit("invoice", "invoicee")], [true, true, true, true], "one edit of each kind");
+equal(C.oneEdit("invoice", "involve"), false, "two edits are too many");
 
 // time
 const now = new Date(2026, 10, 22, 15, 0, 0).getTime();

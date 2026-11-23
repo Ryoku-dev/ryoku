@@ -50,9 +50,12 @@ type clipEntry struct {
 	W          int    `json:"w,omitempty"`
 	H          int    `json:"h,omitempty"`
 	Starred    bool   `json:"starred"`
+	Read       bool   `json:"read,omitempty"`
 	hash       uint64
 	ts         time.Time
 	thumbBytes int
+	// text stays out of the frame, the palette asks for it while it is open
+	text string
 }
 
 // at is derived from ts on the way out so the persisted clock stays the only copy time
@@ -80,6 +83,12 @@ type clipState struct {
 	// lastPrune is when the automatic sweep last ran; zero means it has never
 	// run, and the next look starts the clock rather than pruning on the spot.
 	lastPrune time.Time
+	readOn    func() bool
+	readLangs func() []string
+	reading   bool
+	readGone  bool // tesseract is not installed
+	readUntil time.Time
+	readKick  chan struct{}
 }
 
 // startClipboard registers the clipboard topic and control calls, publishes an
@@ -91,6 +100,13 @@ func (d *daemon) startClipboard() {
 	data := filepath.Join(state, "data")
 	_ = os.MkdirAll(data, 0o700)
 	s := &clipState{topic: d.registerTopic("clipboard"), cacheDir: cache, stateDir: state, dataDir: data}
+	s.readOn = func() bool { return d.settings != nil && d.settings.boolAt("clipboard.readPictures") }
+	s.readLangs = func() []string {
+		if d.settings == nil {
+			return nil
+		}
+		return d.settings.stringsAt("sight.ocrLanguages")
+	}
 	s.load()
 	d.clip = s
 	s.publish()
@@ -131,6 +147,13 @@ func (d *daemon) startClipboard() {
 
 	d.registerCall("clipboard.stats", func(json.RawMessage) (any, error) {
 		return s.stats(), nil
+	})
+	d.registerCall("clipboard.wake", func(json.RawMessage) (any, error) {
+		s.wake()
+		return nil, nil
+	})
+	d.registerCall("clipboard.words", func(json.RawMessage) (any, error) {
+		return s.words(), nil
 	})
 
 	go s.restoreSelection()
@@ -199,6 +222,8 @@ type persistedEntry struct {
 	H          int    `json:"h,omitempty"`
 	ThumbBytes int    `json:"thumbBytes,omitempty"`
 	Starred    bool   `json:"starred,omitempty"`
+	Read       bool   `json:"read,omitempty"`
+	Text       string `json:"text,omitempty"`
 	Hash       uint64 `json:"hash"`
 	TS         int64  `json:"ts"`
 }
@@ -232,7 +257,7 @@ func (s *clipState) persistLocked() {
 		p.Entries = append(p.Entries, persistedEntry{
 			ID: e.ID, Kind: e.Kind, Mime: e.Mime, Size: e.Size, Preview: e.Preview,
 			ThumbPath: e.ThumbPath, ThumbW: e.ThumbW, ThumbH: e.ThumbH, W: e.W, H: e.H,
-			ThumbBytes: e.thumbBytes, Starred: e.Starred, Hash: e.hash, TS: e.ts.UnixNano(),
+			ThumbBytes: e.thumbBytes, Starred: e.Starred, Read: e.Read, Text: e.text, Hash: e.hash, TS: e.ts.UnixNano(),
 		})
 	}
 	raw, err := json.Marshal(p)
@@ -285,6 +310,13 @@ func (s *clipState) load() {
 			ID: pe.ID, Kind: pe.Kind, Mime: pe.Mime, Size: pe.Size, Preview: pe.Preview,
 			ThumbPath: pe.ThumbPath, ThumbW: pe.ThumbW, ThumbH: pe.ThumbH, W: pe.W, H: pe.H,
 			Starred: pe.Starred, hash: pe.Hash, ts: time.Unix(0, pe.TS), thumbBytes: pe.ThumbBytes,
+		}
+		if pe.Read || pe.Text != "" {
+			if s.readingOn() {
+				e.Read, e.text = pe.Read, pe.Text
+			} else {
+				changed = true
+			}
 		}
 		if e.Size <= 0 {
 			e.Size = int(fi.Size())
@@ -475,14 +507,14 @@ func (s *clipState) buildEntry(mime string, data []byte) *clipEntry {
 
 // pushLocked inserts an entry at the front. A content-hash match promotes the
 // existing entry instead of keeping a duplicate: it is removed and re-inserted
-// at the front reusing its id and its starred flag, so references and the
-// Starred pane stay intact. A fresh entry takes the next id, and an overflow
-// past the cap drops the oldest unstarred entry.
+// at the front reusing its id, its starred flag and what was read in it, so
+// references and the Starred pane stay intact. A fresh entry takes the next id,
+// and an overflow past the cap drops the oldest unstarred entry.
 func (s *clipState) pushLocked(e *clipEntry) {
 	for i, ex := range s.entries {
 		if ex.hash == e.hash {
 			e.ID = ex.ID
-			e.Starred = ex.Starred
+			e.Starred, e.Read, e.text = ex.Starred, ex.Read, ex.text
 			s.entries = append(s.entries[:i], s.entries[i+1:]...)
 			s.entries = append([]*clipEntry{e}, s.entries...)
 			return
@@ -580,8 +612,16 @@ func (s *clipState) ingest(mime string, data []byte) {
 	s.writeData(e.hash, data)
 	s.mu.Lock()
 	s.pushLocked(e)
+	if !s.readingOn() {
+		s.forgetTextLocked()
+	}
 	s.persistLocked()
+	kick := s.readKick
+	wake := s.reading && e.Kind == "image"
 	s.mu.Unlock()
+	if wake {
+		poke(kick)
+	}
 	s.publish()
 }
 
@@ -704,12 +744,17 @@ func (s *clipState) publish() {
 	if ents == nil {
 		ents = []*clipEntry{}
 	}
-	frame, err := json.Marshal(map[string]any{"entries": ents})
+	frame := map[string]any{"entries": ents}
+	// a reader finishing its last picture after the switch went off is not reading any more
+	if s.reading && s.readingOn() {
+		frame["reading"] = s.unreadLocked()
+	}
+	raw, err := json.Marshal(frame)
 	s.mu.Unlock()
 	if err != nil {
 		return
 	}
-	s.topic.publish(frame)
+	s.topic.publish(raw)
 }
 
 // browserInternalMime reports a selection type that carries no user content.

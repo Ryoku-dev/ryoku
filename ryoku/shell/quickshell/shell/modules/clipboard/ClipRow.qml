@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Lithic
-import Ryoku.Text
 import "../ask/look"
 
 Item {
@@ -11,7 +10,6 @@ Item {
     property real s: 1
     property var row: ({})
     property bool selected: false
-    property string query: ""
     property bool numbers: false
     property bool copied: false
 
@@ -24,25 +22,8 @@ Item {
     readonly property int number: Number(root.row.number) || 0
     readonly property bool numbered: root.numbers && root.number > 0
 
-    function escaped(text) {
-        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    readonly property string marked: {
-        const title = String(root.row.title || "");
-        const q = root.query.trim().toLowerCase();
-        if (q.length === 0)
-            return "";
-        const spans = FuzzyRanker.highlight(title, q) || [];
-        if (spans.length === 0)
-            return "";
-        let out = "", at = 0;
-        for (let i = 0; i < spans.length; i++) {
-            out += root.escaped(title.slice(at, spans[i].start)) + "<u>" + root.escaped(title.substr(spans[i].start, spans[i].len)) + "</u>";
-            at = spans[i].start + spans[i].len;
-        }
-        return out + root.escaped(title.slice(at));
-    }
+    readonly property string marked: String(root.row.marked || "")
+    readonly property string excerpt: String(root.row.excerpt || "")
 
     Item {
         id: lead
@@ -128,7 +109,8 @@ Item {
         }
         Text {
             width: parent.width
-            text: String(root.row.meta || "")
+            text: root.excerpt.length > 0 ? root.excerpt : String(root.row.meta || "")
+            textFormat: root.excerpt.length > 0 ? Text.StyledText : Text.PlainText
             color: root.subInk
             font.family: Look.sans
             font.pixelSize: Math.round(12 * root.s)

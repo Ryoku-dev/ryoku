@@ -1,6 +1,20 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The clipboard finds pictures by the text in them.** Turned on in Settings
+  or from Ctrl+K, the daemon reads copied pictures with tesseract, newest first,
+  only while the clipboard is open and for two minutes after it closes, each in
+  a short-lived idle-priority process of about 100 MB for a second or two, so a
+  closed clipboard runs nothing. Screenshots read at full size, photos from
+  their thumbnail, QR codes too, and only confident words are kept. Off by
+  default; turning it off forgets what was read (`ipc/clipboard_read.go`). The
+  palette shows a picture's text in the preview with Copy text, and the foot
+  says how many pictures are being read.
+- **Clipboard search matches words instead of scattered letters.** Every word
+  typed has to be found; title word starts rank first, then words further in,
+  then one-letter slips in longer words, and a row whose match is out of sight
+  shows the line that matched with the words underlined, in any script
+  (`modules/clipboard/lib/clip.js`).
 - **Super+V opens a new clipboard palette, beside the Rashin bar.** One field
   with Recent and Starred tabs, the list on the left and the selected item read
   closer on the right: pictures whole, colours as swatches, links with their full
