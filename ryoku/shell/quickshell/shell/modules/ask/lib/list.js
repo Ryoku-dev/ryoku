@@ -97,6 +97,23 @@ function first(rows) {
     return -1;
 }
 
+// near picks the row for a slot whose row has gone: the one that holds the slot now, else the
+// next one that can be chosen, else the closest before it
+function near(rows, at) {
+    if (rows.length === 0)
+        return -1;
+    var start = Math.min(Math.max(at, 0), rows.length - 1);
+    for (var i = start; i < rows.length; i++) {
+        if (selectable(rows, i))
+            return i;
+    }
+    for (var j = start - 1; j >= 0; j--) {
+        if (selectable(rows, j))
+            return j;
+    }
+    return -1;
+}
+
 // jump goes to the first row of the next section, or back to the start of this
 // one and then the one before.
 function jump(rows, index, delta) {
@@ -179,4 +196,4 @@ function reveal(rows, index, offset, viewport, height, headRoom) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { SIZES: SIZES, rowHeight: rowHeight, build: build, indexOf: indexOf, move: move, first: first, jump: jump, page: page, hit: hit, reveal: reveal };
+    module.exports = { SIZES: SIZES, rowHeight: rowHeight, build: build, indexOf: indexOf, move: move, first: first, near: near, jump: jump, page: page, hit: hit, reveal: reveal };

@@ -17,6 +17,10 @@ Scope {
     property bool attaching: false
     property int attachSerial: 0
     property bool awaitingId: false
+    // a deleted ask waits here for its undo; lists leave it out meanwhile
+    property string forgetting: ""
+    // deletes the daemon has not answered yet; a list read before them must not bring them back
+    property var deleting: []
     signal changed()
     signal failed(string message)
 
@@ -83,9 +87,39 @@ Scope {
                 root.fail(String(error.message || ""));
                 return;
             }
-            root.sessions = result.sessions || [];
+            root.sessions = (result.sessions || []).filter(info => root.deleting.indexOf(String(info.id)) < 0);
             if (callback)
                 callback(root.sessions);
+        });
+    }
+
+    function forget(id) {
+        commitForget();
+        forgetting = String(id || "");
+        forgetWindow.restart();
+    }
+
+    function undoForget() {
+        forgetWindow.stop();
+        forgetting = "";
+    }
+
+    function commitForget() {
+        if (forgetting.length === 0)
+            return;
+        forgetWindow.stop();
+        const gone = forgetting;
+        // filtered first, so the list never shows the ask again on its way out
+        sessions = sessions.filter(info => String(info.id) !== gone);
+        forgetting = "";
+        if (root.id === gone)
+            reset();
+        deleting = deleting.concat([gone]);
+        client.call("session.delete", { id: gone }, function(result, error) {
+            root.deleting = root.deleting.filter(id => id !== gone);
+            // the daemon kept it, so its list is the truth again, once it answers at all
+            if (error && root.client.ready)
+                root.list(20);
         });
     }
 
@@ -176,6 +210,12 @@ Scope {
             return;
         }
         client.call("session.cancel", { id: id });
+    }
+
+    Timer {
+        id: forgetWindow
+        interval: 5000
+        onTriggered: root.commitForget()
     }
 
     Connections {

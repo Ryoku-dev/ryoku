@@ -197,9 +197,18 @@ and released 15 s after it closes, so a closed bar costs nothing.
 
 One field leads every view. The root view ranks what you type: a calculator
 answer for an expression, `Download <host>` first for a link or magnet,
-`Download N links` when the field holds several, active and recent downloads,
-recent asks when Rashin is on, and two fallbacks that always close the list,
-`Ask Rashin` and `Search the web`.
+`Download N links` when the field holds several, downloads, recent asks when
+Rashin is on, and two fallbacks that always close the list, `Ask Rashin` and
+`Search the web`.
+
+The empty list is news, not history. It shows every download that is moving,
+then what finished, failed, stopped or paused since you last looked: once the
+list has shown one, it leaves ten minutes later, and anything that settled more
+than a day ago without being seen stays off it. Delete clears the highlighted
+one at once and Shift+Delete clears them all; Kit's Downloads keeps them until
+its own clearing. Recent asks are the conversations with a message in the last
+day, three at most. Delete removes one, with five seconds to undo it (Ctrl+Z or
+Undo in the foot); Quick Ask's list of past asks does the same.
 
 - **Quick Ask** (Tab, or `\`) sends a one-shot, read-only question to Rashin.
   The answer streams into the bar with copy, file, folder, link and
@@ -221,7 +230,7 @@ recent asks when Rashin is on, and two fallbacks that always close the list,
 - **Downloads** (`/`) hands over to Kit's Downloads, where the download manager
   lives (see Kit below). The bar keeps the quick paths: a link and Enter starts
   it with your defaults, `Download N links` and Enter adds every pasted link,
-  and the home list shows what is moving. Ctrl+Enter on a link, or on several,
+  and the home list shows what is moving and what is new (see above). Ctrl+Enter on a link, or on several,
   opens Kit's intake card with them, and **Show in Downloads** opens Kit on that
   download.
 

@@ -1,6 +1,15 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Alt+Space home list shows news, not history.** It lists everything
+  moving, then what finished, failed, stopped or paused since you last looked;
+  a row it has shown leaves ten minutes later, and one that settled over a day
+  ago unseen never shows. ryoget keeps that seen stamp, so it holds across bar
+  openings. Delete clears one download at once and Shift+Delete all of them,
+  while Kit's Downloads keeps them. Recent asks are the ones with a message in
+  the last day, without archived, temporary or empty ones, and Delete removes
+  one after a five-second undo, in Quick Ask's list too
+  (`modules/ask/lib/root.js`, `modules/ask/RashinSession.qml`).
 - **The clipboard finds pictures by the text in them.** Turned on in Settings
   or from Ctrl+K, the daemon reads copied pictures with tesseract, newest first,
   only while the clipboard is open and for two minutes after it closes, each in

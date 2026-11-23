@@ -115,27 +115,90 @@ function rank(commands, query) {
     return scored.map(function(entry) { return entry.command; });
 }
 
-var MOVING = ["resolving", "active", "merging", "queued", "paused", "seeding"];
+// what the home list always shows; a paused download waits on the reader, so it is news like a finished one
+var MOVING = ["resolving", "active", "merging", "queued", "seeding"];
+var SETTLED = ["done", "error", "stopped", "paused"];
+// a settled row stays this long after the home list first showed it
+var GRACE = 10 * 60 * 1000;
+// what settled longer ago than this is history, not news
+var STALE = 24 * 60 * 60 * 1000;
 
-function stamp(task) {
-    var value = Date.parse(String(task.finished || task.started || task.created || ""));
+function at(text) {
+    var value = Date.parse(String(text || ""));
     return isNaN(value) ? 0 : value;
 }
 
-// pickDownloads: everything still moving, in the daemon's order, then the
-// newest finished ones up to recentLimit.
-function pickDownloads(tasks, recentLimit) {
+function stamp(task) {
+    return at(task.finished || task.started || task.created);
+}
+
+// news: shown less than GRACE ago, or never shown and settled in the last day. a pause has no
+// stamp of its own, so a paused download stays news until it is seen
+function news(task, now) {
+    var state = String(task.state || "");
+    if (SETTLED.indexOf(state) < 0)
+        return false;
+    var seen = at(task.seen);
+    if (seen > 0)
+        return now - seen < GRACE;
+    if (state === "paused")
+        return true;
+    var settledAt = stamp(task);
+    return settledAt > 0 && now - settledAt < STALE;
+}
+
+// pickDownloads: everything moving, in the daemon's order, then the newest news up to recentLimit.
+function pickDownloads(tasks, now, recentLimit) {
     var moving = [];
-    var settled = [];
+    var fresh = [];
     var list = tasks || [];
     for (var i = 0; i < list.length; i++) {
         if (MOVING.indexOf(String(list[i].state || "")) >= 0)
             moving.push(list[i]);
-        else
-            settled.push(list[i]);
+        else if (news(list[i], now))
+            fresh.push(list[i]);
     }
-    settled.sort(function(a, b) { return stamp(b) - stamp(a); });
-    return moving.concat(settled.slice(0, Math.max(0, recentLimit === undefined ? 2 : recentLimit)));
+    fresh.sort(function(a, b) { return stamp(b) - stamp(a); });
+    return moving.concat(fresh.slice(0, Math.max(0, recentLimit === undefined ? 3 : recentLimit)));
+}
+
+// unseen: the news the engine has not been told about, all of it, so a long batch leaves the
+// home list together instead of a few at a time. stale rows stay unmarked, a stamp would make
+// them news again
+function unseen(tasks, now) {
+    var out = [];
+    var list = tasks || [];
+    for (var i = 0; i < list.length; i++) {
+        // a stamp from a clock that ran ahead counts as no stamp, or the row would stay until that time
+        var seen = at(list[i].seen);
+        if ((seen === 0 || seen > now) && news(list[i], now))
+            out.push(String(list[i].id));
+    }
+    return out;
+}
+
+// the stamp that takes a row off the home list at once
+function dismissed(now) {
+    return new Date(now - GRACE - 60 * 1000);
+}
+
+// pickAsks: conversations with a turn, never archived or temporary, newest first as Rashin lists
+// them; windowMs keeps only those with a message that recent (0 keeps every one)
+function pickAsks(sessions, now, windowMs, hidden) {
+    var out = [];
+    var list = sessions || [];
+    for (var i = 0; i < list.length; i++) {
+        var s = list[i] || {};
+        if (s.archived === true || s.temporary === true || !(Number(s.turns) > 0) || String(s.id) === String(hidden || ""))
+            continue;
+        if (windowMs > 0) {
+            var last = at(s.lastMessageAt) || at(s.updated);
+            if (last === 0 || now - last > windowMs)
+                continue;
+        }
+        out.push(s);
+    }
+    return out;
 }
 
 function quote(text, limit) {
@@ -240,6 +303,7 @@ function sections(input) {
 if (typeof module !== "undefined" && module.exports)
     module.exports = {
         prefixRoute: prefixRoute, hostOf: hostOf, detectLink: detectLink, looksLikeMath: looksLikeMath,
-        matchScore: matchScore, rank: rank, pickDownloads: pickDownloads, quote: quote, sections: sections,
-        countLinks: countLinks, asLink: asLink, batch: batch
+        matchScore: matchScore, rank: rank, pickDownloads: pickDownloads, unseen: unseen, dismissed: dismissed,
+        pickAsks: pickAsks, quote: quote, sections: sections, countLinks: countLinks, asLink: asLink, batch: batch,
+        GRACE: GRACE
     };

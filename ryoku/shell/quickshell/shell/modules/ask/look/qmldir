@@ -5,3 +5,4 @@ KeyHint KeyHint.qml
 Micro Micro.qml
 Chip Chip.qml
 TransferLine TransferLine.qml
+UndoLine UndoLine.qml

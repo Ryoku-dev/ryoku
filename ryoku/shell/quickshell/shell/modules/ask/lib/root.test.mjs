@@ -48,17 +48,44 @@ equal(R.rank(commands, "zzz"), [], "nothing matches nonsense");
 equal(R.matchScore("dl", "Downloads") > 0, true, "letters in order match loosely");
 equal(R.matchScore("d", "Open Rashin"), 0, "one loose letter is not a match");
 
+// the home list shows what is moving, then news: what settled and was not seen ten minutes ago
+const now = Date.parse("2026-11-22T12:00:00Z");
 const tasks = [
-    { id: "a", state: "done", finished: "2026-11-18T10:00:00Z" },
-    { id: "b", state: "active", started: "2026-11-18T09:00:00Z" },
-    { id: "c", state: "error", finished: "2026-11-18T11:00:00Z" },
-    { id: "d", state: "queued", created: "2026-11-18T08:00:00Z" },
-    { id: "e", state: "done", finished: "2026-11-18T12:00:00Z" },
-    { id: "f", state: "seeding" }
+    { id: "a", state: "done", finished: "2026-11-22T10:00:00Z" },
+    { id: "b", state: "active", started: "2026-11-22T09:00:00Z" },
+    { id: "c", state: "error", finished: "2026-11-22T11:00:00Z" },
+    { id: "d", state: "queued", created: "2026-11-22T08:00:00Z" },
+    { id: "e", state: "done", finished: "2026-11-22T11:30:00Z", seen: "2026-11-22T11:55:00Z" },
+    { id: "f", state: "seeding" },
+    { id: "g", state: "done", finished: "2026-11-22T11:40:00Z", seen: "2026-11-22T11:45:00Z" },
+    { id: "h", state: "error", finished: "2026-11-20T09:00:00Z" },
+    { id: "i", state: "paused", started: "2026-11-01T09:00:00Z" },
+    { id: "j", state: "stopped", finished: "2026-11-22T11:50:00Z" }
 ];
-equal(R.pickDownloads(tasks).map(t => t.id), ["b", "d", "f", "e", "c"], "moving tasks first in the daemon's order, then the two newest finished");
-equal(R.pickDownloads(tasks, 0).map(t => t.id), ["b", "d", "f"], "the recent limit can be zero");
-equal(R.pickDownloads(null), [], "no task list is an empty one");
+equal(R.pickDownloads(tasks, now).map(t => t.id), ["b", "d", "f", "j", "e", "c"], "moving first in the daemon's order, then the three newest pieces of news");
+equal(R.pickDownloads(tasks, now, 9).map(t => t.id), ["b", "d", "f", "j", "e", "c", "a", "i"], "seen over ten minutes ago, or settled over a day ago and never seen, is not news; an unseen pause is");
+equal(R.pickDownloads(tasks, now, 0).map(t => t.id), ["b", "d", "f"], "the news limit can be zero");
+equal(R.pickDownloads(null, now), [], "no task list is an empty one");
+equal(R.unseen(tasks, now), ["a", "c", "i", "j"], "every piece of news not yet marked is reported, shown or not");
+const marked = tasks.map(t => R.unseen(tasks, now).indexOf(t.id) >= 0 ? Object.assign({}, t, { seen: new Date(now).toISOString() }) : t);
+equal(R.pickDownloads(marked, now, 9).map(t => t.id), ["b", "d", "f", "j", "e", "c", "a", "i"], "marking the news brings nothing stale back");
+const gone = Object.assign({}, tasks[0], { seen: R.dismissed(now).toISOString() });
+equal(R.pickDownloads([gone], now).length, 0, "a dismissed row leaves at once");
+const ahead = Object.assign({}, tasks[0], { seen: "2026-11-22T14:00:00Z" });
+equal(R.unseen([ahead], now), ["a"], "a seen stamp from a clock that ran ahead is marked again");
+
+const sessions = [
+    { id: "s1", turns: 2, lastMessageAt: "2026-11-22T11:00:00Z", updated: "2026-11-22T11:00:00Z" },
+    { id: "s2", turns: 0, updated: "2026-11-22T11:30:00Z" },
+    { id: "s3", turns: 1, archived: true, lastMessageAt: "2026-11-22T10:00:00Z" },
+    { id: "s4", turns: 1, temporary: true, lastMessageAt: "2026-11-22T10:00:00Z" },
+    { id: "s5", turns: 3, updated: "2026-11-21T13:00:00Z" },
+    { id: "s6", turns: 1, lastMessageAt: "2026-11-19T10:00:00Z", updated: "2026-11-22T11:59:00Z" }
+];
+const day = 24 * 60 * 60 * 1000;
+equal(R.pickAsks(sessions, now, day).map(s => s.id), ["s1", "s5"], "home asks: a turn in the last day, by its last message, never archived, temporary or empty");
+equal(R.pickAsks(sessions, now, 0).map(s => s.id), ["s1", "s5", "s6"], "without a window every real conversation counts");
+equal(R.pickAsks(sessions, now, day, "s1").map(s => s.id), ["s5"], "an ask waiting to be deleted is already gone");
 
 equal(R.quote("  a   long\nline  "), "a long line", "quoting flattens white space");
 equal(R.quote("abcdefghij", 6), "abcde\u2026", "a long quote is cut with an ellipsis");

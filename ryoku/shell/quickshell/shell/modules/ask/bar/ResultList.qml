@@ -34,10 +34,15 @@ Item {
     // the hand chose a row; until then the selection rides the first one
     property bool held: false
     property var scrollLayout: null
+    // the slot of a row on its way out: whatever holds the slot once it has gone takes the
+    // selection. the row may leave only when its owner answers, so the slot keeps a moment
+    property int keepAt: -1
+    property real keepUntil: 0
 
     function select(index, reveal) {
         if (index < 0 || index >= root.count)
             return;
+        root.keepAt = -1;
         root.held = true;
         root.selectedId = String(root.layout.rows[index].row.id);
         if (reveal !== false)
@@ -74,6 +79,15 @@ Item {
         flick.contentY = 0;
     }
 
+    function keepNear(rowId) {
+        root.keepAt = Geometry.indexOf(root.layout.rows, String(rowId));
+        root.keepUntil = Date.now() + 2000;
+    }
+
+    function selectId(rowId) {
+        root.select(Geometry.indexOf(root.layout.rows, String(rowId)), true);
+    }
+
     function settleScroll() {
         // a list still being laid out has no viewport to reveal a row in
         if (!flick || !glide || flick.height <= 0)
@@ -105,7 +119,12 @@ Item {
             return;
         if (glide)
             glide.stop();
-        if (!root.held || selected < 0) {
+        if (selected < 0 && root.keepAt >= 0 && Date.now() < root.keepUntil) {
+            const index = Geometry.near(rows, root.keepAt);
+            root.keepAt = -1;
+            root.held = root.held || index !== Geometry.first(rows);
+            root.selectedId = index >= 0 ? String(rows[index].row.id) : "";
+        } else if (!root.held || selected < 0) {
             const index = Geometry.first(rows);
             root.held = false;
             root.selectedId = index >= 0 ? String(rows[index].row.id) : "";

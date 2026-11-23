@@ -9,6 +9,7 @@ import ".."
 import "../bar"
 import "../look"
 import "../lib/format.js" as Format
+import "../lib/root.js" as RootLogic
 
 // Quick Ask: one question, one read-only answer from Rashin, streamed in place.
 // With nothing asked it lists the recent asks. args: {question} asks at once,
@@ -38,6 +39,10 @@ Item {
             return I18n.tr("Answered by %1").arg(root.turn.via);
         return "";
     }
+    readonly property Component statusItem: root.session && root.session.forgetting.length > 0 && !root.showingAnswer ? undoLine : null
+    // the field keeps Delete and Ctrl+Z while a question is being typed
+    readonly property bool fieldEmpty: root.text.length === 0
+    readonly property var pastAsks: root.session ? RootLogic.pickAsks(root.session.sessions, Date.now(), 0, root.session.forgetting) : []
 
     readonly property string clientState: root.rashin ? root.rashin.state : "off"
     readonly property bool ready: root.clientState === "ready"
@@ -100,9 +105,12 @@ Item {
             for (var i = 0; i < offers.length; i++)
                 out.push({ id: "offer:" + i, label: answer.offerLabel(offers[i]), glyph: answer.offerGlyph(offers[i]), hint: "", section: I18n.tr("From the answer") });
             out.push({ id: "history", label: I18n.tr("Recent asks"), glyph: "history", hint: "Ctrl+H", section: I18n.tr("Ask") });
-        } else if (recent.current) {
+        } else if (recent.current && recent.visible) {
             out.push({ id: "open-row", label: I18n.tr("Open in Rashin"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
+            out.push({ id: "delete-row", label: I18n.tr("Delete this ask"), glyph: "delete", hint: root.fieldEmpty ? "Delete" : "", section: I18n.tr("Remove"), destructive: true });
         }
+        if (root.session && root.session.forgetting.length > 0)
+            out.push({ id: "undo-delete", label: I18n.tr("Undo the delete"), glyph: "undo", hint: root.fieldEmpty ? "Ctrl+Z" : "", section: "" });
         out.push({ id: "attach", label: I18n.tr("Attach image"), glyph: "attach_file", hint: "Ctrl+I", section: I18n.tr("Ask") });
         return out;
     }
@@ -247,6 +255,14 @@ Item {
                 return;
             Spawn.run(["rashin", "open", "--session", recent.current.session]);
             root.closeRequested();
+        } else if (id === "delete-row") {
+            if (!recent.current)
+                return;
+            const leaving = recent.current;
+            recent.keepNear(leaving.id);
+            root.session.forget(leaving.session);
+        } else if (id === "undo-delete") {
+            root.undoDelete();
         } else if (id === "history") {
             root.history = true;
             root.session.list(20);
@@ -262,6 +278,10 @@ Item {
     onArgsChanged: root.takeArgs()
     Component.onCompleted: root.takeArgs()
     onActiveChanged: {
+        if (!root.active && root.session) {
+            root.session.commitForget();
+            return;
+        }
         if (root.active && root.ready && root.history)
             root.session.list(20);
     }
@@ -280,9 +300,28 @@ Item {
             root.session.list(20);
         }
     }
+
+    // the ask comes back where it was, and takes the selection with it
+    function undoDelete() {
+        if (!root.session || root.session.forgetting.length === 0)
+            return;
+        const back = root.session.forgetting;
+        root.session.undoForget();
+        recent.selectId("ask:" + back);
+    }
     onBusyChanged: if (!root.busy) settle.restart()
 
     Timer { id: settle; interval: 1700 }
+
+    Component {
+        id: undoLine
+        UndoLine {
+            s: root.s
+            text: I18n.tr("Ask deleted")
+            keyed: root.fieldEmpty
+            onUndo: root.undoDelete()
+        }
+    }
 
     FileDialog {
         id: attachDialog
@@ -380,9 +419,9 @@ Item {
             visible: root.ready && !root.showingAnswer && root.context === null && count > 0
             s: root.s
             maximumHeight: Math.max(0, root.maximumHeight - (carried.visible ? carried.height : 0))
-            sections: root.ready && root.session && root.session.sessions.length > 0 ? [{
+            sections: root.ready && root.pastAsks.length > 0 ? [{
                 id: "recent", title: I18n.tr("Recent asks"),
-                rows: root.session.sessions.map(info => ({
+                rows: root.pastAsks.map(info => ({
                     id: "ask:" + info.id, session: String(info.id || ""), size: "two", glyph: "history",
                     title: String(info.title || info.id || "").replace(/\s+/g, " "),
                     subtitle: String(info.preview || "").replace(/\s+/g, " "),

@@ -6,14 +6,15 @@ import Quickshell.Io
 import Ryoku.Ui.Singletons
 import ".."
 import "../bar"
+import "../look"
 import "../lib/root.js" as RootLogic
 import "../lib/format.js" as Format
 import "../../launcher/shared/providers/calc/calc.js" as Calc
 
-// The bar's first list. Empty, it shows what is moving (downloads), what was
-// asked lately and where to go. Typed, it reads the line: a link leads with
-// Download, a sum with its result, commands filter, and two fallbacks always
-// close it (Ask Rashin, Search the web).
+// The bar's first list. Empty, it shows what is moving and what finished or failed since
+// you last looked (downloads), what you asked today and where to go. Typed, it reads the
+// line: a link leads with Download, a sum with its result, commands filter, and two
+// fallbacks always close it (Ask Rashin, Search the web).
 Item {
     id: root
 
@@ -30,11 +31,21 @@ Item {
     readonly property string placeholder: I18n.tr("Ask, search or paste a link")
     readonly property real preferredWidth: 0
     readonly property string status: ""
+    readonly property Component statusItem: root.session && root.session.forgetting.length > 0 ? undoLine : null
     // the engine's own words on a failed download, for the Action Panel
     readonly property string actionNote: root.current && root.current.kind === "task" && root.current.task.state === "error" && root.downloads
         ? root.downloads.detail(root.current.task.error) : ""
 
     readonly property string text: root.query.trim()
+    // the list's clock, so what it shows ages while the bar stays open
+    property real now: Date.now()
+    readonly property int askWindow: 24 * 60 * 60 * 1000
+    readonly property var homeTasks: root.downloads ? RootLogic.pickDownloads(root.downloads.tasks, root.now, 3) : []
+    readonly property int homeSettled: root.homeTasks.filter(task => root.settled(task.state)).length
+    readonly property var unseenIds: root.downloads ? RootLogic.unseen(root.downloads.tasks, root.now) : []
+    // a string, so the progress ticks of a moving download leave the mark timer alone
+    readonly property string unseenKey: root.unseenIds.join(",")
+    property string markedFor: ""
     readonly property string rashinState: root.rashin ? root.rashin.state : "off"
     readonly property bool rashinReady: root.rashinState === "ready"
     readonly property bool rashinMissing: root.rashinState === "off" || root.rashinState === "not-installed"
@@ -80,8 +91,8 @@ Item {
             link: root.link,
             many: root.many,
             calc: root.calcExpr.length > 0 ? { expr: root.calcExpr, result: root.calcResult } : null,
-            downloads: root.downloads ? RootLogic.pickDownloads(root.downloads.tasks, 2).map(root.taskRow) : [],
-            asks: root.session ? root.session.sessions.map(root.askRow) : [],
+            downloads: root.homeTasks.map(root.taskRow),
+            asks: root.session ? RootLogic.pickAsks(root.session.sessions, root.now, root.askWindow, root.session.forgetting).map(root.askRow) : [],
             rashin: root.rashinState,
             labels: {
                 downloads: I18n.tr("Downloads"), asks: I18n.tr("Recent asks"), goTo: I18n.tr("Go to"),
@@ -142,13 +153,20 @@ Item {
                 out.push({ id: "task-pause", label: I18n.tr("Pause"), glyph: "pause", hint: "Ctrl+P", section: "" });
             }
             out.push({ id: "task-copy", label: I18n.tr("Copy link"), glyph: "content_copy", hint: "Ctrl+Shift+C", section: "" });
+            if (root.settled(state))
+                out.push({ id: "task-dismiss", label: I18n.tr("Clear from this list"), glyph: "playlist_remove", hint: "Delete", section: I18n.tr("Remove") });
             if (state === "done" || state === "error" || state === "stopped")
-                out.push({ id: "task-remove", label: I18n.tr("Remove from the list"), glyph: "close", hint: "", section: I18n.tr("Remove"), destructive: true });
+                out.push({ id: "task-remove", label: I18n.tr("Remove from Downloads"), glyph: "close", hint: "", section: I18n.tr("Remove"), destructive: true });
             else
                 out.push({ id: "task-cancel", label: I18n.tr("Cancel and delete the partial file"), glyph: "delete", hint: "", section: I18n.tr("Remove"), destructive: true });
+            if (root.homeSettled > 1)
+                out.push({ id: "news-dismiss", label: I18n.tr("Clear every finished download from this list"), glyph: "clear_all", hint: "Shift+Delete", section: I18n.tr("Remove") });
         } else if (row.kind === "ask") {
             out.push({ id: "ask-rashin", label: I18n.tr("Open in Rashin"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
+            out.push({ id: "ask-delete", label: I18n.tr("Delete this ask"), glyph: "delete", hint: "Delete", section: I18n.tr("Remove"), destructive: true });
         }
+        if (root.session && root.session.forgetting.length > 0)
+            out.push({ id: "ask-undo", label: I18n.tr("Undo the delete"), glyph: "undo", hint: root.text.length === 0 ? "Ctrl+Z" : "", section: "" });
         return out;
     }
 
@@ -457,6 +475,14 @@ Item {
         } else if (id === "ask-rashin") {
             Spawn.run(["rashin", "open", "--session", row.session]);
             root.closeRequested();
+        } else if (id === "ask-delete" && root.session) {
+            list.keepNear(row.id);
+            root.session.forget(row.session);
+        } else if (id === "ask-undo") {
+            root.undoDelete();
+        } else if (id === "news-dismiss" && root.downloads) {
+            const settledIds = root.downloads.tasks.filter(task => root.settled(task.state)).map(task => String(task.id));
+            root.downloads.seen(settledIds, RootLogic.dismissed(Date.now()));
         } else if (row.kind === "task" && root.downloads) {
             const task = row.task;
             if (id === "task-show")
@@ -471,11 +497,37 @@ Item {
                 root.downloads.retry(task.id);
             else if (id === "task-copy")
                 root.copy(task.url);
-            else if (id === "task-remove")
+            else if (id === "task-dismiss") {
+                list.keepNear(row.id);
+                root.downloads.seen([String(task.id)], RootLogic.dismissed(Date.now()));
+            } else if (id === "task-remove")
                 root.downloads.remove(task.id, false);
             else if (id === "task-cancel")
                 root.downloads.cancel(task.id);
         }
+    }
+
+    function settled(state) {
+        return state === "done" || state === "error" || state === "stopped" || state === "paused";
+    }
+
+    // the ask comes back where it was, and takes the selection with it
+    function undoDelete() {
+        if (!root.session || root.session.forgetting.length === 0)
+            return;
+        const back = root.session.forgetting;
+        root.session.undoForget();
+        list.selectId("ask:" + back);
+    }
+
+    // what stayed on screen a moment has been looked at, and leaves the list a while later
+    function markSeen() {
+        if (!root.active || root.text.length > 0 || !root.downloads || !root.downloads.ready)
+            return;
+        if (root.unseenKey.length === 0 || root.unseenKey === root.markedFor)
+            return;
+        root.markedFor = root.unseenKey;
+        root.downloads.seen(root.unseenIds);
     }
 
     function refresh() {
@@ -487,9 +539,21 @@ Item {
             root.session.list(20);
     }
 
-    onActiveChanged: root.refresh()
+    onActiveChanged: {
+        if (root.active) {
+            root.now = Date.now();
+            root.markedFor = "";
+            markDelay.restart();
+        } else if (root.session) {
+            root.session.commitForget();
+        }
+        root.refresh();
+    }
     onRashinReadyChanged: root.refresh()
+    onUnseenKeyChanged: markDelay.restart()
     onTextChanged: {
+        if (root.text.length === 0)
+            markDelay.restart();
         list.selectFirst();
         root.afterRead = "";
         // manyMaybe hangs on the same text and may not have caught up here
@@ -512,6 +576,23 @@ Item {
 
     // a paste lands at once, typing a second link settles first
     Timer { id: readDelay; interval: 110; onTriggered: root.readLinks() }
+    Timer { id: markDelay; interval: 600; onTriggered: root.markSeen() }
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.active
+        onTriggered: root.now = Date.now()
+    }
+
+    Component {
+        id: undoLine
+        UndoLine {
+            s: root.s
+            text: I18n.tr("Ask deleted")
+            keyed: root.text.length === 0
+            onUndo: root.undoDelete()
+        }
+    }
 
     Timer {
         id: calcDelay

@@ -347,28 +347,12 @@ FocusScope {
         root.requestClose();
     }
 
-    function keepNeighbour(entry) {
-        const rows = list.layout.rows;
-        let at = -1;
-        for (let i = 0; i < rows.length; i++) {
-            if (rows[i].row.id === String(entry.id)) {
-                at = i;
-                break;
-            }
-        }
-        const next = at < 0 ? null : at + 1 < rows.length ? rows[at + 1] : at > 0 ? rows[at - 1] : null;
-        if (next) {
-            list.selectedId = next.row.id;
-            list.held = true;
-        }
-    }
-
     function star(entry) {
         if (!entry)
             return;
         const on = entry.starred !== true;
         if (!on && root.view === "starred")
-            root.keepNeighbour(entry);
+            list.keepNear(String(entry.id));
         Clipboard.star(Number(entry.id), on);
         foot.flash(on ? I18n.tr("Starred") : I18n.tr("Star removed"), false);
     }
@@ -377,7 +361,7 @@ FocusScope {
         if (!entry)
             return;
         root.commitPending();
-        root.keepNeighbour(entry);
+        list.keepNear(String(entry.id));
         root.pending = { id: String(entry.id) };
         undoWindow.restart();
     }
@@ -706,33 +690,12 @@ FocusScope {
 
     Component {
         id: undoLine
-        Row {
-            spacing: Math.round(8 * root.s)
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("Deleted")
-                color: Lithic.fg
-                font.family: Look.sans
-                font.pixelSize: Math.round(12 * root.s)
-                font.weight: Font.Medium
-                renderType: Text.NativeRendering
-            }
-            Chip {
-                anchors.verticalCenter: parent.verticalCenter
-                s: root.s
-                tier: "line"
-                glyph: "undo"
-                text: I18n.tr("Undo")
-                onClicked: {
-                    root.undo();
-                    root.focusField();
-                }
-            }
-            KeyHint {
-                anchors.verticalCenter: parent.verticalCenter
-                s: root.s
-                hint: "Ctrl+Z"
+        UndoLine {
+            s: root.s
+            text: I18n.tr("Deleted")
+            onUndo: {
+                root.undo();
+                root.focusField();
             }
         }
     }

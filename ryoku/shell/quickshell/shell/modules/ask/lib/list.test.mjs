@@ -38,6 +38,12 @@ equal([L.move(rows, 0, 1), L.move(rows, 3, 1), L.move(rows, 5, 1), L.move(rows, 
 equal([L.move(rows, -1, 1), L.move(rows, -1, -1)], [0, 5], "with nothing chosen, down takes the first and up the last");
 equal(L.move([], 0, 1), -1, "an empty list has no selection");
 equal(L.first([{ row: { disabled: true } }, { row: {} }]), 1, "the first choosable row");
+const slots = [{ row: { id: "x" } }, { row: { id: "y", disabled: true } }, { row: { id: "z" } }];
+equal(L.near(slots, 0), 0, "the row that moved into a slot takes it");
+equal(L.near(slots, 1), 2, "a slot that cannot be chosen passes to the next row");
+equal(L.near(slots, 5), 2, "a slot past the end falls back to the last row");
+equal(L.near([{ row: { id: "x" } }, { row: { id: "y", disabled: true } }], 1), 0, "with nothing after it, the row before");
+equal(L.near([], 0), -1, "an empty list has no slot");
 
 equal([L.jump(rows, 0, 1), L.jump(rows, 2, 1), L.jump(rows, 5, 1)], [2, 3, 5], "a section jump lands on the next section's first row");
 equal([L.jump(rows, 5, -1), L.jump(rows, 3, -1), L.jump(rows, 1, -1), L.jump(rows, 0, -1)], [3, 2, 0, 0], "back goes to this section's start, then the one before");
