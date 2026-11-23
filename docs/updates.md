@@ -422,6 +422,14 @@ stays. Ryoku's map ships to `/usr/local/share/applications/mimeapps.list`, the
 site layer of the XDG mimeapps chain, so it sets the defaults without ever
 outranking a user's pick and without colliding with a distro package that
 owns `/usr/share/applications/mimeapps.list` (#295).
+`reconcileSSHInclude` restores the `Include config.d/*` line in `~/.ssh/config`
+when a rewrite drops it. Without that line `ryossh list` silently hides every
+host the Ryoport UI added through the sidecar. The include is appended under
+`Host *` so OpenSSH's first-value-wins rule keeps any existing per-host setting
+ahead of the sidecar; the reconciler preserves the rest of the user's config
+byte-for-byte, keeps a `.ryoku-bak` written through a private temp file, refuses
+symlinks and non-regular files, aborts if the config changes mid-repair, and is
+a no-op when the include is already present.
 `reconcileShellInstances` clears a desktop that is running twice: a shell surface
 orphaned by a daemon that was killed keeps drawing, and Quickshell allows a second
 instance of one config, so the replacement draws over it. It keeps the instance

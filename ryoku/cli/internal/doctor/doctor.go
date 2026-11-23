@@ -327,6 +327,7 @@ func reconcilers() []reconciler {
 		{i18n.T("stage migration leftovers"), reconcileStageLeftovers},
 		{i18n.T("retired sidebar settings"), reconcileSidebarRework},
 		{i18n.T("retired panel keybind"), reconcileAskKeybind},
+		{i18n.T("SSH config include"), reconcileSSHInclude},
 		{i18n.T("retired Shima frame music key"), reconcileShimaFrameMusic},
 		{i18n.T("retired Shima battery warning thresholds"), reconcileIrisBatteryThresholds},
 		{i18n.T("shipped app packages"), reconcileShippedApps},

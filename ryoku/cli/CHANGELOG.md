@@ -1,6 +1,7 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor restores the `Include config.d/*` line in `~/.ssh/config` when a rewrite drops it.** Without it `ryossh list` silently hides hosts added in the UI. The repair appends the include under `Host *` so existing per-host values keep OpenSSH's first-value-wins precedence, recognises `Include=...`, quoted paths and inline comments, keeps the rest of the file byte-for-byte, leaves symlinks alone and writes through a private temp file so a planted `.ryoku-tmp` symlink cannot redirect the write (`internal/doctor/reconcile_ssh_include.go`).
 - **Fingerprint for the admin pop-up can be turned on with polkit 128.**
   polkit now ships its PAM stack only in `/usr/lib/pam.d`, and `ryoku-host
   auth fingerprint` read only `/etc/pam.d`, so the Hub's Lockscreen switch
