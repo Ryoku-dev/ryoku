@@ -55,7 +55,7 @@ func TestVoxtypeLocalModelsUseWhisperFilenames(t *testing.T) {
 		"whisper-accurate": "ggml-large-v3-turbo.bin",
 	}
 	for _, p := range voxtypePresets() {
-		if p.Cloud || p.Key == reduxPresetKey {
+		if p.Cloud || p.Key == reduxPresetKey || p.Key == phononPresetKey {
 			continue
 		}
 		expected := filepath.Join(root, "voxtype", "models", want[p.Key])

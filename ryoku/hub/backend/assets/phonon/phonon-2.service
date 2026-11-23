@@ -1,0 +1,13 @@
+[Unit]
+Description=Phonon-2 local speech recognition server
+After=network.target
+
+[Service]
+Type=simple
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=%h/.local/share/phonon-2/venv/bin/phonon serve --port 8010 --threads 4 --served-model-name phonon-2
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

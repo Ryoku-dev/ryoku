@@ -1,0 +1,292 @@
+{
+  "captured_at": "2026-11-23T03:38:04.128906+00:00",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "logical_cpus": 8,
+    "governor": "powersave",
+    "initial_load_average_1m_5m_15m": [
+      7.37,
+      5.92,
+      4.72
+    ]
+  },
+  "runtime": "Fermion 0.2.13, Phonon-2 CPU native AVX2",
+  "method": {
+    "endpoint": "http://127.0.0.1:8011",
+    "rounds": 3,
+    "settings": "one server instance per setting and round; candidate order rotated each round; first measured case is clean-5s, followed by clean-30s; no explicit warmup, so clean-5s is first inference and clean-30s follows it",
+    "background": "The selected four-thread Phonon service stayed resident and idle on port 8010. Redux service was inactive. No compiler or test suite ran during the sweep."
+  },
+  "results": [
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.9556290369991984,
+      "engine_seconds": 1.9310401729999285,
+      "threads": 1,
+      "configured": 1,
+      "round": 1,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 11.51632920100019,
+      "engine_seconds": 11.504110166999453,
+      "threads": 1,
+      "configured": 1,
+      "round": 1,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.1409612610004842,
+      "engine_seconds": 1.1197044680002364,
+      "threads": 2,
+      "configured": 2,
+      "round": 1,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 6.238692311000705,
+      "engine_seconds": 6.2249409849991935,
+      "threads": 2,
+      "configured": 2,
+      "round": 1,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.7332458669998232,
+      "engine_seconds": 0.7146600809992378,
+      "threads": 4,
+      "configured": 4,
+      "round": 1,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.610372591999294,
+      "engine_seconds": 4.591964060999999,
+      "threads": 4,
+      "configured": 4,
+      "round": 1,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.379738843999803,
+      "engine_seconds": 1.356530517000465,
+      "threads": 8,
+      "configured": 8,
+      "round": 1,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.499180324999543,
+      "engine_seconds": 4.484227056000236,
+      "threads": 8,
+      "configured": 8,
+      "round": 1,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.0524226709994764,
+      "engine_seconds": 1.0345980239999335,
+      "threads": 8,
+      "configured": "default",
+      "round": 1,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.399213556000177,
+      "engine_seconds": 4.389543346999744,
+      "threads": 8,
+      "configured": "default",
+      "round": 1,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.1399739850003243,
+      "engine_seconds": 1.122537342999749,
+      "threads": 2,
+      "configured": 2,
+      "round": 2,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 6.160242900999947,
+      "engine_seconds": 6.146199520999289,
+      "threads": 2,
+      "configured": 2,
+      "round": 2,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.8434682850001991,
+      "engine_seconds": 0.8259404930004166,
+      "threads": 4,
+      "configured": 4,
+      "round": 2,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.557933886999308,
+      "engine_seconds": 4.539992369999709,
+      "threads": 4,
+      "configured": 4,
+      "round": 2,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.3416196309999577,
+      "engine_seconds": 1.3025049019997823,
+      "threads": 8,
+      "configured": 8,
+      "round": 2,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.367754052000237,
+      "engine_seconds": 4.35029183000006,
+      "threads": 8,
+      "configured": 8,
+      "round": 2,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.9120039689996702,
+      "engine_seconds": 1.8945086339999762,
+      "threads": 8,
+      "configured": "default",
+      "round": 2,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 5.293581216000348,
+      "engine_seconds": 5.280522633999681,
+      "threads": 8,
+      "configured": "default",
+      "round": 2,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 2.293052572000306,
+      "engine_seconds": 2.265495321999879,
+      "threads": 1,
+      "configured": 1,
+      "round": 2,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 11.996621537000465,
+      "engine_seconds": 11.984404714000448,
+      "threads": 1,
+      "configured": 1,
+      "round": 2,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.8043530779996217,
+      "engine_seconds": 0.7843333000000712,
+      "threads": 4,
+      "configured": 4,
+      "round": 3,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.714559523000389,
+      "engine_seconds": 4.697221243000058,
+      "threads": 4,
+      "configured": 4,
+      "round": 3,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.976041165999959,
+      "engine_seconds": 0.9566442129998904,
+      "threads": 8,
+      "configured": 8,
+      "round": 3,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 3.7871153079995565,
+      "engine_seconds": 3.7732836999994106,
+      "threads": 8,
+      "configured": 8,
+      "round": 3,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.9900866260004477,
+      "engine_seconds": 0.9704583579996324,
+      "threads": 8,
+      "configured": "default",
+      "round": 3,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Linell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 3.8935380089997125,
+      "engine_seconds": 3.8783626439999352,
+      "threads": 8,
+      "configured": "default",
+      "round": 3,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 1.7687422489998426,
+      "engine_seconds": 1.7489566220001507,
+      "threads": 1,
+      "configured": 1,
+      "round": 3,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 10.699332684999717,
+      "engine_seconds": 10.688362199999574,
+      "threads": 1,
+      "configured": 1,
+      "round": 3,
+      "case": "clean-30s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.9323318589995324,
+      "engine_seconds": 0.9132043730005535,
+      "threads": 2,
+      "configured": 2,
+      "round": 3,
+      "case": "clean-5s"
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 5.792817082999136,
+      "engine_seconds": 5.7800375429997075,
+      "threads": 2,
+      "configured": 2,
+      "round": 3,
+      "case": "clean-30s"
+    }
+  ]
+}

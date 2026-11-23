@@ -25,6 +25,7 @@ var rows = [
         "opts": [
             "whisper-tiny-en",
             "whisper-fast",
+            "phonon-2",
             "whisper-small-en",
             "whisper-base",
             "parakeet-redux",

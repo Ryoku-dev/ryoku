@@ -201,6 +201,11 @@ jobs:
           go vet ./...
           go test ./...
 
+      - name: Test Phonon installer lifecycle
+        shell: bash
+        working-directory: ryoku/hub/backend
+        run: python3 -B -m unittest discover -s assets/phonon -p '*_test.py'
+
   ryossh:
     name: ryoport ssh helper
     runs-on: ubuntu-latest

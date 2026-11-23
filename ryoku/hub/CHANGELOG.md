@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **Phonon-2 is a local English dictation option.** Its Hub card installs the
+  CPU runtime and model, and manages the local server alongside Voxtype on
+  systemd and runit editions (`pages/DictationPage.qml`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
