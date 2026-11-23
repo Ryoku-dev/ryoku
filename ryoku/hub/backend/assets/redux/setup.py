@@ -24,6 +24,8 @@ NATIVE_REV = '5c9b0fbbd8e611d88e47d7e1ebae9bca9b447e8f'
 MODEL_REV = '68f808a5903a0bf12657bca3a2a669d573abfb58'
 MODEL_SHA = '574614b9a4d9f72ab202877a7ad6a1f4bf819dd1d27b9d42dfe8cd429fcebdd5'
 MODEL_URL = f'https://huggingface.co/mudler/parakeet-cpp-gguf/resolve/{MODEL_REV}/redux-packed.gguf'
+# SHA-256 of the native and ggml license files at the pinned revisions above.
+RUNTIME_LICENSES_SHA = 'e3e44ee64d99bb4c436e3843cedf9e71268649dfc7bac418c598130fac6bdd0d'
 OWNER = 'ryoku-redux-v1'
 
 # Where each step sits on the card's single progress bar, as (start, end).
@@ -311,8 +313,12 @@ def adopt(paths):
         Path(__file__).with_name('UPSTREAM.md').read_bytes(),
         Path(__file__).with_name('LICENSE').read_bytes(),
     ])
-    if not paths['license'].read_bytes().startswith(expected_license):
+    license_bundle = paths['license'].read_bytes()
+    if not license_bundle.startswith(expected_license):
         raise RuntimeError('Cannot adopt Redux; the installed license bundle is not recognized')
+    runtime_licenses = license_bundle[len(expected_license):]
+    if hashlib.sha256(runtime_licenses).hexdigest() != RUNTIME_LICENSES_SHA:
+        raise RuntimeError('Cannot adopt Redux; the runtime license bundle is incomplete or changed')
     try:
         native = ctypes.CDLL(str(paths['library']))
         native.parakeet_capi_abi_version.restype = ctypes.c_int

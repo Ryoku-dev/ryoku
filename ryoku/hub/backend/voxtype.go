@@ -659,6 +659,7 @@ func selectedPreset(configText string) string {
 
 func voxtypeConfigUsesPhononEndpoint(configText string) bool {
 	var config struct {
+		Engine  string
 		Whisper struct {
 			Mode           string
 			RemoteEndpoint string `toml:"remote_endpoint"`
@@ -667,7 +668,8 @@ func voxtypeConfigUsesPhononEndpoint(configText string) bool {
 	if _, err := toml.Decode(configText, &config); err != nil {
 		return false
 	}
-	return config.Whisper.Mode == "remote" && phononEndpointMatches(config.Whisper.RemoteEndpoint)
+	return (config.Engine == "" || config.Engine == "whisper") && config.Whisper.Mode == "remote" &&
+		phononEndpointMatches(config.Whisper.RemoteEndpoint)
 }
 
 func phononEndpointMatches(endpoint string) bool {

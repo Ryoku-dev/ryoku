@@ -51,8 +51,9 @@
   Changes serialize across Hub operations and preserve packaged Voxtype service
   state. Disabling or re-enabling a user-edited Custom config starts and stops
   Phonon without overwriting that config. Uninstalling Phonon makes sure Base
-  English is available before redirecting a config that targets its local server,
-  and keeps Voxtype enabled when it was on.
+  English is available before redirecting a managed Phonon config, and keeps
+  Voxtype enabled when it was on. Removal refuses a user-edited Custom config
+  that still targets the Phonon server, so the Hub does not overwrite it.
 - **Existing Redux files can be selected without an ownership receipt.** The
   Hub adopts only files that match its pinned model, adapter, runtime ABI,
   service unit and license bundle; unrecognized files are left untouched.

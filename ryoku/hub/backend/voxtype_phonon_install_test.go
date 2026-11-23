@@ -7,13 +7,13 @@ import (
 	"testing"
 )
 
-func TestRemovingSelectedPhononStopsDictationBeforeDeleting(t *testing.T) {
+func TestRemovingSelectedPhononDownloadsFallbackBeforeDeleting(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
 	bin := filepath.Join(root, "bin")
-	t.Setenv("PATH", bin)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
 	write := func(path, contents string, mode os.FileMode) {
 		t.Helper()
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -27,9 +27,12 @@ func TestRemovingSelectedPhononStopsDictationBeforeDeleting(t *testing.T) {
 	setupLog := filepath.Join(root, "setup-calls")
 	write(filepath.Join(bin, "ryoku-host"), "#!/bin/sh\nif [ \"$1\" = init ]; then echo systemd; exit 0; fi\nprintf '%s\\n' \"$*\" >> '"+hostLog+"'\n", 0700)
 	write(filepath.Join(bin, "python3"), "#!/bin/sh\nprintf '%s\\n' \"$2\" >> '"+setupLog+"'\n", 0700)
+	write(filepath.Join(bin, "voxtype"), "#!/bin/sh\nif [ \"$1\" = setup ] && [ \"$2\" = --download ]; then\n"+
+		"  mkdir -p \"$XDG_DATA_HOME/voxtype/models\"\n"+
+		"  printf base-english > \"$XDG_DATA_HOME/voxtype/models/ggml-base.en.bin\"\nfi\n", 0700)
 	base, _ := presetByKey("whisper-fast")
 	for _, path := range []string{filepath.Join(dataHome(), "phonon-2/venv/bin/phonon"), phononModelPath(),
-		modelFilePath(base), phononUnitPath(), phononReceiptPath()} {
+		phononUnitPath(), phononReceiptPath()} {
 		write(path, "fixture", 0600)
 	}
 	p, _ := presetByKey(phononPresetKey)
@@ -42,6 +45,9 @@ func TestRemovingSelectedPhononStopsDictationBeforeDeleting(t *testing.T) {
 	}
 	if selectedPreset(readFileString(voxtypeConfigPath())) != "whisper-fast" {
 		t.Fatal("removal left the selected model pointing at deleted Phonon files")
+	}
+	if got := readFileString(modelFilePath(base)); got != "base-english" {
+		t.Fatalf("uninstall did not download the Base English fallback model: %q", got)
 	}
 	if got := readFileString(setupLog); got != "check-remove\nremove\n" {
 		t.Fatalf("ownership validation must precede removal: %q", got)

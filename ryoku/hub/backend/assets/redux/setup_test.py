@@ -75,7 +75,8 @@ class InstallerTests(unittest.TestCase):
             path = self.paths[key]
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(value)
-        return m.digest(self.paths['model'])
+        runtime_licenses = contents['license'][len(expected_license):]
+        return m.digest(self.paths['model']), m.hashlib.sha256(runtime_licenses).hexdigest()
 
     def test_install_remove_and_reinstall(self):
         unrelated = self.root / 'data/voxtype/models/keep.gguf'
@@ -160,10 +161,11 @@ class InstallerTests(unittest.TestCase):
             m.remove(self.paths)
 
     def test_adopt_records_recognized_files_and_allows_safe_removal(self):
-        model_sha = self.prepare_adoptable_install()
+        model_sha, licenses_sha = self.prepare_adoptable_install()
         previous_handler = m.signal.getsignal(m.signal.SIGTERM)
         try:
             with patch.object(m, 'MODEL_SHA', model_sha), \
+                    patch.object(m, 'RUNTIME_LICENSES_SHA', licenses_sha), \
                     patch.object(m.ctypes, 'CDLL') as lib, \
                     patch.object(m.sys, 'argv', ['setup.py', 'adopt']):
                 lib.return_value.parakeet_capi_abi_version.return_value = 10
@@ -184,18 +186,29 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(self.paths['receipt'].exists())
         self.assertTrue(self.paths['model'].exists())
 
-    def test_adoption_rejects_changed_service_unit(self):
-        model_sha = self.prepare_adoptable_install()
-        self.paths['unit'].write_text('[Service]\nExecStart=/bin/other\n')
+    def test_adoption_rejects_a_truncated_runtime_license_bundle(self):
+        model_sha, _ = self.prepare_adoptable_install()
+        self.paths['license'].write_bytes(self.paths['license'].read_bytes().split(b'\nnative license', 1)[0])
         with patch.object(m, 'MODEL_SHA', model_sha):
+            with self.assertRaisesRegex(RuntimeError, 'runtime license bundle is incomplete'):
+                m.adopt(self.paths)
+        self.assertFalse(self.paths['receipt'].exists())
+        self.assertTrue(self.paths['license'].exists())
+
+    def test_adoption_rejects_changed_service_unit(self):
+        model_sha, licenses_sha = self.prepare_adoptable_install()
+        self.paths['unit'].write_text('[Service]\nExecStart=/bin/other\n')
+        with patch.object(m, 'MODEL_SHA', model_sha), patch.object(m, 'RUNTIME_LICENSES_SHA', licenses_sha):
             with self.assertRaisesRegex(RuntimeError, 'service unit differs'):
                 m.adopt(self.paths)
         self.assertFalse(self.paths['receipt'].exists())
         self.assertTrue(self.paths['unit'].exists())
 
     def test_adoption_rejects_unusable_native_runtime(self):
-        model_sha = self.prepare_adoptable_install()
-        with patch.object(m, 'MODEL_SHA', model_sha), patch.object(m.ctypes, 'CDLL', side_effect=OSError('bad ABI')):
+        model_sha, licenses_sha = self.prepare_adoptable_install()
+        with patch.object(m, 'MODEL_SHA', model_sha), \
+                patch.object(m, 'RUNTIME_LICENSES_SHA', licenses_sha), \
+                patch.object(m.ctypes, 'CDLL', side_effect=OSError('bad ABI')):
             with self.assertRaisesRegex(RuntimeError, 'native runtime is not usable'):
                 m.adopt(self.paths)
         self.assertFalse(self.paths['receipt'].exists())

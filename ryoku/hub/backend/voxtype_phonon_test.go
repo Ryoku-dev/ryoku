@@ -406,6 +406,7 @@ func TestVoxtypeConfigUsesEditedPhononEndpoint(t *testing.T) {
 	}{
 		{"custom model and path on local server", "[whisper]\nmode = \"remote\"\nremote_model = \"user-model\"\nremote_endpoint = \"http://localhost:8010/v1\"\n", true},
 		{"non-loopback server", "[whisper]\nmode = \"remote\"\nremote_endpoint = \"http://example.com:8010\"\n", false},
+		{"other engine with stale Phonon endpoint", "engine = \"parakeet\"\n[whisper]\nmode = \"remote\"\nremote_endpoint = \"http://127.0.0.1:8010\"\n", false},
 		{"local engine with stale endpoint", "[whisper]\nmode = \"local\"\nremote_endpoint = \"http://127.0.0.1:8010\"\n", false},
 		{"invalid config", "[whisper\n", false},
 	}
@@ -418,7 +419,7 @@ func TestVoxtypeConfigUsesEditedPhononEndpoint(t *testing.T) {
 	}
 }
 
-func TestRemovePhononRedirectsCustomConfigAndKeepsVoxtypeEnabled(t *testing.T) {
+func TestRemovePhononRefusesCustomConfigWithoutChangingIt(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
@@ -468,26 +469,25 @@ func TestRemovePhononRedirectsCustomConfigAndKeepsVoxtypeEnabled(t *testing.T) {
 		}
 	}
 
-	if err := removePhonon(); err != nil {
-		t.Fatal(err)
+	if err := removePhonon(); err == nil || !strings.Contains(err.Error(), "Custom Voxtype config") {
+		t.Fatalf("removePhonon() error = %v, want a warning to change the custom endpoint first", err)
 	}
-	if got := selectedPreset(readFileString(voxtypeConfigPath())); got != "whisper-fast" {
-		t.Fatalf("uninstall left Voxtype selected on the removed server: %q", got)
+	if got := readFileString(voxtypeConfigPath()); got != customConfig {
+		t.Fatalf("refused uninstall changed the user's Custom config:\n%s", got)
 	}
-	for _, stateName := range []string{"enabled", "active"} {
-		if !fileExists(filepath.Join(state, stateName, "voxtype")) {
-			t.Errorf("uninstall disabled Voxtype %s", stateName)
+	for _, name := range []string{"voxtype", "phonon-2"} {
+		for _, stateName := range []string{"enabled", "active"} {
+			if !fileExists(filepath.Join(state, stateName, name)) {
+				t.Errorf("refused uninstall changed %s %s state", name, stateName)
+			}
 		}
-		if fileExists(filepath.Join(state, stateName, "phonon-2")) {
-			t.Errorf("uninstall left Phonon %s", stateName)
-		}
 	}
-	if got := readFileString(actions); got != "check-remove\nremove\n" {
-		t.Fatalf("unexpected installer lifecycle: %q", got)
+	if fileExists(actions) {
+		t.Fatalf("refused uninstall invoked the installer: %q", readFileString(actions))
 	}
 	base, _ := presetByKey("whisper-fast")
-	if got := readFileString(modelFilePath(base)); got != "base-english" {
-		t.Fatalf("uninstall did not prepare the Base English fallback model: %q", got)
+	if fileExists(modelFilePath(base)) {
+		t.Fatal("refused uninstall downloaded Base English before asking the user to change the custom config")
 	}
 }
 

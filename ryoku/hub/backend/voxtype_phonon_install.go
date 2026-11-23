@@ -62,6 +62,14 @@ func runPhononSetup(action string) error {
 }
 
 func removePhonon() error {
+	config := readFileString(voxtypeConfigPath())
+	usesPhononEndpoint := voxtypeConfigUsesPhononEndpoint(config)
+	if usesPhononEndpoint {
+		preset, _ := presetByKey(phononPresetKey)
+		if config != buildVoxtypeConfig(preset, "") {
+			return fmt.Errorf("change the Custom Voxtype config to another endpoint or select a managed preset before removing Phonon-2")
+		}
+	}
 	if !fileExists(phononReceiptPath()) {
 		if err := runPhononSetup("adopt"); err != nil {
 			return err
@@ -70,7 +78,7 @@ func removePhonon() error {
 	if err := runPhononSetup("check-remove"); err != nil {
 		return err
 	}
-	if voxtypeConfigUsesPhononEndpoint(readFileString(voxtypeConfigPath())) {
+	if usesPhononEndpoint {
 		enabled := voxtypeServiceEnabled()
 		baseEnglish, _ := presetByKey("whisper-fast")
 		if !fileExists(modelFilePath(baseEnglish)) {

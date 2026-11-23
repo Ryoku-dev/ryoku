@@ -69,9 +69,11 @@ validates its ownership receipt before deleting the model and runtime, and
 removes the systemd unit when present. The Void runit service remains owned by
 the Ryoku package, and files that no longer match the install receipt are kept.
 If a Custom Voxtype config still targets Phonon's local endpoint, enabling it
-starts Phonon without rewriting the custom config. Removing the card makes sure
-Base English is installed before switching away from that endpoint, and
-preserves Voxtype's enabled state.
+starts Phonon without rewriting the custom config. Removing the card refuses
+while that user-owned config still targets Phonon; change its endpoint or select
+a managed preset first. Removing a managed Phonon selection installs Base
+English before switching away from the local endpoint, and preserves Voxtype's
+enabled state.
 
 The service uses Fermion's native CPU decoder with four threads. A thread sweep
 on an Intel i5-8350U found four threads gave the fastest five-second first
