@@ -17,12 +17,15 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import urllib.request
 
 NATIVE_REV = '5c9b0fbbd8e611d88e47d7e1ebae9bca9b447e8f'
 MODEL_REV = '68f808a5903a0bf12657bca3a2a669d573abfb58'
 MODEL_SHA = '574614b9a4d9f72ab202877a7ad6a1f4bf819dd1d27b9d42dfe8cd429fcebdd5'
 MODEL_URL = f'https://huggingface.co/mudler/parakeet-cpp-gguf/resolve/{MODEL_REV}/redux-packed.gguf'
+# SHA-256 of the native and ggml license files at the pinned revisions above.
+RUNTIME_LICENSES_SHA = 'e3e44ee64d99bb4c436e3843cedf9e71268649dfc7bac418c598130fac6bdd0d'
 OWNER = 'ryoku-redux-v1'
 
 # Where each step sits on the card's single progress bar, as (start, end).
@@ -289,9 +292,60 @@ def install(paths, stage, progress=None):
     progress.advance(1)
 
 
+def adopt(paths):
+    if paths['receipt'].exists() or paths['receipt'].is_symlink():
+        raise RuntimeError('Redux already has an ownership receipt')
+
+    keys = ['model', 'client', 'worker', 'library', 'license', 'unit']
+    for key in keys:
+        path = paths[key]
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f'Cannot adopt Redux; expected a regular installed file: {path}')
+
+    if digest(paths['model']) != MODEL_SHA:
+        raise RuntimeError('Cannot adopt Redux; the model does not match the pinned download')
+    adapter = Path(__file__).with_name('adapter.py').read_bytes()
+    if paths['client'].read_bytes() != adapter or paths['worker'].read_bytes() != adapter:
+        raise RuntimeError('Cannot adopt Redux; the installed adapter differs from this version')
+    if paths['unit'].read_bytes() != worker_unit(paths).encode():
+        raise RuntimeError('Cannot adopt Redux; the installed service unit differs from this version')
+    expected_license = b'\n'.join([
+        Path(__file__).with_name('UPSTREAM.md').read_bytes(),
+        Path(__file__).with_name('LICENSE').read_bytes(),
+    ])
+    license_bundle = paths['license'].read_bytes()
+    if not license_bundle.startswith(expected_license):
+        raise RuntimeError('Cannot adopt Redux; the installed license bundle is not recognized')
+    runtime_licenses = license_bundle[len(expected_license):]
+    if hashlib.sha256(runtime_licenses).hexdigest() != RUNTIME_LICENSES_SHA:
+        raise RuntimeError('Cannot adopt Redux; the runtime license bundle is incomplete or changed')
+    try:
+        native = ctypes.CDLL(str(paths['library']))
+        native.parakeet_capi_abi_version.restype = ctypes.c_int
+        if native.parakeet_capi_abi_version() < 10 or not hasattr(native, 'parakeet_capi_set_concurrency'):
+            raise RuntimeError('Cannot adopt Redux; the native runtime has an unsupported ABI')
+    except (OSError, AttributeError) as error:
+        raise RuntimeError(f'Cannot adopt Redux; the native runtime is not usable: {error}') from None
+
+    receipt = paths['receipt']
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix='.redux-adopt-', dir=receipt.parent)
+    temp = Path(temp_name)
+    try:
+        doc = {'owner': OWNER, 'adopted': True,
+               'files': {str(paths[key]): digest(paths[key]) for key in keys}}
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(doc, stream, indent=2)
+            stream.write('\n')
+        temp.chmod(0o600)
+        os.link(temp, receipt)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument('action', choices=['install', 'check-remove', 'remove'])
+    parser.add_argument('action', choices=['install', 'adopt', 'check-remove', 'remove'])
     args = parser.parse_args()
 
     def cancel(signum, frame):
@@ -300,6 +354,8 @@ def main():
     paths = layout()
     if args.action == 'install':
         install(paths, Path(__file__).parent)
+    elif args.action == 'adopt':
+        adopt(paths)
     elif args.action == 'check-remove':
         validate_remove(paths)
     else:

@@ -1,0 +1,14 @@
+#!/bin/sh
+exec 2>&1
+
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
+DATA=${XDG_DATA_HOME:-$HOME/.local/share}
+PHONON="$DATA/phonon-2/venv/bin/phonon"
+if [ ! -x "$PHONON" ]; then
+	exec sv down .
+fi
+
+export PYTHONDONTWRITEBYTECODE=1
+exec "$PHONON" serve --port 8010 --threads 4 --served-model-name phonon-2

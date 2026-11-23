@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **Phonon-2 is a local English dictation option.** Its Hub card installs the
+  CPU runtime and model, and manages the local server alongside Voxtype on
+  systemd and runit editions (`pages/DictationPage.qml`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
@@ -43,6 +46,17 @@
   reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
 
 ### Fixed
+- **Dictation changes roll back when a service action fails.** The previous
+  config, engine dependencies and service states are restored together.
+  Changes serialize across Hub operations and preserve packaged Voxtype service
+  state. Disabling or re-enabling a user-edited Custom config starts and stops
+  Phonon without overwriting that config. Uninstalling Phonon makes sure Base
+  English is available before redirecting a managed Phonon config, and keeps
+  Voxtype enabled when it was on. Removal refuses a user-edited Custom config
+  that still targets the Phonon server, so the Hub does not overwrite it.
+- **Existing Redux files can be selected without an ownership receipt.** The
+  Hub adopts only files that match its pinned model, adapter, runtime ABI,
+  service unit and license bundle; unrecognized files are left untouched.
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.

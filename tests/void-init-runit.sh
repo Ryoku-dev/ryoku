@@ -181,6 +181,7 @@ install_svc /repo/void/init/user/ryoku-rashin ryoku-rashin park
 install_svc /repo/void/init/user/ryoku-prowl ryoku-prowl park
 install_svc /repo/void/init/user/ryoku-ai-usage ryoku-ai-usage
 install_svc /repo/void/init/user/ryoku-bluetooth-reset ryoku-bluetooth-reset
+install_svc /repo/void/init/user/phonon-2 phonon-2 park
 install_svc /repo/void/init/system/ryoku-var-state ryoku-var-state
 install_svc /repo/void/init/system/ryoku-network-kill-guard ryoku-network-kill-guard
 install_svc /repo/void/init/system/snapper-cleanup snapper-cleanup
@@ -243,6 +244,29 @@ wait_stat ryoku-eq down || fail "ryoku-eq did not park when its ConditionPathExi
 [ "$(count 'pipewire -c')" -eq 0 ] || fail "ryoku-eq started pipewire despite a missing config"
 wait_stat ryoku-bluetooth-reset down || fail "bluetooth-reset did not park without a session bus"
 pass "failed condition/ordering waits park, never crash-loop"
+
+#### 1a. on-demand Phonon service uses the per-user runtime and Ryoku's service
+####     controls without starting at login.
+mkdir -p "$HOME/.local/share/phonon-2/venv/bin"
+cat > "$HOME/.local/share/phonon-2/venv/bin/phonon" <<'EOF'
+#!/bin/sh
+echo "$*" >> "$WORK/phonon-command"
+exec sleep 300
+EOF
+chmod +x "$HOME/.local/share/phonon-2/venv/bin/phonon"
+wait_stat phonon-2 down || fail "on-demand Phonon service started before selection"
+RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+	/ryoku-host svc --user enable --now phonon-2 || fail "Ryoku could not enable the Phonon runit service"
+wait_stat phonon-2 run || fail "Phonon runit service did not become active"
+grep -q '^serve --port 8010 --threads 4 --served-model-name phonon-2$' "$WORK/phonon-command" \
+	|| fail "Phonon did not use its requested CPU runtime settings"
+RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+	/ryoku-host svc --user is-active phonon-2 || fail "Ryoku did not report active Phonon service"
+RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+	/ryoku-host svc --user disable --now phonon-2 || fail "Ryoku could not stop and disable Phonon"
+wait_stat phonon-2 down || fail "disabled Phonon runit service did not stop"
+[ -e "$WORK/svc/phonon-2/.ryoku-disabled" ] || fail "Phonon disable state was not preserved"
+pass "Phonon runit service starts on demand and disables cleanly"
 
 #### 2. system oneshots: var-state creates the tree and parks; the network
 ####    kill guard parks without its armed marker.

@@ -11,6 +11,7 @@ dictation.
 | Option | What runs |
 |---|---|
 | Whisper models (Tiny to Large Turbo) | Stock Voxtype with a local Whisper model in `~/.local/share/voxtype/models`. |
+| Phonon-2 | Fermion Research's local English CPU engine and model, installed by the Hub. Available on systemd and runit editions. |
 | Redux Multilingual + Adapter | NVIDIA Parakeet through a resident worker, 25 European languages. systemd desktops only. |
 | OpenAI API | Cloud Whisper with your own key; audio leaves the machine. |
 
@@ -46,6 +47,9 @@ socket in `$XDG_RUNTIME_DIR/voxtype-redux`. A drop-in on `voxtype.service` makes
 it start the worker. Picking another model stops and disables the worker and
 keeps the files for a quick switch back. The minus button removes every file the
 receipt lists; files changed since the install are reported and kept.
+If the Redux files already exist without a Hub receipt, selecting Redux adopts
+them only after checking the pinned model, adapter, service unit, license bundle
+and runtime ABI. An unrecognized install is left untouched.
 
 | File | What it is |
 |---|---|
@@ -54,7 +58,34 @@ receipt lists; files changed since the install are reported and kept.
 | `~/.local/share/voxtype-redux/` | the worker, `runtime/libparakeet.so`, `NOTICE.md` and the receipt |
 | `~/.config/systemd/user/voxtype-redux.service` | the worker unit |
 
+## Phonon-2
+
+Phonon-2 is an English-only local model. Its 164 MB download is 177 MB on disk;
+the Hub card installs the model and its pinned CPU-only runtime. Systemd
+editions get a per-user unit; Void gets Ryoku's package-provisioned on-demand
+runit service. Voxtype sends recordings to
+that service on localhost; no cloud key is needed. Selecting another model or
+turning dictation off stops and disables the Phonon service. Removing the card
+validates its ownership receipt before deleting the model and runtime, and
+removes the systemd unit when present. The Void runit service remains owned by
+the Ryoku package, and files that no longer match the install receipt are kept.
+If a Custom Voxtype config still targets Phonon's local endpoint, enabling it
+starts Phonon without rewriting the custom config. Removing the card refuses
+while that user-owned config still targets Phonon; change its endpoint or select
+a managed preset first. Removing a managed Phonon selection installs Base
+English before switching away from the local endpoint, and preserves Voxtype's
+enabled state.
+
+The service uses Fermion's native CPU decoder with four threads. A thread sweep
+on an Intel i5-8350U found four threads gave the fastest five-second first
+request; Fermion's automatic eight-thread setting was about five percent faster
+on a 30-second clip. The four-thread setting favors short dictation latency.
+The 30-second proper-name spelling varied between thread settings, though this
+corpus scored the variants at the same WER.
+
 ## Credits and licences
+
+Phonon-2's weights are by [Fermion Research](https://www.fermionresearch.com/models/phonon-2/), derived from NVIDIA Parakeet TDT 0.6B v3, and released under CC BY 4.0. The Fermion command line is Apache 2.0.
 
 The adapter is [voxtype-redux-adapter](https://github.com/Sipper1236/voxtype-redux-adapter)
 by Sipper1236 (MIT), shipped unmodified. The runtime is
@@ -66,8 +97,9 @@ NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0). The pinned revisions and checksum are i
 
 ## Tests
 
-From `ryoku/hub/backend`: `go test ./...` and
-`python -m unittest discover -s assets/redux -p '*_test.py'`. The offscreen
+From `ryoku/hub/backend`: `go test ./...`,
+`python -m unittest discover -s assets/redux -p '*_test.py'` and
+`python -m unittest discover -s assets/phonon -p '*_test.py'`. The offscreen
 cancellation test drives the real page: build the Hub, then run
 `RYOKU_TEST_HUB_BIN=/absolute/path/to/ryoku-hub python tests/dictation-cancel.py`
 from the repository root.

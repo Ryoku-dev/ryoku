@@ -1,0 +1,687 @@
+{
+  "environment": {
+    "timestamp": "2026-10-23T19:01:26.438683+00:00",
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "logical_cpus": 8,
+    "kernel": "7.2.11-arch1-1",
+    "python": "3.14.8",
+    "governor": "powersave",
+    "loadavg": [
+      3.98681640625,
+      6.89111328125,
+      8.14404296875
+    ]
+  },
+  "rounds": 3,
+  "corpus": [
+    {
+      "id": "clean-5s",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/clean-5s.wav",
+      "seconds": 5.015,
+      "reference": "THE OTHER VOICE SNAPPED WITH A HARSH URGENCY CLEARLY USED TO COMMAND",
+      "utterances": [
+        "1272-141231-0011"
+      ],
+      "sha256": "5fe345e051f4ee7a00c6e9291a3ab9d6352ad802b3ec76e566dc39f236f9eb0d",
+      "reference_words": 12
+    },
+    {
+      "id": "clean-15s",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/clean-15s.wav",
+      "seconds": 14.47,
+      "reference": "HAVING RETURNED TO THE ROYAL CAVERN KALIKO FIRST POUNDED THE GONG AND THEN SAT IN THE THRONE WEARING RUGGEDO'S DISCARDED RUBY CROWN AND HOLDING IN HIS HAND THE SCEPTRE WHICH RUGGEDO HAD SO OFTEN THROWN AT HIS HEAD",
+      "utterances": [
+        "1272-135031-0024"
+      ],
+      "sha256": "cde8e39408c5ede394eb122cf95a2a5d0d24da1c5ca01336af5341c3526cde43",
+      "reference_words": 38
+    },
+    {
+      "id": "clean-30s",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/clean-30s.wav",
+      "seconds": 29.4,
+      "reference": "LINNELL'S PICTURES ARE A SORT OF UP GUARDS AND AT EM PAINTINGS AND MASON'S EXQUISITE IDYLLS ARE AS NATIONAL AS A JINGO POEM MISTER BIRKET FOSTER'S LANDSCAPES SMILE AT ONE MUCH IN THE SAME WAY THAT MISTER CARKER USED TO FLASH HIS TEETH AND MISTER JOHN COLLIER GIVES HIS SITTER A CHEERFUL SLAP ON THE BACK BEFORE HE SAYS LIKE A SHAMPOOER IN A TURKISH BATH NEXT MAN",
+      "utterances": [
+        "1272-128104-0004"
+      ],
+      "sha256": "4798e34d9a323ed835ae6055172236f8965dd5ccf146c25758711023ecc8b2e6",
+      "reference_words": 68
+    },
+    {
+      "id": "noise-30s-20db",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/noise-30s-20db.wav",
+      "seconds": 29.4,
+      "reference": "LINNELL'S PICTURES ARE A SORT OF UP GUARDS AND AT EM PAINTINGS AND MASON'S EXQUISITE IDYLLS ARE AS NATIONAL AS A JINGO POEM MISTER BIRKET FOSTER'S LANDSCAPES SMILE AT ONE MUCH IN THE SAME WAY THAT MISTER CARKER USED TO FLASH HIS TEETH AND MISTER JOHN COLLIER GIVES HIS SITTER A CHEERFUL SLAP ON THE BACK BEFORE HE SAYS LIKE A SHAMPOOER IN A TURKISH BATH NEXT MAN",
+      "utterances": [
+        "1272-128104-0004"
+      ],
+      "sha256": "b4c1fce7b624516abcea6c50666bf9b5c2f9bdd051d2036d9920d341bb2c5ed2",
+      "snr_db": 20,
+      "reference_words": 68
+    },
+    {
+      "id": "clean-60s",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/clean-60s.wav",
+      "seconds": 59.565,
+      "reference": "LINNELL'S PICTURES ARE A SORT OF UP GUARDS AND AT EM PAINTINGS AND MASON'S EXQUISITE IDYLLS ARE AS NATIONAL AS A JINGO POEM MISTER BIRKET FOSTER'S LANDSCAPES SMILE AT ONE MUCH IN THE SAME WAY THAT MISTER CARKER USED TO FLASH HIS TEETH AND MISTER JOHN COLLIER GIVES HIS SITTER A CHEERFUL SLAP ON THE BACK BEFORE HE SAYS LIKE A SHAMPOOER IN A TURKISH BATH NEXT MAN HE LAMENTS MOST BITTERLY THE DIVORCE THAT HAS BEEN MADE BETWEEN DECORATIVE ART AND WHAT WE USUALLY CALL PICTURES MAKES THE CUSTOMARY APPEAL TO THE LAST JUDGMENT AND REMINDS US THAT IN THE GREAT DAYS OF ART MICHAEL ANGELO WAS THE FURNISHING UPHOLSTERER I HAVE REMAINED A PRISONER ONLY BECAUSE I WISHED TO BE ONE AND WITH THIS HE STEPPED FORWARD AND BURST THE STOUT CHAINS AS EASILY AS IF THEY HAD BEEN THREADS",
+      "utterances": [
+        "1272-128104-0004",
+        "1272-128104-0009",
+        "1272-135031-0002"
+      ],
+      "sha256": "cdc998139bc379d80fd839768af529a92169753196f590a55c12b534ca0003f8",
+      "reference_words": 142
+    },
+    {
+      "id": "clean-120s",
+      "file": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/clean-120s.wav",
+      "seconds": 119.705,
+      "reference": "LINNELL'S PICTURES ARE A SORT OF UP GUARDS AND AT EM PAINTINGS AND MASON'S EXQUISITE IDYLLS ARE AS NATIONAL AS A JINGO POEM MISTER BIRKET FOSTER'S LANDSCAPES SMILE AT ONE MUCH IN THE SAME WAY THAT MISTER CARKER USED TO FLASH HIS TEETH AND MISTER JOHN COLLIER GIVES HIS SITTER A CHEERFUL SLAP ON THE BACK BEFORE HE SAYS LIKE A SHAMPOOER IN A TURKISH BATH NEXT MAN HE LAMENTS MOST BITTERLY THE DIVORCE THAT HAS BEEN MADE BETWEEN DECORATIVE ART AND WHAT WE USUALLY CALL PICTURES MAKES THE CUSTOMARY APPEAL TO THE LAST JUDGMENT AND REMINDS US THAT IN THE GREAT DAYS OF ART MICHAEL ANGELO WAS THE FURNISHING UPHOLSTERER IN FACT HE IS QUITE SEVERE ON MISTER RUSKIN FOR NOT RECOGNISING THAT A PICTURE SHOULD DENOTE THE FRAILTY OF MAN AND REMARKS WITH PLEASING COURTESY AND FELICITOUS GRACE THAT MANY PHASES OF FEELING HAVING RETURNED TO THE ROYAL CAVERN KALIKO FIRST POUNDED THE GONG AND THEN SAT IN THE THRONE WEARING RUGGEDO'S DISCARDED RUBY CROWN AND HOLDING IN HIS HAND THE SCEPTRE WHICH RUGGEDO HAD SO OFTEN THROWN AT HIS HEAD THE CUT ON HIS CHEST STILL DRIPPING BLOOD THE ACHE OF HIS OVERSTRAINED EYES EVEN THE SOARING ARENA AROUND HIM WITH THE THOUSANDS OF SPECTATORS WERE TRIVIALITIES NOT WORTH THINKING ABOUT HE TELLS US THAT AT THIS FESTIVE SEASON OF THE YEAR WITH CHRISTMAS AND ROAST BEEF LOOMING BEFORE US SIMILES DRAWN FROM EATING AND ITS RESULTS OCCUR MOST READILY TO THE MIND I HAVE REMAINED A PRISONER ONLY BECAUSE I WISHED TO BE ONE AND WITH THIS HE STEPPED FORWARD AND BURST THE STOUT CHAINS AS EASILY AS IF THEY HAD BEEN THREADS HE ASKED THE HANDLER WHO WAS KNEADING HIS ACHING MUSCLES",
+      "utterances": [
+        "1272-128104-0004",
+        "1272-128104-0009",
+        "1272-128104-0011",
+        "1272-135031-0024",
+        "1272-141231-0002",
+        "1272-128104-0002",
+        "1272-135031-0002",
+        "1272-141231-0017"
+      ],
+      "sha256": "b1df8b5d38c493c0a832c21075931d7dd7482eedaa87cb8800ada654517c7f72",
+      "reference_words": 287
+    }
+  ],
+  "settings": {
+    "phonon": {
+      "status": "ok",
+      "model": "phonon-2",
+      "kind": "speech",
+      "version": "0.2.13",
+      "repo": "FermionResearch/Phonon-2",
+      "profile": "five-value",
+      "sha256": "11ecbe2a8a7b308cfc54d96f13b3c910d28f496dd9b265794e86b942d8bc9e70",
+      "sha256_short": "11ecbe2a",
+      "download_bytes": 158127742,
+      "model_dir": "$HOME/.cache/fermion/speech/FermionResearch__Phonon-2/model_phonon2_c4c_int6",
+      "decode": {
+        "kind": "speech",
+        "engine": "cpu",
+        "profile": "five-value",
+        "backend": "phonon2-five-value",
+        "model_dir": "$HOME/.cache/fermion/speech/FermionResearch__Phonon-2/model_phonon2_c4c_int6",
+        "runtime": "cpu: C encoder (packed int8) + C TDT loop, avx2 tier",
+        "activations": "float32",
+        "threads": 4,
+        "five_value_modules": 264,
+        "packed": {
+          "modules": 264,
+          "kernel_id": 3,
+          "kernel": "avx2",
+          "tier": "avx2",
+          "library": "libphonon2_enc-linux-x86_64.so",
+          "onedot": true,
+          "plane_cache": "direct"
+        },
+        "c_tdt_loop": true,
+        "ctdt_error": null,
+        "c_encoder": true,
+        "cenc_error": null,
+        "selftest": {
+          "shipped": {
+            "gemm": true,
+            "tdt": true,
+            "enc": true
+          },
+          "gemm_loaded": true,
+          "tdt_loaded": true,
+          "enc_loaded": true,
+          "glibc_note": null
+        },
+        "load_seconds": 5.01,
+        "lead_pad_s": 0.0,
+        "final_sigma": false,
+        "hotwords": [],
+        "hotword_lambda": null,
+        "hotword_bias": "bonus per matching piece on the decoder's token scores; blank never biased; at most 25 words",
+        "note": "native kernels + C TDT loop where the platform binary loads, else the full-precision path; same-accuracy class as the MLX engine"
+      },
+      "endpoints": [
+        "/v1/audio/transcriptions",
+        "/v1/audio/stream",
+        "/v1/models",
+        "/health"
+      ],
+      "tool_calling": false,
+      "stats": {
+        "requests": 0,
+        "streams": 0,
+        "audio_seconds": 0.0,
+        "decode_seconds": 0.0,
+        "errors": 0,
+        "realtime_factor": null
+      }
+    },
+    "redux": {
+      "ok": true,
+      "backend": "cpp",
+      "load_seconds": 0.7996993080014363,
+      "model": "$HOME/.local/share/voxtype/models/redux-packed.gguf",
+      "pool_threads": 4,
+      "chunk_seconds": 30.0
+    }
+  },
+  "warmups": [
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.9714932220012997,
+      "engine_seconds": 0.9564819329971215,
+      "engine": "phonon",
+      "case": "clean-5s"
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "engine_seconds": 1.1558464400004596,
+      "wall_seconds": 1.157032215000072,
+      "engine": "redux",
+      "case": "clean-5s"
+    }
+  ],
+  "trials": [
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.9631618309977057,
+      "engine_seconds": 0.9563911639997968,
+      "engine": "phonon",
+      "case": "clean-5s",
+      "round": 1,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "engine_seconds": 1.1564432499981194,
+      "wall_seconds": 1.1573207749970607,
+      "engine": "redux",
+      "case": "clean-5s",
+      "round": 1,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the scepter which Ruggado had so often thrown at his head.",
+      "engine_seconds": 3.167842371000006,
+      "wall_seconds": 3.169214893001481,
+      "engine": "redux",
+      "case": "clean-15s",
+      "round": 1,
+      "audio_seconds": 14.47,
+      "word_errors": 4,
+      "reference_words": 38,
+      "wer": 0.10526315789473684
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the sceptre which Rugado had so often thrown at his head.",
+      "wall_seconds": 2.2712713740002073,
+      "engine_seconds": 2.2605895080014307,
+      "engine": "phonon",
+      "case": "clean-15s",
+      "round": 1,
+      "audio_seconds": 14.47,
+      "word_errors": 3,
+      "reference_words": 38,
+      "wer": 0.07894736842105263
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.789680990001216,
+      "engine_seconds": 4.775646322999819,
+      "engine": "phonon",
+      "case": "clean-30s",
+      "round": 1,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 6.625484470001538,
+      "wall_seconds": 6.626737945000059,
+      "engine": "redux",
+      "case": "clean-30s",
+      "round": 1,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Lynelle's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth, and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 6.790399936999165,
+      "wall_seconds": 6.791340897998452,
+      "engine": "redux",
+      "case": "noise-30s-20db",
+      "round": 1,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Linnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.88038666400098,
+      "engine_seconds": 4.868457979999221,
+      "engine": "phonon",
+      "case": "noise-30s-20db",
+      "round": 1,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment, and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "wall_seconds": 10.34926857499886,
+      "engine_seconds": 10.323510175003321,
+      "engine": "phonon",
+      "case": "clean-60s",
+      "round": 1,
+      "audio_seconds": 59.565,
+      "word_errors": 10,
+      "reference_words": 142,
+      "wer": 0.07042253521126761
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "engine_seconds": 15.020368588000565,
+      "wall_seconds": 15.021981257999869,
+      "engine": "redux",
+      "case": "clean-60s",
+      "round": 1,
+      "audio_seconds": 59.565,
+      "word_errors": 11,
+      "reference_words": 142,
+      "wer": 0.07746478873239436
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man he laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and felicitous grace that many phases of feeling. Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggedo's discarded ruby crown and holding in his hand the scepter which Ruggedo had so often thrown at his head, the cut on his chest still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectral were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. he asked the handler, who was kneading his aching muscles.",
+      "engine_seconds": 29.263901961996453,
+      "wall_seconds": 29.265538366998953,
+      "engine": "redux",
+      "case": "clean-120s",
+      "round": 1,
+      "audio_seconds": 119.705,
+      "word_errors": 15,
+      "reference_words": 287,
+      "wer": 0.05226480836236934
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and Felicita's grace that many phases of feeling Having returned to the royal cavern, Calico first pounded the gong and then sat into the throne, wearing Rugado's discarded ruby crown, and holding in his hand the scepter which Rugado had so often thrown at his head. The cut on his chest, still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectators were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. He asked the handler, who was kneading his aching muscles.",
+      "wall_seconds": 19.684556669999438,
+      "engine_seconds": 19.627901996002038,
+      "engine": "phonon",
+      "case": "clean-120s",
+      "round": 1,
+      "audio_seconds": 119.705,
+      "word_errors": 17,
+      "reference_words": 287,
+      "wer": 0.059233449477351915
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "engine_seconds": 1.0590883119984937,
+      "wall_seconds": 1.0603097269995487,
+      "engine": "redux",
+      "case": "clean-5s",
+      "round": 2,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.923335606999899,
+      "engine_seconds": 0.9163781610004662,
+      "engine": "phonon",
+      "case": "clean-5s",
+      "round": 2,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the sceptre which Rugado had so often thrown at his head.",
+      "wall_seconds": 2.1999636010004906,
+      "engine_seconds": 2.190318217002641,
+      "engine": "phonon",
+      "case": "clean-15s",
+      "round": 2,
+      "audio_seconds": 14.47,
+      "word_errors": 3,
+      "reference_words": 38,
+      "wer": 0.07894736842105263
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the scepter which Ruggado had so often thrown at his head.",
+      "engine_seconds": 3.1972749769993243,
+      "wall_seconds": 3.198125564002112,
+      "engine": "redux",
+      "case": "clean-15s",
+      "round": 2,
+      "audio_seconds": 14.47,
+      "word_errors": 4,
+      "reference_words": 38,
+      "wer": 0.10526315789473684
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 6.7319533999980194,
+      "wall_seconds": 6.732862106000539,
+      "engine": "redux",
+      "case": "clean-30s",
+      "round": 2,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 6.505530397000257,
+      "engine_seconds": 6.487418319000426,
+      "engine": "phonon",
+      "case": "clean-30s",
+      "round": 2,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Linnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 6.34046833499815,
+      "engine_seconds": 6.324739464998856,
+      "engine": "phonon",
+      "case": "noise-30s-20db",
+      "round": 2,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Lynelle's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth, and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 8.57116340200082,
+      "wall_seconds": 8.57337054600066,
+      "engine": "redux",
+      "case": "noise-30s-20db",
+      "round": 2,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "engine_seconds": 17.296237630998803,
+      "wall_seconds": 17.298008197001764,
+      "engine": "redux",
+      "case": "clean-60s",
+      "round": 2,
+      "audio_seconds": 59.565,
+      "word_errors": 11,
+      "reference_words": 142,
+      "wer": 0.07746478873239436
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment, and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "wall_seconds": 11.059498065002117,
+      "engine_seconds": 11.023000760000286,
+      "engine": "phonon",
+      "case": "clean-60s",
+      "round": 2,
+      "audio_seconds": 59.565,
+      "word_errors": 10,
+      "reference_words": 142,
+      "wer": 0.07042253521126761
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and Felicita's grace that many phases of feeling Having returned to the royal cavern, Calico first pounded the gong and then sat into the throne, wearing Rugado's discarded ruby crown, and holding in his hand the scepter which Rugado had so often thrown at his head. The cut on his chest, still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectators were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. He asked the handler, who was kneading his aching muscles.",
+      "wall_seconds": 24.692084738999256,
+      "engine_seconds": 24.65833920699879,
+      "engine": "phonon",
+      "case": "clean-120s",
+      "round": 2,
+      "audio_seconds": 119.705,
+      "word_errors": 17,
+      "reference_words": 287,
+      "wer": 0.059233449477351915
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man he laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and felicitous grace that many phases of feeling. Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggedo's discarded ruby crown and holding in his hand the scepter which Ruggedo had so often thrown at his head, the cut on his chest still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectral were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. he asked the handler, who was kneading his aching muscles.",
+      "engine_seconds": 31.8285497149991,
+      "wall_seconds": 31.82995639100045,
+      "engine": "redux",
+      "case": "clean-120s",
+      "round": 2,
+      "audio_seconds": 119.705,
+      "word_errors": 15,
+      "reference_words": 287,
+      "wer": 0.05226480836236934
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "wall_seconds": 0.7157681810022041,
+      "engine_seconds": 0.7121144639968406,
+      "engine": "phonon",
+      "case": "clean-5s",
+      "round": 3,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "The other voice snapped with a harsh urgency clearly used to command.",
+      "engine_seconds": 0.9511382599994249,
+      "wall_seconds": 0.9518982320005307,
+      "engine": "redux",
+      "case": "clean-5s",
+      "round": 3,
+      "audio_seconds": 5.015,
+      "word_errors": 0,
+      "reference_words": 12,
+      "wer": 0.0
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the scepter which Ruggado had so often thrown at his head.",
+      "engine_seconds": 3.400367700996867,
+      "wall_seconds": 3.401283365998097,
+      "engine": "redux",
+      "case": "clean-15s",
+      "round": 3,
+      "audio_seconds": 14.47,
+      "word_errors": 4,
+      "reference_words": 38,
+      "wer": 0.10526315789473684
+    },
+    {
+      "text": "Having returned to the royal cavern, Calico first pounded the gong and then sat in the throne, wearing Ruggado's discarded ruby crown, and holding in his hand the sceptre which Rugado had so often thrown at his head.",
+      "wall_seconds": 2.301171044997318,
+      "engine_seconds": 2.2912060179987748,
+      "engine": "phonon",
+      "case": "clean-15s",
+      "round": 3,
+      "audio_seconds": 14.47,
+      "word_errors": 3,
+      "reference_words": 38,
+      "wer": 0.07894736842105263
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 4.56777960600084,
+      "engine_seconds": 4.555792658997234,
+      "engine": "phonon",
+      "case": "clean-30s",
+      "round": 3,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 6.4171023039998545,
+      "wall_seconds": 6.418034410999098,
+      "engine": "redux",
+      "case": "clean-30s",
+      "round": 3,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Lynelle's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth, and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "engine_seconds": 6.89988603600068,
+      "wall_seconds": 6.902436746000603,
+      "engine": "redux",
+      "case": "noise-30s-20db",
+      "round": 3,
+      "audio_seconds": 29.4,
+      "word_errors": 8,
+      "reference_words": 68,
+      "wer": 0.11764705882352941
+    },
+    {
+      "text": "Linnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man",
+      "wall_seconds": 6.99890932299968,
+      "engine_seconds": 6.97984377100147,
+      "engine": "phonon",
+      "case": "noise-30s-20db",
+      "round": 3,
+      "audio_seconds": 29.4,
+      "word_errors": 7,
+      "reference_words": 68,
+      "wer": 0.10294117647058823
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment, and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "wall_seconds": 12.669016136002028,
+      "engine_seconds": 12.644495020998875,
+      "engine": "phonon",
+      "case": "clean-60s",
+      "round": 3,
+      "audio_seconds": 59.565,
+      "word_errors": 10,
+      "reference_words": 142,
+      "wer": 0.07042253521126761
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads.",
+      "engine_seconds": 14.083626667001226,
+      "wall_seconds": 14.085398695999174,
+      "engine": "redux",
+      "case": "clean-60s",
+      "round": 3,
+      "audio_seconds": 59.565,
+      "word_errors": 11,
+      "reference_words": 142,
+      "wer": 0.07746478873239436
+    },
+    {
+      "text": "Lynel's pictures are a sort of up guards and atom paintings, and Mason's exquisite iddles are as national as a jingo poem. Mr Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth and mister John Caulier gives his sitter a cheerful slap in the back, before he says, like a shampooer in a Turkish bath, Next man he laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and felicitous grace that many phases of feeling. Having returned to the royal cavern, Calico first pounded the gong, and then sat in the throne, wearing Ruggedo's discarded ruby crown and holding in his hand the scepter which Ruggedo had so often thrown at his head, the cut on his chest still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectral were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. he asked the handler, who was kneading his aching muscles.",
+      "engine_seconds": 28.75044349199743,
+      "wall_seconds": 28.753225193999242,
+      "engine": "redux",
+      "case": "clean-120s",
+      "round": 3,
+      "audio_seconds": 119.705,
+      "word_errors": 15,
+      "reference_words": 287,
+      "wer": 0.05226480836236934
+    },
+    {
+      "text": "Lynnell's pictures are a sort of Upguards and Adam paintings, and Mason's exquisite idols are as national as a jingo poem. mister Birkett Foster's landscapes smile at one much in the same way that mister Carker used to flash his teeth. And mister John Collier gives his sitter a cheerful slap on the back, before he says, like a shampooer in a Turkish bath, Next man He laments most bitterly the divorce that has been made between decorative art and what we usually call pictures, makes a customary appeal to the last judgment and reminds us that in the great days of art Michelangelo was the furnishing upholsterer. In fact, he is quite severe on mister Ruskin for not recognizing that a picture should denote the frailty of man, and remarks with pleasing courtesy and Felicita's grace that many phases of feeling Having returned to the royal cavern, Calico first pounded the gong and then sat into the throne, wearing Rugado's discarded ruby crown, and holding in his hand the scepter which Rugado had so often thrown at his head. The cut on his chest, still dripping blood, the ache of his overstrained eyes, even the soaring arena around him with the thousands of spectators were trivialities not worth thinking about. He tells us that at this festive season of the year, with Christmas and roast beef looming before us, similes drawn from eating and its results occur most readily to the mind. I have remained a prisoner only because I wished to be one. And with this he stepped forward and burst the stout chains as easily as if they had been threads. He asked the handler, who was kneading his aching muscles.",
+      "wall_seconds": 22.26419173300019,
+      "engine_seconds": 22.212742594998417,
+      "engine": "phonon",
+      "case": "clean-120s",
+      "round": 3,
+      "audio_seconds": 119.705,
+      "word_errors": 17,
+      "reference_words": 287,
+      "wer": 0.059233449477351915
+    }
+  ],
+  "command": "python3 benchmarks/phonon-redux/run.py --run --manifest \"$HOME\"/Projects/voxtype-redux-adapter/benchmarks/audio/manifest.json --cases clean-5s clean-15s clean-30s noise-30s-20db clean-60s clean-120s --rounds 3 --endpoint http://127.0.0.1:8010 --socket \"$XDG_RUNTIME_DIR\"/voxtype-redux/worker.sock --redux-model \"$HOME\"/.local/share/voxtype/models/redux-packed.gguf --output /tmp/phonon-redux-repeat/reproduction-legacy",
+  "memory": {
+    "phonon": {
+      "pid": 1812470,
+      "before": {
+        "VmHWM_mib": 896.16015625,
+        "VmRSS_mib": 868.67578125,
+        "VmSwap_mib": 0.0
+      },
+      "after": {
+        "VmHWM_mib": 1135.55078125,
+        "VmRSS_mib": 1135.55078125,
+        "VmSwap_mib": 0.0
+      },
+      "sampled_peak_rss_mib": 1135.55859375
+    },
+    "redux": {
+      "pid": 1795548,
+      "before": {
+        "VmHWM_mib": 389.71875,
+        "VmRSS_mib": 389.71875,
+        "VmSwap_mib": 0.0
+      },
+      "after": {
+        "VmHWM_mib": 672.97265625,
+        "VmRSS_mib": 659.81640625,
+        "VmSwap_mib": 0.0
+      },
+      "sampled_peak_rss_mib": 673.5546875
+    }
+  },
+  "environment_after": {
+    "timestamp": "2026-10-23T19:07:04.651605+00:00",
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "logical_cpus": 8,
+    "kernel": "7.2.11-arch1-1",
+    "python": "3.14.8",
+    "governor": "powersave",
+    "loadavg": [
+      14.29736328125,
+      11.67236328125,
+      9.84814453125
+    ]
+  },
+  "artifacts": {
+    "redux_model_sha256": "574614b9a4d9f72ab202877a7ad6a1f4bf819dd1d27b9d42dfe8cd429fcebdd5",
+    "phonon_model_sha256": "11ecbe2a8a7b308cfc54d96f13b3c910d28f496dd9b265794e86b942d8bc9e70"
+  },
+  "configuration": {
+    "manifest": "$HOME/Projects/voxtype-redux-adapter/benchmarks/audio/manifest.json",
+    "cases": [
+      "clean-5s",
+      "clean-15s",
+      "clean-30s",
+      "noise-30s-20db",
+      "clean-60s",
+      "clean-120s"
+    ],
+    "endpoint": "http://127.0.0.1:8010",
+    "socket": "$XDG_RUNTIME_DIR/voxtype-redux/worker.sock",
+    "redux_model": "$HOME/.local/share/voxtype/models/redux-packed.gguf",
+    "output": "/tmp/phonon-redux-repeat",
+    "provenance": "Reconstructed from the archived six-case corpus, recorded rounds/output, and installed service defaults; the previous harness did not save CLI overrides."
+  }
+}
