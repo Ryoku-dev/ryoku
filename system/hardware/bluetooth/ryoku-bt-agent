@@ -1,37 +1,277 @@
 #!/usr/bin/env bash
-# The BlueZ pairing agent (#308), shared by the systemd unit and the runit service.
+# The BlueZ pairing agent (#308, #930), shared by the systemd unit and the runit service.
 #
 # KeyboardDisplay is the capability BLE HID devices (gamepads, keyboards) pair
 # with: they confirm a numeric passkey, and bluetoothd denies the bond when no
-# agent can answer. bluetoothctl exits at stdin EOF when it is not attached to a
-# terminal, so stdin is held open; the agent then sits idle and answers the
-# prompts bluetoothd sends it.
+# agent can answer. Phones, earbuds and other computers ask the same question
+# (numeric comparison), so a prompt nobody answers cancels the pairing after
+# about 30 seconds.
+#
+# bluetoothctl is the agent and prints each question on its stdout. This helper
+# turns the question into a desktop notification with Pair and Cancel buttons
+# and types the answer back on bluetoothctl's stdin. Nothing is answered on the
+# user's behalf: the notification shows the code, and it must match what the
+# device shows, which is the whole protection numeric comparison gives against a
+# pairing someone else started. It does not name the device: bluetoothctl's
+# prompt names whichever device it last selected, which need not be the one
+# asking, and a wrong name in a security prompt is worse than none.
+#
+# stdin is a FIFO this script also holds open, because bluetoothctl exits at EOF
+# when it is not attached to a terminal. Whatever is written to it is typed on
+# bluetoothctl, so it lives in a directory only this user can write to, and each
+# request has its own id: a click on a request that bluetoothd already canceled,
+# or that a newer request replaced, is dropped under a lock instead of being
+# typed onto the next prompt.
 #
 # bluetoothctl also prints a line for every advertising packet of every nearby
 # device while anything scans (hundreds a minute, #869), and that all lands in the
 # journal. Only the lines worth reading later get through: pairing prompts, errors
 # and a device's pair, trust, bond and connect changes. The control sequences and
 # prompt redraws readline adds are dropped with the rest.
-set -u
+set -euo pipefail
+
+# Set only for the live run. `--filter` alone reads a recording and never asks.
+state=
+
+# Runs a command holding the lock that orders a click against a cancel.
+locked() {
+  (
+    flock 9
+    "$@"
+  ) 9>"$state/lock"
+}
+
+# Records `id` as the one open request, if any answer may still be typed for it.
+open_request() { printf '%s' "$1" >"$state/pending"; }
+
+# Types the user's answer for request `id`, but only while it is still the open
+# request. A request bluetoothd already gave up on, or one that a newer request
+# replaced, gets nothing: its answer would land on whatever bluetoothctl asks next.
+answer_request() {
+  [[ -f $state/pending && $(<"$state/pending") == "$1" ]] || return 0
+  rm -f "$state/pending"
+  printf 'ryoku-bt-agent: answered %s\n' "$2"
+  printf '%s\n' "$2" >"$state/stdin"
+}
+
+# Closes a notification through whichever D-Bus client the system has.
+close_notification() {
+  if command -v busctl >/dev/null; then
+    busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+      org.freedesktop.Notifications CloseNotification u "$1" >/dev/null 2>&1 || true
+  else
+    gdbus call --session --dest org.freedesktop.Notifications \
+      --object-path /org/freedesktop/Notifications \
+      --method org.freedesktop.Notifications.CloseNotification "$1" >/dev/null 2>&1 || true
+  fi
+}
+
+# Closes the open request's notification and answers nothing.
+close_request() {
+  [[ -f $state/pending ]] || return 0
+  local id nid
+  id=$(<"$state/pending")
+  rm -f "$state/pending"
+  [[ -f $state/notification.$id ]] && nid=$(<"$state/notification.$id")
+  [[ ${nid:-} =~ ^[0-9]+$ ]] && close_notification "$nid"
+  return 0
+}
+
+# Keeps the id notify-send reported for request `id` so a cancel can close it. A
+# request canceled before the id came back has nothing left to answer, so its
+# notification is closed here instead of lingering with dead buttons.
+record_notification() {
+  if [[ -f $state/pending && $(<"$state/pending") == "$1" ]]; then
+    printf '%s' "$2" >"$state/notification.$1"
+  elif [[ $2 =~ ^[0-9]+$ ]]; then
+    close_notification "$2"
+  fi
+}
+
+# Shows the question as request `id` and types the user's answer back. A request
+# the user dismisses or never answers is refused rather than left to time out.
+ask() {
+  local id=$1 title=$2 body=$3 yes=$4
+  locked open_request "$id"
+  (
+    local nid='' answer=''
+    while IFS= read -r out; do
+      if [[ -z $nid ]]; then
+        nid=$out
+        locked record_notification "$id" "$nid"
+      elif [[ $out == yes || $out == no ]]; then
+        answer=$out
+      fi
+    done < <(timeout 40 notify-send -a Bluetooth -i bluetooth -u critical -t 30000 -p \
+      -A "yes=$yes" -A no=Cancel -- "$title" "$body" 2>/dev/null)
+    locked answer_request "$id" "${answer:-no}"
+    rm -f "$state/notification.$id"
+  ) &
+}
+
+# A notice with nothing to answer: the code the user types on the device.
+tell() {
+  notify-send -a Bluetooth -i bluetooth -t 30000 -- 'Bluetooth pairing' "$1" 2>/dev/null || true
+}
+
+# Whether `key` is a prompt for a new request, which then gets a unique id in
+# `id`. Sets `last`, and reads `canceled`, `requests` and the open request from
+# the calling filter.
+new_request() {
+  local key=$1
+  if [[ $key == "$last" ]]; then
+    ((canceled)) && return 1
+    [[ -f $state/pending ]] && return 1
+  fi
+  last=$key
+  id=request-$$-$((++requests))
+}
+
+# Reads what bluetoothctl itself printed in `line` into `kind` (confirm, pair,
+# service, passkey, pin, announce or cancel) and `code`, or leaves `kind` empty.
+# Text that a stranger can write is never read as a message. A device's name turns
+# up in device events and between `[` and `]> ` of the prompt, and can say
+# anything, a prompt included, brackets and `]> ` too. So the line is cut where a
+# device event starts, and the message is what follows the last `]> `, which
+# leaves out the prompt prefix whatever the name holds.
+parse_line() {
+  kind='' code=''
+  local body=$line
+  local confirm='^\[agent\] Confirm passkey ([0-9]+) \(yes/no\):'
+  local pair='^\[agent\] Accept pairing \(yes/no\):'
+  local service='^\[agent\] Authorize service [0-9A-Fa-f-]+ \(yes/no\):'
+  local passkey='^(\[agent\] )?Passkey: ([0-9]+)'
+  local pin='^(\[agent\] )?PIN code: ([[:alnum:]]+)'
+  local cancel='^(\[agent\] .*\(yes/no\):)?[[:space:]]*Request canceled[[:space:]]*$'
+  local announce='^(\[agent\] )?(Request confirmation|Request authorization|Authorize service)[[:space:]]*$'
+  body=${body%%'[CHG] Device '*}
+  body=${body%%'[NEW] Device '*}
+  body=${body%%'[DEL] Device '*}
+  body=${body##*']> '}
+  # bluetoothctl pads the text after its prompt with spaces where it moved the cursor.
+  body=${body#"${body%%[![:space:]]*}"}
+  if [[ $body =~ $cancel ]]; then
+    kind=cancel
+  elif [[ $body =~ $announce ]]; then
+    kind=announce
+  elif [[ $body =~ $confirm ]]; then
+    kind=confirm code=${BASH_REMATCH[1]}
+  elif [[ $body =~ $pair ]]; then
+    kind=pair
+  elif [[ $body =~ $service ]]; then
+    kind=service
+  elif [[ $body =~ $passkey ]]; then
+    kind=passkey code=${BASH_REMATCH[2]}
+  elif [[ $body =~ $pin ]]; then
+    kind=pin code=${BASH_REMATCH[2]}
+  fi
+}
+
+# Whether `line` is a device event: what follows its prompt is the event itself.
+# A prompt with an event printed after it on the same line is not one, so the
+# prompt is not dropped along with the event.
+device_event() {
+  local head=${line%%'[CHG] Device '*}
+  head=${head%%'[NEW] Device '*}
+  head=${head%%'[DEL] Device '*}
+  [[ $head != "$line" ]] || return 1
+  head=${head##*']> '}
+  [[ ! $head =~ [^[:space:]] ]]
+}
+
+# Takes the escape sequences, carriage returns and prompt markers out of `line`.
+clean_line() {
+  local seq esc=$'\e'
+  while [[ $line =~ $esc\[[0-9\;?]*[A-Za-z] ]]; do
+    seq=${BASH_REMATCH[0]}
+    line=${line//"$seq"/}
+  done
+  line=${line//[$'\r\001\002']/}
+  while [[ $line == '[bluetoothctl]> '* ]]; do
+    line=${line#'[bluetoothctl]> '}
+  done
+}
 
 filter() {
-  local line seq
-  local prompt='[bluetoothctl]> '
-  local esc=$'\e'
-  while IFS= read -r line; do
-    while [[ $line =~ $esc\[[0-9\;?]*[A-Za-z] ]]; do
-      seq=${BASH_REMATCH[0]}
-      line=${line//"$seq"/}
-    done
-    line=${line//[$'\r\001\002']/}
-    while [[ $line == "$prompt"* ]]; do
-      line=${line#"$prompt"}
-    done
+  local line chunk carry='' kind code rc id last='' notice='' canceled=0 requests=0
+  local -a wait=()
+  while true; do
+    # The prompt itself has no newline, so bluetoothctl holds it back until the
+    # next line prints, which for an unanswered request is the cancel. Once a
+    # request is announced, take what has arrived instead of waiting for it, and
+    # keep an unfinished line until it is a whole prompt or its newline comes.
+    chunk=
+    IFS= read -r "${wait[@]}" chunk && rc=0 || rc=$?
+    line=$carry$chunk
+    if ((rc != 0)); then
+      if ((rc > 128)); then
+        carry=$line
+        [[ -n $carry ]] || continue
+        local open=$carry
+        line=$open
+        clean_line
+        [[ $line =~ \(yes/no\):[[:space:]]*$ ]] || continue
+        line=$open
+      else
+        [[ -n $line ]] || break
+      fi
+    fi
+    carry=
+    clean_line
     [[ $line =~ [^[:space:]] ]] || continue
-    if [[ $line == *'[CHG] Device '* || $line == *'[NEW] Device '* || $line == *'[DEL] Device '* ]]; then
+    if device_event; then
       [[ $line =~ [[:space:]](Paired|Bonded|Trusted|Blocked|Connected):[[:space:]] ]] || continue
+      notice=
     fi
     printf '%s\n' "$line"
+    [[ -n $state ]] || continue
+
+    # bluetoothctl redraws the open prompt whenever another line prints, and
+    # keeps redrawing it after bluetoothd cancels the request. So a prompt is a
+    # new request only when it differs from the last one, or when the last one
+    # was answered (its request is no longer open) and was not canceled. A line
+    # announcing a request starts a new one whatever the prompt reads, and ends
+    # the one before it, whose answer would land on the new prompt.
+    parse_line
+    case $kind in
+      cancel)
+        wait=() canceled=1
+        locked close_request
+        ;;
+      announce)
+        wait=(-t 0.3) canceled=0 last=
+        locked close_request
+        ;;
+      confirm)
+        if new_request "confirm-$code"; then
+          wait=()
+          ask "$id" 'Bluetooth pairing' \
+            "A device wants to pair. Pair only if it shows the code ${code}." Pair
+        fi
+        ;;
+      pair)
+        if new_request pair; then
+          wait=()
+          ask "$id" 'Bluetooth pairing' "A device wants to pair with this computer." Pair
+        fi
+        ;;
+      service)
+        if new_request service; then
+          wait=()
+          ask "$id" 'Bluetooth connection' "A device wants to connect to this computer." Allow
+        fi
+        ;;
+      passkey | pin)
+        if [[ $notice != "$kind-$code" ]]; then
+          notice=$kind-$code
+          if [[ $kind == passkey ]]; then
+            tell "Type ${code} on the device you are pairing to finish."
+          else
+            tell "Type the PIN ${code} on the device you are pairing to finish."
+          fi
+        fi
+        ;;
+    esac
   done
 }
 
@@ -40,4 +280,20 @@ if [[ ${1:-} == --filter ]]; then
   exit
 fi
 
-tail -f /dev/null | bluetoothctl --agent KeyboardDisplay 2>&1 | filter
+# The FIFO decides what bluetoothctl is told, so it lives only in a directory
+# this user owns: nobody else can create or replace anything inside it.
+runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+if [[ ! -d $runtime || ! -O $runtime ]] || ((8#$(stat -c %a "$runtime") & 8#022)); then
+  echo "ryoku-bt-agent: $runtime is not a private runtime directory of this user" >&2
+  exit 1
+fi
+# Every run has a directory of its own, and what a crashed run left behind is
+# removed. A notification worker that outlived its helper, as happens when runit
+# restarts it, can then only reach its old, deleted directory, never the answer
+# channel of the new run.
+rm -rf "$runtime"/ryoku-bt-agent "$runtime"/ryoku-bt-agent.* || exit 1
+state=$(mktemp -d "$runtime/ryoku-bt-agent.XXXXXX") || exit 1
+trap 'rm -rf "$state"' EXIT
+mkfifo -m 600 "$state/stdin" || exit 1
+exec 3<>"$state/stdin"
+bluetoothctl --agent KeyboardDisplay <&3 2>&1 | filter

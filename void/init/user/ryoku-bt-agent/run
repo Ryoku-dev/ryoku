@@ -4,6 +4,7 @@ exec 2>&1
 load_session_env
 wait_service bluetoothd "${RYOKU_WAIT_BLUETOOTHD:-60}" || exec sv down .
 
-# the helper holds stdin open so bluetoothctl stays registered as the pairing
-# agent, and keeps scan chatter out of the log
+# the helper keeps bluetoothctl registered as the pairing agent, asks the user
+# through a notification and types the answer back, and keeps scan chatter out
+# of the log
 exec ryoku-bt-agent

@@ -13,8 +13,9 @@ Type=simple
 # KeyboardDisplay is the capability BLE HID devices (gamepads, keyboards)
 # pair with: they confirm a numeric passkey, and bluetoothd denies the bond
 # when no agent can answer (#308). Devices that need nothing (headphones,
-# Just Works) are unaffected. The helper holds stdin open and keeps scan
-# chatter out of the journal (#869).
+# Just Works) are unaffected. The helper asks the user through a notification
+# and types the answer back (#930), and keeps scan chatter out of the journal
+# (#869).
 ExecStart=/usr/bin/ryoku-bt-agent
 Restart=on-failure
 RestartSec=2
