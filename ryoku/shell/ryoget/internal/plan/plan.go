@@ -68,6 +68,26 @@ type Limiter interface {
 	WaitN(ctx context.Context, n int) error
 }
 
+type limitKey struct{}
+
+// WithLimit gives every fetcher of one run that download's own speed limit.
+func WithLimit(ctx context.Context, l Limiter) context.Context {
+	return context.WithValue(ctx, limitKey{}, l)
+}
+
+// Wait takes n bytes from the run's own limit, when it has one, and then from the shared one.
+func Wait(ctx context.Context, shared Limiter, n int) error {
+	if own, ok := ctx.Value(limitKey{}).(Limiter); ok && own != nil {
+		if err := own.WaitN(ctx, n); err != nil {
+			return err
+		}
+	}
+	if shared == nil {
+		return nil
+	}
+	return shared.WaitN(ctx, n)
+}
+
 type Env struct {
 	HTTP   *http.Client
 	Limit  Limiter

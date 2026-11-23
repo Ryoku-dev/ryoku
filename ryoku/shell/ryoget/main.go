@@ -35,6 +35,7 @@ const usage = `usage:
   ryoget add <url>... | - [--audio|--mute] [--dir DIR] [--paused]
   ryoget list [--json]
   ryoget pause|resume|cancel|remove|retry <id|all>
+  ryoget clear [--done|--failed]
   ryoget resolve <url> [--json]
   ryoget version
 `
@@ -77,6 +78,8 @@ func run(args []string) int {
 			return exitUsage
 		}
 		return withClient(ctx, func(c *daemon.Client) error { return act(ctx, c, cmd, rest[0]) })
+	case "clear":
+		return withClient(ctx, func(c *daemon.Client) error { return clearList(ctx, c, rest) })
 	case "resolve":
 		return withClient(ctx, func(c *daemon.Client) error { return resolve(ctx, c, rest) })
 	case "help", "-h", "--help":
@@ -410,6 +413,24 @@ func act(ctx context.Context, c *daemon.Client, method, target string) error {
 		}
 	}
 	return failed
+}
+
+// a failed download's partial data goes with it, a finished file stays
+func clearList(ctx context.Context, c *daemon.Client, args []string) error {
+	states := []string{proto.StateDone, proto.StateError, proto.StateStopped}
+	for _, a := range args {
+		switch a {
+		case "--done":
+			states = []string{proto.StateDone}
+		case "--failed":
+			states = []string{proto.StateError, proto.StateStopped}
+		default:
+			return fmt.Errorf("unknown flag %s", a)
+		}
+	}
+	cctx, cancel := callCtx(ctx)
+	defer cancel()
+	return c.Call(cctx, "clear", map[string][]string{"states": states}, nil)
 }
 
 func resolve(ctx context.Context, c *daemon.Client, args []string) error {

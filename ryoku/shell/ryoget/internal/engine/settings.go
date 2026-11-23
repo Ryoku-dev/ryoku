@@ -27,6 +27,8 @@ func DefaultSettings() proto.Settings {
 		Notify:        true,
 		ResumeOnStart: true,
 		YtdlpFallback: true,
+		KeepDays:      7,
+		CoverArt:      true,
 	}
 }
 
@@ -59,6 +61,7 @@ func Normalize(s proto.Settings) proto.Settings {
 	}
 	s.SeedRatio = clamp(s.SeedRatio, 0, 100)
 	s.SeedMinutes = clamp(s.SeedMinutes, 0, 7*24*60)
+	s.KeepDays = clamp(s.KeepDays, 0, 3650)
 	if s.Port != 0 {
 		s.Port = clamp(s.Port, 1024, 65535)
 	}

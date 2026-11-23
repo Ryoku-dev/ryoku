@@ -546,6 +546,23 @@ func (s *Server) dispatch(req proto.Request) (any, error) {
 			return nil, err
 		}
 		return nil, e.Clear(p.States)
+	case "seen":
+		var p struct {
+			IDs []string `json:"ids"`
+			At  string   `json:"at"`
+		}
+		if err := decode(req.Params, &p); err != nil {
+			return nil, err
+		}
+		at := time.Now()
+		if p.At != "" {
+			t, err := time.Parse(time.RFC3339, p.At)
+			if err != nil {
+				return nil, &proto.Error{Code: proto.CodeInvalid, Message: "at is not an RFC 3339 time"}
+			}
+			at = t
+		}
+		return nil, e.Seen(p.IDs, at)
 	case "history":
 		var p proto.IDParams
 		if err := decode(req.Params, &p); err != nil {

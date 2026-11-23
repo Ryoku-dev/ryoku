@@ -108,7 +108,7 @@ function duration(seconds) {
     return h > 0 ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s);
 }
 
-var REASONS = ["network", "private", "unavailable", "unsupported", "rate_limited", "invalid"];
+var REASONS = ["network", "private", "unavailable", "unsupported", "rate_limited", "invalid", "no_space", "browser_check", "checksum"];
 
 // reasonKey: the kind of failure a reader can act on, from the engine's code.
 // busy, internal and anything unknown are all "other"; "engine" is the bar's own

@@ -43,6 +43,12 @@ const (
 	CodeBusy        = "busy"
 	CodeInternal    = "internal"
 	CodeNotFound    = "not_found"
+	// the disk holding the folder has too little room left for the file
+	CodeNoSpace = "no_space"
+	// the site answers with a page that wants a browser to prove itself first
+	CodeBrowserCheck = "browser_check"
+	// the finished file does not match the checksum it came with; it is deleted
+	CodeChecksum = "checksum"
 )
 
 const (
@@ -105,6 +111,14 @@ type Task struct {
 	Files    []File     `json:"files"`
 	Format   *FormatRef `json:"format"`
 	Mode     string     `json:"mode"`
+	// when a home list first showed it settled; cleared when it runs again
+	Seen string `json:"seen,omitempty"`
+	// KiB/s for this download alone, 0 for none
+	Limit int64 `json:"limit,omitempty"`
+	// the checksum the landed file matched: "sha256", "sha1" or "md5"
+	Verified string `json:"verified,omitempty"`
+	// the server takes ranged requests, so a pause or a crash loses nothing
+	Resumable bool `json:"resumable,omitempty"`
 }
 
 const PieceBuckets = 64
@@ -154,6 +168,14 @@ type Resolved struct {
 	Files         []File   `json:"files"`
 	DefaultFormat string   `json:"defaultFormat"`
 	Note          string   `json:"note"`
+	// the task already in the list for this link, so a card can say so before adding it twice
+	Existing *Existing `json:"existing,omitempty"`
+}
+
+type Existing struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+	Path  string `json:"path,omitempty"`
 }
 
 type Settings struct {
@@ -173,6 +195,12 @@ type Settings struct {
 	Notify        bool    `json:"notify"`
 	ResumeOnStart bool    `json:"resumeOnStart"`
 	YtdlpFallback bool    `json:"ytdlpFallback"`
+	// days a finished, failed or stopped download stays in the list; 0 keeps it until cleared
+	KeepDays int `json:"keepDays"`
+	// new files land in a folder per kind (Videos, Music, ...) inside Dir
+	SortByType bool `json:"sortByType"`
+	// an audio download carries its cover picture
+	CoverArt bool `json:"coverArt"`
 }
 
 type Hello struct {
@@ -192,6 +220,10 @@ type AddParams struct {
 	// what the client already resolved; shown until the task's own resolution names it
 	Title  string `json:"title,omitempty"`
 	Paused bool   `json:"paused,omitempty"`
+	// request headers a site needs (Cookie, Referer, User-Agent); dropped once the file lands
+	Headers map[string]string `json:"headers,omitempty"`
+	// "sha256:<hex>", "sha1:<hex>" or "md5:<hex>"; a "#sha256=<hex>" fragment on the URL says the same
+	Checksum string `json:"checksum,omitempty"`
 }
 
 type IDParams struct {

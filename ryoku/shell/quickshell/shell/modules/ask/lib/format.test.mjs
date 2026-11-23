@@ -47,8 +47,8 @@ equal([F.duration(59), F.duration(754), F.duration(3725), F.duration(0)], ["0:59
 equal([F.count(999), F.count(1200), F.count(34567), F.count(1100000), F.count(25000000), F.count(1000)], ["999", "1.2k", "35k", "1.1M", "25M", "1k"], "tallies shorten");
 
 const sentences = { network: "Couldn't reach the site.", private: "This is private or needs a sign-in.", unavailable: "This isn't available any more.", unsupported: "There's nothing here to download.", rate_limited: "The site is limiting requests. Try again in a minute.", invalid: "That doesn't look like a link.", other: "Something went wrong. Try again." };
-equal(["network", "private", "unavailable", "unsupported", "rate_limited", "invalid", "busy", "internal", "not_found", ""].map(code => F.reasonKey({ code })),
-    ["network", "private", "unavailable", "unsupported", "rate_limited", "invalid", "other", "other", "other", "other"], "each code a reader can act on has its own reason; the rest are one");
+equal(["network", "private", "unavailable", "unsupported", "rate_limited", "invalid", "no_space", "browser_check", "checksum", "busy", "internal", "not_found", ""].map(code => F.reasonKey({ code })),
+    ["network", "private", "unavailable", "unsupported", "rate_limited", "invalid", "no_space", "browser_check", "checksum", "other", "other", "other", "other"], "each code a reader can act on has its own reason; the rest are one");
 equal(F.reason({ code: "network", message: 'network: Get "https://x.invalid/a": dial tcp: lookup x.invalid: no such host' }, sentences), "Couldn't reach the site.", "a row never shows the engine's own words");
 equal([F.reason({ code: "busy", message: "busy: try later" }, sentences), F.reason({ code: "internal" }, sentences), F.reason(null, sentences)],
     ["Something went wrong. Try again.", "Something went wrong. Try again.", "Something went wrong. Try again."], "busy, internal and no error at all share one sentence");

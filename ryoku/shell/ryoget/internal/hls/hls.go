@@ -701,12 +701,14 @@ func download(ctx context.Context, env *plan.Env, rawURL string, headers http.He
 	}
 	tmp := make([]byte, chunk)
 	var got int64
+	var shared plan.Limiter
+	if env != nil {
+		shared = env.Limit
+	}
 	for {
-		if env != nil && env.Limit != nil {
-			if err := env.Limit.WaitN(ctx, chunk); err != nil {
-				p.Add(-got)
-				return nil, err
-			}
+		if err := plan.Wait(ctx, shared, chunk); err != nil {
+			p.Add(-got)
+			return nil, err
 		}
 		n, err := resp.Body.Read(tmp)
 		if n > 0 {

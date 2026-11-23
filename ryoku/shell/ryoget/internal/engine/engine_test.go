@@ -752,3 +752,151 @@ func TestMapErrDropsSentinelPrefix(t *testing.T) {
 		t.Fatalf("bare sentinel = %+v", pe)
 	}
 }
+
+// A home list hides what it has already shown, so the stamp must keep the first
+// look, let a client backdate it, survive a restart, and clear when the task runs again.
+func TestSeenStampsSettledAndPausedTasks(t *testing.T) {
+	g := newGated()
+	g.files["/done.bin"] = randBytes(32 << 10)
+	g.files["/held.bin"] = randBytes(32 << 10)
+	srv := httptest.NewServer(g)
+	defer srv.Close()
+	defer g.open()
+	f := newFixture(t, nil, nil)
+	held, _ := f.e.Add(proto.AddParams{URL: srv.URL + "/held.bin"})
+	bad, _ := f.e.Add(proto.AddParams{URL: srv.URL + "/missing"})
+	failed := waitTask(t, f.e, bad.ID, inState(proto.StateError))
+	if failed.Finished == "" || failed.Seen != "" {
+		t.Fatalf("a failure is stamped when it stops and starts unseen: finished %q seen %q", failed.Finished, failed.Seen)
+	}
+	waitTask(t, f.e, held.ID, inState(proto.StateActive))
+	first := time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC)
+	f.e.Seen([]string{held.ID, bad.ID, "gone"}, first)
+	if tk, _ := f.e.Task(held.ID); tk.Seen != "" {
+		t.Fatalf("a running task was stamped %q", tk.Seen)
+	}
+	if err := f.e.Pause(held.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	waitTask(t, f.e, held.ID, inState(proto.StatePaused))
+	f.e.Seen([]string{held.ID}, first)
+	f.e.Seen([]string{held.ID}, first.Add(time.Hour))
+	f.e.Seen([]string{bad.ID}, first.Add(-time.Hour))
+	seen := func(id string) string { tk, _ := f.e.Task(id); return tk.Seen }
+	if seen(held.ID) != "2026-11-22T10:00:00Z" || seen(bad.ID) != "2026-11-22T09:00:00Z" {
+		t.Fatalf("seen = %q and %q, want the first look and the backdated one", seen(held.ID), seen(bad.ID))
+	}
+	f.e.Close()
+	f.start(t, nil)
+	if seen(bad.ID) != "2026-11-22T09:00:00Z" {
+		t.Fatalf("seen after a restart = %q", seen(bad.ID))
+	}
+	if err := f.e.Resume(held.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if tk, _ := f.e.Task(held.ID); tk.Seen != "" || tk.Finished != "" {
+		t.Fatalf("a resumed task kept seen %q finished %q", tk.Seen, tk.Finished)
+	}
+}
+
+func TestCancelStampsFinished(t *testing.T) {
+	g := newGated()
+	g.files["/c.bin"] = randBytes(32 << 10)
+	srv := httptest.NewServer(g)
+	defer srv.Close()
+	defer g.open()
+	f := newFixture(t, map[string]any{"maxActive": 1}, nil)
+	first, _ := f.e.Add(proto.AddParams{URL: srv.URL + "/c.bin"})
+	queued, _ := f.e.Add(proto.AddParams{URL: srv.URL + "/c.bin"})
+	waitTask(t, f.e, first.ID, inState(proto.StateActive))
+	for _, id := range []string{first.ID, queued.ID} {
+		if err := f.e.Cancel(id); err != nil {
+			t.Fatal(err)
+		}
+		if tk := waitTask(t, f.e, id, inState(proto.StateStopped)); tk.Finished == "" {
+			t.Fatalf("%s stopped without a stamp", id)
+		}
+	}
+}
+
+func seedFixture(t *testing.T, settings map[string]any, tasks []record) *fixture {
+	t.Helper()
+	root := t.TempDir()
+	f := &fixture{dir: filepath.Join(root, "dl"), state: filepath.Join(root, "state", "tasks.json"), conf: filepath.Join(root, "conf", "downloads.json"), ev: &events{}}
+	settings["dir"] = f.dir
+	b, _ := json.Marshal(settings)
+	os.MkdirAll(filepath.Dir(f.conf), 0o700)
+	os.WriteFile(f.conf, b, 0o600)
+	for i := range tasks {
+		if tasks[i].Dir == "" {
+			tasks[i].Dir = f.dir
+		}
+	}
+	b, _ = json.Marshal(stateFile{Version: stateFormat, Tasks: tasks})
+	os.MkdirAll(filepath.Dir(f.state), 0o700)
+	os.WriteFile(f.state, b, 0o600)
+	os.MkdirAll(f.dir, 0o755)
+	f.start(t, nil)
+	return f
+}
+
+// Retention forgets what settled before the window and never what is unfinished: a
+// finished file stays on disk, a failed download's partial data goes with its entry.
+func TestRetentionForgetsOldSettledTasks(t *testing.T) {
+	days := func(n int) string {
+		return time.Now().Add(-time.Duration(n) * 24 * time.Hour).UTC().Format(time.RFC3339)
+	}
+	f := seedFixture(t, map[string]any{}, []record{
+		{Task: proto.Task{ID: "old-done", URL: "http://x/old.bin", Kind: "file", State: proto.StateDone, Name: "old.bin", Finished: days(10)}, Known: true},
+		{Task: proto.Task{ID: "old-failed", URL: "http://x/failed.bin", Kind: "file", State: proto.StateError, Name: "failed.bin", Finished: days(10), Error: &proto.Error{Code: proto.CodeNetwork}}, Known: true},
+		{Task: proto.Task{ID: "old-stopped", URL: "http://x/stopped.bin", Kind: "file", State: proto.StateStopped, Started: days(10)}},
+		{Task: proto.Task{ID: "recent-done", URL: "http://x/recent.bin", Kind: "file", State: proto.StateDone, Finished: days(2)}},
+		{Task: proto.Task{ID: "old-paused", URL: "http://x/paused.bin", Kind: "file", State: proto.StatePaused, Created: days(30)}},
+	})
+	ids := func() []string {
+		var out []string
+		for _, tk := range f.e.Tasks() {
+			out = append(out, tk.ID)
+		}
+		return out
+	}
+	if got := ids(); !slices.Equal(got, []string{"recent-done", "old-paused"}) {
+		t.Fatalf("after a start with a week kept: %v", got)
+	}
+	if f.ev.count("removed") != 3 {
+		t.Fatalf("removed events = %d, want 3", f.ev.count("removed"))
+	}
+	if _, err := f.e.SetSettings(json.RawMessage(`{"keepDays":0}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(); len(got) != 2 {
+		t.Fatalf("keeping everything dropped %v", got)
+	}
+	if _, err := f.e.SetSettings(json.RawMessage(`{"keepDays":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(); !slices.Equal(got, []string{"old-paused"}) {
+		t.Fatalf("after keeping a day: %v", got)
+	}
+}
+
+func TestRetentionKeepsFilesAndDropsPartials(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "dl")
+	os.MkdirAll(dir, 0o755)
+	done := filepath.Join(dir, "old.bin")
+	partial := filepath.Join(dir, "failed.bin.part")
+	os.WriteFile(done, []byte("landed"), 0o644)
+	os.WriteFile(partial, []byte("half"), 0o644)
+	old := time.Now().Add(-40 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	seedFixture(t, map[string]any{"keepDays": 30}, []record{
+		{Task: proto.Task{ID: "old-done", URL: "http://x/old.bin", Kind: "file", State: proto.StateDone, Dir: dir, Name: "old.bin", Path: done, Finished: old}, Known: true},
+		{Task: proto.Task{ID: "old-failed", URL: "http://x/failed.bin", Kind: "file", State: proto.StateError, Dir: dir, Name: "failed.bin", Finished: old}, Known: true},
+	})
+	if _, err := os.Stat(done); err != nil {
+		t.Fatalf("retention deleted a finished file: %v", err)
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatalf("retention kept a failed download's partial data: %v", err)
+	}
+}

@@ -532,10 +532,8 @@ func (j *job) fetch(ctx context.Context, client *http.Client, s *segment) (int64
 		n, rerr := resp.Body.Read(buf)
 		if n > 0 {
 			idle.Reset(idleTimeout)
-			if j.d.Limit != nil {
-				if err := j.d.Limit.WaitN(ctx, n); err != nil {
-					return got, err
-				}
+			if err := plan.Wait(ctx, j.d.Limit, n); err != nil {
+				return got, err
 			}
 			j.mu.Lock()
 			at := s.Start + s.Done

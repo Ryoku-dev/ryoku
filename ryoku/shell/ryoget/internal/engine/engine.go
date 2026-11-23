@@ -213,6 +213,7 @@ func (e *Engine) Start() error {
 	if err := e.load(); err != nil {
 		e.log.Printf("tasks: %v", err)
 	}
+	e.pruneLocked(time.Now())
 	e.schedule()
 	return nil
 }
@@ -445,6 +446,7 @@ func (e *Engine) SetSettings(patch json.RawMessage) (proto.Settings, error) {
 	}
 	// a new port or DHT choice reaches the client when it is next built
 	stale := e.releaseTorrents()
+	e.pruneLocked(time.Now())
 	e.schedule()
 	e.event("settings", next)
 	e.mu.Unlock()
@@ -480,6 +482,7 @@ func (e *Engine) releaseTorrents() Torrents {
 func (e *Engine) Snapshot(f func(proto.Settings, []proto.Task, proto.Stats)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.pruneLocked(time.Now())
 	tasks := make([]proto.Task, 0, len(e.order))
 	for _, id := range e.order {
 		tasks = append(tasks, e.tasks[id].snap())
@@ -754,7 +757,7 @@ func (e *Engine) Pause(id string, all bool) error {
 			t.want = wantPaused
 			t.run.cancel()
 		case t.State == proto.StateQueued:
-			t.State = proto.StatePaused
+			t.State, t.Seen = proto.StatePaused, ""
 			e.dirty()
 			e.emitTask(t)
 		}
@@ -778,7 +781,7 @@ func (e *Engine) requeue(t *task) bool {
 	}
 	switch t.State {
 	case proto.StatePaused, proto.StateStopped, proto.StateError:
-		t.State, t.Stage, t.Error = proto.StateQueued, "", nil
+		t.State, t.Stage, t.Error, t.Finished, t.Seen = proto.StateQueued, "", nil, "", ""
 		e.dirty()
 		e.emitTask(t)
 		return true
@@ -818,7 +821,7 @@ func (e *Engine) Cancel(id string) error {
 			return nil
 		}
 		e.dropPartial(t)
-		t.State, t.Stage, t.Error = proto.StateStopped, "", nil
+		t.State, t.Stage, t.Error, t.Finished, t.Seen = proto.StateStopped, "", nil, now(), ""
 		e.dirty()
 		e.emitTask(t)
 		return nil
@@ -862,6 +865,23 @@ func (e *Engine) forget(t *task) {
 	e.event("removed", map[string]string{"id": t.ID})
 }
 
+// drop forgets a task that is not running: a finished file stays, partial data goes.
+func (e *Engine) drop(t *task) {
+	switch t.State {
+	case proto.StateDone, proto.StateStopped:
+	default:
+		e.dropPartial(t)
+	}
+	if t.tor != nil {
+		tor := t.tor
+		go func() { _ = tor.Drop(false) }()
+	}
+	if t.State == proto.StateDone {
+		e.forgetTorrent(t)
+	}
+	e.forget(t)
+}
+
 func (e *Engine) Clear(states []string) error {
 	if len(states) == 0 {
 		states = []string{proto.StateDone, proto.StateError, proto.StateStopped}
@@ -873,19 +893,60 @@ func (e *Engine) Clear(states []string) error {
 		if t.run != nil || !slices.Contains(states, t.State) {
 			continue
 		}
-		switch t.State {
-		case proto.StateDone, proto.StateStopped:
-		default:
-			e.dropPartial(t)
+		e.drop(t)
+	}
+	return nil
+}
+
+func settled(state string) bool {
+	return state == proto.StateDone || state == proto.StateError || state == proto.StateStopped
+}
+
+// tasks saved before failures were stamped fall back to when they started
+func stoppedAt(t *task) time.Time {
+	for _, s := range []string{t.Finished, t.Started, t.Created} {
+		if at, err := time.Parse(time.RFC3339, s); err == nil {
+			return at
 		}
-		if t.tor != nil {
-			tor := t.tor
-			go func() { _ = tor.Drop(false) }()
+	}
+	return time.Time{}
+}
+
+// pruneLocked runs at start, after a task settles and on hello, so retention never needs a timer
+func (e *Engine) pruneLocked(now time.Time) {
+	days := e.settings.KeepDays
+	if days <= 0 {
+		return
+	}
+	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	for _, id := range slices.Clone(e.order) {
+		t := e.tasks[id]
+		if t.run != nil || !settled(t.State) {
+			continue
 		}
-		if t.State == proto.StateDone {
-			e.forgetTorrent(t)
+		if at := stoppedAt(t); !at.IsZero() && at.Before(cutoff) {
+			e.drop(t)
 		}
-		e.forget(t)
+	}
+}
+
+// Seen stamps settled or paused tasks with when a home list first showed them. The earlier
+// stamp wins, so a client may backdate one to take it off its list at once.
+func (e *Engine) Seen(ids []string, at time.Time) error {
+	stamp := at.UTC().Format(time.RFC3339)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, id := range ids {
+		t := e.tasks[id]
+		if t == nil || t.run != nil || !(settled(t.State) || t.State == proto.StatePaused) {
+			continue
+		}
+		if prev, err := time.Parse(time.RFC3339, t.Seen); err == nil && !at.Before(prev) {
+			continue
+		}
+		t.Seen = stamp
+		e.dirty()
+		e.emitTask(t)
 	}
 	return nil
 }
@@ -1122,16 +1183,16 @@ func (e *Engine) finish(t *task, err error) {
 	}
 	switch {
 	case want == wantPaused:
-		t.State, t.Stage = proto.StatePaused, ""
+		t.State, t.Stage, t.Seen = proto.StatePaused, "", ""
 	case want == wantQueued:
 		t.State, t.Stage = proto.StateQueued, ""
 	case want == wantStopped:
 		e.dropPartial(t)
-		t.State, t.Stage = proto.StateStopped, ""
+		t.State, t.Stage, t.Finished, t.Seen = proto.StateStopped, "", now(), ""
 	case e.closing && (err == nil && t.State == proto.StateSeeding || errors.Is(err, context.Canceled)):
 		// left as it was so the next start picks it up
 	case err == nil:
-		t.State, t.Stage, t.Error = proto.StateDone, "", nil
+		t.State, t.Stage, t.Error, t.Seen = proto.StateDone, "", nil, ""
 		t.Finished = now()
 		if t.Size <= 0 && t.Path != "" {
 			if fi, serr := os.Stat(t.Path); serr == nil && fi.Mode().IsRegular() {
@@ -1146,9 +1207,9 @@ func (e *Engine) finish(t *task, err error) {
 			e.opts.OnFinish(t.snap())
 		}
 	case errors.Is(err, context.Canceled):
-		t.State, t.Stage = proto.StatePaused, ""
+		t.State, t.Stage, t.Seen = proto.StatePaused, "", ""
 	default:
-		t.State, t.Stage, t.Error = proto.StateError, "", mapErr(err)
+		t.State, t.Stage, t.Error, t.Finished, t.Seen = proto.StateError, "", mapErr(err), now(), ""
 		e.logf("task %s: %v", t.ID, err)
 		if e.opts.OnFail != nil {
 			e.opts.OnFail(t.snap())
@@ -1157,6 +1218,7 @@ func (e *Engine) finish(t *task, err error) {
 	e.dirty()
 	t.emitted = time.Time{}
 	e.emitTask(t)
+	e.pruneLocked(time.Now())
 	e.schedule()
 }
 

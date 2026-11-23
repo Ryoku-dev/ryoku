@@ -44,6 +44,9 @@ Scope {
         "unsupported": I18n.tr("There's nothing here to download."),
         "rate_limited": I18n.tr("The site is limiting requests. Try again in a minute."),
         "invalid": I18n.tr("That doesn't look like a link."),
+        "no_space": I18n.tr("There isn't enough free space for it."),
+        "browser_check": I18n.tr("The site wants a browser to check you first."),
+        "checksum": I18n.tr("The file didn't match its checksum, so it was deleted."),
         "other": I18n.tr("Something went wrong. Try again.")
     })
 
@@ -240,6 +243,17 @@ Scope {
     function openFile(id) { call("open", { id: id }); }
     function reveal(id) { call("reveal", { id: id }); }
     function clear(states) { call("clear", { states: states || ["done", "error", "stopped"] }); }
+    // ids a home list showed settled; at (a Date) backdates the look so the list drops them at once
+    function seen(ids, at) {
+        const params = { ids: ids || [] };
+        if (at)
+            params.at = at.toISOString().replace(/\.\d{3}Z$/, "Z");
+        call("seen", params);
+    }
+    // KiB/s for one download alone, 0 for none
+    function limit(id, kib) { call("limit", { id: id, kib: Math.max(0, Math.round(Number(kib) || 0)) }); }
+    // gives a failed or paused download a new link; its partial data stays when the file is the same
+    function refresh(id, url, callback) { call("refresh", { id: id, url: String(url || "") }, callback); }
     function setSettings(patch, callback) { call("settings.set", { patch: patch }, callback); }
 
     Socket {

@@ -40,7 +40,8 @@ One compact JSON object per line, at most 1 MiB; only the daemon's own user may 
 
 Requests `{"id":N,"method":"...","params":{...}}` are answered by
 `{"id":N,"result":...}` or `{"id":N,"error":{"code":"...","message":"..."}}`.
-Error codes: `unsupported unavailable private rate_limited network invalid busy internal not_found`.
+Error codes: `unsupported unavailable private rate_limited network invalid busy internal not_found
+no_space browser_check checksum`.
 
 | method | params | result |
 |---|---|---|
@@ -56,7 +57,8 @@ Error codes: `unsupported unavailable private rate_limited network invalid busy 
 | `move` | `{id, index}`: position among queued tasks | `{}` |
 | `files` | `{id, selected:[int]}`: torrent file selection | `Task` |
 | `open` / `reveal` | `{id}` | `{}` |
-| `clear` | `{states?}` default `["done","error","stopped"]`; files stay | `{}` |
+| `clear` | `{states?}` default `["done","error","stopped"]`; files stay, a failed download's partial data goes | `{}` |
+| `seen` | `{ids:[...], at?}`: stamps finished, failed, stopped and paused tasks with when a home list first showed them (`at`, RFC 3339, default now); an earlier stamp wins, so a client may backdate one to drop it from its list at once | `{}` |
 | `history` | `{id}` | `{down:[...], up:[...]}`: the task's B/s, one sample per second, oldest first, up to 60; kept in memory only while it runs or seeds, empty otherwise |
 | `settings.get` / `settings.set` | `{}` / `{patch:{...}}` | `Settings` |
 
@@ -69,6 +71,13 @@ The shapes of `Task`, `Stats`, `Resolved` and `Settings` are the Go types in
 `queued resolving active paused merging seeding done error stopped`; `Task.stage` is
 `fetch metadata merge remux seed` or empty. `Task.pieces` is base64 of 64 bytes, each the
 fill (0 to 255) of one 64th of the file, the torrent's pieces or the stream's segments.
+`Task.finished` is when it last stopped for good (finished, failed or stopped) and is
+cleared when it runs again, as is `Task.seen`.
+
+Settled tasks (finished, failed or stopped) are forgotten `keepDays` days after they
+stopped (`0` keeps them until cleared): when the daemon starts, after a task settles,
+on `hello` and when the setting changes, so nothing wakes the daemon for it. A finished
+file stays on disk; a failed download's partial data goes with its entry.
 
 `links` finds plain links, Markdown `[text](url)` and `<url>` links, magnets, and bare `www.`
 or `host.tld/path` addresses, in text order. Each is cleaned: trailing punctuation and
@@ -89,6 +98,7 @@ the marked ones.
 ryoget add <url>... | - [--audio|--mute] [--dir DIR] [--paused]
 ryoget list [--json]
 ryoget pause|resume|cancel|remove|retry <id|all>
+ryoget clear [--done|--failed]
 ryoget resolve <url> [--json]
 ryoget ensure
 ryoget serve
