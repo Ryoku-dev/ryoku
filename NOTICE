@@ -433,3 +433,25 @@ second voice engine for voices a user adds; each voice carries its own license.
 yt-dlp (https://github.com/yt-dlp/yt-dlp, Unlicense), by the yt-dlp
 contributors, fetches the subtitles and audio of a video link in Ask.
 Ryoku starts them as programs when asked and never links them.
+
+Parts of ryoget, the download engine in ryoku/shell/ryoget, are adapted from
+Prism (prism-download-manager) by Jan Sechovec
+(https://github.com/FortoGraphy/prism-download-manager) at commit d252535.
+internal/httpdl/ takes its segmented transfer from prism-engine: bounded
+ranged requests, range splitting and racing a slow tail, ramping up
+connections and learning each host's limit, jittered backoff and Retry-After,
+checking free space and preallocating the file, syncing before the resume
+sidecar is written, the checks before a resume and reusing the final URL.
+internal/engine/categories.go takes prism-core's file-type table and folder
+choice, and internal/engine/checksum.go prism-engine's file hashing and the
+check after the file lands. internal/media/challenge.go takes the cf-mitigated
+bot-check signal, internal/links/pattern.go the range parsing,
+internal/ytdlp/jsruntime.go prism-video's handling of yt-dlp's JavaScript
+runtime, and internal/media/services/linkedin.go prism-core's list of LinkedIn
+listing pages. It is a modified version: the Rust is rewritten in Go inside
+ryoget, and Prism's desktop interface, browser extension, clipboard watcher,
+scheduler, SQLite store and self-updater are left out. Copyright (c) 2026 Jan
+Sechovec and Prism contributors. It is released under the MIT License, whose
+text is in ryoku/shell/ryoget/LICENSE.prism and which the ryoku-shell package
+installs as /usr/share/licenses/ryoku-shell/LICENSE.prism. That license is
+compatible with Ryoku's GPL-3 distribution.

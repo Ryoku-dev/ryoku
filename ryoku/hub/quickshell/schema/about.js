@@ -173,6 +173,8 @@ var rows = [
       control: "handoff", command: link("https://github.com/agalwood/Motrix"), actionText: "Visit", keywords: ["credits", "thanks", "downloads"] },
     { id: "credit-cobalt", section: "credits", label: "cobalt", detail: "Media link handling reference (AGPL-3.0), by imput",
       control: "handoff", command: link("https://github.com/imputnet/cobalt"), actionText: "Visit", keywords: ["credits", "thanks", "downloads", "video"] },
+    { id: "credit-prism", section: "credits", label: "Prism", detail: "Downloads' split transfers, resume, folders and checksums (MIT), by Jan Sechovec",
+      control: "handoff", command: link("https://github.com/FortoGraphy/prism-download-manager"), actionText: "Visit", keywords: ["credits", "thanks", "downloads", "prism"] },
     { id: "credit-wiktionary", section: "credits", label: "Wiktionary", detail: "Definitions in the Rashin bar's web search (CC BY-SA 4.0), via FreeDictionaryAPI.com",
       control: "handoff", command: link("https://en.wiktionary.org/"), actionText: "Visit", keywords: ["credits", "thanks", "dictionary", "search"] },
     { id: "testers", section: "credits", label: "The crash test crew", template: true,

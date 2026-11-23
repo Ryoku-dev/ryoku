@@ -3,6 +3,10 @@
 ## Unreleased
 ### Added
 
+- **Credits name Prism, which Downloads' engine adapts (MIT).** The About page
+  links Jan Sechovec's download manager, the source of ryoget's split and
+  resumed transfers, download folders and checksums
+  (`quickshell/schema/about.js`, `../../NOTICE`).
 - **Hub Credits now names oh-my-pi as the source of Rashin's native agent
   engine and self-improvement workflows (MIT).** The About page links to
   the project and names Can Bölük and Mario Zechner
