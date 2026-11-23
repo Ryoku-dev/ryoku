@@ -254,6 +254,7 @@ check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-clamshell.service" "$INIT/use
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-eq.service" "$INIT/user/ryoku-eq"
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bt-agent.service" "$INIT/user/ryoku-bt-agent"
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bootstrap.service" "$INIT/user/ryoku-bootstrap"
+check_parity "$ROOT/ryoku/hub/backend/assets/phonon/phonon-2.service" "$INIT/user/phonon-2"
 check_parity "$ROOT/ryoku/rashin/systemd/ryoku-rashin.service" "$INIT/user/ryoku-rashin"
 check_parity "$ROOT/ryoku/rashin/systemd/ryoku-prowl.service" "$INIT/user/ryoku-prowl"
 check_parity "$ROOT/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service" "$INIT/user/ryoku-palette-bridge"

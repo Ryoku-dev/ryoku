@@ -15,6 +15,10 @@ func reduxAdapterPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".local", "bin", "voxtype-redux")
 }
 
+func reduxDependencyDropinPath() string {
+	return filepath.Join(configHome(), "systemd", "user", "voxtype.service.d", "ryoku-redux.conf")
+}
+
 // reduxInstalled means the Hub's installer published every Redux file and its
 // receipt; a hand-made install without the receipt is not managed here.
 func reduxInstalled() bool {
@@ -30,8 +34,7 @@ func configureReduxService(selected, enabled bool) error {
 		}
 		return nil
 	}
-	dir := filepath.Join(configHome(), "systemd", "user", "voxtype.service.d")
-	path := filepath.Join(dir, "ryoku-redux.conf")
+	path := reduxDependencyDropinPath()
 	if selected {
 		if err := atomicWrite(path, []byte("[Unit]\nRequires=voxtype-redux.service\nAfter=voxtype-redux.service\n"), 0o644); err != nil {
 			return err

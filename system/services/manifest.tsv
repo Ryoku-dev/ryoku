@@ -37,5 +37,6 @@ wireplumber	user	session-core	wireplumber.service	wireplumber	none
 ryoku-eq	user	on-demand	ryoku-eq.service	ryoku-eq	preserve
 ryoku-prowl	user	on-demand	ryoku-prowl.service	ryoku-prowl	preserve
 voxtype	user	on-demand	voxtype.service	voxtype	preserve
+phonon-2	user	on-demand	phonon-2.service	phonon-2	preserve
 ryoku-ai-usage-worker	user	on-demand	ryoku-ai-usage.service	-	preserve
 ryoku-session-target	user	on-demand	ryoku-session.target	-	preserve
