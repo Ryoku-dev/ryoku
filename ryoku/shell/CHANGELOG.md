@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Unplugging or re-plugging a monitor no longer leaves the window list stale.**
+  While an output is removed, a toplevel's `screens` list can still hold the
+  destroyed screen as `null`, so `Wm.windows` threw `Cannot read property 'name'
+  of null` and kept its previous value for the dock, workspace and window-rail
+  consumers; the key now reads an empty output for a dead screen
+  (`ui/Singletons/Wm.qml`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
