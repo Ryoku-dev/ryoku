@@ -76,4 +76,29 @@ authentication success. The common input layer is exercised with the shipped
 skin and its generic control rules; it is not a compatibility promise for every
 third-party qylock theme.
 
+## Optional FaceLock for the in-session lock
+
+FaceLock is off by default. On systems where the administrator has installed
+and configured a working FaceLock PAM module (`pam_facelock.so`), opt in by
+writing `on` followed by a newline to `$XDG_CONFIG_HOME/qylock/facelock`, or
+`~/.config/qylock/facelock` when `XDG_CONFIG_HOME` is unset:
+
+```sh
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/qylock"
+mkdir -p -- "$config_dir"
+printf 'on\n' >"$config_dir/facelock"
+```
+
+The next lock uses a bundled PAM service that tries FaceLock before the
+unchanged password stack. Missing or unsuccessful FaceLock falls through to
+password; FaceLock can delay the password prompt until its attempt returns.
+Remove the preference file to return to password-only behavior. An unreadable,
+symlinked, absent, or malformed preference does not enable FaceLock.
+
+The preference is outside the generated lockscreen tree, so staging, activation
+and regeneration do not require editing the bundled PAM assets. This does not
+install FaceLock, enroll a user, change system PAM (including SDDM, sudo or SSH),
+or alter the existing Wayland lock-proof and foreground-session requirements.
+Authentication retry is a separate option described above.
+
 Everything else is upstream verbatim.

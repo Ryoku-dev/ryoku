@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import "../../../ryoku/lockscreen/qylock/quickshell-lockscreen/shim" as Lock
 import Quickshell.Services.Pam
+import Quickshell
 
 TestCase {
     name: "QylockAuthRetryShim"
@@ -9,6 +10,32 @@ TestCase {
     visible: true
     width: 320
     height: 240
+
+    function cleanup() {
+        Quickshell.faceLock = ""
+    }
+
+    function test_facelock_uses_fixed_pam_services_data() {
+        return [
+            {tag: "default", value: "", service: "ryoku-lock-pw"},
+            {tag: "opt-in", value: "on", service: "ryoku-lock-pw-facelock"},
+            {tag: "arbitrary-service", value: "other", service: "ryoku-lock-pw"}
+        ]
+    }
+
+    function test_facelock_uses_fixed_pam_services(data) {
+        Quickshell.faceLock = data.value
+        const shim = createTemporaryObject(shimComponent, this)
+        verify(shim !== null)
+        const password = PamRegistry.find(data.service)
+        verify(password !== null)
+        shim.armWhenReady = true
+        shim.loginSessionActive = true
+        password.active = true
+        password.responseRequired = true
+        shim.sddm.login("test-user", "test-password", 0)
+        compare(password.lastResponse, "test-password")
+    }
 
     function waitingPassword(shim) {
         shim.armWhenReady = true
