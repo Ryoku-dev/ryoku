@@ -365,7 +365,8 @@ func voxtypeEnsure() error {
 	}
 	ensureVoxtypeUnit()
 	if voxtypeServiceEnabled() {
-		if selectedPreset(readFileString(voxtypeConfigPath())) == phononPresetKey {
+		config := readFileString(voxtypeConfigPath())
+		if selectedPreset(config) == phononPresetKey || voxtypeConfigUsesPhononEndpoint(config) {
 			if !phononInstalled() {
 				return fmt.Errorf("selected Phonon-2 runtime or service is missing")
 			}

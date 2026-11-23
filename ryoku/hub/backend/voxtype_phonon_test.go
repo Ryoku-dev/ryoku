@@ -313,6 +313,9 @@ func TestEnablingCustomPhononEndpointRestartsRunitServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFakeVoxtypeRunitHost(t, bin, state)
+	if err := os.WriteFile(filepath.Join(bin, "voxtype"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"phonon-2", "voxtype"} {
 		run := filepath.Join(serviceDir, name, "run")
 		if err := os.MkdirAll(filepath.Dir(run), 0o700); err != nil {
@@ -368,6 +371,30 @@ func TestEnablingCustomPhononEndpointRestartsRunitServer(t *testing.T) {
 				t.Errorf("enabling Custom did not restore %s %s state", name, stateName)
 			}
 		}
+	}
+
+	for _, path := range []string{
+		filepath.Join(dataHome(), "phonon-2", "venv", "bin", "phonon"),
+		phononModelPath(),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("fixture"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Remove(filepath.Join(state, "active", "phonon-2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := voxtypeEnsure(); err != nil {
+		t.Fatalf("ensure did not restart Phonon for a Custom endpoint: %v", err)
+	}
+	if !fileExists(filepath.Join(state, "active", "phonon-2")) {
+		t.Fatal("ensure did not restart Phonon for a Custom endpoint with a custom model name")
+	}
+	if got := readFileString(voxtypeConfigPath()); got != config {
+		t.Fatalf("ensure rewrote the user's Custom config:\n%s", got)
 	}
 }
 
