@@ -60,8 +60,13 @@ Rectangle {
 
     property bool _soundPlayed: false
 
+    // Do Not Disturb silences everything except a critical notification, which
+    // Game Mode silences too (the same rule as the shell's own notification cue).
+    readonly property bool soundHeldByDnd: RyokuServices.Flags.dnd
+        && (RyokuServices.Flags.gameMode || typeRoot.urgency !== 2)
+
     function playPopupSound() {
-        if (_soundPlayed || !typeRoot.isPopup || RyokuServices.Flags.dnd
+        if (_soundPlayed || !typeRoot.isPopup || soundHeldByDnd
                 || !Config.hostNotificationSoundEnabledFor(typeRoot.urgency === 2)) return;
         if (Math.abs(Date.now() - typeRoot.timestamp) > 3000) return;
         const n = delegateWrapper ? delegateWrapper.realNotif : null;

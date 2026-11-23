@@ -26,7 +26,7 @@ PanelWindow {
         return false;
     }
 
-    visible: (!popupWindow.dndEnabled || popupWindow.hasCriticalPopup) && !NotificationManager.sysPanelOpen && NotificationManager.activePopupsModel.count > 0
+    visible: (!popupWindow.dndEnabled || (popupWindow.hasCriticalPopup && !RyokuServices.Flags.gameMode)) && !NotificationManager.sysPanelOpen && NotificationManager.activePopupsModel.count > 0
 
     function storeNotif(uid, notif) {
         NotificationManager.liveNotifs[uid] = notif;
@@ -202,7 +202,7 @@ PanelWindow {
                     id: delegateWrapper
                     width: ListView.view.width
 
-                    property bool isSuppressedByDnd: popupWindow.dndEnabled && model.urgency !== 2
+                    property bool isSuppressedByDnd: popupWindow.dndEnabled && (RyokuServices.Flags.gameMode || model.urgency !== 2)
 
                     implicitHeight: isSuppressedByDnd ? 0 : (typeLoader.item ? typeLoader.item.implicitHeight : popupWindow.s(70))
                     height: implicitHeight

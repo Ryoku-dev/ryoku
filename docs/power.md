@@ -24,11 +24,12 @@ level sends only the critical alert. Delivery failures can retry without
 consuming that alert. The service runs regardless of the selected bar style
 or whether its battery indicator is visible.
 
-Alerts use the normal notification system and respect Do Not Disturb. The
-native service replaces the Python bar's separate low-battery reminders while
-preserving its full-charge notification. If you installed the Battery Alerts
-community add-on, disable its alerts when enabling the native service to avoid
-duplicate reminders.
+Alerts use the normal notification system and respect Do Not Disturb, except
+"Battery critical", which is a critical notification and shows through it
+(Game Mode still holds it back). The native service replaces the Python bar's
+separate low-battery reminders while preserving its full-charge notification.
+If you installed the Battery Alerts community add-on, disable its alerts when
+enabling the native service to avoid duplicate reminders.
 
 ## The layers, from the one that matters most
 

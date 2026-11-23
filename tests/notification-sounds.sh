@@ -3,7 +3,9 @@
 # server hears. One notify-send must chime once, through the shell's server and
 # the Hub's cue, and the Stage service plays its own notifications through that
 # cue too. paplay and ryoku-shell are shims that log what they were asked to
-# play; a private session bus carries the notification to both servers.
+# play; a private session bus carries the notification to both servers. Under
+# Do Not Disturb the shell holds back a normal notification but lets a critical
+# one through, and Game Mode holds back both.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 tmp="$(mktemp -d)"
