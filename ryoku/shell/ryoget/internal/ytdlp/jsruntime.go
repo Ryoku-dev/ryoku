@@ -3,6 +3,7 @@ package ytdlp
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -12,22 +13,37 @@ import (
 // yt-dlp needs a JavaScript runtime for YouTube's player, tried in this order
 var jsRuntimes = []string{"deno", "node", "bun"}
 
+// jsProbeTimeout bounds the --help probe, and tests shrink it
+var jsProbeTimeout = 20 * time.Second
+
+// jsKey names one build of the binary, so an in-place upgrade is probed again
+type jsKey struct {
+	path string
+	mod  int64
+	size int64
+}
+
 var (
 	jsMu    sync.Mutex
-	jsCache = map[string][]string{}
+	jsCache = map[jsKey][]string{}
 )
 
-// jsRuntimeArgs asks bin once per run, since an older yt-dlp stops on --js-runtimes.
+// jsRuntimeArgs asks each build of bin once, since an older yt-dlp stops on --js-runtimes.
 // ported from prism-download-manager crates/prism-video/src/lib.rs and probe.rs (MIT)
 func jsRuntimeArgs(ctx context.Context, bin string) []string {
+	key := jsKey{path: bin}
+	if st, err := os.Stat(bin); err == nil {
+		key.mod, key.size = st.ModTime().UnixNano(), st.Size()
+	}
 	jsMu.Lock()
 	defer jsMu.Unlock()
-	if args, ok := jsCache[bin]; ok {
+	if args, ok := jsCache[key]; ok {
 		return args
 	}
-	if !knowsJSRuntimes(ctx, bin) {
-		if ctx.Err() == nil {
-			jsCache[bin] = nil
+	known, done := knowsJSRuntimes(ctx, bin)
+	if !known {
+		if done {
+			jsCache[key] = nil
 		}
 		return nil
 	}
@@ -38,12 +54,13 @@ func jsRuntimeArgs(ctx context.Context, bin string) []string {
 			break
 		}
 	}
-	jsCache[bin] = args
+	jsCache[key] = args
 	return args
 }
 
-func knowsJSRuntimes(ctx context.Context, bin string) bool {
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+// knowsJSRuntimes also reports whether the probe finished, since a timed-out answer says nothing about the version.
+func knowsJSRuntimes(ctx context.Context, bin string) (known, done bool) {
+	ctx, cancel := context.WithTimeout(ctx, jsProbeTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "--ignore-config", "--help")
 	var out bytes.Buffer
@@ -51,8 +68,12 @@ func knowsJSRuntimes(ctx context.Context, bin string) bool {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 3 * time.Second
-	if cmd.Run() != nil {
-		return false
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		return false, false
 	}
-	return bytes.Contains(out.Bytes(), []byte("--js-runtimes"))
+	if err != nil {
+		return false, true
+	}
+	return bytes.Contains(out.Bytes(), []byte("--js-runtimes")), true
 }

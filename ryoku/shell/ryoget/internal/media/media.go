@@ -57,6 +57,18 @@ func previewing(ctx context.Context) bool {
 	return on
 }
 
+type refererKey struct{}
+
+// WithReferer marks a resolve of a file found on a page: its probe sends referer and the media keeps it.
+func WithReferer(ctx context.Context, referer string) context.Context {
+	return context.WithValue(ctx, refererKey{}, referer)
+}
+
+func ctxReferer(ctx context.Context) string {
+	r, _ := ctx.Value(refererKey{}).(string)
+	return r
+}
+
 type Source struct {
 	ID   string
 	Name string
@@ -83,6 +95,8 @@ type Item struct {
 	Thumb string
 	Kind  string
 	URL   string
+	// the page the file was found on, cut to what that page may tell the file's host
+	Referer string
 }
 
 type Media struct {

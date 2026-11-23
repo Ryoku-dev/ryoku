@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,10 +157,10 @@ func TestPageListsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Item{
-		{Title: "tool-1.2.zip", Kind: "file", URL: srv.URL + "/files/tool-1.2.zip"},
-		{Title: "disc.iso", Kind: "file", URL: srv.URL + "/files/disc.iso"},
-		{Title: "Get the manual", Kind: "file", URL: srv.URL + "/get?id=3"},
-		{Title: "Setup Guide.pdf", Kind: "file", URL: srv.URL + "/get?id=4"},
+		{Title: "tool-1.2.zip", Kind: "file", URL: srv.URL + "/files/tool-1.2.zip", Referer: srv.URL + "/list"},
+		{Title: "disc.iso", Kind: "file", URL: srv.URL + "/files/disc.iso", Referer: srv.URL + "/list"},
+		{Title: "Get the manual", Kind: "file", URL: srv.URL + "/get?id=3", Referer: srv.URL + "/list"},
+		{Title: "Setup Guide.pdf", Kind: "file", URL: srv.URL + "/get?id=4", Referer: srv.URL + "/list"},
 	}
 	if m.Kind != plan.KindMedia || m.Title != "Mirror" || len(m.Items) != len(want) {
 		t.Fatalf("media = %+v", m)
@@ -204,7 +205,8 @@ func TestPageFollowsPlainForms(t *testing.T) {
 	if m.Kind != plan.KindFile || m.URL != srv.URL+"/files/x.7z" || m.Name != "from-path.zip" {
 		t.Fatalf("post form = %+v", m)
 	}
-	if _, err := Resolve(context.Background(), srv.URL+"/form-post-body", env, false); !errors.Is(err, ErrUnsupported) {
+	// the file came as the answer to the post, which only posting again would fetch
+	if _, err := Resolve(context.Background(), srv.URL+"/form-post-body", env, false); !errors.Is(err, ErrBrowserCheck) {
 		t.Fatalf("post answered with the file: %v", err)
 	}
 	if _, err := Resolve(context.Background(), srv.URL+"/form-typed", env, false); !errors.Is(err, ErrBrowserCheck) {
@@ -275,5 +277,194 @@ func TestChallengeMarkersNeedASmallPage(t *testing.T) {
 	}
 	if !ChallengePage(http.Header{"Cf-Mitigated": {" Challenge "}}, nil) {
 		t.Fatal("header alone marks a challenge")
+	}
+}
+
+// links on a redirected page resolve against where it ended, the pasted link stays the media's
+func TestPageLinksFollowRedirect(t *testing.T) {
+	h := http.NewServeMux()
+	h.HandleFunc("/pub/linux", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/pub/linux/", http.StatusMovedPermanently)
+	})
+	h.HandleFunc("/pub/linux/{$}", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><head><title>Index of /pub/linux</title></head><body><a href="a.zip">a.zip</a> <a href="b.zip">b.zip</a></body></html>`)
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	m, err := Resolve(context.Background(), srv.URL+"/pub/linux", &plan.Env{HTTP: srv.Client()}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.URL != srv.URL+"/pub/linux" || len(m.Items) != 2 || m.Items[0].URL != srv.URL+"/pub/linux/a.zip" ||
+		m.Items[0].Referer != srv.URL+"/pub/linux/" {
+		t.Fatalf("index = %+v", m)
+	}
+}
+
+func TestPageLinksFollowBaseHref(t *testing.T) {
+	h := http.NewServeMux()
+	h.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><head><base href="/cdn/files/"><title>Files</title></head><body><a href="a.zip">a</a> <a href="b.zip">b</a></body></html>`)
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	m, err := Resolve(context.Background(), srv.URL+"/page", &plan.Env{HTTP: srv.Client()}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Items) != 2 || m.Items[0].URL != srv.URL+"/cdn/files/a.zip" || m.Items[1].URL != srv.URL+"/cdn/files/b.zip" ||
+		m.Items[0].Referer != srv.URL+"/page" {
+		t.Fatalf("items = %+v", m.Items)
+	}
+}
+
+// an item resolved on its own still sends the page it came from, which hotlink guards ask for
+func TestResolveSendsContextReferer(t *testing.T) {
+	const ref = "https://site.example/page"
+	h := http.NewServeMux()
+	h.HandleFunc("/item.zip", func(w http.ResponseWriter, r *http.Request) {
+		if r.Referer() != ref {
+			http.Error(w, "no hotlinking", http.StatusForbidden)
+			return
+		}
+		zipHandler("item.zip")(w, r)
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	env := &plan.Env{HTTP: srv.Client()}
+	if _, err := Resolve(context.Background(), srv.URL+"/item.zip", env, false); !errors.Is(err, ErrPrivate) {
+		t.Fatalf("without referer: %v", err)
+	}
+	m, err := Resolve(WithReferer(context.Background(), ref), srv.URL+"/item.zip", env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Kind != plan.KindFile || m.Name != "item.zip" || m.Headers["Referer"] != ref {
+		t.Fatalf("file = %+v", m)
+	}
+}
+
+func TestCrossHostRefererIsOriginOnly(t *testing.T) {
+	var pageOrigin string
+	files := http.NewServeMux()
+	files.HandleFunc("/f/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Referer() != pageOrigin {
+			http.Error(w, "referer "+r.Referer(), http.StatusForbidden)
+			return
+		}
+		zipHandler("disc.iso")(w, r)
+	})
+	fileSrv := httptest.NewServer(files)
+	t.Cleanup(fileSrv.Close)
+	pages := http.NewServeMux()
+	pages.HandleFunc("/one", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<html><head><title>One</title></head><body><a href="%s/f/disc.iso">Disc</a></body></html>`, fileSrv.URL)
+	})
+	pages.HandleFunc("/two", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `<html><head><title>Two</title></head><body><a href="%[1]s/f/a.iso">A</a> <a href="%[1]s/f/b.iso">B</a></body></html>`, fileSrv.URL)
+	})
+	pageSrv := httptest.NewServer(pages)
+	t.Cleanup(pageSrv.Close)
+	pageOrigin = pageSrv.URL + "/"
+	env := &plan.Env{HTTP: pageSrv.Client()}
+
+	m, err := Resolve(context.Background(), pageSrv.URL+"/one", env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Kind != plan.KindFile || m.Name != "disc.iso" || m.Headers["Referer"] != pageOrigin {
+		t.Fatalf("file = %+v", m)
+	}
+	m, err = Resolve(context.Background(), pageSrv.URL+"/two", env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Items) != 2 || m.Items[0].Referer != pageOrigin || m.Items[1].Referer != pageOrigin {
+		t.Fatalf("items = %+v", m.Items)
+	}
+	page, _ := url.Parse("https://a.example/p?q=1")
+	if r := refererFor(page, &url.URL{Scheme: "http", Host: "b.example", Path: "/f.zip"}); r != "" {
+		t.Fatalf("https to http sent %q", r)
+	}
+	if r := refererFor(page, &url.URL{Scheme: "https", Host: "a.example", Path: "/f.zip"}); r != "https://a.example/p?q=1" {
+		t.Fatalf("same origin sent %q", r)
+	}
+}
+
+// a forum page quoting a challenge script is far bigger than any interstitial
+func TestBigPageQuotingAChallengeIsNotOne(t *testing.T) {
+	page := `<html><head><title>Forum</title></head><body><pre>window._cf_chl_opt = {}</pre><p>` +
+		strings.Repeat("x", 300<<10) + `</p></body></html>`
+	if ChallengePage(http.Header{}, []byte(page)) {
+		t.Fatal("a 300 KiB page is not an interstitial")
+	}
+	h := http.NewServeMux()
+	h.HandleFunc("/thread", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, page)
+	})
+	h.HandleFunc("/closed", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, page)
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	env := &plan.Env{HTTP: srv.Client()}
+	if _, err := Resolve(context.Background(), srv.URL+"/thread", env, false); !errors.Is(err, ErrUnsupported) || errors.Is(err, ErrBrowserCheck) {
+		t.Fatalf("thread: %v", err)
+	}
+	if _, err := Resolve(context.Background(), srv.URL+"/closed", env, false); !errors.Is(err, ErrPrivate) {
+		t.Fatalf("closed thread: %v", err)
+	}
+}
+
+func TestGetFormAnsweredWithAPageNeedsBrowser(t *testing.T) {
+	h := http.NewServeMux()
+	h.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><head><title>Get</title></head><body>
+<form id="download" action="/next" method="get"><input type="hidden" name="id" value="1"><button>Download</button></form></body></html>`)
+	})
+	h.HandleFunc("/next", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><head><title>Almost there</title></head><body><script>start()</script></body></html>`)
+	})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	m, err := Resolve(context.Background(), srv.URL+"/page", &plan.Env{HTTP: srv.Client()}, false)
+	if !errors.Is(err, ErrBrowserCheck) || wireCode(t, err).Code != proto.CodeBrowserCheck {
+		t.Fatalf("err = %v", err)
+	}
+	if m == nil || m.Kind != plan.KindPage || m.Title != "Get" {
+		t.Fatalf("page = %+v", m)
+	}
+}
+
+// a post sent multipart or as plain text is not what followForm sends, a get ignores the encoding
+func TestFormWithOtherEncodingNeedsBrowser(t *testing.T) {
+	base, _ := url.Parse("https://files.example/game")
+	for _, c := range []struct {
+		attrs   string
+		browser bool
+	}{
+		{`method="post" enctype="multipart/form-data"`, true},
+		{`method="post" enctype="text/plain"`, true},
+		{`method="post" enctype="application/x-www-form-urlencoded"`, false},
+		{`method="post"`, false},
+		{`method="get" enctype="multipart/form-data"`, false},
+	} {
+		f, ok := downloadForm(base, []byte(`<form id="download" action="/out" `+c.attrs+`><input type="hidden" name="k" value="v"></form>`))
+		if !ok || f.browser != c.browser {
+			t.Fatalf("%s: form = %+v", c.attrs, f)
+		}
+	}
+}
+
+func TestFormSkipsDisabledControls(t *testing.T) {
+	base, _ := url.Parse("https://files.example/game")
+	f, ok := downloadForm(base, []byte(`<form id="download" action="/out">
+<input name="q" disabled><input type="hidden" name="a" value="1" disabled="disabled"><select name="s" disabled></select>
+<input type="hidden" name="b" value="2" title="not disabled"><button disabled>Download</button></form>`))
+	if !ok || f.browser || f.values.Encode() != "b=2" {
+		t.Fatalf("form = %+v", f)
 	}
 }

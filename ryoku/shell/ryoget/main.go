@@ -35,7 +35,7 @@ const usage = `usage:
   ryoget add <url>... | - [--audio|--mute] [--dir DIR] [--paused]
   ryoget list [--json]
   ryoget pause|resume|cancel|remove|retry <id|all>
-  ryoget clear [--done|--failed]
+  ryoget clear [--done] [--failed]
   ryoget resolve <url> [--json]
   ryoget version
 `
@@ -79,7 +79,13 @@ func run(args []string) int {
 		}
 		return withClient(ctx, func(c *daemon.Client) error { return act(ctx, c, cmd, rest[0]) })
 	case "clear":
-		return withClient(ctx, func(c *daemon.Client) error { return clearList(ctx, c, rest) })
+		// flags are checked before the daemon is started for them
+		states, err := clearStates(rest)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "ryoget:", err)
+			return exitUsage
+		}
+		return withClient(ctx, func(c *daemon.Client) error { return clearList(ctx, c, states) })
 	case "resolve":
 		return withClient(ctx, func(c *daemon.Client) error { return resolve(ctx, c, rest) })
 	case "help", "-h", "--help":
@@ -415,19 +421,27 @@ func act(ctx context.Context, c *daemon.Client, method, target string) error {
 	return failed
 }
 
-// a failed download's partial data goes with it, a finished file stays
-func clearList(ctx context.Context, c *daemon.Client, args []string) error {
-	states := []string{proto.StateDone, proto.StateError, proto.StateStopped}
+// clearStates collects the states the flags name, every settled one when none is named.
+func clearStates(args []string) ([]string, error) {
+	var states []string
 	for _, a := range args {
 		switch a {
 		case "--done":
-			states = []string{proto.StateDone}
+			states = append(states, proto.StateDone)
 		case "--failed":
-			states = []string{proto.StateError, proto.StateStopped}
+			states = append(states, proto.StateError, proto.StateStopped)
 		default:
-			return fmt.Errorf("unknown flag %s", a)
+			return nil, fmt.Errorf("%s: %s", i18n.T("unknown option"), a)
 		}
 	}
+	if len(states) == 0 {
+		states = []string{proto.StateDone, proto.StateError, proto.StateStopped}
+	}
+	return states, nil
+}
+
+// a failed download's partial data goes with it, a finished file stays
+func clearList(ctx context.Context, c *daemon.Client, states []string) error {
 	cctx, cancel := callCtx(ctx)
 	defer cancel()
 	return c.Call(cctx, "clear", map[string][]string{"states": states}, nil)

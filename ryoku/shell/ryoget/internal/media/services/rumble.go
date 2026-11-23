@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -71,28 +72,28 @@ func (s rumble) Resolve(ctx context.Context, u *url.URL, env *plan.Env) (*media.
 		Author   struct {
 			Name string `json:"name"`
 		} `json:"author"`
-		Files map[string]map[string]rumbleFile `json:"ua"`
+		Files map[string]json.RawMessage `json:"ua"`
+		Live  int                        `json:"live"`
 	}
 	q := url.Values{"request": {"video"}, "ver": {"2"}, "v": {id}}
 	if err := getJSON(ctx, env, rumbleBase+"/embedJS/u3/?"+q.Encode(), hdr("User-Agent", plainUA), &v); err != nil {
 		return nil, err
 	}
+	if v.Live == 2 {
+		// a live stream never ends, so yt-dlp records it
+		return nil, fmt.Errorf("%w: %s", media.ErrUnsupported, i18n.T("Live streams cannot be downloaded while they are live."))
+	}
+	files := rumbleFiles(v.Files)
 	page := rumbleBase + "/embed/" + id + "/"
 	if strings.HasPrefix(v.Link, "/") {
 		page = rumbleBase + v.Link
 	}
 	out := &media.Media{Kind: plan.KindMedia, URL: page, Source: media.Source{ID: s.ID(), Name: s.Name()},
-		Title: first(strings.TrimSpace(v.Title), i18n.Tf("Rumble video %s", id)), Author: v.Author.Name, Thumb: v.Thumb, Duration: v.Duration}
+		Title: first(strings.TrimSpace(unescapeHTML(v.Title)), i18n.Tf("Rumble video %s", id)), Author: unescapeHTML(v.Author.Name), Thumb: v.Thumb, Duration: v.Duration}
 	fps := int(v.FPS + 0.5)
 	for _, kind := range []string{"mp4", "webm"} {
-		files := v.Files[kind]
-		keys := make([]string, 0, len(files))
-		for k := range files {
-			keys = append(keys, k)
-		}
-		sort.Slice(keys, func(i, j int) bool { return atoiOr(keys[i]) > atoiOr(keys[j]) })
-		for _, k := range keys {
-			f := files[k]
+		for _, k := range rumbleKeys(files[kind]) {
+			f := files[kind][k]
 			if f.URL == "" {
 				continue
 			}
@@ -107,7 +108,8 @@ func (s rumble) Resolve(ctx context.Context, u *url.URL, env *plan.Env) (*media.
 			out.Formats = append(out.Formats, fileVideo(kind+"-"+k, f.URL, kind, h, fps, f.Meta.Bitrate*1000, f.Meta.Size, codec, nil))
 		}
 	}
-	for _, f := range v.Files["hls"] {
+	for _, k := range rumbleKeys(files["hls"]) {
+		f := files["hls"][k]
 		if f.URL == "" {
 			continue
 		}
@@ -126,6 +128,37 @@ func (s rumble) Resolve(ctx context.Context, u *url.URL, env *plan.Env) (*media.
 	}
 	out.Default = best(out.Formats)
 	return out, nil
+}
+
+// rumbleFiles decodes each kind on its own, since live streams send empty lists where files would be.
+func rumbleFiles(raw map[string]json.RawMessage) map[string]map[string]rumbleFile {
+	out := make(map[string]map[string]rumbleFile, len(raw))
+	for kind, b := range raw {
+		var files map[string]rumbleFile
+		if json.Unmarshal(b, &files) == nil {
+			out[kind] = files
+		}
+	}
+	return out
+}
+
+// rumbleKeys puts auto (the hls master) first and the rest tallest first, so the pick never follows map order.
+func rumbleKeys(files map[string]rumbleFile) []string {
+	keys := make([]string, 0, len(files))
+	for k := range files {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if (a == "auto") != (b == "auto") {
+			return a == "auto"
+		}
+		if atoiOr(a) != atoiOr(b) {
+			return atoiOr(a) > atoiOr(b)
+		}
+		return a < b
+	})
+	return keys
 }
 
 func atoiOr(s string) int {

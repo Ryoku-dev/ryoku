@@ -89,14 +89,15 @@ func (s bandcamp) Resolve(ctx context.Context, u *url.URL, env *plan.Env) (*medi
 			out.Items = append(out.Items, media.Item{Title: tr.Title, Kind: "audio", URL: link.String(), Thumb: thumb})
 			out.Duration += tr.Duration
 		}
+		// buying is a gate yt-dlp cannot pass either, so it is reported as private
 		if len(out.Items) == 0 {
-			return nil, fmt.Errorf("%w: %s", media.ErrUnavailable, i18n.T("Nothing on this album plays without buying it."))
+			return nil, fmt.Errorf("%w: %s", media.ErrPrivate, i18n.T("Nothing on this album plays without buying it."))
 		}
 		return out, nil
 	}
 
 	if len(t.TrackInfo) == 0 || len(t.TrackInfo[0].File) == 0 {
-		return nil, fmt.Errorf("%w: %s", media.ErrUnavailable, i18n.T("This track does not play without buying it."))
+		return nil, fmt.Errorf("%w: %s", media.ErrPrivate, i18n.T("This track does not play without buying it."))
 	}
 	tr := t.TrackInfo[0]
 	// a track page's trackinfo title can carry "artist - " in front
@@ -118,7 +119,7 @@ func (s bandcamp) Resolve(ctx context.Context, u *url.URL, env *plan.Env) (*medi
 		out.Formats = append(out.Formats, fileAudio(k, tr.File[k], "mp3", kbps*1000, -1, "mp3", nil))
 	}
 	if len(out.Formats) == 0 {
-		return nil, fmt.Errorf("%w: %s", media.ErrUnavailable, i18n.T("This track does not play without buying it."))
+		return nil, fmt.Errorf("%w: %s", media.ErrPrivate, i18n.T("This track does not play without buying it."))
 	}
 	out.Default = best(out.Formats)
 	return out, nil

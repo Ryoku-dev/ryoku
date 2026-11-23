@@ -1,0 +1,70 @@
+{
+ "fps": 30,
+ "w": 1920,
+ "h": 1080,
+ "u": {
+  "hls": {
+   "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/master.m3u8"
+  }
+ },
+ "ua": {
+  "mp4": [],
+  "webm": [],
+  "hls": {
+   "auto": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/master.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 0,
+     "h": 0
+    }
+   },
+   "360": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/360.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 640,
+     "h": 360
+    }
+   },
+   "480": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/480.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 854,
+     "h": 480
+    }
+   },
+   "720": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/720.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 1280,
+     "h": 720
+    }
+   },
+   "1080": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6hls1/1080.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 1920,
+     "h": 1080
+    }
+   }
+  }
+ },
+ "i": "https://hugh.cdn.rumble.cloud/video/s8/1/x/x/x/v6hls1.qR4e-small.jpg",
+ "title": "&quot;Snow Day&quot; at the cabin &amp; more",
+ "author": {
+  "name": "Cabin &amp; Co",
+  "url": "https://rumble.com/c/cabin"
+ },
+ "duration": 61,
+ "live": 0,
+ "l": "/v6hls1-snow-day-at-the-cabin.html"
+}

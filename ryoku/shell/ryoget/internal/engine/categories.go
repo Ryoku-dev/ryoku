@@ -111,10 +111,15 @@ func sortedDir(base, kind, mode, link string) string {
 
 // placeByKind refiles a type-sorted task once resolving tells its kind; call it with the lock held
 func (e *Engine) placeByKind(t *task) {
-	if t.Sort == "" {
+	// a task holding bytes keeps its folder, or its partial would be left behind
+	if t.Sort == "" || t.Done > 0 {
 		return
 	}
-	dir := sortedDir(t.Sort, t.Kind, t.Mode, t.URL)
+	link := t.FetchURL
+	if link == "" {
+		link = t.URL
+	}
+	dir := sortedDir(t.Sort, t.Kind, t.Mode, link)
 	if dir == t.Dir {
 		return
 	}

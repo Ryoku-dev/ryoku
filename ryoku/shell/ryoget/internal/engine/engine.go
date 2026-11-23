@@ -81,6 +81,8 @@ type record struct {
 	Sort string `json:"sort,omitempty"`
 	// added with request headers: a plain file fetched with them, never resolved (resolvers cannot send them)
 	Direct bool `json:"direct,omitempty"`
+	// the page a file of a multi-file page was found on, sent when the file resolves
+	Referer string `json:"referer,omitempty"`
 }
 
 type stateFile struct {
@@ -672,10 +674,7 @@ func (e *Engine) Add(p proto.AddParams) (proto.Task, error) {
 		}
 		dir = sortedDir(dir, guess, mode, link)
 	}
-	host := ""
-	if u, err := url.Parse(link); err == nil {
-		host = u.Hostname()
-	}
+	host := hostOf(link)
 	t := &task{record: record{Task: proto.Task{
 		ID:      newID(),
 		URL:     link,
@@ -748,6 +747,19 @@ func keepHeaders(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func hostOf(link string) string {
+	if u, err := url.Parse(link); err == nil {
+		return u.Hostname()
+	}
+	return ""
+}
+
+// sameSite reports whether host is site itself or one of its subdomains.
+func sameSite(host, site string) bool {
+	host, site = strings.ToLower(host), strings.ToLower(site)
+	return site != "" && (host == site || strings.HasSuffix(host, "."+site))
 }
 
 // maxBatch bounds one addMany; a paste of thousands of links is a mistake, not a queue.
@@ -856,7 +868,7 @@ func (e *Engine) Retry(id string) (proto.Task, error) {
 // maxLimit matches the settings' cap on the global limits, in KiB/s.
 const maxLimit = 1 << 30
 
-// SetLimit caps one download at kib KiB/s (0 lifts it), and a running one follows at once.
+// SetLimit caps one web download at kib KiB/s (0 lifts it), and a running one follows at once.
 func (e *Engine) SetLimit(id string, kib int64) (proto.Task, error) {
 	if kib < 0 {
 		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("A speed limit cannot be negative."))
@@ -867,6 +879,9 @@ func (e *Engine) SetLimit(id string, kib int64) (proto.Task, error) {
 	t := e.tasks[id]
 	if t == nil {
 		return proto.Task{}, notFound()
+	}
+	if t.Kind == "torrent" {
+		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("Torrents follow the global speed limits."))
 	}
 	t.Limit = kib
 	if t.lim != nil {
@@ -903,7 +918,16 @@ func (e *Engine) Refresh(id, raw string) (proto.Task, error) {
 	case t.State == proto.StateDone:
 		return proto.Task{}, perr(proto.CodeInvalid, i18n.T("This download already finished."))
 	}
+	oldHost := hostOf(t.URL)
 	t.URL, t.FetchURL = link, ""
+	switch {
+	case !t.Direct:
+		// what the old link's resolve handed over is not the new one's, resolving fills it again
+		t.Headers = nil
+	case !sameSite(hostOf(link), oldHost):
+		// headers given for one site never travel to another, so the new link resolves normally
+		t.Headers, t.Direct = nil, false
+	}
 	// a direct download stays one: resolving cannot send its headers
 	t.Known = t.Direct
 	if sum != "" {
@@ -1021,6 +1045,17 @@ func (e *Engine) drop(t *task) {
 	e.forget(t)
 }
 
+// retire forgets a settled torrent's entry and kept state but never its data, which may hold finished files.
+func (e *Engine) retire(t *task) {
+	if t.tor != nil {
+		tor := t.tor
+		t.tor = nil
+		go func() { _ = tor.Drop(false) }()
+	}
+	e.forgetTorrent(t)
+	e.forget(t)
+}
+
 func (e *Engine) Clear(states []string) error {
 	if len(states) == 0 {
 		states = []string{proto.StateDone, proto.StateError, proto.StateStopped}
@@ -1063,7 +1098,12 @@ func (e *Engine) pruneLocked(now time.Time) {
 		if t.run != nil || !settled(t.State) {
 			continue
 		}
-		if at := stoppedAt(t); !at.IsZero() && at.Before(cutoff) {
+		if at := stoppedAt(t); at.IsZero() || !at.Before(cutoff) {
+			continue
+		}
+		if t.Kind == "torrent" {
+			e.retire(t)
+		} else {
 			e.drop(t)
 		}
 	}
@@ -1294,13 +1334,18 @@ func (e *Engine) start(t *task) {
 		defer e.wg.Done()
 		err := e.work(ctx, t)
 		cancel()
+		checked := false
 		if err == nil {
-			err = e.verify(t)
+			// hashing takes no ctx: its verdict must stand, so a shutdown waits for it
+			err, checked = e.verify(t), true
 		}
 		e.mu.Lock()
-		if err == nil && (t.want == wantPaused || t.want == wantQueued) {
-			// the file landed before the pause took hold: nothing is left to pause
-			t.want = ""
+		switch t.want {
+		case wantPaused, wantQueued, wantStopped:
+			if err == nil || checked && checksumFailed(err) {
+				// the file landed, or failed its check, before the stop took hold: that outcome stands
+				t.want = ""
+			}
 		}
 		e.finish(t, err)
 		stale := e.releaseTorrents()

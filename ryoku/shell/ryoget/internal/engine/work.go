@@ -36,7 +36,12 @@ func (e *Engine) work(ctx context.Context, t *task) error {
 	}
 	var m *media.Media
 	if !rec.Known || rec.Kind == "media" {
-		mm, err := e.parts.Resolver.Resolve(ctx, rec.URL)
+		rctx := ctx
+		if rec.Referer != "" {
+			// a file found on a page resolves with that page as its Referer, as hotlink-protected mirrors need
+			rctx = media.WithReferer(ctx, rec.Referer)
+		}
+		mm, err := e.parts.Resolver.Resolve(rctx, rec.URL)
 		if err != nil {
 			return err
 		}
@@ -48,6 +53,10 @@ func (e *Engine) work(ctx context.Context, t *task) error {
 		e.mu.Lock()
 		rec = t.record
 		e.mu.Unlock()
+		// resolving may have refiled the task into a type folder not made yet
+		if err := os.MkdirAll(rec.Dir, 0o755); err != nil {
+			return err
+		}
 		if m.Kind == plan.KindTorrent {
 			return e.runTorrent(ctx, t, rec)
 		}
@@ -67,7 +76,6 @@ func (e *Engine) adopt(ctx context.Context, t *task, m *media.Media) {
 	e.with(t, func() {
 		t.Known = true
 		t.Kind = string(m.Kind)
-		e.placeByKind(t)
 		if m.Title != "" {
 			t.Title = m.Title
 		} else if m.Name != "" {
@@ -98,6 +106,8 @@ func (e *Engine) adopt(ctx context.Context, t *task, m *media.Media) {
 				}
 			}
 		}
+		// after FetchURL, so the served file's link sorts it
+		e.placeByKind(t)
 	})
 }
 
@@ -182,6 +192,10 @@ func planSig(pl *plan.Plan) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s|%s|%s", pl.Name, pl.Container, pl.Post)
 	for _, p := range pl.Parts {
+		// a cover that comes or goes must not throw away the parts already fetched
+		if p.Role == "cover" {
+			continue
+		}
 		fmt.Fprintf(h, "|%s,%s,%s,%v", p.Kind, p.Role, p.Ext, p.Args)
 	}
 	return hex.EncodeToString(h.Sum(nil))

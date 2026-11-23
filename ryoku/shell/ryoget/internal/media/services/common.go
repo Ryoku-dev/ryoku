@@ -104,7 +104,8 @@ func fetch(ctx context.Context, env *plan.Env, r request) (*response, error) {
 
 func statusErr(code int) error {
 	switch {
-	case code == http.StatusTooManyRequests:
+	// linkedin answers scrapers with its own 999
+	case code == http.StatusTooManyRequests || code == 999:
 		return fmt.Errorf("%w: HTTP %d", media.ErrRateLimited, code)
 	case code == http.StatusUnauthorized || code == http.StatusForbidden:
 		return fmt.Errorf("%w: HTTP %d", media.ErrPrivate, code)

@@ -1,0 +1,34 @@
+{
+ "fps": 30,
+ "w": 1920,
+ "h": 1080,
+ "u": {
+  "hls": {
+   "url": "https://hugh.cdn.rumble.cloud/live/v6live1/master.m3u8"
+  }
+ },
+ "ua": {
+  "mp4": [],
+  "webm": [],
+  "hls": {
+   "auto": {
+    "url": "https://hugh.cdn.rumble.cloud/live/v6live1/master.m3u8",
+    "meta": {
+     "bitrate": 0,
+     "size": 0,
+     "w": 0,
+     "h": 0
+    }
+   }
+  }
+ },
+ "i": "https://hugh.cdn.rumble.cloud/video/s8/1/x/x/x/v6live1.qR4e-small.jpg",
+ "title": "Morning show LIVE",
+ "author": {
+  "name": "Cabin &amp; Co",
+  "url": "https://rumble.com/c/cabin"
+ },
+ "duration": 0,
+ "live": 2,
+ "l": "/v6live1-morning-show-live.html"
+}

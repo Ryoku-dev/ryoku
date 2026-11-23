@@ -340,7 +340,7 @@ func Fetch(ctx context.Context, env *plan.Env, part plan.Part, dst string, p pla
 	if env != nil && env.FFmpeg != "" {
 		args = append(args, "--ffmpeg-location", env.FFmpeg)
 	}
-	if lim := limitRate(env); lim > 0 {
+	if lim := limitRate(ctx, env); lim > 0 {
 		args = append(args, "--limit-rate", strconv.FormatInt(lim, 10))
 	}
 	for k, v := range part.Headers {
@@ -386,17 +386,29 @@ func Fetch(ctx context.Context, env *plan.Env, part plan.Part, dst string, p pla
 	return nil
 }
 
-// limitRate turns the engine's shared limiter into yt-dlp's --limit-rate when
-// it is an x/time/rate limiter with a finite rate.
-func limitRate(env *plan.Env) int64 {
-	if env == nil || env.Limit == nil {
-		return 0
+// limitRate turns the shared limit and the run's own into yt-dlp's --limit-rate,
+// the smaller of the two finite rates. yt-dlp takes it once, at its start.
+func limitRate(ctx context.Context, env *plan.Env) int64 {
+	var shared plan.Limiter
+	if env != nil {
+		shared = env.Limit
 	}
-	l, ok := env.Limit.(interface{ Limit() rate.Limit })
+	var lim int64
+	for _, l := range []plan.Limiter{shared, plan.Own(ctx)} {
+		if r := finiteRate(l); r > 0 && (lim == 0 || r < lim) {
+			lim = r
+		}
+	}
+	return lim
+}
+
+// finiteRate is an x/time/rate limiter's rate in bytes per second, 0 for none or an unlimited one.
+func finiteRate(l plan.Limiter) int64 {
+	rl, ok := l.(interface{ Limit() rate.Limit })
 	if !ok {
 		return 0
 	}
-	r := l.Limit()
+	r := rl.Limit()
 	if r == rate.Inf || r <= 0 {
 		return 0
 	}

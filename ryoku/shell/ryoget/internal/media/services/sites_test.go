@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -61,6 +62,21 @@ func TestBandcampChallengeAndScope(t *testing.T) {
 	for _, raw := range []string{"https://blazo.bandcamp.com/", "https://blazo.bandcamp.com/music", "https://bandcamp.com/discover"} {
 		if s := media.Lookup(mustURL(t, raw)); s != nil && s.ID() == "bandcamp" {
 			t.Fatalf("%s matched bandcamp", raw)
+		}
+	}
+}
+
+func TestBandcampPurchaseOnlyIsPrivate(t *testing.T) {
+	const paid = `{&quot;id&quot;:1,&quot;title&quot;:&quot;Paid&quot;,&quot;title_link&quot;:&quot;/track/paid&quot;,&quot;file&quot;:null}`
+	for name, c := range map[string]struct{ path, tralbum string }{
+		"track without files":  {"/track/paid", `{&quot;item_type&quot;:&quot;track&quot;,&quot;artist&quot;:&quot;Blazo&quot;,&quot;current&quot;:{&quot;title&quot;:&quot;Paid&quot;},&quot;trackinfo&quot;:[` + paid + `]}`},
+		"track without mp3":    {"/track/paid", `{&quot;item_type&quot;:&quot;track&quot;,&quot;artist&quot;:&quot;Blazo&quot;,&quot;current&quot;:{&quot;title&quot;:&quot;Paid&quot;},&quot;trackinfo&quot;:[{&quot;id&quot;:1,&quot;title&quot;:&quot;Paid&quot;,&quot;file&quot;:{&quot;flac&quot;:&quot;https://t4.bcbits.com/stream/x&quot;}}]}`},
+		"album without tracks": {"/album/paid", `{&quot;item_type&quot;:&quot;album&quot;,&quot;artist&quot;:&quot;Blazo&quot;,&quot;current&quot;:{&quot;title&quot;:&quot;Paid&quot;},&quot;trackinfo&quot;:[` + paid + `]}`},
+	} {
+		_, err := resolveFixture(t, "https://blazo.bandcamp.com"+c.path,
+			route{url: "blazo.bandcamp.com" + c.path, text: `<html><body><script data-tralbum="` + c.tralbum + `"></script></body></html>`})
+		if !errors.Is(err, media.ErrPrivate) {
+			t.Fatalf("%s: %v, want the private code", name, err)
 		}
 	}
 }
@@ -190,6 +206,43 @@ func TestRumbleVideo(t *testing.T) {
 	}
 }
 
+func TestRumbleHLSOnly(t *testing.T) {
+	const cdn = "hugh.cdn.rumble.cloud/live/v6hls1/"
+	routes := []route{{url: "rumble.com/embedJS/u3/", query: "v=v6hls1", file: "rumble/hls.json"},
+		{url: cdn + "master.m3u8", file: "rumble/master.m3u8"}}
+	// every height answers too, so a pick that follows map order would show up as a single-height result
+	for _, h := range []string{"360", "480", "720", "1080"} {
+		routes = append(routes, route{url: cdn + h + ".m3u8", file: "rumble/media.m3u8"})
+	}
+	for i := range 8 {
+		m, err := resolveFixture(t, "https://rumble.com/embed/v6hls1/", routes...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkMedia(t, m, "rumble")
+		if m.Title != `"Snow Day" at the cabin & more` || m.Author != "Cabin & Co" {
+			t.Fatalf("title %q, author %q", m.Title, m.Author)
+		}
+		want := []int{1080, 720, 480, 360}
+		if len(m.Formats) != len(want) {
+			t.Fatalf("resolve %d: formats = %+v, want the master's four", i, m.Formats)
+		}
+		for j, f := range m.Formats {
+			if f.Height != want[j] || f.Parts[0].Kind != plan.PartHLS || f.Parts[0].URL != "https://"+cdn+strconv.Itoa(want[j])+".m3u8" {
+				t.Fatalf("resolve %d: format %d = %+v", i, j, f)
+			}
+		}
+	}
+}
+
+func TestRumbleLiveGoesToYTDLP(t *testing.T) {
+	_, err := resolveFixture(t, "https://rumble.com/embed/v6live1/",
+		route{url: "rumble.com/embedJS/u3/", query: "v=v6live1", file: "rumble/live.json"})
+	if !errors.Is(err, media.ErrUnsupported) {
+		t.Fatalf("live: %v, want unsupported so yt-dlp records it", err)
+	}
+}
+
 func TestLinkedInPost(t *testing.T) {
 	const post = "https://www.linkedin.com/posts/mishalkhawaja_sendinblueviews-toronto-digitalmarketing-ugcPost-6850898786781339649-mM20"
 	m, err := resolveFixture(t, post+"?utm_source=share",
@@ -230,5 +283,11 @@ func TestLinkedInListingsRefused(t *testing.T) {
 		if !linkedinPost(mustURL(t, raw)) {
 			t.Fatalf("%s is a post", raw)
 		}
+	}
+}
+
+func TestStatus999IsRateLimited(t *testing.T) {
+	if err := statusErr(999); !errors.Is(err, media.ErrRateLimited) {
+		t.Fatalf("999 = %v", err)
 	}
 }

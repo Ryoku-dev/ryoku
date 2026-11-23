@@ -30,6 +30,9 @@ var (
 	formRe         = regexp.MustCompile(`(?is)<form\b([^>]*)>(.*?)</form>`)
 	fieldRe        = regexp.MustCompile(`(?is)<(button)\b([^>]*)>(.*?)</button>|<(input|select|textarea)\b([^>]*)>`)
 	captchaRe      = regexp.MustCompile(`(?i)g-recaptcha|h-captcha|cf-turnstile|frc-captcha|data-sitekey`)
+	baseTagRe      = regexp.MustCompile(`(?is)<base\s[^>]*>`)
+	// a disabled attribute, bare or with a value, once quoted values are cut out
+	disabledAttrRe = regexp.MustCompile(`(?i)(?:^|\s)disabled(?:\s*=|\s|/|$)`)
 )
 
 func tagAttrs(tag []byte) map[string]string {
@@ -54,9 +57,40 @@ func innerText(b []byte) string {
 	return strings.Join(strings.Fields(html.UnescapeString(string(tagsRe.ReplaceAll(b, []byte(" "))))), " ")
 }
 
-// pageFiles lists anchors whose path ends in a file extension or that carry a download attribute.
-func pageFiles(base *url.URL, page []byte) []Item {
-	self := *base
+// pageBase is what the links of a page at doc resolve against: doc, or the first http(s) <base href>.
+func pageBase(doc *url.URL, page []byte) *url.URL {
+	for _, tag := range baseTagRe.FindAll(page, -1) {
+		href, ok := tagAttrs(tag)["href"]
+		if !ok {
+			continue
+		}
+		b, err := doc.Parse(strings.TrimSpace(href))
+		if err != nil || (b.Scheme != "http" && b.Scheme != "https") || b.Host == "" {
+			return doc
+		}
+		return b
+	}
+	return doc
+}
+
+// refererFor is what a page may tell target's host: the whole page on its own origin, the origin
+// elsewhere, and nothing when it would leave https for http.
+func refererFor(page, target *url.URL) string {
+	if page.Scheme == "https" && target.Scheme != "https" {
+		return ""
+	}
+	if page.Scheme == target.Scheme && strings.EqualFold(page.Host, target.Host) {
+		ref := *page
+		ref.User, ref.Fragment, ref.RawFragment = nil, "", ""
+		return ref.String()
+	}
+	return (&url.URL{Scheme: page.Scheme, Host: page.Host, Path: "/"}).String()
+}
+
+// pageFiles lists anchors whose path ends in a file extension or that carry a download attribute,
+// resolved against base, with the referer the page at doc may send each.
+func pageFiles(doc, base *url.URL, page []byte) []Item {
+	self := *doc
 	self.Fragment = ""
 	seen := map[string]bool{self.String(): true}
 	var out []Item
@@ -90,7 +124,7 @@ func pageFiles(base *url.URL, page []byte) []Item {
 		} else {
 			title = firstOf(attrBase(attrs["download"]), innerText(m[2]), name)
 		}
-		out = append(out, Item{Title: strings.TrimSpace(title), Kind: "file", URL: key})
+		out = append(out, Item{Title: strings.TrimSpace(title), Kind: "file", URL: key, Referer: refererFor(doc, fu)})
 		if len(out) == pageFileLimit {
 			break
 		}
@@ -167,8 +201,17 @@ func downloadForm(base *url.URL, page []byte) (*pageForm, bool) {
 			f.browser = true
 			return f, true
 		}
+		// a get always sends a query string, a post in another encoding is not what followForm sends
+		if et := strings.ToLower(strings.TrimSpace(fa["enctype"])); f.method == http.MethodPost && et != "" && et != "application/x-www-form-urlencoded" {
+			f.browser = true
+			return f, true
+		}
 		submitted := false
 		for _, fd := range fields {
+			// browsers leave disabled controls out of what they send
+			if disabledAttrRe.Match(quotedRe.ReplaceAll(fd.attrs, nil)) {
+				continue
+			}
 			a := tagAttrs(fd.attrs)
 			name := a["name"]
 			value, hasValue := a["value"]
@@ -221,7 +264,12 @@ func followForm(ctx context.Context, page *url.URL, env *plan.Env, f *pageForm, 
 	if f.method == http.MethodGet {
 		target := *f.action
 		target.RawQuery = f.values.Encode()
-		return probeFile(ctx, &target, env, page.String())
+		m, err := probeWith(ctx, &target, env, false, refererFor(page, &target), false)
+		// a form answered with another page goes on in script or asks for more, which only a browser does
+		if m != nil && m.Kind == plan.KindPage {
+			return nil, needsBrowserErr()
+		}
+		return m, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.action.String(), strings.NewReader(f.values.Encode()))
 	if err != nil {
@@ -229,7 +277,9 @@ func followForm(ctx context.Context, page *url.URL, env *plan.Env, f *pageForm, 
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", ua)
-	req.Header.Set("Referer", page.String())
+	if ref := refererFor(page, f.action); ref != "" {
+		req.Header.Set("Referer", ref)
+	}
 	req.Header.Set("Accept", "*/*")
 	resp, err := httpClient(env).Do(req)
 	if err != nil {
@@ -242,7 +292,7 @@ func followForm(ctx context.Context, page *url.URL, env *plan.Env, f *pageForm, 
 	mt, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	isPage := mt == "text/html" || mt == "application/xhtml+xml"
 	if isPage || browserCheckHeader(resp.Header) {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, challengeLimit))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, challengeLimit+1))
 		if ChallengePage(resp.Header, body) {
 			return nil, BrowserCheckError()
 		}
@@ -255,9 +305,10 @@ func followForm(ctx context.Context, page *url.URL, env *plan.Env, f *pageForm, 
 	}
 	// a redirect turned the post into a plain GET for the file, which the engine can repeat
 	if resp.Request.Method == http.MethodGet && resp.Request.URL.String() != f.action.String() {
-		return probeFile(ctx, resp.Request.URL, env, page.String())
+		return probeFile(ctx, resp.Request.URL, env, refererFor(page, resp.Request.URL))
 	}
-	return nil, fmt.Errorf("%w: %s", ErrUnsupported, i18n.T("This page sends the file only in answer to a form, which cannot be downloaded yet."))
+	// the file came as the answer to the post itself, which cannot be fetched again without posting again
+	return nil, needsBrowserErr()
 }
 
 func statusError(resp *http.Response) error {
@@ -278,14 +329,5 @@ func probeFile(ctx context.Context, u *url.URL, env *plan.Env, referer string) (
 	if m != nil && m.Kind == plan.KindPage {
 		return nil, fmt.Errorf("%w: %s", ErrUnavailable, i18n.T("The link answered with a web page instead of the file."))
 	}
-	if err != nil {
-		return nil, err
-	}
-	if referer != "" {
-		if m.Headers == nil {
-			m.Headers = map[string]string{}
-		}
-		m.Headers["Referer"] = referer
-	}
-	return m, nil
+	return m, err
 }

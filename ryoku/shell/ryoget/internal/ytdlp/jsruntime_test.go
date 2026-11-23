@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func freshJSCache(t *testing.T, runtimes ...string) {
@@ -13,12 +14,12 @@ func freshJSCache(t *testing.T, runtimes ...string) {
 	old := jsRuntimes
 	jsRuntimes = runtimes
 	jsMu.Lock()
-	jsCache = map[string][]string{}
+	jsCache = map[jsKey][]string{}
 	jsMu.Unlock()
 	t.Cleanup(func() {
 		jsRuntimes = old
 		jsMu.Lock()
-		jsCache = map[string][]string{}
+		jsCache = map[jsKey][]string{}
 		jsMu.Unlock()
 	})
 }
@@ -76,5 +77,62 @@ func TestJSRuntimeNeedsAnInstalledOne(t *testing.T) {
 	t.Setenv("STUB_HELP", "1")
 	if got := jsRuntimeArgs(context.Background(), stubEnv(t, "").YTDLP); got != nil {
 		t.Fatalf("args = %v", got)
+	}
+}
+
+// probeStub writes a yt-dlp stand-in that counts its --help runs, so a test can touch it without changing testdata.
+func probeStub(t *testing.T, body string) (bin, count string) {
+	t.Helper()
+	dir := t.TempDir()
+	bin, count = filepath.Join(dir, "yt-dlp"), filepath.Join(dir, "help")
+	script := "#!/bin/sh\necho x >> \"" + count + "\"\n" + body
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return bin, count
+}
+
+func probeCount(t *testing.T, count string) int {
+	t.Helper()
+	b, _ := os.ReadFile(count)
+	return strings.Count(string(b), "x")
+}
+
+func TestJSRuntimeReprobedAfterUpgrade(t *testing.T) {
+	freshJSCache(t, "ryoget-no-such-runtime")
+	bin, count := probeStub(t, "exit 0\n")
+	for range 2 {
+		jsRuntimeArgs(context.Background(), bin)
+	}
+	if n := probeCount(t, count); n != 1 {
+		t.Fatalf("--help ran %d times before the upgrade, want once", n)
+	}
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(bin, later, later); err != nil {
+		t.Fatal(err)
+	}
+	jsRuntimeArgs(context.Background(), bin)
+	if n := probeCount(t, count); n != 2 {
+		t.Fatalf("--help ran %d times, want a fresh probe after the binary changed", n)
+	}
+}
+
+func TestJSRuntimeTimeoutNotCached(t *testing.T) {
+	freshJSCache(t, "ryoget-no-such-runtime")
+	old := jsProbeTimeout
+	jsProbeTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { jsProbeTimeout = old })
+	bin, _ := probeStub(t, "sleep 5\n")
+	// the cache, not the run count, is checked, since a loaded box may kill the stub before it counts
+	for range 2 {
+		if got := jsRuntimeArgs(context.Background(), bin); got != nil {
+			t.Fatalf("args = %v", got)
+		}
+		jsMu.Lock()
+		n := len(jsCache)
+		jsMu.Unlock()
+		if n != 0 {
+			t.Fatal("a probe that hit its own timeout was cached")
+		}
 	}
 }

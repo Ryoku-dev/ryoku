@@ -24,7 +24,7 @@ var challengeMarkers = [][]byte{
 }
 
 // an interstitial is a few kilobytes, a big page that merely mentions one is not
-const challengeLimit = 2 << 20
+const challengeLimit = 256 << 10
 
 // browserCheckHeader reports Cloudflare's own mark for a challenge answer.
 // ported from prism-download-manager crates/prism-engine/src/http/fetcher.rs (MIT)

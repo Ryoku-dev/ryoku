@@ -75,9 +75,15 @@ func WithLimit(ctx context.Context, l Limiter) context.Context {
 	return context.WithValue(ctx, limitKey{}, l)
 }
 
+// Own is the run's own speed limit, nil when the context carries none.
+func Own(ctx context.Context) Limiter {
+	own, _ := ctx.Value(limitKey{}).(Limiter)
+	return own
+}
+
 // Wait takes n bytes from the run's own limit, when it has one, and then from the shared one.
 func Wait(ctx context.Context, shared Limiter, n int) error {
-	if own, ok := ctx.Value(limitKey{}).(Limiter); ok && own != nil {
+	if own := Own(ctx); own != nil {
 		if err := own.WaitN(ctx, n); err != nil {
 			return err
 		}

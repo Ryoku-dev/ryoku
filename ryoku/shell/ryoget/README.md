@@ -54,8 +54,8 @@ no_space browser_check checksum`.
 | `cancel` | `{id}`: stop and delete partial data | `{}` |
 | `remove` | `{id, deleteFile?}` | `{}` |
 | `retry` | `{id}` | `Task` |
-| `limit` | `{id, kib}`: this download's own speed limit in KiB/s, `0` for none, on top of `downLimit`; a running one changes at once | `Task` |
-| `refresh` | `{id, url}`: a new link for a failed, stopped, paused or queued web download (a running one must be paused first); it resolves again and keeps its partial data when the file is the same | `Task` |
+| `limit` | `{id, kib}`: this web download's own speed limit in KiB/s, `0` for none, on top of `downLimit` (a torrent is refused, torrents follow the global limits); a running one changes at once, except a yt-dlp fetch, which takes it from its next start | `Task` |
+| `refresh` | `{id, url}`: a new link for a failed, stopped, paused or queued web download (a running one must be paused first); it resolves again and keeps its partial data and folder when the file is the same; headers it was added with go along only to the same host or its subdomains | `Task` |
 | `move` | `{id, index}`: position among queued tasks | `{}` |
 | `files` | `{id, selected:[int]}`: torrent file selection | `Task` |
 | `open` / `reveal` | `{id}` | `{}` |
@@ -79,12 +79,14 @@ cleared when it runs again, as is `Task.seen`.
 Settled tasks (finished, failed or stopped) are forgotten `keepDays` days after they
 stopped (`0` keeps them until cleared): when the daemon starts, after a task settles,
 on `hello` and when the setting changes, so nothing wakes the daemon for it. A finished
-file stays on disk; a failed download's partial data goes with its entry.
+file stays on disk; a failed web download's partial data goes with its entry, and a
+torrent's data always stays.
 
 With `sortByType` on, a web download added without `dir` lands in a folder per kind inside
-`dir`: a file by the extension of its link (`Videos`, `Music`, `Documents`, `Programs`,
+`dir`: a file by the extension of the link it is served from (`Videos`, `Music`, `Documents`, `Programs`,
 `Archives`, `Pictures`, in the reader's language; anything else stays in `dir`), a video in
-`Videos` and an audio download in `Music`. Torrents stay in `dir`.
+`Videos` and an audio download in `Music`. Torrents stay in `dir`. A download that already
+holds data keeps its folder.
 
 `links` finds plain links, Markdown `[text](url)` and `<url>` links, magnets, and bare `www.`
 or `host.tld/path` addresses, in text order. Each is cleaned: trailing punctuation and
@@ -109,7 +111,7 @@ those with notes other than `expanded`, `duplicates` the marked ones.
 ryoget add <url>... | - [--audio|--mute] [--dir DIR] [--paused]
 ryoget list [--json]
 ryoget pause|resume|cancel|remove|retry <id|all>
-ryoget clear [--done|--failed]
+ryoget clear [--done] [--failed]
 ryoget resolve <url> [--json]
 ryoget ensure
 ryoget serve
@@ -133,12 +135,17 @@ when it knows that option (asked once per daemon run) and one of them is install
 
 A page with no media lists the files it links to (archives, disk images, installers,
 documents, ROMs, audio and video files, or any link with a `download` attribute) as
-items of kind `file`; adding it queues one task per file, each resolved against its own
-host, and a page with just one such link resolves straight to that file with the page as
-`Referer`. A download form with fixed fields is sent the way a browser would; one behind
-a captcha, filled in by script or asking for typed input fails with `browser_check`, as
-does a Cloudflare or DDoS-Guard check page (the `cf-mitigated: challenge` header or a
-small challenge page) where a page or file was expected.
+items of kind `file`, read against the address the page was finally served from or its
+`<base href>`; adding it queues one task per file, each resolved against its own host
+with the page as `Referer`, and a page with just one such link resolves straight to that
+file. A file on another host is sent only the page's origin as `Referer`, and one an
+https page links over plain http none. A download form with fixed fields is sent the way
+a browser would, leaving out disabled controls; one behind a captcha, filled in by
+script, asking for typed input, posting in another encoding than
+`application/x-www-form-urlencoded`, answering with another page or with the file as
+the post's own answer fails with `browser_check`, as does a Cloudflare or DDoS-Guard
+check page (the `cf-mitigated: challenge` header or a challenge page under 256 KiB)
+where a page or file was expected.
 
 With `coverArt` on, an audio-only download carries its thumbnail as the cover: a picture
 stream in mp3, m4a and flac, a `METADATA_BLOCK_PICTURE` comment in opus and ogg. A

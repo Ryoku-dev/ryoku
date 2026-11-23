@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"hash"
 	"io"
 	"net/url"
@@ -55,8 +56,8 @@ func takeChecksum(link, given string) (string, string, error) {
 	return link, sum, nil
 }
 
-// hashFile is ported from prism-download-manager crates/prism-engine/src/checksum.rs (MIT)
-func hashFile(path, algo string) (string, error) {
+// hashFile is ported from prism-download-manager crates/prism-engine/src/checksum.rs (MIT), a variable so a test can hold a hash in progress
+var hashFile = func(path, algo string) (string, error) {
 	var h hash.Hash
 	switch algo {
 	case "sha256":
@@ -101,4 +102,9 @@ func (e *Engine) verify(t *task) error {
 	}
 	t.Verified = algo
 	return nil
+}
+
+func checksumFailed(err error) bool {
+	var pe *proto.Error
+	return errors.As(err, &pe) && pe.Code == proto.CodeChecksum
 }
