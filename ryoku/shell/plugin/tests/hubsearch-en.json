@@ -10,7 +10,8 @@
 "Clipboard rows rebuilt from its schema on 2026-11-22 (panel size and corners retired, an",
 "Open the clipboard row added), and the queries they move regenerated with them.",
 "Clipboard toggle row Find pictures by the text in them added on 2026-11-22, and the queries it",
-"moves regenerated with it."],
+"moves regenerated with it.",
+"Launcher style row gained the orpheus keyword on 2026-11-23; no expected query moved."],
 "fields":["id","label","desc","kw","group","tab","sectionName","isPage"],
 "synonyms":{"transparency":"opacity","transparent":"opacity","seethrough":"opacity","opacity":"transparency","darkmode":"dark","lightmode":"light","color":"colour","colour":"color","hotkey":"shortcut","hotkeys":"shortcuts","keybind":"shortcut","keybinds":"shortcuts","wifi":"wi-fi network","internet":"network wi-fi","monitor":"display","monitors":"displays","resolution":"displays","rounding":"corners radius","corners":"rounding","radius":"corners","frost":"blur","glass":"blur","titlebar":"title bars","titlebars":"title bars","gap":"gaps","spacing":"gaps","screenshot":"capture","recording":"capture","dictation":"voice typing","speech":"voice typing","lock":"lock screen","screensaver":"lock screen","startup":"startup apps","autostart":"startup","gpu":"graphics","battery":"power","font":"fonts","cursor":"pointer","outline":"border","frame":"border"},
 "entries":[
@@ -210,7 +211,7 @@
 ["launcher","App launcher","","launcher app search command palette greeting favourites hidden apps grid Desktop","","","Desktop",true],
 ["launcher/corner-radius","Look","","","Look","","App launcher",false],
 ["launcher/hidden-apps","Results","","","Results","","App launcher",false],
-["launcher/launcher-style","Launcher style","Choose the launcher Super+Space opens","variant hero main okshell command palette theme look install update","Launcher style","","App launcher",false],
+["launcher/launcher-style","Launcher style","Choose the launcher Super+Space opens","variant orpheus hero main okshell command palette theme look install update","Launcher style","","App launcher",false],
 ["launcher/browse-launchers","Find more launchers","Browse and install launchers in RyoStore","store download ryostore","Launcher style","","App launcher",false],
 ["launcher/corner-radius~2","Corner radius","How rounded the launcher's corners are; the cards inside follow","rounding radius shape","Look","","App launcher",false],
 ["launcher/backdrop-blur","Blur behind the results","Frosts the desktop behind the results; 0 leaves it sharp","frost blur background glass bgBlur","Look","","App launcher",false],

@@ -37,7 +37,7 @@ Singleton {
 
         JsonAdapter {
             id: adapter
-            property string variant: "hero"
+            property string variant: "orpheus"
             property real radius: 16
             property int bgBlur: 2
             property string heroImage: ""

@@ -136,8 +136,15 @@ An item can provide parts Ryoku uses while it is installed, even when another
 item is active. Selecting one puts the item in use.
 
 - `[[provides.dock]]`, selected by `shell.json` `dock.design`.
-- `[[provides.launcher]]`, selected by `launcher.json` `variant`. Kairos ships
-  its island launcher this way.
+- `[[provides.launcher]]`, selected by `launcher.json` `variant`. Orpheus ships
+  the default launcher this way, and Kairos its island launcher. A launcher
+  that wants Ryoku Settings controls (hidden apps, favourites, sections and so
+  on) puts a `settings.json` beside its entry file, in the format store
+  launchers use (`docs/launcher.md`, Store launchers). Settings reads it as
+  data, resolving a shipped item's path under the shell config root and a store
+  item's under its unpacked folder; without one it offers no controls for that
+  launcher. `item.toml` takes no extra keys for this, so the item stays valid
+  for an older RyoStore.
 - `[[provides.desktopWidgets]]`, a roster of widget faces placed with Ryoku's
   desktop widget keys in `widgets.json`.
 
@@ -239,6 +246,11 @@ holds Wi-Fi, Bluetooth, quick toggles, volume and brightness with their own
 pages, power profiles, and hold-to-activate session actions. The other pages
 cover media, weather, notifications grouped by app, tray menus, power, system,
 and session. Right-click empty bar space to open Controls.
+
+Orpheus also provides the default launcher (`[[provides.launcher]]` id
+`orpheus`, in `qml/launcher/`). With Orpheus as the bar, Super+Space pours it out
+of the voice as a card welded to the centre drop; under another bar it hangs
+from the top edge on its own. `docs/launcher.md` describes it.
 
 Left-click the 力 logo to open settings, and right-click it to open the
 launcher. The **Settings** action on its card in Ryoku Settings > Desktop > Bar opens them too, and

@@ -51,13 +51,18 @@ function items(index, categories) {
 
 // Shipped paths are relative to the shell config root; store paths are
 // absolute inside the unpacked item, or empty while it is packed.
-function fileUrl(record, path, shellRoot) {
+function filePath(record, path, shellRoot) {
     var value = String(path || "");
     if (!record || value === "" || record.prepared !== true)
         return "";
     if (record.source === "shipped")
-        return "file://" + String(shellRoot || "") + "/" + value;
-    return value.charAt(0) === "/" ? "file://" + value : "";
+        return String(shellRoot || "") + "/" + value;
+    return value.charAt(0) === "/" ? value : "";
+}
+
+function fileUrl(record, path, shellRoot) {
+    var file = filePath(record, path, shellRoot);
+    return file === "" ? "" : "file://" + file;
 }
 
 function contributions(index, kind) {

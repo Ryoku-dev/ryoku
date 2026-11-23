@@ -24,6 +24,12 @@ Item {
     property real originW: voiceDrop.w
     property real cardW: 0
     property real cardH: 0
+    // the width ceiling of the page being shown (the launcher is wider)
+    property real cardMaxW: M.cardMaxW
+    // the page is the launcher: its lower edge can carry the music
+    property bool launcherCard: false
+    // the launcher asks for the music edge (open, playing, ambient motion allowed)
+    property bool musicEdge: false
     property bool waveActive: true
 
     property real cardProgress: 0
@@ -46,7 +52,7 @@ Item {
     readonly property real restCardX: Math.max(0, Math.min(
         Math.max(0, width - restCardW), cardAnchor - restCardW / 2))
     readonly property real cardTargetW: cardW > 0
-        ? Math.min(M.cardMaxW, width, cardW) : restCardW
+        ? Math.min(cardMaxW, width, cardW) : restCardW
     readonly property real cardNaturalX: Math.max(0, Math.min(
         Math.max(0, width - cardTargetW), cardAnchor - cardTargetW / 2))
     readonly property real cardTargetX: cardNaturalX < edgeSnap ? 0
@@ -113,12 +119,29 @@ Item {
             && K.Look.ambientMotion);
     }
 
+    // The launcher's edge claims the music under its own owner, so the bar's
+    // claim and this one never release each other.
+    readonly property var edgeOwner: ({ owner: "orpheus-launcher-edge" })
+    readonly property bool edgeRunning: musicEdge && launcherCard
+        && prefs.gain > 0 && K.Look.ambientMotion
+
+    function syncEdgeClaim() {
+        AudioBars.setActive(body.edgeOwner, body.edgeRunning);
+    }
+
     onCardKeyChanged: if (cardKey !== "") syncOrigin()
     onOriginXChanged: syncOrigin()
     onOriginWChanged: syncOrigin()
     onWaveActiveChanged: syncAudioClaim()
-    Component.onCompleted: syncAudioClaim()
-    Component.onDestruction: AudioBars.setActive(body, false)
+    onEdgeRunningChanged: syncEdgeClaim()
+    Component.onCompleted: {
+        syncAudioClaim();
+        syncEdgeClaim();
+    }
+    Component.onDestruction: {
+        AudioBars.setActive(body, false);
+        AudioBars.setActive(body.edgeOwner, false);
+    }
 
     Connections {
         target: body.prefs
@@ -303,8 +326,9 @@ Item {
     // page reads as the bar swelling open, not a panel laid on top. The top
     // corners are flush where the neck meets the band; the bottom corners round
     // (or melt into a screen edge). Velocity deform stretches it liquidly while
-    // it travels between anchors.
-    BlobRect {
+    // it travels between anchors. It is the group's fourth wave: flat for every
+    // card, and for the launcher its lower edge ripples outward with the music.
+    BlobWave {
         id: cardShape
         group: liquid
         visible: body.cardActive
@@ -320,6 +344,19 @@ Item {
         damping: 16
         deformScale: body.cardActive ? 0.000015 : 0
         sinks: false
+        levels: body.edgeRunning ? AudioBars.levels : []
+        gain: body.prefs.gain
+        amplitude: body.launcherCard ? M.launcherWave * K.Style.scale : 0
+        points: Math.round(Math.min(64, Math.max(12,
+            width / (12 * K.Style.scale))))
+        stepped: body.square
+        blockPitch: Math.max(14 * K.Style.scale, Math.min(26 * K.Style.scale,
+            (width - 2 * K.Style.barPad) / 10))
+        mirror: body.prefs.mirror
+        edgeInset: body.square ? K.Style.barPad
+            : Math.max(K.Style.barPad, width * 0.16)
+        waveStiffness: body.prefs.waveStiffness
+        waveDamping: body.prefs.waveDamping
     }
 
     component Drop: BlobWave {

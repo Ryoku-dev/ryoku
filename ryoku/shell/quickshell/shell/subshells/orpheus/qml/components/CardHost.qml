@@ -18,12 +18,16 @@ Item {
 
     readonly property bool ready: activeLoader !== null
         && activeLoader.status === Loader.Ready && activeLoader.item !== null
+    // the width ceiling follows the retained card, so a closing page keeps its size
+    readonly property real maxW: host.maxWidthFor(retainedKey)
     readonly property real cardW: ready
-        ? Math.min(M.cardMaxW, Math.max(0,
+        ? Math.min(host.maxWidthFor(activeLoader.loadedKey), Math.max(0,
             Number(activeLoader.item.implicitWidth) || 0)) : 0
     readonly property real cardH: ready
-        ? Math.min(scene.cardMaxHeight, Math.max(0,
+        ? Math.min(scene.cardMaxHeightFor(activeLoader.loadedKey), Math.max(0,
             Number(activeLoader.item.implicitHeight) || 0)) : 0
+    readonly property var launcherSheet: ready && activeLoader.loadedKey === "launcher"
+        && activeLoader.item.sheet ? activeLoader.item.sheet : null
     readonly property real reveal: Math.max(0, Math.min(1,
         (body.cardProgress - 0.35) / 0.25))
     readonly property bool contentShown: cardKey !== ""
@@ -43,6 +47,10 @@ Item {
     // move reads as liquid, not a rigid slide (the frame popout's deform).
     transform: Matrix4x4 { matrix: host.body.cardDeform }
 
+    function maxWidthFor(key) {
+        return key === "launcher" ? M.launcherMaxW * K.Style.scale : M.cardMaxW;
+    }
+
     function sourceFor(key) {
         switch (key) {
         case "media": return Qt.resolvedUrl("../cards/MediaCard.qml");
@@ -56,6 +64,7 @@ Item {
         case "session": return Qt.resolvedUrl("../cards/SessionCard.qml");
         case "recording": return Qt.resolvedUrl("../cards/RecordingCard.qml");
         case "vpn": return Qt.resolvedUrl("../cards/VpnCard.qml");
+        case "launcher": return Qt.resolvedUrl("../cards/LauncherCard.qml");
         default: return "";
         }
     }
@@ -136,9 +145,10 @@ Item {
         property var loadedArgs: ({})
         property bool selected: false
         readonly property real pageW: status === Loader.Ready && item
-            ? Math.min(M.cardMaxW, Math.max(0, Number(item.implicitWidth) || 0)) : 0
+            ? Math.min(host.maxWidthFor(loadedKey),
+                Math.max(0, Number(item.implicitWidth) || 0)) : 0
         readonly property real pageH: status === Loader.Ready && item
-            ? Math.min(host.scene.cardMaxHeight,
+            ? Math.min(host.scene.cardMaxHeightFor(loadedKey),
                 Math.max(0, Number(item.implicitHeight) || 0)) : 0
 
         x: Math.round((host.width - width) / 2)
@@ -146,7 +156,9 @@ Item {
         width: pageW
         height: pageH
         opacity: selected ? host.reveal : 0
-        visible: status === Loader.Ready && opacity > 0.001
+        // the launcher stays visible while it fades in, so its field can take focus
+        visible: status === Loader.Ready
+            && (opacity > 0.001 || (selected && loadedKey === "launcher"))
 
         Behavior on opacity {
             NumberAnimation {
@@ -169,9 +181,10 @@ Item {
         property var loadedArgs: ({})
         property bool selected: false
         readonly property real pageW: status === Loader.Ready && item
-            ? Math.min(M.cardMaxW, Math.max(0, Number(item.implicitWidth) || 0)) : 0
+            ? Math.min(host.maxWidthFor(loadedKey),
+                Math.max(0, Number(item.implicitWidth) || 0)) : 0
         readonly property real pageH: status === Loader.Ready && item
-            ? Math.min(host.scene.cardMaxHeight,
+            ? Math.min(host.scene.cardMaxHeightFor(loadedKey),
                 Math.max(0, Number(item.implicitHeight) || 0)) : 0
 
         x: Math.round((host.width - width) / 2)
@@ -179,7 +192,8 @@ Item {
         width: pageW
         height: pageH
         opacity: selected ? host.reveal : 0
-        visible: status === Loader.Ready && opacity > 0.001
+        visible: status === Loader.Ready
+            && (opacity > 0.001 || (selected && loadedKey === "launcher"))
 
         Behavior on opacity {
             NumberAnimation {

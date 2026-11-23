@@ -14,11 +14,16 @@ instantly and toggles with `ryoku-shell launcher`.
 
 ## Launcher variants
 
-Hero is the default launcher. Ryoku Settings > Desktop > App launcher offers the three
-shipped styles, the launchers that installed subshells and bar styles provide,
-and any launcher installed from RyoStore (see
-[Store launchers](#store-launchers)), and saves the choice as `variant` in
-`~/.config/ryoku/launcher.json`:
+Orpheus is the default launcher (see [Orpheus](#orpheus)). Ryoku Settings >
+Desktop > App launcher offers it, the three shipped styles, the launchers that
+other installed subshells and bar styles provide, and any launcher installed
+from RyoStore (see [Store launchers](#store-launchers)), and saves the choice as
+`variant` in `~/.config/ryoku/launcher.json`. New installs get `orpheus` from
+the default rice and from `LauncherConfig`; `ryoku doctor` moves a saved `hero`,
+the old default, to `orpheus` once (`launcher-orpheus-default` under the state
+migrations folder), so picking Hero again afterwards stays.
+
+The three shipped styles stay selectable:
 
 - **Main** is a compact command palette with the centered RestDashboard image
   card and the shared provider, result, and action contracts.
@@ -28,19 +33,73 @@ and any launcher installed from RyoStore (see
   sliding row selection.
 
 An item contributes a launcher with `[[provides.launcher]]` in its `item.toml`
-(see `docs/subshells.md`). The shipped Kairos subshell provides **Kairos**, the
-island launcher: the pill grows out of Kairos's resting island at the top of the
-screen into an Android-style app drawer, with a search field, the five apps you
-open most and every app A to Z in a grid. Store items provide
-others, such as Spotlight from the Shima bar style and Python from the Python
-subshell. The page tags them `FROM <ITEM>`. Selecting one puts its item in use,
-so a packed item is unpacked first, and the default launcher previews and runs
-until it is ready.
+(see `docs/subshells.md`). The shipped Orpheus subshell provides **Orpheus**. The
+shipped Kairos subshell provides **Kairos**, the island launcher: the pill grows
+out of Kairos's resting island at the top of the screen into an Android-style app
+drawer, with a search field, the five apps you open most and every app A to Z in
+a grid. Store items provide others, such as Spotlight from the Shima bar style
+and Python from the Python subshell. The page tags them `FROM <ITEM>`. Selecting
+one puts its item in use, so a packed item is unpacked first, and the default
+launcher previews and runs until it is ready.
+
+A contributed launcher opts into Settings controls the way a store launcher
+does: a `settings.json` beside its entry file (see
+[Store launchers](#store-launchers) for the format and the capability table).
+Settings reads it with the same parser and limits. A shipped item's file
+resolves under the shell config root, a store item's under its unpacked folder,
+and a packed item offers no controls until it is ready.
 
 The resident `shell.qml` selector loads the saved catalog entry without changing
 the stable `ryoku-shell launcher` command or socket. An unknown saved ID resolves
-to Hero. If a selected QML entrypoint cannot load, the selector tries OkShell
-once. Switching an open launcher closes it before replacing the component.
+to Hero, the catalog default. If a selected QML entrypoint cannot load, the
+selector tries OkShell once. Switching an open launcher closes it before
+replacing the component.
+
+## Orpheus
+
+Orpheus lives in `subshells/orpheus/qml/launcher/`. When Orpheus is the bar on
+a screen, Super+Space pours the launcher out of the voice island: it is an
+Orpheus card welded to the centre drop, so bar and launcher are one liquid body,
+and it drains back into the voice when it closes. Under any other bar it opens
+in its own overlay window and pours down from the top of the screen as the same
+liquid shape, its shoulders melting into the edge; when that bar holds the top
+edge, the launcher hangs from the bar's lower edge instead of covering it.
+
+- **Search line.** The 力 seal in Lithic, a search glyph in the other designs;
+  the glyph changes with the mode (`/` actions, `=` calculator, `?` web, Ask).
+  The query sets in large type with a faint completion of the top app after the
+  caret, which Right or End accepts. Tabs on the right switch between All,
+  Apps, Windows, Files and Actions, plus Ask while Rashin is on.
+- **Track list.** The left column numbers its rows (Alt+1 to Alt+9 run one)
+  with the icon, the title with the matched letters in full ink, and a kind
+  line. An app with open windows carries a running dot and its window count;
+  the app playing music shows live equaliser bars. With an empty query it lists
+  your pinned apps, then the ones you use most; a fresh account gets a set by
+  category (browser, terminal, files, media and so on), never A to Z. The
+  selection is a liquid bead that stretches as it travels and settles with a
+  small squash.
+- **Lead.** The right column shows the selected result in detail. An app shows
+  its icon, name and description, its actions (the launch first, then desktop
+  actions such as New window), its open windows (Enter focuses one) and, while
+  it is the player, the track with previous, play or pause, and next. A
+  calculation shows large and Enter copies it; a file shows a picture preview or
+  its icon with Open and Show in folder; windows, web searches, the player and
+  Ask have views of their own.
+- **Music edge.** The sheet's height follows its results like a liquid level.
+  While music plays its lower edge ripples with the music, the way the Orpheus
+  drops do. Rows ripple in once per open; typing never animates row content.
+- **Keyboard.** Up and Down, Ctrl+J and Ctrl+K, or Ctrl+N and Ctrl+P move;
+  PageUp and PageDown move five; Enter runs; Tab enters the lead's actions;
+  Ctrl+1 to Ctrl+6 switch tabs. Esc leaves the actions, then clears the query,
+  then closes.
+
+It draws in the four designs (Lithic, Material, Adwaita, Fluent) through
+Orpheus's kit; a design changes corners, planes and motion, never colour.
+Motion you cause follows the micro-motion setting, passive motion (the music
+edge, the equaliser bars) the ambient one, and reduced motion stills both. The
+card is released when it closes, and its providers 15 s later. Its
+`settings.json` asks for `hiddenApps` and `pinnedApps`, so Settings offers
+Hidden apps and Favourites for it.
 
 ## Structure and contracts
 
@@ -58,8 +117,9 @@ once. Switching an open launcher closes it before replacing the component.
   preview. It accepts `settings` and emits `editRequested(key, value)` when the
   preview supports editing.
 
-Preview controls are capability-gated by the catalog, so adding a variant does
-not add irrelevant settings to other designs.
+Settings controls are capability-gated: by the catalog for the shipped styles,
+and by a `settings.json` beside the entry for store and contributed launchers,
+so adding a variant does not add irrelevant settings to other designs.
 
 ## Adding a launcher variant
 
@@ -119,11 +179,12 @@ with a `Main.qml` runtime root and, optionally, a `Preview.qml`.
   `Quickshell.Io`'s `FileView` and `JsonAdapter`, and must fall back to the
   defaults when one is absent. It never writes the file: Settings owns it, and
   a write from here would drop the keys the launcher does not know.
-  The shipped Hero and Main honour `hiddenApps` through `shared/providers/apps`.
-- Removing the launcher in use resets `variant` to `""`, the default, inside the
-  same journaled Store transaction. The shipped ids (`main`, `hero`, `okshell`)
-  are reserved: the Store refuses to install, list, or remove them, and the
-  catalogue validator rejects them.
+  The shipped Hero and Main, and Orpheus, honour `hiddenApps` through
+  `shared/providers/apps`.
+- Removing the launcher in use resets `variant` to `""`, which opens Hero, the
+  catalog default, inside the same journaled Store transaction. The shipped ids
+  (`main`, `hero`, `okshell`) are reserved: the Store refuses to install, list,
+  or remove them, and the catalogue validator rejects them.
 
 ## Hero anatomy
 

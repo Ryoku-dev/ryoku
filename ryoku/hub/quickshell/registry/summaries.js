@@ -120,8 +120,8 @@ function pageSummary(id, ctx) {
         var launcher = ctx.config("launcher.json");
         if (launcher === undefined)
             return ctx.tr(still[id]);
-        var variants = { hero: "Hero", main: "Main", okshell: "OkShell" };
-        var variant = launcher.variant || "hero";
+        var variants = { orpheus: "Orpheus", hero: "Hero", main: "Main", okshell: "OkShell", kairos: "Kairos" };
+        var variant = launcher.variant || "orpheus";
         return ctx.tr("%1 style").replace("%1", variants[variant] || title(variant));
     case "wifi":
         var net = ctx.topic("network");

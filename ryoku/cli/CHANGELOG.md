@@ -1,6 +1,13 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku doctor` moves the launcher to Orpheus, the new default, once.** A
+  `launcher.json` whose `variant` is exactly `hero`, the old default Settings
+  wrote as if picked, becomes `orpheus`; any other launcher stays, a later pick
+  of Hero stands (marker `launcher-orpheus-default` in the state migrations
+  folder), a symlinked file and its mode are kept, and a file that does not
+  parse is left alone and unmarked
+  (`internal/doctor/reconcile_launcher_orpheus_default.go`).
 - **`ryoku doctor` clears the retired clipboard panel settings.** The six size
   and corner keys under `clipboard` in `shell.json` are removed; weekly clearing
   and everything else stay as they were

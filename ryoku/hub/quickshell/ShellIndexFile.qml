@@ -8,6 +8,7 @@ FileView {
     id: file
 
     property var index: ShellIndex.empty()
+    property bool syncAsked: false
     readonly property string shellRoot: {
         const shellDir = String(Quickshell.env("RYOKU_SHELL_DIR") || "");
         if (shellDir.length > 0)
@@ -26,5 +27,12 @@ FileView {
     printErrors: false
     onFileChanged: reload()
     onLoaded: file.index = ShellIndex.parse(text())
-    onLoadFailed: file.index = ShellIndex.empty()
+    onLoadFailed: {
+        file.index = ShellIndex.empty();
+        // a box that never synced has no index, and contributed launchers such as the default would go missing
+        if (!file.syncAsked) {
+            file.syncAsked = true;
+            file.requestSync();
+        }
+    }
 }

@@ -357,6 +357,7 @@ func reconcilers() []reconciler {
 		{i18n.T("zen browser policy"), reconcileZen},
 		{i18n.T("zen browser animations"), reconcileZenUserChrome},
 		{i18n.T("launcher local-frost default"), reconcileLauncherLocalFrostDefault},
+		{i18n.T("launcher Orpheus default"), reconcileLauncherOrpheusDefault},
 		{i18n.T("user edits overlay"), reconcileUserEdits},
 		{i18n.T("default app map"), reconcileMimeDefaults},
 		{i18n.T("keyring unlock policy"), reconcileKeyring},

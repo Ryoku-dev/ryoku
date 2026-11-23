@@ -25,6 +25,16 @@
   by default, with what it costs said beside it: the clipboard reads copied
   pictures only while it is open and for two minutes after, about 100 MB for a
   second or two a picture (`quickshell/schema/clipboard.js`).
+- **Launchers from subshells and bar styles get their Settings controls.** A
+  contributed launcher's `settings.json` beside its entry is read the way a
+  RyoStore launcher's is, with the same parser and limits, so the App launcher
+  page offers its hidden apps, favourites, sections and other cards. A shipped
+  item resolves under the shell root, a store item under its unpacked folder.
+  A box that never built the shells index has Settings ask the shell for one,
+  so a contributed launcher in use (now the default) is listed and shown as in
+  use (`quickshell/components/launcher/LauncherStyles.qml`,
+  `quickshell/LauncherSettings.js`, `quickshell/ShellIndex.js`,
+  `quickshell/ShellIndexFile.qml`).
 
 ### Removed
 
@@ -39,6 +49,12 @@
   `quickshell/pages/PointsShop.qml`).
 
 ### Changed
+
+- **Orpheus is the default launcher.** A fresh App launcher page starts on
+  Orpheus, its summary names Orpheus and Kairos, and searching for orpheus
+  finds the Launcher style row; Hero, Main, OkShell and Kairos stay a click
+  away (`quickshell/components/launcher/LauncherStore.qml`,
+  `quickshell/registry/summaries.js`, `quickshell/schema/launcher.js`).
 
 - **The Clipboard page drops the panel's size and corner settings.** The new
   palette takes them from the design in use; the page gains Open the clipboard

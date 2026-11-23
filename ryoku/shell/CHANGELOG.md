@@ -1,6 +1,20 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Orpheus is the new default launcher.** The Orpheus subshell provides it
+  (`[[provides.launcher]]` id `orpheus`): with Orpheus as the bar, Super+Space
+  pours it out of the voice island as one liquid body with the bar, and under
+  another bar it hangs from the top edge of the screen. A search line with
+  tabs, a numbered track list of your pinned and most used apps, a lead with
+  the selected app's actions and open windows, and a lower edge that ripples
+  with the music, in the four designs. New installs and the default rice start
+  on it, and the built-in shells record lists it before `shells.json` exists;
+  Hero, Main, OkShell and Kairos stay selectable
+  (`quickshell/shell/subshells/orpheus/item.toml`,
+  `quickshell/shell/subshells/orpheus/qml/launcher/`,
+  `quickshell/shell/services/Shells.qml`,
+  `quickshell/shell/modules/launcher/shared/Singletons/LauncherConfig.qml`,
+  `../assets/rices/default/rice.json`).
 - **Kit's Downloads filters, clears and repairs.** Chips over the queue show
   All, Active, Waiting, Done or Failed with live counts (Alt+1 to Alt+5), Clear
   finished and Clear failed sit beside them, and Ctrl+K retries every failure.

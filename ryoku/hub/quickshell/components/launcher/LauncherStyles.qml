@@ -17,7 +17,8 @@ Item {
     property var catalog: ({ variants: [] })
     property bool catalogMissing: false
     property var store: []
-    property var storeSettings: LauncherSettings.parse("")
+    // what the launcher in use lets Settings change, from the settings.json beside its entry (RyoStore's and contributed ones)
+    property var ownSettings: LauncherSettings.parse("")
     // what the launcher in use offers is known once RyoStore's list and its settings are read
     property bool storeKnown: false
     property bool settingsKnown: true
@@ -72,6 +73,7 @@ Item {
     readonly property var contributed: ShellIndex.contributions(shells.index, "launcher").map(entry => ({
         id: entry.id, name: entry.name, summary: entry.description, kind: "contribution", itemName: entry.itemName,
         prepared: entry.prepared === true, installed: true, unavailable: false, capabilities: [],
+        settingsPath: LauncherSettings.besideEntry(ShellIndex.filePath(entry.record, entry.entry, shells.shellRoot)),
         previewUrl: ShellIndex.fileUrl(entry.record, entry.preview, shells.shellRoot), art: "",
         version: "", installedVersion: "", updateAvailable: false, downloadPaused: false
     }))
@@ -113,7 +115,7 @@ Item {
     }
     readonly property var activeCard: root.card(root.active)
     readonly property var capabilities: !root.activeCard ? []
-        : root.activeCard.kind === "store" ? root.storeSettings.capabilities : root.activeCard.capabilities
+        : root.activeCard.kind === "shipped" ? root.activeCard.capabilities : root.ownSettings.capabilities
 
     function supports(capability) {
         return root.capabilities.indexOf(capability) >= 0;
@@ -284,7 +286,7 @@ Item {
                 var dir = item.installed === true ? root.viewDir(item) : "";
                 return {
                     id: item.id, name: item.name || item.id, summary: item.summary || item.description || "",
-                    kind: "store", art: item.art || "", viewDir: dir,
+                    kind: "store", art: item.art || "", viewDir: dir, settingsPath: dir.length > 0 ? dir + "/settings.json" : "",
                     previewUrl: dir.length > 0 && (item.metadata || {}).preview === "Preview.qml" ? "file://" + dir + "/Preview.qml" : "",
                     installed: item.installed === true, capabilities: [],
                     version: item.version || "", installedVersion: item.installedVersion || "",
@@ -318,21 +320,21 @@ Item {
         onLoadFailed: root.catalogMissing = true
     }
 
-    // what a RyoStore launcher lets Settings change, from the settings.json in its view
+    // what a RyoStore or contributed launcher lets Settings change, from the settings.json beside its entry
     FileView {
-        id: storeSettingsFile
-        path: root.activeCard && root.activeCard.kind === "store" && root.activeCard.viewDir ? root.activeCard.viewDir + "/settings.json" : ""
+        id: ownSettingsFile
+        path: root.activeCard && root.activeCard.settingsPath ? root.activeCard.settingsPath : ""
         printErrors: false
         onPathChanged: {
-            root.storeSettings = LauncherSettings.parse("");
+            root.ownSettings = LauncherSettings.parse("");
             root.settingsKnown = path === "";
         }
         onLoaded: {
-            root.storeSettings = LauncherSettings.parse(storeSettingsFile.text());
+            root.ownSettings = LauncherSettings.parse(ownSettingsFile.text());
             root.settingsKnown = true;
         }
         onLoadFailed: {
-            root.storeSettings = LauncherSettings.parse("");
+            root.ownSettings = LauncherSettings.parse("");
             root.settingsKnown = true;
         }
     }

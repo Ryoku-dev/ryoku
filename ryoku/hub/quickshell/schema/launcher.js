@@ -19,7 +19,7 @@ function l(key) {
 var rows = [
     { id: "launcher-style", section: "style", label: "Launcher style", template: true,
       detail: "Choose the launcher Super+Space opens",
-      keywords: ["variant", "hero", "main", "okshell", "command palette", "theme", "look", "install", "update"] },
+      keywords: ["variant", "orpheus", "hero", "main", "okshell", "command palette", "theme", "look", "install", "update"] },
     { id: "browse-launchers", section: "style", label: "Find more launchers",
       detail: "Browse and install launchers in RyoStore",
       keywords: ["store", "download", "ryostore"], control: "handoff",

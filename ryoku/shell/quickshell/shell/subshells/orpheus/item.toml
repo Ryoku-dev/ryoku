@@ -25,3 +25,10 @@ ipc = "orpheus"
 call = "settings"
 args = [""]
 hubEditor = ""
+
+[[provides.launcher]]
+id = "orpheus"
+name = "Orpheus"
+description = "The Orpheus bar pours the launcher out of its centre island: search, your apps with their actions and open windows, and the music edge."
+entry = "qml/launcher/Main.qml"
+preview = "qml/launcher/Preview.qml"

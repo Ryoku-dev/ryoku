@@ -11,3 +11,7 @@ var shoulderReach = 48
 var weld = 10
 var cardMaxW = 560
 var cardMaxH = 640
+var launcherMaxW = 880
+var launcherMaxH = 620
+// the launcher's music edge, how far the lower edge ripples out at full level
+var launcherWave = 8

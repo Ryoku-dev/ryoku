@@ -62,7 +62,17 @@ Singleton {
                 ownsSetting: { recording: "orpheus.recordingInBar" },
                 modules: [],
                 settings: { ipc: "orpheus", call: "settings", args: [""], hubEditor: "" },
-                provides: { dock: [], launcher: [], desktopWidgets: [] },
+                provides: {
+                    dock: [],
+                    launcher: [{
+                        id: "orpheus",
+                        name: I18n.tr("Orpheus"),
+                        description: I18n.tr("The Orpheus bar pours the launcher out of its centre island: search, your apps with their actions and open windows, and the music edge."),
+                        entry: "subshells/orpheus/qml/launcher/Main.qml",
+                        preview: "subshells/orpheus/qml/launcher/Preview.qml"
+                    }],
+                    desktopWidgets: []
+                },
                 lifecycle: {},
                 runtime: {}
             }

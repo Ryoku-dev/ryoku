@@ -1,7 +1,8 @@
 .pragma library
 
-// What Settings -> App Launcher may offer for a Store launcher. A launcher says
-// so in a `settings.json` beside its Main.qml:
+// What Settings -> App Launcher may offer for a Store launcher or one a
+// subshell or bar style contributes. A launcher says so in a `settings.json`
+// beside its entry (Main.qml):
 //
 //   { "capabilities": ["overlay", "hiddenApps"],
 //     "sections": [{ "id": "internet", "label": "Internet" }] }
@@ -15,6 +16,16 @@ var KNOWN = ["background", "overlay", "hiddenApps", "grid", "sections", "pinnedA
 var MAX_CHARS = 65536;
 var MAX_SECTIONS = 64;
 var MAX_LABEL = 80;
+
+// The settings.json beside a launcher's entry file, given as an absolute path;
+// "" when there is no such file to look for.
+function besideEntry(entryPath) {
+    var entry = String(entryPath || "");
+    var slash = entry.lastIndexOf("/");
+    if (entry.charAt(0) !== "/" || slash <= 0 || slash === entry.length - 1)
+        return "";
+    return entry.slice(0, slash) + "/settings.json";
+}
 
 function parse(text) {
     var empty = { capabilities: [], sections: [] };

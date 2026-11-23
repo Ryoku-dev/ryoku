@@ -10,6 +10,7 @@ import shell.modules.stage.frame
 import "Metrics.js" as M
 import "components" as C
 import "kit" as K
+import "launcher/vessel" as V
 import "recording" as Rec
 import "settings" as S
 
@@ -29,6 +30,17 @@ Item {
     readonly property real cardMaxHeight: Math.max(0, Math.min(M.cardMaxH,
         (screen ? screen.height : M.cardMaxH + K.Style.barH + 48)
             - K.Style.barH - 48))
+    readonly property real launcherMaxHeight: Math.max(0, Math.min(
+        M.launcherMaxH * K.Style.scale,
+        (screen ? screen.height : M.launcherMaxH * K.Style.scale + K.Style.barH + 48)
+            - K.Style.barH - 48))
+    // The launcher card: open from the request until it has fully melted, so
+    // the launcher host keeps it alive through the close.
+    property bool launcherOpening: false
+    readonly property bool launcherOpen: launcherOpening || cardKey === "launcher"
+    readonly property bool launcherShown: launcherOpen
+        || (cardKey === "" && cards.retainedKey === "launcher")
+    readonly property var launcherSheet: cards.launcherSheet
     readonly property real textRoom: Math.max(64,
         Math.max(Number(prefs.mediaWidth) || 220,
             Number(prefs.windowWidth) || 240) - win.overflow)
@@ -46,6 +58,8 @@ Item {
     property bool settingsSurfaceHeld: false
     property bool cardSurfaceHeld: false
     property var pendingCardAction: null
+    // the screen name this scene is registered under with the launcher vessels
+    property string vesselName: ""
     readonly property bool surfaceOpening: pendingSurfaceActions.length > 0
     readonly property real restingSurfaceHeight: Math.ceil(Math.max(
         K.Style.barH + K.Style.s2 + Math.ceil(K.Style.label * 1.5)
@@ -136,8 +150,12 @@ Item {
 
     function validCardKey(key) {
         return ["today", "media", "weather", "controls", "notifications",
-            "tray", "power", "system", "session", "recording", "vpn"]
+            "tray", "power", "system", "session", "recording", "vpn", "launcher"]
             .indexOf(normalKey(key)) >= 0;
+    }
+
+    function cardMaxHeightFor(key) {
+        return normalKey(key) === "launcher" ? scene.launcherMaxHeight : scene.cardMaxHeight;
     }
     function surfaceIsFull() {
         const fullHeight = Math.max(1, scene.screen ? scene.screen.height : 1);
@@ -189,7 +207,11 @@ Item {
         scene.pendingSurfaceActions = [];
     }
 
-    function requestCardSurface(action) {
+    // launcherOpening survives its own request: the host closes the launcher the
+    // moment it reads as shut, so it may only drop once the card key is set.
+    function requestCardSurface(action, forLauncher) {
+        if (forLauncher !== true)
+            scene.launcherOpening = false;
         if (scene.cardSurfaceHeld) {
             action();
             return;
@@ -200,6 +222,7 @@ Item {
     }
 
     function cancelCardSurfaceRequest() {
+        scene.launcherOpening = false;
         cardSurfaceReadyTimer.stop();
         scene.pendingCardAction = null;
         if (liquidBody.cardProgress <= 0.001)
@@ -218,7 +241,7 @@ Item {
         const value = normalKey(key);
         if (value === "recording" && scene.recShown)
             return "record";
-        return ["today", "media", "notifications", "recording"]
+        return ["today", "media", "notifications", "recording", "launcher"]
             .indexOf(value) >= 0 ? "voice" : "right";
     }
 
@@ -350,6 +373,10 @@ Item {
         const value = normalKey(key);
         if (!scene.validCardKey(value))
             return;
+        if (value === "launcher") {
+            scene.requestLauncher(true);
+            return;
+        }
         const nextArgs = args && typeof args === "object" ? args : ({});
         scene.requestCardSurface(function() {
             hoverOpenTimer.stop();
@@ -366,6 +393,10 @@ Item {
         const value = normalKey(key);
         if (!scene.validCardKey(value))
             return;
+        if (value === "launcher") {
+            scene.requestLauncher(true);
+            return;
+        }
         scene.captureOrigin(anchorItem);
         const nextArgs = args && typeof args === "object" ? args : ({});
         scene.requestCardSurface(function() {
@@ -386,12 +417,13 @@ Item {
 
     function openFromHover(key, anchorItem) {
         const value = normalKey(key);
-        if (!scene.validCardKey(value) || value === "tray")
+        if (!scene.validCardKey(value) || value === "tray" || value === "launcher"
+                || scene.launcherOpen)
             return;
         scene.markHoverSwitch(value);
         scene.captureOrigin(anchorItem);
         scene.requestCardSurface(function() {
-            if (scene.hoverStates[value] !== true) {
+            if (scene.hoverStates[value] !== true || scene.launcherOpen) {
                 scene.hoverSwitchedKey = "";
                 scene.hoverSwitchedAt = 0;
                 return;
@@ -407,6 +439,10 @@ Item {
         const value = normalKey(key);
         if (!scene.validCardKey(value))
             return;
+        if (value === "launcher") {
+            scene.toggleLauncher();
+            return;
+        }
         hoverOpenTimer.stop();
         scene.hoverCandidate = "";
         scene.hoverCandidateAnchor = null;
@@ -436,15 +472,41 @@ Item {
         scene.cardKey = "";
     }
 
+    // The launcher pours out of the voice drop like any card, but only a key,
+    // a click away, Esc or a ran result closes it, never the hover timers.
+    function openLauncher() {
+        if (scene.launcherOpen)
+            return;
+        scene.launcherOpening = true;
+        scene.requestCardSurface(function() {
+            hoverOpenTimer.stop();
+            hoverCloseTimer.stop();
+            scene.hoverCandidate = "";
+            scene.hoverCandidateAnchor = null;
+            scene.settingsOpen = false;
+            scene.cardOwner = scene.defaultOwnerForKey("launcher");
+            scene.cardArgs = ({});
+            scene.cardKey = "launcher";
+            scene.launcherOpening = false;
+        }, true);
+    }
+
+    function closeLauncher() {
+        if (scene.launcherOpen)
+            scene.closeCard();
+    }
+
     function hoverCard(key, anchorItem, hovered) {
         const value = normalKey(key);
-        if (!scene.validCardKey(value) || value === "tray")
+        if (!scene.validCardKey(value) || value === "tray" || value === "launcher")
             return;
         const states = Object.assign({}, scene.hoverStates);
         states[value] = hovered === true;
         scene.hoverStates = states;
         if (hovered) {
             hoverCloseTimer.stop();
+            if (scene.launcherOpen)
+                return;
             if (scene.cardKey !== "") {
                 if (scene.prefs.hoverSwitch && scene.cardKey !== value)
                     scene.openFromHover(value, anchorItem);
@@ -464,7 +526,7 @@ Item {
     }
 
     function scheduleHoverClose() {
-        if (!scene.prefs.hoverOpen || scene.cardKey === ""
+        if (!scene.prefs.hoverOpen || scene.cardKey === "" || scene.launcherOpen
                 || scene.barHovered || cards.hovered) {
             hoverCloseTimer.stop();
             return;
@@ -540,6 +602,14 @@ Item {
             state.launcherOpen = !state.launcherOpen;
     }
 
+    // A launcher card asked for like any other card goes through the launcher
+    // host, which owns the providers the sheet searches.
+    function requestLauncher(open) {
+        const state = scene.screen ? ShellState.forScreen(scene.screen) : null;
+        if (state)
+            state.launcherOpen = open === true;
+    }
+
     function toggleOverview() {
         Wm.toggleOverview();
     }
@@ -558,10 +628,24 @@ Item {
         Bus.run(["hub", "open", section].join(" "));
     }
 
+    // The launcher card is created before its field can take focus, and the
+    // scope restore below lands on the card root, so hand focus on to the field.
     onCardKeyChanged: if (cardKey !== "") {
         settingsOpen = false;
-        Qt.callLater(function() { focusSurface.forceActiveFocus(); });
+        Qt.callLater(function() {
+            focusSurface.forceActiveFocus();
+            if (scene.cardKey === "launcher" && scene.launcherSheet)
+                scene.launcherSheet.focusSearch();
+        });
     }
+    function syncVessel() {
+        if (scene.vesselName === scene.screenName)
+            return;
+        V.Vessels.unregister(scene.vesselName, scene);
+        scene.vesselName = scene.screenName;
+        V.Vessels.register(scene.vesselName, scene);
+    }
+    onScreenNameChanged: syncVessel()
     onBarHoveredChanged: {
         if (barHovered)
             hoverCloseTimer.stop();
@@ -573,7 +657,9 @@ Item {
     Component.onCompleted: {
         win.layoutSpan = scene.prefs.span;
         reconcileAutoHide();
+        syncVessel();
     }
+    Component.onDestruction: V.Vessels.unregister(scene.vesselName, scene)
 
     Timer {
         id: hoverOpenTimer
@@ -591,7 +677,8 @@ Item {
     Timer {
         id: hoverCloseTimer
         interval: 450
-        onTriggered: if (!scene.barHovered && !cards.hovered) scene.closeCard()
+        onTriggered: if (!scene.barHovered && !cards.hovered && !scene.launcherOpen)
+            scene.closeCard()
     }
 
     Timer {
@@ -1014,6 +1101,10 @@ Item {
                     originW: scene.anchoredOriginW
                     cardW: cards.cardW
                     cardH: cards.cardH
+                    cardMaxW: cards.maxW
+                    launcherCard: cards.retainedKey === "launcher"
+                    musicEdge: scene.cardKey === "launcher" && scene.launcherSheet !== null
+                        && scene.launcherSheet.wantsMusicEdge === true
                     waveActive: !scene.autoHidden
                 }
 

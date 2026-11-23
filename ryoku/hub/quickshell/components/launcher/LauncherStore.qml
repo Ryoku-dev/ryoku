@@ -9,7 +9,7 @@ QtObject {
     id: store
 
     readonly property var factory: ({
-        variant: "hero", radius: 16, bgBlur: 2, heroImage: "", heroStrength: 0.6, heroPosX: 0.5, heroPosY: 0.5,
+        variant: "orpheus", radius: 16, bgBlur: 2, heroImage: "", heroStrength: 0.6, heroPosX: 0.5, heroPosY: 0.5,
         showWeather: true, showGreeting: true, resultSettleMs: 360, horizonMode: "auto", horizonColor: "#ffc777",
         overlayOpacity: 0.94, hiddenApps: [], columns: 8, matWidth: 144, sectionOrder: [], hiddenSections: [],
         pinnedApps: []

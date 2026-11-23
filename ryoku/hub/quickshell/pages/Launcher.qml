@@ -231,7 +231,7 @@ Item {
             }
 
             Column {
-                visible: styles.supports("sections") && styles.storeSettings.sections.length > 0
+                visible: styles.supports("sections") && styles.ownSettings.sections.length > 0
                 width: parent.width
                 spacing: LithicTokens.space.s2
                 Label {
@@ -252,7 +252,7 @@ Item {
                     SectionOrder {
                         width: parent.width
                         host: page
-                        known: styles.storeSettings.sections
+                        known: styles.ownSettings.sections
                     }
                 }
             }
