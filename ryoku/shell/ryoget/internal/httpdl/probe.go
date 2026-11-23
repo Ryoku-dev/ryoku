@@ -1,7 +1,7 @@
-// Package httpdl is ryoget's segmented HTTP(S) downloader: several ranged
-// connections into one sparse .part file, a JSON sidecar to resume from, work
-// stealing when a connection finishes early, and a single stream for servers
-// that do not take ranges.
+// Package httpdl is ryoget's segmented HTTP(S) downloader: one ranged GET whose
+// body is the first connection's stream, more connections that split the rest
+// in bounded requests, a JSON sidecar to resume from, and a single stream for
+// servers that do not take ranges.
 package httpdl
 
 import (
@@ -48,16 +48,31 @@ func NewClient() *http.Client {
 type StatusError struct {
 	Code   int
 	Status string
-	// from a 429 or 503 Retry-After in seconds; 0 when absent
+	// from Retry-After (seconds or an HTTP date), capped, 0 when absent
 	RetryAfter time.Duration
 }
 
+const maxRetryAfter = 300 * time.Second
+
 func statusError(resp *http.Response) *StatusError {
-	se := &StatusError{Code: resp.StatusCode, Status: resp.Status}
-	if s, err := strconv.Atoi(strings.TrimSpace(resp.Header.Get("Retry-After"))); err == nil && s > 0 {
-		se.RetryAfter = time.Duration(s) * time.Second
+	return &StatusError{Code: resp.StatusCode, Status: resp.Status, RetryAfter: retryAfter(resp.Header.Get("Retry-After"), time.Now())}
+}
+
+func retryAfter(v string, now time.Time) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
 	}
-	return se
+	var d time.Duration
+	if s, err := strconv.ParseInt(v, 10, 64); err == nil {
+		if s <= 0 {
+			return 0
+		}
+		d = time.Duration(min(s, int64(maxRetryAfter/time.Second))) * time.Second
+	} else if at, err := http.ParseTime(v); err == nil {
+		d = at.Sub(now)
+	}
+	return max(0, min(d, maxRetryAfter))
 }
 
 func (e *StatusError) Error() string { return "http " + e.Status }
@@ -89,32 +104,21 @@ func newRequest(ctx context.Context, method, raw string, h http.Header) (*http.R
 	return req, nil
 }
 
-// Probe asks with HEAD, then with a one-byte range, because many servers answer
-// HEAD wrongly while the ranged GET is what the download will actually send.
+func checkURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("not an http(s) link: %q", raw)
+	}
+	return nil
+}
+
+// Probe asks with a one-byte ranged GET and not HEAD, which many servers answer wrongly
 func Probe(ctx context.Context, c *http.Client, raw string, h http.Header) (*Info, error) {
 	if c == nil {
 		c = NewClient()
 	}
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("not an http(s) link: %q", raw)
-	}
-	info := &Info{URL: raw, Size: -1}
-	var cd string
-	if req, err := newRequest(ctx, http.MethodHead, raw, h); err == nil {
-		if resp, err := c.Do(req); err == nil {
-			resp.Body.Close()
-			if resp.StatusCode < 300 {
-				info.URL = resp.Request.URL.String()
-				cd = resp.Header.Get("Content-Disposition")
-				info.Mime = mediaType(resp.Header.Get("Content-Type"))
-				if resp.ContentLength >= 0 && resp.Header.Get("Content-Encoding") == "" {
-					info.Size = resp.ContentLength
-				}
-				info.ETag = resp.Header.Get("ETag")
-				info.LastModified = resp.Header.Get("Last-Modified")
-			}
-		}
+	if err := checkURL(raw); err != nil {
+		return nil, err
 	}
 	req, err := newRequest(ctx, http.MethodGet, raw, h)
 	if err != nil {
@@ -127,6 +131,7 @@ func Probe(ctx context.Context, c *http.Client, raw string, h http.Header) (*Inf
 		return nil, err
 	}
 	defer resp.Body.Close()
+	info := infoFrom(resp, raw)
 	switch resp.StatusCode {
 	case http.StatusPartialContent:
 		if _, _, total, ok := contentRange(resp.Header.Get("Content-Range")); ok && total >= 0 {
@@ -134,9 +139,7 @@ func Probe(ctx context.Context, c *http.Client, raw string, h http.Header) (*Inf
 			info.Ranges = true
 		}
 	case http.StatusOK:
-		if resp.ContentLength >= 0 && resp.Header.Get("Content-Encoding") == "" {
-			info.Size = resp.ContentLength
-		}
+		info.Size = bodySize(resp)
 	case http.StatusRequestedRangeNotSatisfiable:
 		if _, _, total, ok := contentRange(resp.Header.Get("Content-Range")); ok && total == 0 {
 			info.Size = 0
@@ -144,21 +147,25 @@ func Probe(ctx context.Context, c *http.Client, raw string, h http.Header) (*Inf
 	default:
 		return nil, statusError(resp)
 	}
-	info.URL = resp.Request.URL.String()
-	if v := resp.Header.Get("Content-Disposition"); v != "" {
-		cd = v
-	}
-	if v := mediaType(resp.Header.Get("Content-Type")); v != "" {
-		info.Mime = v
-	}
-	if v := resp.Header.Get("ETag"); v != "" {
-		info.ETag = v
-	}
-	if v := resp.Header.Get("Last-Modified"); v != "" {
-		info.LastModified = v
-	}
-	info.Name = FileName(cd, info.URL, raw, info.Mime)
 	return info, nil
+}
+
+// size and ranges depend on the status, so infoFrom leaves them to the caller
+func infoFrom(resp *http.Response, orig string) *Info {
+	info := &Info{URL: resp.Request.URL.String(), Size: -1}
+	info.Mime = mediaType(resp.Header.Get("Content-Type"))
+	info.ETag = resp.Header.Get("ETag")
+	info.LastModified = resp.Header.Get("Last-Modified")
+	info.Name = FileName(resp.Header.Get("Content-Disposition"), info.URL, orig, info.Mime)
+	return info
+}
+
+// bodySize is a 200's length, or -1 when it is unknown or compressed.
+func bodySize(resp *http.Response) int64 {
+	if resp.ContentLength >= 0 && (resp.Header.Get("Content-Encoding") == "" || strings.EqualFold(resp.Header.Get("Content-Encoding"), "identity")) {
+		return resp.ContentLength
+	}
+	return -1
 }
 
 func mediaType(ct string) string {
@@ -343,10 +350,15 @@ func utf8Start(b byte) bool { return b&0xC0 != 0x80 }
 
 var errIdle = errors.New("connection stalled")
 
+// ported from prism-download-manager crates/prism-engine/src/error.rs (MIT)
+func transientStatus(code int) bool {
+	return code >= 500 || code == http.StatusRequestTimeout || code == http.StatusTooEarly || code == http.StatusTooManyRequests
+}
+
 func retryable(err error) bool {
 	var se *StatusError
 	if errors.As(err, &se) {
-		return se.Code >= 500 || se.Code == http.StatusRequestTimeout || se.Code == http.StatusTooManyRequests
+		return transientStatus(se.Code)
 	}
 	if errors.Is(err, errChanged) {
 		return false

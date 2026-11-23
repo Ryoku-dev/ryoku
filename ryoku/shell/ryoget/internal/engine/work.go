@@ -119,37 +119,44 @@ func (e *Engine) runFile(ctx context.Context, t *task, rec record, m *media.Medi
 	}
 	headers := toHeader(rec.Headers)
 	name := rec.Name
-	if name == "" {
-		if m != nil {
-			name = httpdl.Sanitize(m.Name)
+	if name == "" && m != nil {
+		name = httpdl.Sanitize(m.Name)
+	}
+	pick := func(name string) {
+		name = httpdl.Unique(rec.Dir, name, e.nameTaken(rec.Dir, t.ID))
+		t.Name = name
+		t.Path = filepath.Join(rec.Dir, name)
+		if t.Title == "" || t.Title == provisionalTitle(t.URL) {
+			t.Title = name
 		}
-		if name == "" {
-			info, err := httpdl.Probe(ctx, e.env.HTTP, link, headers)
-			if err != nil {
-				return err
-			}
-			name = info.Name
-			e.with(t, func() {
-				if info.Size >= 0 {
-					t.Size = info.Size
-				}
-				if info.Mime != "" {
-					t.Mime = info.Mime
-				}
-			})
-		}
+	}
+	dst := ""
+	if rec.Name != "" {
+		dst = filepath.Join(rec.Dir, rec.Name)
+	} else if name != "" {
+		e.with(t, func() { pick(name); dst = t.Path })
+	}
+	// the first answer names the file when nothing did yet, before any byte lands
+	named := func(info *httpdl.Info) (string, error) {
+		path := dst
 		e.with(t, func() {
-			name = httpdl.Unique(rec.Dir, name, e.nameTaken(rec.Dir, t.ID))
-			t.Name = name
-			t.Path = filepath.Join(rec.Dir, name)
-			if t.Title == "" || t.Title == provisionalTitle(t.URL) {
-				t.Title = name
+			if info.Size >= 0 {
+				t.Size = info.Size
+			}
+			if info.Mime != "" {
+				t.Mime = info.Mime
+			}
+			t.Resumable = info.Ranges
+			if path == "" {
+				pick(info.Name)
+				path = t.Path
 			}
 		})
+		return path, nil
 	}
 	e.setState(t, proto.StateActive, "fetch")
 	part := plan.Part{Kind: plan.PartHTTP, URL: link, Headers: headers, Role: "file"}
-	final, err := e.dl.FetchFile(ctx, part, filepath.Join(rec.Dir, name), t.prog.single())
+	final, err := e.dl.FetchFile(ctx, part, dst, named, t.prog.single())
 	if err != nil {
 		return err
 	}

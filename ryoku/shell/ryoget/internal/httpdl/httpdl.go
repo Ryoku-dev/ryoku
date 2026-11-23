@@ -1,14 +1,15 @@
 package httpdl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,12 +19,10 @@ import (
 )
 
 const (
-	maxTries  = 5
 	chunkSize = 32 << 10
 	buckets   = 64
-	// how often the sidecar is rewritten while bytes land
-	saveEvery = time.Second
-	markEvery = 200 * time.Millisecond
+	// a resume without validators compares this much before the frontier
+	overlapCheck = 64 << 10
 	// SidecarExt follows the .part file it describes
 	SidecarExt = ".ryoget"
 )
@@ -37,287 +36,266 @@ type Resumer interface{ Resumed(bytes int64) }
 // ConnReporter is implemented by a Progress that shows live connections.
 type ConnReporter interface{ Conns(n int) }
 
+// Namer is called once with the first answer, before any byte lands, and returns the download path.
+type Namer func(info *Info) (string, error)
+
 type Downloader struct {
 	Client *http.Client
 	Limit  plan.Limiter
 	// read when a download starts; nil means 8 connections, 1 MiB segments
 	Conns    func() int
 	MinSplit func() int64
-	// test hook: overrides the retry back-off
+	// test hook: overrides the retry back-off (a server's Retry-After still wins)
 	Backoff func(try int) time.Duration
+	// learned per-host connection limits, empty means hosts.json in the state dir
+	HostsFile string
+
+	tune *tuning
 }
 
-type segment struct {
-	Start int64 `json:"start"`
-	// exclusive; -1 while the size is unknown
-	End  int64 `json:"end"`
-	Done int64 `json:"done"`
-
-	// bytes counted in Done whose WriteAt has not returned yet
-	flight int64
-	owned  bool
+type tuning struct {
+	// after a connection gave up, replacements wait this long
+	hold time.Duration
+	// first wait before trying one more connection than a host allowed
+	probeFirst, probeMax time.Duration
+	saveEvery            time.Duration
+	tick                 time.Duration
+	minReq, maxReq       int64
+	initial              int
+	maxRetries           int
+	raceSecs             float64
+	raceWarmup           time.Duration
+	free                 func(dir string) (int64, error)
 }
 
-func (s *segment) remaining() int64 {
-	if s.End < 0 {
-		return 1 << 62
+// ported from prism-download-manager crates/prism-engine/src/config.rs (MIT)
+func defaultTuning() tuning {
+	return tuning{
+		hold:       10 * time.Second,
+		probeFirst: 20 * time.Second,
+		probeMax:   300 * time.Second,
+		saveEvery:  5 * time.Second,
+		tick:       250 * time.Millisecond,
+		minReq:     4 << 20,
+		maxReq:     16 << 20,
+		initial:    4,
+		maxRetries: 10,
+		raceSecs:   3,
+		raceWarmup: time.Second,
+		free:       statfsFree,
 	}
-	return s.End - s.Start - s.Done
 }
 
 type sidecar struct {
-	URL          string    `json:"url"`
-	ETag         string    `json:"etag,omitempty"`
-	LastModified string    `json:"lastModified,omitempty"`
-	Size         int64     `json:"size"`
-	Segments     []segment `json:"segments"`
+	URL          string `json:"url"`
+	ETag         string `json:"etag,omitempty"`
+	LastModified string `json:"lastModified,omitempty"`
+	Size         int64  `json:"size"`
+	Segments     []span `json:"segments"`
+}
+
+type firstStream struct {
+	a  assignment
+	st *stream
+}
+
+func (f *firstStream) close() {
+	if f != nil {
+		f.st.close()
+	}
 }
 
 type job struct {
-	d        *Downloader
-	part     plan.Part
-	info     *Info
-	file     *os.File
-	partPath string
-	minSplit int64
-	// resume from a sidecar written for another URL (size and validators still checked)
-	anyURL bool
+	d      *Downloader
+	tn     tuning
+	client *http.Client
+	part   plan.Part
 	p      plan.Progress
-	conns  atomic.Int32
-	// workers running, and how many the server has shown it tolerates
-	alive atomic.Int32
-	limit atomic.Int32
+	host   string
+	conns  int
 
-	mu   sync.Mutex
-	segs []*segment
+	info      *Info
+	ranged    bool
+	validator string
+	minSplit  int64
+	partPath  string
+	file      *os.File
+	tab       *table
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// writers hold it shared from accounting to WriteAt, a sidecar snapshot holds it alone
+	wmu         sync.RWMutex
+	writeFailed atomic.Bool
+
+	srcMu sync.Mutex
+	final string
+
+	fewRequests atomic.Bool
+	// furthest a stream without ranges ever got
+	high      atomic.Int64
+	connected atomic.Int32
+	connNote  chan struct{}
+	exits     chan exit
 }
 
-// Fetch implements the engine's PartHTTP fetcher: dst is written exactly. Its
-// dst is private to one plan, so a resume accepts a new URL for the same bytes:
-// media links are re-resolved on every run and their signed URLs change.
+// Fetch writes dst exactly, a resume checks the bytes and not the URL since media links are re-signed every run.
 func (d *Downloader) Fetch(ctx context.Context, part plan.Part, dst string, p plan.Progress) error {
 	_ = os.Remove(dst)
-	_, err := d.fetch(ctx, part, dst, p, true)
+	_, err := d.fetch(ctx, part, dst, nil, p)
 	return err
 }
 
-// FetchFile downloads into dst+".part" and publishes it under dst, or under
-// "dst (n)" when that name is taken by then. It returns the final path.
-func (d *Downloader) FetchFile(ctx context.Context, part plan.Part, dst string, p plan.Progress) (string, error) {
-	return d.fetch(ctx, part, dst, p, false)
+// FetchFile publishes under dst or "dst (n)", with dst empty the namer picks it from the first answer.
+func (d *Downloader) FetchFile(ctx context.Context, part plan.Part, dst string, name Namer, p plan.Progress) (string, error) {
+	return d.fetch(ctx, part, dst, name, p)
 }
 
-func (d *Downloader) fetch(ctx context.Context, part plan.Part, dst string, p plan.Progress, anyURL bool) (string, error) {
+func (d *Downloader) tuning() tuning {
+	if d.tune != nil {
+		return *d.tune
+	}
+	return defaultTuning()
+}
+
+func (d *Downloader) fetch(ctx context.Context, part plan.Part, dst string, name Namer, p plan.Progress) (string, error) {
+	if err := checkURL(part.URL); err != nil {
+		return "", err
+	}
+	if dst == "" && name == nil {
+		return "", errors.New("httpdl: no destination")
+	}
 	client := d.Client
 	if client == nil {
 		client = NewClient()
 	}
-	info, err := Probe(ctx, client, part.URL, part.Headers)
-	if err != nil {
-		return "", err
+	named := name == nil
+	for restarts := 0; ; restarts++ {
+		j := d.newJob(ctx, client, part, p)
+		err := j.download(&dst, name, &named, restarts > 0)
+		j.cancel()
+		if errors.Is(err, errChanged) && restarts < 2 {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		return Publish(dst+".part", dst)
 	}
-	j := &job{d: d, part: part, info: info, partPath: dst + ".part", p: p, minSplit: 1 << 20, anyURL: anyURL}
+}
+
+func (d *Downloader) newJob(ctx context.Context, client *http.Client, part plan.Part, p plan.Progress) *job {
+	j := &job{d: d, tn: d.tuning(), client: client, part: part, p: p, conns: 8, minSplit: 1 << 20,
+		connNote: make(chan struct{}, 1), exits: make(chan exit)}
+	if d.Conns != nil {
+		if v := d.Conns(); v > 0 {
+			j.conns = v
+		}
+	}
 	if d.MinSplit != nil {
 		if v := d.MinSplit(); v > 0 {
 			j.minSplit = v
 		}
 	}
-	for restarts := 0; ; restarts++ {
-		err = j.run(ctx, client, restarts > 0)
-		if !errors.Is(err, errChanged) || restarts >= 2 {
-			break
-		}
-		if info, err = Probe(ctx, client, part.URL, part.Headers); err != nil {
-			return "", err
-		}
-		j.info = info
+	if u, err := url.Parse(part.URL); err == nil {
+		j.host = strings.ToLower(u.Host)
 	}
-	if err != nil {
-		return "", err
-	}
-	return Publish(j.partPath, dst)
+	j.ctx, j.cancel = context.WithCancel(ctx)
+	return j
 }
 
 func (j *job) sidecarPath() string { return j.partPath + SidecarExt }
 
-func (j *job) resumable() bool { return j.info.Ranges && j.info.Size > 0 }
-
-func (j *job) load() bool {
-	if !j.resumable() {
-		return false
+// a weak ETag may not be used in If-Range
+func ifRange(etag, lastModified string) string {
+	if strongETag(etag) {
+		return etag
 	}
-	b, err := os.ReadFile(j.sidecarPath())
-	if err != nil {
-		return false
-	}
-	var sc sidecar
-	if json.Unmarshal(b, &sc) != nil || (sc.URL != j.part.URL && !j.anyURL) || sc.Size != j.info.Size || len(sc.Segments) == 0 {
-		return false
-	}
-	switch {
-	case sc.ETag != "" && j.info.ETag != "":
-		if sc.ETag != j.info.ETag {
-			return false
-		}
-	case sc.LastModified != "" && j.info.LastModified != "":
-		if sc.LastModified != j.info.LastModified {
-			return false
-		}
-	case sc.ETag != "" || sc.LastModified != "" || j.info.ETag != "" || j.info.LastModified != "":
-		return false
-	}
-	if fi, err := os.Stat(j.partPath); err != nil || !fi.Mode().IsRegular() {
-		return false
-	}
-	j.segs = j.segs[:0]
-	for i := range sc.Segments {
-		s := sc.Segments[i]
-		if s.Start < 0 || s.End > sc.Size || s.Done < 0 || s.Start+s.Done > s.End {
-			return false
-		}
-		j.segs = append(j.segs, &s)
-	}
-	return true
+	return lastModified
 }
 
-func (j *job) save() {
-	if !j.resumable() {
-		return
-	}
-	sc := sidecar{URL: j.part.URL, ETag: j.info.ETag, LastModified: j.info.LastModified, Size: j.info.Size}
-	j.mu.Lock()
-	for _, s := range j.segs {
-		sc.Segments = append(sc.Segments, segment{Start: s.Start, End: s.End, Done: s.Done - s.flight})
-	}
-	j.mu.Unlock()
-	b, _ := json.Marshal(sc)
-	tmp := j.sidecarPath() + ".tmp"
-	if os.WriteFile(tmp, b, 0o644) == nil {
-		_ = os.Rename(tmp, j.sidecarPath())
-	}
-}
-
-func (j *job) fresh() {
-	size := j.info.Size
-	n := int64(1)
-	if j.resumable() {
-		n = j.workers(size)
-	}
-	j.segs = j.segs[:0]
-	if size < 0 {
-		j.segs = append(j.segs, &segment{End: -1})
-		return
-	}
-	step := size / n
-	for i := range n {
-		s := &segment{Start: i * step, End: (i + 1) * step}
-		if i == n-1 {
-			s.End = size
-		}
-		j.segs = append(j.segs, s)
-	}
-}
-
-func (j *job) workers(remaining int64) int64 {
-	conns := int64(8)
-	if j.d.Conns != nil {
-		if v := j.d.Conns(); v > 0 {
-			conns = int64(v)
+func (j *job) download(dst *string, name Namer, named *bool, fresh bool) error {
+	var first *firstStream
+	resumed := false
+	if *dst != "" && !fresh {
+		j.partPath = *dst + ".part"
+		if sc := j.loadSidecar(); sc != nil {
+			f, err := j.resume(sc)
+			switch {
+			case err == nil:
+				first, resumed = f, true
+			case !errors.Is(err, errChanged):
+				return j.stopErr(err)
+			}
 		}
 	}
-	if !j.resumable() {
-		return 1
-	}
-	n := (remaining + j.minSplit - 1) / j.minSplit
-	return max(1, min(conns, n))
-}
-
-func (j *job) run(ctx context.Context, client *http.Client, restart bool) error {
-	resumed := !restart && j.load()
-	flags := os.O_RDWR | os.O_CREATE
 	if !resumed {
-		flags |= os.O_TRUNC
-		_ = os.Remove(j.sidecarPath())
-		j.fresh()
+		f, err := j.probe()
+		if err != nil {
+			return j.stopErr(err)
+		}
+		first = f
 	}
-	f, err := os.OpenFile(j.partPath, flags, 0o644)
+	if !*named {
+		*named = true
+		path, err := name(j.info)
+		if err != nil {
+			first.close()
+			return err
+		}
+		if *dst == "" {
+			*dst = path
+		}
+	}
+	j.partPath = *dst + ".part"
+	dir := filepath.Dir(j.partPath)
+	var f *os.File
+	var err error
+	if resumed {
+		// fallocate already reserved the file, only blocks it does not hold yet need room
+		if err = checkSpace(j.tn.free, dir, min(j.tab.remaining(), j.info.Size-allocated(j.partPath))); err == nil {
+			f, err = os.OpenFile(j.partPath, os.O_RDWR, 0o644)
+		}
+	} else {
+		// a stale .part from before a change still holds its blocks
+		_ = os.Remove(j.sidecarPath())
+		_ = os.Remove(j.partPath)
+		if err = checkSpace(j.tn.free, dir, j.info.Size); err == nil {
+			f, err = os.OpenFile(j.partPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
+		}
+		if err == nil {
+			if err = allocate(f, j.info.Size); err != nil {
+				f.Close()
+			}
+		}
+	}
 	if err != nil {
+		first.close()
 		return err
 	}
 	j.file = f
-	if j.info.Size > 0 {
-		if err := f.Truncate(j.info.Size); err != nil {
-			f.Close()
-			return err
-		}
-	}
 	j.p.SetTotal(j.info.Size)
-	var have, left int64
-	for _, s := range j.segs {
-		have += s.Done
-		if s.End >= 0 {
-			left += s.remaining()
-		}
-	}
-	if have > 0 {
+	if have := j.tab.downloaded.Load(); have > 0 {
 		if r, ok := j.p.(Resumer); ok {
 			r.Resumed(have)
 		} else {
 			j.p.Add(have)
 		}
 	}
-
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stopTick := make(chan struct{})
-	tickDone := make(chan struct{})
-	go j.tick(stopTick, tickDone)
-
-	j.limit.Store(int32(j.workers(left)))
-	var first error
-	// a round ends early only when a server turned connections away and the
-	// workers that backed off left segments behind for a smaller round
-	for round := 0; round < maxTries; round++ {
-		n := int64(j.limit.Load())
-		if j.info.Size == 0 {
-			n = 0
-		}
-		var wg sync.WaitGroup
-		var once sync.Once
-		for range n {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if err := j.worker(runCtx, client); err != nil {
-					once.Do(func() { first = err; cancel() })
-				}
-			}()
-		}
-		wg.Wait()
-		if first != nil || ctx.Err() != nil || j.complete() {
-			break
-		}
-	}
-	close(stopTick)
-	<-tickDone
-	if first == nil && ctx.Err() != nil {
-		first = ctx.Err()
-	}
-	if first == nil && !j.complete() {
-		first = io.ErrUnexpectedEOF
-	}
-	if first != nil {
-		if !errors.Is(first, errChanged) {
+	err = j.supervise(first)
+	if err != nil {
+		if errors.Is(err, errChanged) {
+			j.p.Add(-j.tab.downloaded.Load())
+			_ = os.Remove(j.sidecarPath())
+		} else {
 			j.save()
 		}
 		f.Close()
-		if errors.Is(first, errChanged) {
-			j.p.Add(-j.doneBytes())
-		}
-		return first
+		return err
 	}
 	if j.info.Size < 0 {
-		got := j.doneBytes()
+		got := j.tab.downloaded.Load()
 		if err := f.Truncate(got); err != nil {
 			f.Close()
 			return err
@@ -336,284 +314,364 @@ func (j *job) run(ctx context.Context, client *http.Client, restart bool) error 
 	return nil
 }
 
-func (j *job) doneBytes() int64 {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	var n int64
-	for _, s := range j.segs {
-		n += s.Done
+func (j *job) stopErr(err error) error {
+	if j.ctx.Err() != nil {
+		return j.ctx.Err()
 	}
-	return n
+	return err
 }
 
-func (j *job) complete() bool {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	for _, s := range j.segs {
-		if s.End < 0 || s.remaining() > 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// next hands a worker an unowned segment, or splits the largest one still in
-// flight so a connection that finished early keeps pulling its weight.
-func (j *job) next() *segment {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	for _, s := range j.segs {
-		if !s.owned && s.remaining() > 0 {
-			s.owned = true
-			return s
-		}
-	}
-	if !j.resumable() {
-		return nil
-	}
-	var best *segment
-	for _, s := range j.segs {
-		if s.owned && s.End >= 0 && (best == nil || s.remaining() > best.remaining()) {
-			best = s
-		}
-	}
-	if best == nil || best.remaining() < 2*j.minSplit {
-		return nil
-	}
-	mid := best.Start + best.Done + best.remaining()/2
-	ns := &segment{Start: mid, End: best.End, owned: true}
-	best.End = mid
-	j.segs = append(j.segs, ns)
-	return ns
-}
-
-func (j *job) worker(ctx context.Context, client *http.Client) error {
-	j.alive.Add(1)
-	left := false
-	defer func() {
-		if !left {
-			j.alive.Add(-1)
-		}
-	}()
+// retrying gives requests made before any connection runs the same budget a connection gets.
+func (j *job) retrying(fn func() error) error {
+	failures := 0
 	for {
-		s := j.next()
-		if s == nil {
-			return nil
-		}
-		err := j.segment(ctx, client, s, &left)
-		j.mu.Lock()
-		s.owned = false
-		j.mu.Unlock()
-		if left {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func throttled(err error) bool {
-	var se *StatusError
-	return errors.As(err, &se) && (se.Code == http.StatusTooManyRequests || se.Code == http.StatusServiceUnavailable)
-}
-
-// segment fetches one segment with retries. A connection the server turns
-// away while others still flow leaves (left = true): the download carries on
-// with fewer connections instead of failing.
-func (j *job) segment(ctx context.Context, client *http.Client, s *segment, left *bool) error {
-	tries := 0
-	for {
-		got, err := j.fetch(ctx, client, s)
+		err := fn()
 		if err == nil {
 			return nil
 		}
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if j.ctx.Err() != nil {
+			return j.ctx.Err()
 		}
-		if !retryable(err) {
+		var ce *connError
+		if errors.Is(err, errChanged) || (!retryable(err) && !errors.As(err, &ce)) {
 			return err
 		}
-		if throttled(err) {
-			if rest := j.alive.Add(-1); rest >= 1 {
-				*left = true
-				j.limit.Store(rest)
+		failures++
+		if failures > j.tn.maxRetries {
+			return err
+		}
+		if !j.sleep(j.retryDelay(err, failures, false)) {
+			return j.ctx.Err()
+		}
+	}
+}
+
+// probe needs no HEAD or one-byte GET: the first ranged answer names the file and its body is the first stream.
+// ported from prism-download-manager crates/prism-engine/src/http/fetcher.rs (MIT)
+func (j *job) probe() (*firstStream, error) {
+	var st *stream
+	ranged := true
+	err := j.retrying(func() error {
+		for {
+			s, err := j.send(0, j.tn.minReq, "", ranged)
+			if err != nil {
+				return err
+			}
+			resp := s.resp
+			switch {
+			case resp.StatusCode == http.StatusPartialContent:
+				start, last, total, ok := contentRange(resp.Header.Get("Content-Range"))
+				if !ok || start != 0 || total <= 0 || last < 0 || last >= total {
+					s.close()
+					ranged = false
+					continue
+				}
+				j.info = infoFrom(resp, j.part.URL)
+				j.info.Size, j.info.Ranges = total, true
+				s.end = last + 1
+			case resp.StatusCode == http.StatusOK:
+				j.info = infoFrom(resp, j.part.URL)
+				j.info.Size = bodySize(resp)
+				s.end = j.info.Size
+				if s.end < 0 {
+					s.end = unknownEnd
+				}
+			case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && ranged:
+				_, _, total, ok := contentRange(resp.Header.Get("Content-Range"))
+				if !ok || total != 0 {
+					s.close()
+					ranged = false
+					continue
+				}
+				j.info = infoFrom(resp, j.part.URL)
+				j.info.Size = 0
+				s.close()
 				return nil
+			default:
+				se := statusError(resp)
+				s.close()
+				return se
 			}
-			j.alive.Add(1)
+			st = s
+			return nil
 		}
-		if got > 0 {
-			tries = 0
+	})
+	if err != nil {
+		return nil, err
+	}
+	j.ranged = j.info.Ranges
+	j.validator = ifRange(j.info.ETag, j.info.LastModified)
+	j.tab = newTable(j.info.Size, j.minSplit, j.ranged)
+	j.tab.raceSecs, j.tab.warmup = j.tn.raceSecs, j.tn.raceWarmup
+	if st == nil || j.info.Size == 0 {
+		st.close()
+		return nil, nil
+	}
+	return &firstStream{a: j.tab.claim(j.tab.segs[0], 1, st.end), st: st}, nil
+}
+
+func (j *job) loadSidecar() *sidecar {
+	b, err := os.ReadFile(j.sidecarPath())
+	if err != nil {
+		return nil
+	}
+	var sc sidecar
+	ok := json.Unmarshal(b, &sc) == nil && partitions(sc.Segments, sc.Size)
+	if ok {
+		fi, err := os.Stat(j.partPath)
+		ok = err == nil && fi.Mode().IsRegular() && fi.Size() == sc.Size
+	}
+	have := false
+	for _, s := range sc.Segments {
+		have = have || s.Done > 0
+	}
+	if !ok || !have {
+		_ = os.Remove(j.sidecarPath())
+		return nil
+	}
+	return &sc
+}
+
+// resume trusts size, validators and bytes, not the link, which a refresh may have changed.
+func (j *job) resume(sc *sidecar) (first *firstStream, err error) {
+	defer func() {
+		// a server that answers 200 to every range now cannot continue this partial
+		if errors.Is(err, errIgnoredRange) {
+			err = errChanged
 		}
-		tries++
-		if tries >= maxTries {
+	}()
+	j.info = &Info{URL: j.part.URL, Size: sc.Size, Ranges: true, ETag: sc.ETag, LastModified: sc.LastModified}
+	j.ranged = true
+	j.validator = ifRange(sc.ETag, sc.LastModified)
+	j.tab = tableFrom(sc.Segments, sc.Size, j.minSplit)
+	j.tab.raceSecs, j.tab.warmup = j.tn.raceSecs, j.tn.raceWarmup
+	pending := j.tab.firstPending()
+	if j.validator == "" || pending == nil {
+		return nil, j.verifyOverlap()
+	}
+	reqEnd := min(pending.end, alignUp(pending.pos+j.tn.minReq))
+	a := j.tab.claim(pending, 1, reqEnd)
+	var st *stream
+	err = j.retrying(func() error {
+		s, err := j.openRange(a.cursor, reqEnd)
+		st = s
+		return err
+	})
+	if err != nil {
+		j.tab.release(pending, 1)
+		return nil, err
+	}
+	j.learn(st.resp)
+	return &firstStream{a: a, st: st}, nil
+}
+
+// without validators, the bytes before a frontier are the only proof the file is the same
+// ported from prism-download-manager crates/prism-engine/src/http/download.rs (MIT)
+func (j *job) verifyOverlap() error {
+	s := j.tab.longest()
+	if s == nil {
+		return errChanged
+	}
+	n := min(s.pos-s.start, overlapCheck)
+	from := s.pos - n
+	local := make([]byte, n)
+	f, err := os.Open(j.partPath)
+	if err != nil {
+		return errChanged
+	}
+	_, err = f.ReadAt(local, from)
+	f.Close()
+	if err != nil {
+		return errChanged
+	}
+	remote := make([]byte, n)
+	return j.retrying(func() error {
+		st, err := j.openRange(from, s.pos)
+		if err != nil {
 			return err
 		}
-		wait := min(time.Duration(1<<tries)*250*time.Millisecond, 8*time.Second)
-		var se *StatusError
-		if errors.As(err, &se) && se.RetryAfter > 0 {
-			wait = min(se.RetryAfter, 30*time.Second)
+		defer st.close()
+		if _, err := io.ReadFull(st.resp.Body, remote); err != nil {
+			return io.ErrUnexpectedEOF
 		}
-		if j.d.Backoff != nil {
-			wait = j.d.Backoff(tries)
+		j.learn(st.resp)
+		if !bytes.Equal(remote, local) {
+			return errChanged
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(wait):
-		}
+		return nil
+	})
+}
+
+func (j *job) learn(resp *http.Response) {
+	got := infoFrom(resp, j.part.URL)
+	j.info.URL, j.info.Name, j.info.Mime = got.URL, got.Name, got.Mime
+	if j.info.ETag == "" {
+		j.info.ETag = got.ETag
+	}
+	if j.info.LastModified == "" {
+		j.info.LastModified = got.LastModified
 	}
 }
 
-// validator is what If-Range compares; a weak ETag may not be used there.
-func (j *job) validator() string {
-	if e := j.info.ETag; e != "" && !strings.HasPrefix(e, "W/") {
-		return e
+// the sidecar may only claim bytes already synced to disk
+// ported from prism-download-manager crates/prism-engine/src/segmented/writer.rs (MIT)
+func (j *job) save() {
+	if !j.ranged || j.info.Size <= 0 || j.writeFailed.Load() || j.file == nil {
+		return
 	}
-	return j.info.LastModified
-}
-
-func (j *job) fetch(ctx context.Context, client *http.Client, s *segment) (int64, error) {
-	j.mu.Lock()
-	if !j.resumable() && s.Done > 0 {
-		// a stream without ranges can only start over
-		j.p.Add(-s.Done)
-		s.Done = 0
+	j.wmu.Lock()
+	spans := j.tab.spans()
+	j.wmu.Unlock()
+	if datasync(j.file) != nil {
+		return
 	}
-	pos, end := s.Start+s.Done, s.End
-	j.mu.Unlock()
-	if end >= 0 && pos >= end {
-		return 0, nil
-	}
-	reqCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	stalled := atomic.Bool{}
-	idle := time.AfterFunc(idleTimeout, func() { stalled.Store(true); cancel() })
-	defer idle.Stop()
-
-	req, err := newRequest(reqCtx, http.MethodGet, j.part.URL, j.part.Headers)
+	b, err := json.Marshal(sidecar{URL: j.part.URL, ETag: j.info.ETag, LastModified: j.info.LastModified, Size: j.info.Size, Segments: spans})
 	if err != nil {
-		return 0, err
+		return
 	}
-	req.Header.Set("Accept-Encoding", "identity")
-	ranged := j.resumable()
-	if ranged {
-		req.Header.Set("Range", "bytes="+strconv.FormatInt(pos, 10)+"-"+strconv.FormatInt(end-1, 10))
-		if v := j.validator(); v != "" {
-			req.Header.Set("If-Range", v)
-		}
-	}
-	resp, err := client.Do(req)
+	tmp := j.sidecarPath() + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		if stalled.Load() {
-			return 0, errIdle
-		}
-		return 0, err
+		return
 	}
-	defer resp.Body.Close()
-	switch {
-	case ranged && resp.StatusCode == http.StatusPartialContent:
-		start, _, total, ok := contentRange(resp.Header.Get("Content-Range"))
-		if !ok || start != pos || (total >= 0 && total != j.info.Size) {
-			return 0, errChanged
-		}
-	case ranged && resp.StatusCode == http.StatusOK:
-		return 0, errChanged
-	case !ranged && resp.StatusCode == http.StatusOK:
-	default:
-		return 0, statusError(resp)
-	}
-	j.conns.Add(1)
-	defer j.conns.Add(-1)
-
-	buf := make([]byte, chunkSize)
-	var got int64
-	for {
-		n, rerr := resp.Body.Read(buf)
-		if n > 0 {
-			idle.Reset(idleTimeout)
-			if err := plan.Wait(ctx, j.d.Limit, n); err != nil {
-				return got, err
-			}
-			j.mu.Lock()
-			at := s.Start + s.Done
-			allow := int64(n)
-			if s.End >= 0 {
-				allow = min(allow, s.End-at)
-			}
-			s.Done += allow
-			s.flight += allow
-			j.mu.Unlock()
-			if allow > 0 {
-				_, werr := j.file.WriteAt(buf[:allow], at)
-				j.mu.Lock()
-				s.flight -= allow
-				if werr != nil {
-					s.Done -= allow
-				}
-				j.mu.Unlock()
-				if werr != nil {
-					return got, werr
-				}
-				got += allow
-				j.p.Add(allow)
-			}
-			j.mu.Lock()
-			finished := s.End >= 0 && s.Start+s.Done >= s.End
-			j.mu.Unlock()
-			if finished {
-				return got, nil
-			}
-		}
-		if rerr == io.EOF {
-			j.mu.Lock()
-			defer j.mu.Unlock()
-			if s.End < 0 {
-				s.End = s.Start + s.Done
-				return got, nil
-			}
-			if s.Start+s.Done >= s.End {
-				return got, nil
-			}
-			return got, io.ErrUnexpectedEOF
-		}
-		if rerr != nil {
-			if stalled.Load() {
-				return got, errIdle
-			}
-			if ctx.Err() != nil {
-				return got, ctx.Err()
-			}
-			return got, fmt.Errorf("read: %w", rerr)
-		}
+	_, werr := f.Write(b)
+	serr := f.Sync()
+	if cerr := f.Close(); werr == nil && serr == nil && cerr == nil {
+		_ = os.Rename(tmp, j.sidecarPath())
 	}
 }
 
-func (j *job) tick(stop <-chan struct{}, done chan<- struct{}) {
-	defer close(done)
-	mark := time.NewTicker(markEvery)
-	defer mark.Stop()
+// one connection giving up does not fail the download, only a replacement round without progress does
+// ported from prism-download-manager crates/prism-engine/src/segmented/supervisor.rs (MIT)
+func (j *job) supervise(first *firstStream) error {
+	requested := j.conns
+	if !j.tab.splittable {
+		requested = 1
+	}
+	hosts := j.d.hostsFile()
+	learned := 0
+	if j.tab.splittable && j.host != "" {
+		learned = learnedLimit(hosts, j.host)
+	}
+	ramp := min(max(1, j.tn.initial), requested)
+	probeBackoff := j.tn.probeFirst
+	var probeUpAt, holdUntil time.Time
+	if learned > 0 {
+		probeUpAt = time.Now().Add(probeBackoff)
+	}
+	// bytes in when the last connection gave up, -1 before that
+	heldAt := int64(-1)
+	var lastErr, fatal error
+	done := false
+	active, nextID := 0, 1
+	spawn := func(f *firstStream) {
+		w := &worker{j: j, id: nextID, buf: make([]byte, chunkSize), reqSize: j.tn.minReq}
+		nextID++
+		active++
+		go func() { j.exits <- w.run(f) }()
+	}
+	if first != nil {
+		spawn(first)
+	}
+	tick := time.NewTicker(j.tn.tick)
+	defer tick.Stop()
 	lastSave := time.Now()
 	lastConns := -1
+	cr, _ := j.p.(ConnReporter)
+	defer func() {
+		if cr != nil {
+			cr.Conns(0)
+		}
+	}()
 	for {
+		now := time.Now()
+		limit := requested
+		if learned > 0 {
+			limit = min(limit, learned)
+		}
+		limit = max(1, limit)
+		if !done && j.tab.allDone() {
+			done = true
+			j.cancel()
+		}
+		stopping := j.ctx.Err() != nil
+		if !stopping && !now.Before(holdUntil) {
+			holdUntil = time.Time{}
+			for {
+				for active < min(ramp, limit) && j.tab.hasWork(true, now) {
+					spawn(nil)
+				}
+				// the rest open once every connection already started delivers bytes
+				if ramp >= limit || int(j.connected.Load()) < max(1, min(ramp, active)) {
+					break
+				}
+				ramp = limit
+			}
+		}
+		if active == 0 {
+			switch {
+			case fatal != nil:
+				return fatal
+			case done:
+				return nil
+			case stopping:
+				return j.ctx.Err()
+			case holdUntil.IsZero():
+				if lastErr == nil {
+					lastErr = io.ErrUnexpectedEOF
+				}
+				return lastErr
+			}
+		}
 		select {
-		case <-stop:
-			if cr, ok := j.p.(ConnReporter); ok {
-				cr.Conns(0)
+		case ex := <-j.exits:
+			active--
+			switch ex.kind {
+			case exitRefused:
+				if working := max(1, int(j.connected.Load())); working < limit {
+					learned = working
+					recordLimit(hosts, j.host, working)
+				}
+				// a host that asked to wait (Retry-After) stays down that long
+				wait := max(ex.retryAfter, probeBackoff)
+				probeUpAt = time.Now().Add(wait)
+				probeBackoff = min(2*probeBackoff, j.tn.probeMax)
+			case exitGaveUp:
+				lastErr = ex.err
+				if active == 0 && !j.tab.allDone() {
+					got := j.tab.downloaded.Load()
+					if heldAt >= 0 && got == heldAt {
+						return lastErr
+					}
+					heldAt = got
+				}
+				holdUntil = time.Now().Add(j.tn.hold)
+			case exitFatal:
+				if fatal == nil {
+					fatal = ex.err
+				}
+				j.cancel()
 			}
-			return
-		case <-mark.C:
-		}
-		j.mark(false)
-		if cr, ok := j.p.(ConnReporter); ok {
-			if c := int(j.conns.Load()); c != lastConns {
-				lastConns = c
-				cr.Conns(c)
+		case <-tick.C:
+			now := time.Now()
+			j.tab.tick(now)
+			j.mark(false)
+			if cr != nil {
+				if c := int(j.connected.Load()); c != lastConns {
+					lastConns = c
+					cr.Conns(c)
+				}
 			}
-		}
-		if time.Since(lastSave) >= saveEvery {
-			lastSave = time.Now()
-			j.save()
+			if now.Sub(lastSave) >= j.tn.saveEvery {
+				lastSave = now
+				j.save()
+			}
+			if learned > 0 && learned < requested && !probeUpAt.IsZero() && !now.Before(probeUpAt) {
+				learned++
+				recordLimit(hosts, j.host, learned)
+				probeUpAt = now.Add(probeBackoff)
+			}
+		case <-j.connNote:
 		}
 	}
 }
@@ -628,13 +686,7 @@ func (j *job) mark(all bool) {
 		}
 		return
 	}
-	j.mu.Lock()
-	type span struct{ a, b int64 }
-	spans := make([]span, 0, len(j.segs))
-	for _, s := range j.segs {
-		spans = append(spans, span{s.Start, s.Start + s.Done - s.flight})
-	}
-	j.mu.Unlock()
+	spans := j.tab.spans()
 	for b := range buckets {
 		lo := int64(b) * size / buckets
 		hi := int64(b+1) * size / buckets
@@ -644,7 +696,7 @@ func (j *job) mark(all bool) {
 		}
 		var cov int64
 		for _, sp := range spans {
-			a, e := max(sp.a, lo), min(sp.b, hi)
+			a, e := max(sp.Start, lo), min(sp.Start+sp.Done, hi)
 			if e > a {
 				cov += e - a
 			}

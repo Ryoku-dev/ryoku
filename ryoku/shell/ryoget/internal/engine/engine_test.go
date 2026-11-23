@@ -39,12 +39,13 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// gated serves files whose bodies wait for the gate; probes pass at once.
+// gated holds bodies at the gate, a first ranged GET after its first 64 KiB (half a small file), probes not at all
 type gated struct {
-	mu    sync.Mutex
-	files map[string][]byte
-	gate  chan struct{}
-	gets  atomic.Int32
+	mu     sync.Mutex
+	files  map[string][]byte
+	gate   chan struct{}
+	gets   atomic.Int32
+	ranges []string
 }
 
 func newGated() *gated { return &gated{files: map[string][]byte{}, gate: make(chan struct{})} }
@@ -59,16 +60,59 @@ func (g *gated) open() {
 	}
 }
 
+// seen is every "path range" the server was asked for, in order.
+func (g *gated) seen() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]string(nil), g.ranges...)
+}
+
+// prefixWriter lets the first n body bytes through, then holds the rest until the gate opens.
+type prefixWriter struct {
+	http.ResponseWriter
+	r    *http.Request
+	gate chan struct{}
+	n    int
+}
+
+func (w *prefixWriter) Write(p []byte) (int, error) {
+	if w.n <= 0 {
+		return w.ResponseWriter.Write(p)
+	}
+	head := p[:min(w.n, len(p))]
+	k, err := w.ResponseWriter.Write(head)
+	w.n -= k
+	if err != nil || k < len(head) || w.n > 0 {
+		return k, err
+	}
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
+	select {
+	case <-w.gate:
+	case <-w.r.Context().Done():
+		return k, w.r.Context().Err()
+	}
+	rest, err := w.ResponseWriter.Write(p[k:])
+	return k + rest, err
+}
+
 func (g *gated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	rng := r.Header.Get("Range")
 	g.mu.Lock()
 	data, ok := g.files[r.URL.Path]
 	gate := g.gate
+	g.ranges = append(g.ranges, r.URL.Path+" "+rng)
 	g.mu.Unlock()
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method == http.MethodGet && r.Header.Get("Range") != "bytes=0-0" {
+	w.Header().Set("ETag", `"`+r.URL.Path+`"`)
+	switch {
+	case r.Method != http.MethodGet || rng == "bytes=0-0":
+	case strings.HasPrefix(rng, "bytes=0-"):
+		g.gets.Add(1)
+		w = &prefixWriter{ResponseWriter: w, r: r, gate: gate, n: min(64<<10, len(data)/2)}
+	default:
 		g.gets.Add(1)
 		select {
 		case <-gate:
@@ -76,7 +120,6 @@ func (g *gated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	w.Header().Set("ETag", `"`+r.URL.Path+`"`)
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 }
 
@@ -290,7 +333,8 @@ func TestPauseResumeCancelRemove(t *testing.T) {
 	f := newFixture(t, nil, nil)
 
 	p, _ := f.e.Add(proto.AddParams{URL: srv.URL + "/p.bin"})
-	waitTask(t, f.e, p.ID, inState(proto.StateActive))
+	// pause mid-transfer, with the first 64 KiB on disk and the rest held at the gate
+	waitTask(t, f.e, p.ID, func(tk proto.Task) bool { return tk.State == proto.StateActive && tk.Done >= 64<<10 })
 	if err := f.e.Pause(p.ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -322,12 +366,23 @@ func TestPauseResumeCancelRemove(t *testing.T) {
 	}
 
 	g.open()
+	before := len(g.seen())
 	if err := f.e.Resume(paused.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	done := waitTask(t, f.e, p.ID, inState(proto.StateDone))
 	if got, _ := os.ReadFile(done.Path); !bytes.Equal(got, data) {
 		t.Fatal("resumed content differs")
+	}
+	resumedFrom := ""
+	for _, s := range g.seen()[before:] {
+		if rng, ok := strings.CutPrefix(s, "/p.bin "); ok {
+			resumedFrom = rng
+			break
+		}
+	}
+	if !strings.HasPrefix(resumedFrom, "bytes=") || strings.HasPrefix(resumedFrom, "bytes=0-") {
+		t.Fatalf("the first request after resume asked for %q, want a range past 0", resumedFrom)
 	}
 	if _, err := f.e.Retry(c.ID); err != nil {
 		t.Fatal(err)

@@ -146,14 +146,39 @@ thumbnail that cannot be fetched or read leaves the file without one.
 
 ## HTTP downloads
 
-A file is probed with HEAD and a one-byte ranged GET, split into
-min(connections, size / minimum split) ranges written into one sparse `.part`, and a
-connection that finishes early takes half of the largest range still running. The
-sidecar is rewritten every second and on stop; a resume checks the size and ETag or
-Last-Modified, sends `If-Range`, and starts over cleanly when the file changed.
-Servers without ranges get one stream. Each range retries five times with back-off;
-a server that refuses extra connections with 429 or 503 is downloaded with fewer.
-The finished file never replaces an existing one: it lands as `name (2).ext`.
+The first request is `GET Range: bytes=0-<4 MiB>`: its answer names the file
+(Content-Disposition, then the URL, then the type) and its body is already the first
+connection's data, so there is no HEAD and no one-byte probe. A server that answers 200
+gets one plain stream. Later requests go to the address the redirects ended at, and back
+to the original link once when that address answers 403, 404 or 410.
+
+Four connections open first, the rest once those deliver bytes. Each asks for about two
+seconds of data at its own speed (4 to 16 MiB) and keeps its socket between requests. A
+connection that runs out of work takes half of the largest range in flight, split on a
+4 KiB boundary behind that range's current request so the other socket survives. When
+nothing is left to split, a range over 3 s from done and over 4x slower than a typical
+connection is fetched a second time from its frontier, and whichever copy finishes first
+wins.
+
+A connection retries 408, 425, 429, 5xx and network errors with a back-off of 0.5 s
+doubling to 30 s with jitter, or the server's `Retry-After` (at most 300 s). Ten failures
+in a row without a byte and it gives up: the others carry on, and after 10 s new
+connections take over its range. The download fails only when such a round brings
+nothing. A server that turns extra connections away (429, 503, 403, or resets before
+the first byte) gets as many as were working, one more is tried after 20 s, then after
+twice as long up to 300 s, and never sooner than its `Retry-After`. That limit is kept
+per host for a day in `$XDG_STATE_HOME/ryoku/ryoget/hosts.json`, read when a download
+starts and written only when it changes.
+
+Before a byte is written the free space is checked (`no_space` names what is needed and
+what is free) and the whole `.part` is reserved with fallocate. The sidecar is written
+every 5 s and on stop, each time after the `.part` is synced. A resume needs the sidecar's
+ranges to cover the file exactly and the `.part` to have the file's size; it trusts the
+size and the ETag or Last-Modified (sent as `If-Range`), not the link, so a refreshed
+address keeps the partial data. Without either validator it fetches the 64 KiB before the
+longest range's end and compares them with the disk. Anything that does not match starts
+over cleanly. The finished file never replaces an existing one: it lands as
+`name (2).ext`.
 
 ## ryoseek
 
