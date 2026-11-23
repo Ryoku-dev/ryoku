@@ -2519,6 +2519,16 @@
       "requires": "opencode"
     },
     {
+      "id": "ryoku.grok-usage.collect",
+      "group": "ryoku-internal",
+      "title": "Collect Grok usage",
+      "command": "grok-usage",
+      "description": "Sums local Grok CLI session turns into the token and cost cache consumed by the bar.",
+      "tool": "grok-usage",
+      "level": "internal",
+      "requires": "grok"
+    },
+    {
       "id": "ryoku.ryovm.caps",
       "group": "ryoku-apps",
       "title": "Check virtual machine support",

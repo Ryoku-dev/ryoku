@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""Grok CLI local usage for the Quickshell AI usage widget.
+
+Grok persists every session under $GROK_HOME/sessions/<cwd>/<id>/updates.jsonl,
+and each finished turn appends a `turn_completed` update carrying that turn's
+token and cost totals. This sums those records into the cache shape the widget
+reads. No network, no credentials.
+
+The plan allowance is not on disk: `grok usage` reads it only through Grok's
+background service, so this writes no 5h/7d utilization and the widget shows
+tokens instead of an invented percentage.
+"""
+import json
+import os
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+GROK_HOME = Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok"))
+SESSIONS_DIR = GROK_HOME / "sessions"
+CACHE_FILE = Path.home() / ".cache" / "grok-usage.json"
+
+# Grok's cost unit: 10^10 ticks per US dollar.
+TICKS_PER_USD = 10_000_000_000
+
+# Every window the widget shows is <= 7 days, so a session file untouched for 8
+# days can never move a number. Skipping by mtime bounds the walk.
+WINDOW_HORIZON_S = 8 * 24 * 3600
+
+
+def stale_last() -> None:
+    if not CACHE_FILE.exists():
+        return
+    try:
+        cur = json.loads(CACHE_FILE.read_text())
+        cur["_source"] = "stale"
+        CACHE_FILE.write_text(json.dumps(cur))
+    except Exception:
+        pass
+
+
+def as_int(value) -> int:
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
+def parse_turn(line: str) -> dict | None:
+    if '"turn_completed"' not in line:
+        return None
+    try:
+        envelope = json.loads(line)
+        update = envelope["params"]["update"]
+    except Exception:
+        return None
+    if not isinstance(update, dict) or update.get("sessionUpdate") != "turn_completed":
+        return None
+    usage = update.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    meta = envelope["params"].get("_meta") or {}
+    stamp_ms = as_int(meta.get("agentTimestampMs")) or as_int(envelope.get("timestamp")) * 1000
+    if stamp_ms <= 0:
+        return None
+    models = usage.get("modelUsage") if isinstance(usage.get("modelUsage"), dict) else {}
+    return {
+        "id": str(update.get("prompt_id") or meta.get("eventId") or ""),
+        "time": stamp_ms,
+        "total": as_int(usage.get("totalTokens")),
+        "cost": as_int(usage.get("costUsdTicks")) / TICKS_PER_USD,
+        "models": {
+            str(name): {
+                "input": as_int(row.get("inputTokens")),
+                "output": as_int(row.get("outputTokens")),
+                "reasoning": as_int(row.get("reasoningTokens")),
+                "cache_read": as_int(row.get("cachedReadTokens")),
+                "cache_write": as_int(row.get("cacheCreationTokens")),
+                "total": as_int(row.get("totalTokens")),
+                "cost": as_int(row.get("costUsdTicks")) / TICKS_PER_USD,
+            }
+            for name, row in models.items() if isinstance(row, dict)
+        },
+    }
+
+
+def load_turns(cutoff_s: float) -> list[dict]:
+    """Every completed turn newer than cutoff_s, once each.
+
+    A resumed or forked session can carry its parent's history, so a turn is
+    counted once by its prompt id however many logs repeat it.
+    """
+    turns: dict[str, dict] = {}
+    for path in SESSIONS_DIR.glob("*/*/updates.jsonl"):
+        try:
+            if path.stat().st_mtime < cutoff_s:
+                continue
+            with path.open(encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    turn = parse_turn(line)
+                    if turn is None or turn["time"] < cutoff_s * 1000:
+                        continue
+                    key = turn["id"] or f"{path.parent.name}:{turn['time']}"
+                    turns.setdefault(key, turn)
+        except OSError:
+            continue
+    return list(turns.values())
+
+
+def sum_since(turns: list[dict], since_ms: int) -> tuple[int, float]:
+    tokens = 0
+    cost = 0.0
+    for turn in turns:
+        if turn["time"] >= since_ms:
+            tokens += turn["total"]
+            cost += turn["cost"]
+    return tokens, cost
+
+
+def fmt_tokens(value: int) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.1f}K"
+    return str(value)
+
+
+def model_rows(turns: list[dict], today_ms: int, limit: int = 6) -> list[dict]:
+    by_model: dict[str, dict] = {}
+    for turn in turns:
+        for name, row in turn["models"].items():
+            cur = by_model.setdefault(name, {
+                "input": 0, "output": 0, "reasoning": 0, "cache_read": 0,
+                "cache_write": 0, "total": 0, "cost": 0.0, "today": 0, "last_seen": 0,
+            })
+            for field in ("input", "output", "reasoning", "cache_read", "cache_write", "total", "cost"):
+                cur[field] += row[field]
+            if turn["time"] >= today_ms:
+                cur["today"] += row["total"]
+            cur["last_seen"] = max(cur["last_seen"], turn["time"])
+
+    ranked = sorted(by_model.items(), key=lambda item: item[1]["last_seen"], reverse=True)[:limit]
+    peak = max((row["total"] for _, row in ranked), default=0)
+    return [{
+        "name": name,
+        "total": row["total"],
+        "totalLabel": fmt_tokens(row["total"]),
+        "inputLabel": fmt_tokens(row["input"]),
+        "outputLabel": fmt_tokens(row["output"]),
+        "reasoningLabel": fmt_tokens(row["reasoning"]),
+        "cacheReadLabel": fmt_tokens(row["cache_read"]),
+        "cacheWriteLabel": fmt_tokens(row["cache_write"]),
+        "todayLabel": fmt_tokens(row["today"]),
+        "costLabel": f"${row['cost']:.2f}" if row["cost"] > 0 else "",
+        "lastSeen": row["last_seen"],
+        "pct": int(round(row["total"] * 100 / peak)) if peak else 0,
+    } for name, row in ranked]
+
+
+def recent_days(turns: list[dict], days: int = 7) -> list[dict]:
+    """Per-day token totals for the last `days` local days, oldest->newest."""
+    today = datetime.now().date()
+    by_day: dict[str, int] = {}
+    for turn in turns:
+        key = datetime.fromtimestamp(turn["time"] / 1000).strftime("%Y-%m-%d")
+        by_day[key] = by_day.get(key, 0) + turn["total"]
+    return [{"date": key, "tokens": by_day.get(key, 0)}
+            for key in ((today - timedelta(days=i)).strftime("%Y-%m-%d")
+                        for i in range(days - 1, -1, -1))]
+
+
+def main() -> None:
+    if not SESSIONS_DIR.is_dir():
+        stale_last()
+        return
+
+    now = time.time()
+    turns = load_turns(now - WINDOW_HORIZON_S)
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_ms = int(today_start.timestamp() * 1000)
+    week_start_ms = int((today_start - timedelta(days=6)).timestamp() * 1000)
+
+    tok_5h, cost_5h = sum_since(turns, int((now - 5 * 3600) * 1000))
+    tok_1h, _ = sum_since(turns, int((now - 3600) * 1000))
+    tok_today, cost_today = sum_since(turns, today_ms)
+    tok_7d, cost_7d = sum_since(turns, week_start_ms)
+    models = model_rows([t for t in turns if t["time"] >= week_start_ms], today_ms)
+
+    out = {
+        "updated_at": datetime.now().strftime("%H:%M:%S"),
+        "_source": "sessions",
+        "_plan": "",
+        "_model": models[0]["name"] if models else "",
+        "_models": models,
+        "_tokens_used": tok_5h,
+        "_rate_per_hour": tok_1h,
+        "_today_tokens": tok_today,
+        "_7d_tokens": tok_7d,
+        "_recent_days": recent_days([t for t in turns if t["time"] >= week_start_ms]),
+        "_cost_5h": round(cost_5h, 4),
+        "_cost_today": round(cost_today, 4),
+        "_cost_7d": round(cost_7d, 4),
+        "status": "allowed",
+    }
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE_FILE.with_name(CACHE_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(out))
+    tmp.replace(CACHE_FILE)
+
+
+if __name__ == "__main__":
+    main()

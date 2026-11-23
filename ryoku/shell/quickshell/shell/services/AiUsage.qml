@@ -12,11 +12,12 @@ Singleton {
     // The collectors write under ~/.cache whatever XDG_CACHE_HOME says, so the
     // reader follows them rather than the XDG variable.
     readonly property string cacheDir: Quickshell.env("HOME") + "/.cache"
-    readonly property var toolIds: ["claude", "codex", "opencode"]
+    readonly property var toolIds: ["claude", "codex", "opencode", "grok"]
     readonly property var labels: ({
         claude: "Claude",
         codex: "Codex",
-        opencode: "OpenCode"
+        opencode: "OpenCode",
+        grok: "Grok"
     })
 
     property var tools: ({})
@@ -43,6 +44,9 @@ Singleton {
             tokens: "",
             rate: "",
             today: 0,
+            tokens7d: 0,
+            costToday: 0,
+            cost7d: 0,
             recent: [],
             model: "",
             models: [],
@@ -212,6 +216,9 @@ Singleton {
         result.tokens = root.usageText(data);
         result.rate = root.rateText(data);
         result.today = parseInt(data._today_tokens) || 0;
+        result.tokens7d = parseInt(data._7d_tokens) || 0;
+        result.costToday = Number(data._cost_today) || 0;
+        result.cost7d = Number(data._cost_7d) || 0;
         result.recent = data._recent_days instanceof Array ? data._recent_days : [];
         result.model = String(data._model || "");
         result.models = data._models instanceof Array ? data._models : [];

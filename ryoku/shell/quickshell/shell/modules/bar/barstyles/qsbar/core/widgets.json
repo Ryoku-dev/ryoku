@@ -13,7 +13,7 @@
   { "id": "volume",     "gid": "G6",  "label": "Volume",          "visKey": "volume",
     "settings": [ { "key": "audioBoost", "type": "toggle", "label": "Allow over 100%" } ] },
   { "id": "ai",         "gid": "G7",  "label": "AI usage",        "visKey": "claude",
-    "settings": [ { "key": "aiTools", "type": "multi", "label": "Tools", "options": ["claude", "codex", "opencode"] } ] },
+    "settings": [ { "key": "aiTools", "type": "multi", "label": "Tools", "options": ["claude", "codex", "opencode", "grok"] } ] },
   { "id": "clock",      "gid": "G8",  "label": "Clock",           "desc": "weather, clock, date, indicators",
     "settings": [ { "key": "clock12h", "type": "toggle", "label": "12-hour" },
                   { "key": "weatherImperial", "type": "toggle", "label": "Fahrenheit" },

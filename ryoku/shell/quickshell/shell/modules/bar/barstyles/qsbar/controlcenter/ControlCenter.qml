@@ -98,7 +98,7 @@ PanelWindow {
             { id: "identity.workspaces", name: I18n.tr("Workspace marker"), route: "identity", category: I18n.tr("Identity"),
               searchTags: ["workspace", "spaces", "marker", "dots", "numbers", "kanji", "pacman", "aurora", "count"], description: I18n.tr("How many workspaces the bar shows and the marker each wears.") },
             { id: "widgets.ai", name: I18n.tr("AI usage tools"), route: "widgets", category: I18n.tr("Widgets"),
-              searchTags: ["ai", "claude", "codex", "opencode", "usage"], description: I18n.tr("Which coding-agent meters the AI pill shows.") },
+              searchTags: ["ai", "claude", "codex", "opencode", "grok", "usage"], description: I18n.tr("Which coding-agent meters the AI pill shows.") },
             { id: "dock.enabled", name: I18n.tr("Dock"), route: "dock", category: I18n.tr("Dock"),
               searchTags: ["dock", "apps", "pinned"], description: I18n.tr("The app dock on the opposite edge.") },
             { id: "dock.edge", name: I18n.tr("Dock edge"), route: "dock", category: I18n.tr("Dock"),

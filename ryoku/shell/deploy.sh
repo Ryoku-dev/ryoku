@@ -773,7 +773,7 @@ install -m755 "$here/quickshell/plugins/ryoku-plugins-place" "$bindir/ryoku-plug
 # dev loop puts the current copies on PATH.
 for s in "$here/../rashin/usage"/ryoku-ai-usage \
   "$here/../rashin/usage"/claude-usage "$here/../rashin/usage"/codex-usage \
-  "$here/../rashin/usage"/opencode-usage; do
+  "$here/../rashin/usage"/opencode-usage "$here/../rashin/usage"/grok-usage; do
   install -m755 "$s" "$bindir/${s##*/}"
 done
 say "installed the AI-usage guard and collectors to $bindir"

@@ -2678,7 +2678,7 @@
         }
       },
       "qsbar": {
-        "aiTools": "claude,codex,opencode",
+        "aiTools": "claude,codex,opencode,grok",
         "audioBoost": false,
         "barAnim": 4,
         "barAutoHide": false,

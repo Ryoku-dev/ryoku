@@ -1026,8 +1026,8 @@ Item {
     // may appear rather than forcing an empty chip into the row. Persisted through
     // the shell.json bridge only - the legacy widgets cache is a positional record
     // and this set has no field there.
-    readonly property var aiToolOptions: ["claude", "codex", "opencode"]
-    property var aiTools: ["claude", "codex", "opencode"]
+    readonly property var aiToolOptions: ["claude", "codex", "opencode", "grok"]
+    property var aiTools: ["claude", "codex", "opencode", "grok"]
     // Lifts the safe 100% cap to 150% for quiet hardware. It has to live in
     // shell.json rather than the in-memory adapter, because the media-key binding
     // reads `.qsbar.audioBoost` from that file to decide wpctl's limit.
@@ -1040,6 +1040,7 @@ Item {
         if (id === "claude")   return aiClHas
         if (id === "codex")    return aiCxHas
         if (id === "opencode") return aiOcHas
+        if (id === "grok")     return aiGkHas
         return false
     }
     function aiToolsUnavailable() {
@@ -1119,6 +1120,17 @@ Item {
     readonly property int aiOcToday: aiOcData.today
     readonly property var aiOcRecent: aiOcData.recent
     readonly property var aiOcModels: aiOcData.models
+
+    readonly property var aiGkData: AiUsage.tool("grok")
+    readonly property bool aiGkHas: aiGkData.has
+    readonly property bool aiGkFresh: aiGkData.fresh
+    readonly property string aiGkModel: aiGkData.model
+    readonly property int aiGkToday: aiGkData.today
+    readonly property int aiGkTokens7d: aiGkData.tokens7d
+    readonly property real aiGkCostToday: aiGkData.costToday
+    readonly property real aiGkCost7d: aiGkData.cost7d
+    readonly property var aiGkRecent: aiGkData.recent
+    readonly property var aiGkModels: aiGkData.models
     property int aiClockTick: 0
     readonly property bool aiRefreshing: AiUsage.refreshing
 
@@ -1220,6 +1232,7 @@ Item {
         for (var i = 0; i < list.length; i++) p = Math.max(p, aiDayTokens(list[i]))
         return p
     }
+    function aiUsd(v) { return "$" + (Number(v) || 0).toFixed(2) }
     function aiTokenCount(v) {
         var a = Math.max(0, v || 0)
         if (a >= 1e9) return (a / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, "") + "B"
