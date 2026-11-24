@@ -33,12 +33,26 @@ ShellRoot {
             group: probeGroup
             frameThickness: 16
         }
+
+        BarPopouts.MusicHoverPopout {
+            id: cardA
+            monitorName: "probe-a"
+            group: probeGroup
+            frameThickness: 16
+        }
+
+        BarPopouts.MusicHoverPopout {
+            id: cardB
+            monitorName: "probe-b"
+            group: probeGroup
+            frameThickness: 16
+        }
     }
 
     QtObject {
         id: probeLogic
         property int failures: 0
-        property int checksTotal: 12
+        property int checksTotal: 16
         property int checksCompleted: 0
         function check(name, cond) {
             try {
@@ -122,6 +136,20 @@ ShellRoot {
             // 7. DockPreview.clearHover("probe-b"); then DockPreview.hoveredClass === ""
             DockPreview.clearHover("probe-b");
             probeLogic.check("owner clears its own hover", DockPreview.hoveredClass === "");
+
+            // MUSIC SCOPING CHECKS 8-11
+            // 8. Set monitorName to "probe-a", hover true, cardA owns the hover
+            MusicPreview.monitorName = "probe-a";
+            MusicPreview.hovered = true;
+            probeLogic.check("card on hovered output owns hover", cardA.ownsHover === true && cardA.musicHovered === true);
+            // 9. cardB on other output does not own hover
+            probeLogic.check("card on other output does not own hover", cardB.ownsHover === false && cardB.musicHovered === false);
+            // 10. card's hold is per output
+            MusicPreview.setHeld("probe-a", true);
+            probeLogic.check("card's hold is per output", MusicPreview.heldOn("probe-a") === true && MusicPreview.heldOn("probe-b") === false);
+            // 11. card's hold clears
+            MusicPreview.setHeld("probe-a", false);
+            probeLogic.check("card's hold clears", MusicPreview.heldOn("probe-a") === false);
 
             // PHASE A: re-arm the hover as the owner of "probe-a"
             DockPreview.monitorName = "probe-a";

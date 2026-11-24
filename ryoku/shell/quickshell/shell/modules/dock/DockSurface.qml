@@ -84,6 +84,7 @@ PanelWindow {
     }
     readonly property bool menuHere: Dock.menuOpen && Dock.menuScreen === dock.screenName
     readonly property bool popoutHeld: DockPreview.heldOn(dock.screenName)
+        || MusicPreview.heldOn(dock.screenName)
     readonly property bool revealed: DockList.dockRevealed({
         stageEditing: dock.stageEditing,
         autohide: dock.autohide,

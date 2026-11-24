@@ -30,6 +30,10 @@ Popout {
     readonly property real len: root.seekable ? root.player.length : 0
     property real dragFrac: -1
     readonly property real frac: root.dragFrac >= 0 ? root.dragFrac : (root.len > 0 ? Math.max(0, Math.min(1, root.posn / root.len)) : 0)
+    required property string monitorName
+
+    readonly property bool ownsHover: MusicPreview.monitorName === root.monitorName
+    readonly property bool musicHovered: root.ownsHover && MusicPreview.hovered
 
     function fmtTime(sec) {
         sec = Math.max(0, Math.floor(sec));
@@ -42,7 +46,9 @@ Popout {
     arrivalDelay: 1200
     edgeGap: MusicPreview.margin > 0 ? MusicPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
-    triggerHovered: MusicPreview.hovered && root.present
+    triggerHovered: root.musicHovered && root.present
+    onHeldOpenChanged: MusicPreview.setHeld(root.monitorName, root.heldOpen)
+    Component.onDestruction: { MusicPreview.setHeld(root.monitorName, false); AudioBars.setActive(root, false) }
     alongCenter: {
         if (MusicPreview.gx < 0)
             return -1;
@@ -59,7 +65,6 @@ Popout {
 
     readonly property bool showing: root.prog > 0.004
     onShowingChanged: AudioBars.setActive(root, root.showing)
-    Component.onDestruction: AudioBars.setActive(root, false)
 
     Timer {
         interval: 500

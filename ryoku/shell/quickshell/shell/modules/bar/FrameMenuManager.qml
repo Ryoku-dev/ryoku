@@ -640,6 +640,7 @@ Item {
         group: root.group
         s: root.scale
         active: root.active
+        monitorName: root.monitorName
         frameThickness: root.clearanceFor(MusicPreview.edge)
     }
     onPluginUnpinRequested: pluginId => root.closeSurface("plugin:" + pluginId, root.monitorName)

@@ -8,8 +8,35 @@ QtObject {
     id: root
 
     property bool hovered: false
+    property string monitorName: ""
     property real gx: -1
     property real gy: -1
     property string edge: "bottom"
     property real margin: 0
+
+    // Per-output hold: the card on that output is open, or the pointer is on
+    // it. The map is replaced, never mutated, so the bindings that read it
+    // re-evaluate.
+    property var _held: ({})
+
+    function setHeld(monitor, held) {
+        const name = String(monitor ?? "");
+        if (name === "" || (root._held[name] === true) === held)
+            return;
+        const next = Object.assign({}, root._held);
+        next[name] = held === true;
+        root._held = next;
+    }
+
+    function heldOn(monitor) {
+        return root._held[String(monitor ?? "")] === true;
+    }
+
+    // Clear the hovered class, but only when that output owns the hover: a
+    // dock on another output has already published its own hover by now, and
+    // a stale leave must not erase it.
+    function clearHover(monitor) {
+        if (root.monitorName === String(monitor ?? ""))
+            root.hovered = false;
+    }
 }
