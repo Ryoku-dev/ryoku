@@ -1,6 +1,8 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Stage widgets stay in front after the shell restarts (#969).** Depth and
+  Parallax each restore their saved Front list.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
