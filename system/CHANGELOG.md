@@ -1,6 +1,14 @@
 # Changelog: system/
 
 ## Unreleased
+- **Pairing a phone, earbuds or another computer no longer hangs.** Devices that
+  ask the user to compare a passkey (numeric comparison) were never answered:
+  the pairing agent printed the question where nothing could read it, so
+  bluetoothd canceled the pairing after about 30 seconds. The agent now shows a
+  notification with the code and Pair and Cancel buttons,
+  types the answer back, closes the notification when the request is canceled,
+  and shows the code to type on the device when the device asks for one
+  (`hardware/bluetooth/ryoku-bt-agent`, `../tests/bt-agent-confirm.sh`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to
