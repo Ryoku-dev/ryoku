@@ -35,7 +35,7 @@ for tool in qs ryoku-hub ryoku ryoku-shell ryostore; do
 done
 
 run() {
-    env -u HYPRLAND_INSTANCE_SIGNATURE -u NIRI_SOCKET -u RYOKU_SHELL_DIR \
+    env -u RYOKU_SHELL_DIR \
     PATH="$work/bin:$PATH" \
     XDG_RUNTIME_DIR="$work/run" \
     XDG_CONFIG_HOME="$work/config" \

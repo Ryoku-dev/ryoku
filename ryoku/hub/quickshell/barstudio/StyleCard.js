@@ -21,17 +21,23 @@ const MAX_LABEL = 48;
 const MAX_VERBS = 4;
 
 const IDENT = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+// an IPC target may start with a digit, as a Store id may; never with "-".
+const TARGET = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const WORD = /^[a-z][a-z0-9-]{0,31}$/;
 
 function fail(message) {
     throw new Error(message);
 }
 
-function plainText(value, what, max, optional) {
+// A title, glyph or label lands in a shared control that would read "<b>" as
+// markup; a paragraph is drawn as plain text and may hold any character.
+function plainText(value, what, max, optional, markupFree) {
     if (value === undefined && optional)
         return "";
     if (typeof value !== "string")
         fail(what + " is not a string");
+    if (markupFree && value.indexOf("<") >= 0)
+        fail(what + " has a \"<\"");
     const s = value.trim();
     if (s === "" && !optional)
         fail(what + " is empty");
@@ -53,7 +59,7 @@ function isObject(v) {
 function button(raw, where, ctx) {
     if (!isObject(raw))
         fail(where + " is not an object");
-    const label = plainText(raw.label, where + ".label", MAX_LABEL, false);
+    const label = plainText(raw.label, where + ".label", MAX_LABEL, false, true);
     const forms = ["ipc", "hub", "ryokuShell"].filter(k => raw[k] !== undefined);
     if (forms.length !== 1)
         fail(where + " needs exactly one of ipc, hub or ryokuShell");
@@ -77,7 +83,7 @@ function button(raw, where, ctx) {
     }
 
     onlyKeys(raw, ["label", "ipc", "call", "args"], where);
-    if (typeof raw.ipc !== "string" || !IDENT.test(raw.ipc))
+    if (typeof raw.ipc !== "string" || !TARGET.test(raw.ipc))
         fail(where + ".ipc is not a plain identifier");
     if (!ctx.shipped && raw.ipc !== ctx.id)
         fail(where + ".ipc must be the style's own id \"" + ctx.id + "\"");
@@ -119,8 +125,8 @@ function card(raw, where, ctx) {
     if (!Array.isArray(blocks) || blocks.length === 0 || blocks.length > MAX_BLOCKS)
         fail(where + ".blocks is not a list of 1 to " + MAX_BLOCKS + " blocks");
     return {
-        title: plainText(raw.title, where + ".title", MAX_TITLE, false),
-        glyph: plainText(raw.glyph, where + ".glyph", MAX_GLYPH, true),
+        title: plainText(raw.title, where + ".title", MAX_TITLE, false, true),
+        glyph: plainText(raw.glyph, where + ".glyph", MAX_GLYPH, true, true),
         blocks: blocks.map((b, i) => block(b, where + ".blocks[" + i + "]", ctx))
     };
 }

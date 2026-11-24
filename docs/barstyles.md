@@ -802,9 +802,11 @@ other file.
   sit.
 - `title`: shown as written, so write it in capitals like the other cards.
   `glyph` is optional, at most two characters, and shows beside the title when
-  the Japanese gloss is on.
+  the Japanese gloss is on. A title, glyph or button label may not contain `<`,
+  so the controls that draw them never read it as markup.
 - `blocks`: one to eight, top to bottom. A `text` block is a paragraph shown as
-  plain text, never markup. A `buttons` block is a row of one to four buttons.
+  plain text, never markup. A `buttons` block is a row of one to four buttons
+  that wraps when they do not fit the card.
 - A button has a `label` and exactly one action:
   - `"ipc": "<target>", "call": "<function>"`, with optional `"args"` (up to
     eight strings), runs `qs -c shell ipc call <target> <function> <args...>`.

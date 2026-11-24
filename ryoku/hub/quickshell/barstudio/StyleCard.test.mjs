@@ -91,6 +91,10 @@ rejects({ schema: 1, cards: [{ title: "  ", blocks: [{ text: "t" }] }] }, store,
 rejects({ schema: 1, cards: [{ title: "X".repeat(41), blocks: [{ text: "t" }] }] }, store, "longer than 40", "a long title");
 rejects({ schema: 1, cards: [{ title: "X", glyph: "力力力", blocks: [{ text: "t" }] }] }, store, "glyph is longer", "a long glyph");
 rejects(one([{ text: 5 }]), store, "text is not a string", "a number as text");
+rejects({ schema: 1, cards: [{ title: "<b>X</b>", blocks: [{ text: "t" }] }] }, store, "title has a \"<\"", "markup in a title");
+rejects({ schema: 1, cards: [{ title: "X", glyph: "<i>", blocks: [{ text: "t" }] }] }, store, "glyph has a \"<\"", "markup in a glyph");
+rejects(one([{ buttons: [{ label: "<img src=x>", ipc: "ajiadb9", call: "open" }] }]), store, "label has a \"<\"", "markup in a label");
+eq(StyleCard.parse(JSON.stringify(one([{ text: "a < b & <b>c</b>" }])), store).cards[0].blocks[0].text, "a < b & <b>c</b>", "a paragraph keeps its characters, drawn as plain text");
 rejects(one([{ buttons: [] }]), store, "buttons is not a list", "an empty button row");
 rejects(one([{ buttons: [1, 2, 3, 4, 5].map(n => ({ label: "B" + n, ipc: "ajiadb9", call: "open" })) }]), store, "buttons is not a list", "five buttons");
 
@@ -99,6 +103,9 @@ const btn = b => one([{ buttons: [Object.assign({ label: "GO" }, b)] }]);
 rejects(btn({}), store, "exactly one of", "a button with no action");
 rejects(btn({ ipc: "ajiadb9", call: "open", hub: "displays" }), store, "exactly one of", "a button with two actions");
 rejects(btn({ ipc: "ajiadb9; rm -rf ~", call: "open" }), store, "ipc is not a plain identifier", "a target with shell syntax");
+rejects(btn({ ipc: "-ajiadb9", call: "open" }), store, "ipc is not a plain identifier", "a target that reads as a flag");
+eq(StyleCard.parse(JSON.stringify(btn({ ipc: "2bar", call: "open" })), { id: "2bar", shipped: false }).cards[0].blocks[0].buttons[0].command,
+    ["qs", "-c", "shell", "ipc", "call", "2bar", "open"], "a Store id that starts with a digit reaches its own target");
 rejects(btn({ ipc: "ajiadb9", call: "$(id)" }), store, "call is not a plain identifier", "a call with shell syntax");
 rejects(btn({ ipc: "ajiadb9", call: "open", args: "x" }), store, "args is not a list", "args as a string");
 rejects(btn({ ipc: "ajiadb9", call: "open", args: [1] }), store, "args is not a list", "a number argument");
