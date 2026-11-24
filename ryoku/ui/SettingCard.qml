@@ -17,6 +17,11 @@ Item {
     // What a folded card is hiding, said in the header. A collapsed group with
     // no trace of what is inside reads as an empty card, not a drawer.
     property string summary: ""
+    // Whether the body animates to a new height. A card made in place of one
+    // that was already on the page (a Bar Studio card read from a style's
+    // file) turns this off until it has opened, so it arrives at its full
+    // height the way the card it stands for would have been.
+    property bool animateHeight: true
 
     default property alias content: body.data
 
@@ -105,7 +110,7 @@ Item {
         clip: true
         enabled: card.expanded
         opacity: card.expanded ? 1 : 0
-        Behavior on height { NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease } }
+        Behavior on height { enabled: card.animateHeight; NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease } }
         Behavior on opacity { NumberAnimation { duration: Tokens.flap; easing.type: Tokens.ease } }
 
         Column {

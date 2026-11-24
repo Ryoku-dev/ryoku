@@ -114,6 +114,10 @@ SCHEMA_FIELD = re.compile(r'"(?:tab|label|desc|group)"\s*:\s*"((?:\\.|[^"\\])*)"
 WM_ROOT = os.path.join(REPO, "ryoku", "wm")
 WM_BIND_FILES = ("binds.go", "config_binds.go", "legend.go")
 BIND_FIELD = re.compile(r'\b(?:Category|Label|Hint|reason):\s*"((?:\\.|[^"\\])*)"')
+# a bar style's Bar Studio cards (docs/barstyles.md): the studio-card.json
+# beside a shipped style's Scene.qml and the Hub's own barstudio/cards/*.json.
+# Bar Studio shows their titles, texts and button labels through I18n.tr.
+STUDIO_CARD_DIR = os.path.join(REPO, "ryoku", "hub", "quickshell", "barstudio", "cards")
 UNHONORED_MAP = re.compile(r'Unhonored = map\[string\]string\{(.*?)\n\}', re.S)
 MAP_VALUE = re.compile(r'"[^"\n]*":\s*"((?:\\.|[^"\\])*)"')
 
@@ -190,6 +194,25 @@ def _copy(s):
 
 
 
+def studio_card_copy(text):
+    """The displayed strings of one Bar Studio card declaration."""
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return []
+    def dicts(obj, key):
+        items = obj.get(key) if isinstance(obj, dict) else None
+        return [x for x in items if isinstance(x, dict)] if isinstance(items, list) else []
+
+    out = []
+    for card in dicts(doc, "cards"):
+        out.append(card.get("title"))
+        for block in dicts(card, "blocks"):
+            out.append(block.get("text"))
+            out += [button.get("label") for button in dicts(block, "buttons")]
+    return [s.strip() for s in out if isinstance(s, str) and s.strip()]
+
+
 def extract_keys():
     keys = set()
     for root, _, files in os.walk(QML_ROOT):
@@ -227,6 +250,14 @@ def extract_keys():
                     s = _unescape(body).strip()
                     if s and not _noise(s) and not _brand(s):
                         keys.add(s)
+    cards = []
+    for root, _, files in os.walk(QML_ROOT):
+        cards += [os.path.join(root, f) for f in files if f == "studio-card.json"]
+    if os.path.isdir(STUDIO_CARD_DIR):
+        cards += [os.path.join(STUDIO_CARD_DIR, f) for f in os.listdir(STUDIO_CARD_DIR) if f.endswith(".json")]
+    for path in cards:
+        with open(path, encoding="utf-8") as fh:
+            keys.update(studio_card_copy(fh.read()))
     # the Hub rail's nav + group names are data-driven, so I18n.tr() wraps them by
     # variable, not literal; pull them from Hub.qml's groups array (unquoted
     # `name: "..."`, so the quoted-key kanji jpName map is not matched).

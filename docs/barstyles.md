@@ -772,6 +772,123 @@ snapshots the keys and applies them live. A folder style usually ships its own
 settings surface instead, the way QS Bar carries **QS Bar Settings** (see below).
 A style with no settings omits all of this.
 
+### A style's own card in Bar Studio
+
+While a style is the active one, Bar Studio shows a card that points at its
+settings: a title, a seal glyph, a line about where its options live, and the
+button that opens them. A style declares that card in a `studio-card.json`
+beside its `Scene.qml`. A Store style lists the file in its manifest like any
+other file.
+
+```json
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "AJIADB9",
+      "glyph": "力",
+      "blocks": [
+        { "text": "Notch islands on a top band. Its own panel holds every option." },
+        { "buttons": [
+          { "label": "OPEN AJIADB9 SETTINGS", "ipc": "ajiadb9", "call": "open" }
+        ] }
+      ]
+    }
+  ]
+}
+```
+
+- `cards`: one to three cards, drawn in order where the hand-built style cards
+  sit.
+- `title`: shown as written, so write it in capitals like the other cards.
+  `glyph` is optional, at most two characters, and shows beside the title when
+  the Japanese gloss is on. A title, glyph or button label may not contain `<`,
+  so the controls that draw them never read it as markup.
+- `blocks`: one to eight, top to bottom. A `text` block is a paragraph shown as
+  plain text, never markup. A `buttons` block is a row of one to four buttons
+  that wraps when they do not fit the card; a label wider than the card ends
+  in an ellipsis. An `editor` block places one of the Hub's own editors by
+  name; only a style that ships with Ryoku may use one (see below).
+- A button has a `label` and exactly one action:
+  - `"ipc": "<target>", "call": "<function>"`, with optional `"args"` (up to
+    eight strings), runs `qs -c shell ipc call <target> <function> <args...>`.
+    The target and the function are plain identifiers, and the arguments are
+    passed as they are, never through a shell. A Store style may only call its
+    own target, the IPC target named after its id.
+  - `"hub": "<section>"` opens that Ryoku Settings page, such as `"displays"`.
+    A name the Hub does not know does nothing. A retired page name the Hub
+    still takes (`stage`, `widgets`, `visualizer`) opens the desktop editor
+    it moved to, as it does for any caller.
+  - `"ryokuShell": ["bar", "settings"]` runs `ryoku-shell bar settings`. It is
+    for the styles that ship with Ryoku; a Store style cannot use it.
+- Strings go through `I18n.tr`, so a shipped style whose strings are in the
+  catalogue is translated; any other string shows as written.
+
+Orpheus and Nomarchy declare theirs like this, in the `studio-card.json`
+beside their `Scene.qml`:
+
+```json
+{ "schema": 1, "cards": [ { "title": "ORPHEUS", "glyph": "響", "blocks": [
+  { "text": "Orpheus arranges its layout, modules, form and sound in its own settings. Left-click the bar logo to open them, or use the button below." },
+  { "buttons": [ { "label": "OPEN ORPHEUS SETTINGS", "ipc": "orpheus", "call": "settings", "args": [""] } ] }
+] } ] }
+```
+
+```json
+{ "schema": 1, "cards": [ { "title": "NOMARCHY", "glyph": "野", "blocks": [
+  { "text": "Nomarchy keeps Omarchy's configurable bar, panels and plugin menus while routing desktop actions through Ryoku." },
+  { "buttons": [
+    { "label": "CHOOSE THEME", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.image-picker", "{\"source\":\"themes\"}"] },
+    { "label": "OPEN PLUGINS", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.menu", "{\"menu\":\"setup.plugins\"}"] }
+  ] }
+] } ] }
+```
+
+A setting that is more than a button stays a Hub editor, written in
+`BarStudioPage.qml` beside the state it edits, and a shipped declaration places
+it with `{ "editor": "<name>" }`. Between a card's text and buttons it sits
+inside the card's margins; as a card's only block it fills the card, the way
+setting rows run edge to edge. An editor may name its card itself: Sumi's
+widgets card names the rail it edits.
+
+| Editor | What it is | Placed by |
+|---|---|---|
+| `qsbar-layout` | QS Bar's lane order, read-only | `qsbar` |
+| `shima-look` | Shima's RYOKU / ORIGINAL look | `iris` |
+| `sumi-frame`, `sumi-rails`, `sumi-widgets` | Sumi's frame, rails and rail widgets | `sumi` |
+| `obi-widgets` | Obi's widget switches | Hub's `obi.json` |
+| `nacre-layout` | Nacre's layout editor | Hub's `nacre.json` |
+| `layout-note` | "The X style manages its own layout" | Hub's `obi.json`, `nacre.json` |
+
+Obi and Nacre are Store styles whose editors live in the Hub, so the Hub
+carries their declarations in `hub/quickshell/barstudio/cards/<id>.json`. A new
+editor is a `Component` in `BarStudioPage.qml` and one row in its
+`studioEditors` map; `barstudio/StudioCards.test.mjs` checks that every shipped
+declaration parses against that map and that every editor in it is placed.
+
+Where Bar Studio looks (`hub/quickshell/barstudio/StyleCardSource.qml`):
+
+1. The shell's own tree, `modules/bar/barstyles/<id>/studio-card.json`: the dev
+   checkout when the shell runs from one (`RYOKU_SHELL_DIR`), otherwise
+   `~/.config/quickshell/shell`. This is a style that ships with Ryoku, and the
+   Store refuses to install a built-in's id, so nothing can shadow it.
+2. The style's verified Store view, the one `~/.local/state/ryoku/store/barstyles.json`
+   names and the shell loads: `barstyle-views/<id>/<sha256>/studio-card.json`.
+3. The Hub's own declarations, `hub/quickshell/barstudio/cards/<id>.json`.
+4. None of these: the **LAYOUT** note.
+
+A missing or empty file is the same as no file. A malformed one, an unknown
+field, a value over its limit or an action outside the forms above, is ignored
+whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's log,
+and the next place in the order is read as if the file were not there. The
+parser is `hub/quickshell/barstudio/StyleCard.js`, with its tests beside it. The
+files are read as the page is built, because Bar Studio balances its columns
+once over the cards present at its first layout.
+
+The card text, titles and button labels of the shipped declarations are in the
+translation catalogue: `ryoku/i18n/tools/sync.py extract` reads every
+`studio-card.json` and the Hub's `cards/*.json`.
+
 ## What a style may own
 
 Desktop-wide shortcuts stay with Ryoku under every style:

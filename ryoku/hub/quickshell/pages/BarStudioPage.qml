@@ -54,7 +54,6 @@ Item {
     readonly property var railWas: page.committedBars && page.committedBars.rails ? page.committedBars.rails[page.edge] : null
     readonly property bool horizontal: page.edge === "top" || page.edge === "bottom"
 
-
     // The Obi bar's widgets, for the per-widget show/hide toggles below. Mirrors
     // barstyles/obi/Scene.qml; Workspaces is the bar's identity and has no toggle.
     readonly property var obiWidgets: [
@@ -157,19 +156,8 @@ Item {
             }
         }
     }
-    function openQsBarSettings() {
-        Quickshell.execDetached(["ryoku-shell", "bar", "settings"]);
-    }
-    function openOrpheusSettings() {
-        Spawn.run(["qs", "-c", "shell", "ipc", "call", "orpheus", "settings", ""]);
-    }
     function openDockSettings() {
         Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""]);
-    }
-
-    // The frame family opens its own settings overlay through the shell IPC.
-    function openIrisSettings() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "iris", "settings", ""]);
     }
 
     // Writes through the shell's own config writer (iris set IPC), never the Hub
@@ -179,24 +167,27 @@ Item {
             "iris.appearance.frontend", JSON.stringify(v)]);
     }
 
-    // Python keeps its whole settings surface in the style itself: the guide
-    // stage, opened through the style's resident `main` IPC target.
-    function openPythonSettings() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "main",
-            "handleCommand", "toggle", "guide", ""]);
-    }
-    function openNomarchyPlugins() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "nomarchy",
-            "summon", "omarchy.menu", "{\"menu\":\"setup.plugins\"}"]);
-    }
-
-    function openNomarchyThemes() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "nomarchy",
-            "summon", "omarchy.image-picker", "{\"source\":\"themes\"}"]);
-    }
-
-
     CatalogLabels { id: labels }
+
+    // The active style's own cards, from the studio-card.json beside its
+    // Scene.qml (or the Hub's own, for Obi and Nacre). A style without one gets
+    // the LAYOUT note below.
+    StyleCardSource {
+        id: styleCards
+        styleId: page.activeStyle
+        editors: Object.keys(page.studioEditors)
+    }
+    property var cardFolds: ({})
+    function runCardButton(button) {
+        if (!button)
+            return;
+        if (button.hub !== "") {
+            if (page.hub && page.hub.navigate)
+                page.hub.navigate(button.hub);
+            return;
+        }
+        Spawn.run(button.command);
+    }
 
     // ── head: the eyebrow band, the title, the blurb ─────────────────────────
     Column {
@@ -342,491 +333,374 @@ Item {
                 }
             }
 
-            // ── QS BAR: its layout, widgets and form live in QS Bar Settings
-            SettingCard {
-                id: qsbarSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "qsbar"
-                title: I18n.tr("QS BAR")
-                kana: "帯"
-
-                Item {
-                    width: parent.width
-                    height: qsbarBody.height + Tokens.s3 + Tokens.s4
-                    Column {
-                        id: qsbarBody
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s3
-                        Text {
-                            width: parent.width
-                            text: I18n.tr("The QS Bar arranges its own layout, widgets and form in QS Bar Settings. The bar logo opens it, or the button below.")
-                            color: Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
-                        }
-                        Text {
-                            width: parent.width
-                            visible: page.qsbarLayoutSummary.length > 0
-                            text: page.qsbarLayoutSummary
-                            color: Tokens.inkDim
-                            font.family: Tokens.mono
-                            font.pixelSize: Tokens.fSmall
-                            wrapMode: Text.WordWrap
-                        }
-                        Btn {
-                            text: I18n.tr("OPEN QS BAR SETTINGS")
-                            onAct: page.openQsBarSettings()
+            // ── the active style's declared cards (StyleCardSource) ─────────
+            Repeater {
+                // positions its cards only; CardColumns counts a visible item
+                // as a block, and this one draws nothing itself.
+                visible: false
+                model: page.showActiveDetails ? styleCards.cards : []
+                delegate: DeclaredCard {
+                    id: declared
+                    required property var modelData
+                    required property int index
+                    // a hand-built card kept its fold while another style was
+                    // up; a declared card is made anew, so the page keeps it.
+                    readonly property string foldKey: page.activeStyle + "/" + declared.index
+                    expanded: page.cardFolds[declared.foldKey] !== false
+                    onExpandedChanged: {
+                        if ((page.cardFolds[declared.foldKey] !== false) !== declared.expanded) {
+                            const folds = Object.assign({}, page.cardFolds);
+                            folds[declared.foldKey] = declared.expanded;
+                            page.cardFolds = folds;
                         }
                     }
+                    width: col.colWidth
+                    spec: modelData
+                    editors: page.studioEditors
+                    onAct: button => page.runCardButton(button)
                 }
             }
 
-            // ── ORPHEUS: its layout, modules, form and sound live in its own settings
-            SettingCard {
-                id: orpheusSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "orpheus"
-                title: I18n.tr("ORPHEUS")
-                kana: "響"
-
-                Item {
-                    width: parent.width
-                    height: orpheusBody.height + Tokens.s3 + Tokens.s4
-                    Column {
-                        id: orpheusBody
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s3
-                        Text {
-                            width: parent.width
-                            text: I18n.tr("Orpheus arranges its layout, modules, form and sound in its own settings. Left-click the bar logo to open them, or use the button below.")
-                            color: Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
-                        }
-                        Btn {
-                            text: I18n.tr("OPEN ORPHEUS SETTINGS")
-                            onAct: page.openOrpheusSettings()
-                        }
-                    }
-                }
-            }
-
-            // iRiS arranges itself live: the island opens its own settings
-            // overlay and Studio, so this card only routes there, like QS Bar.
-            SettingCard {
-                id: irisSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "iris"
-                title: I18n.tr("SHIMA")
-                kana: "島"
-
-                Item {
-                    width: parent.width
-                    height: irisBody.height + Tokens.s3 + Tokens.s4
-                    Column {
-                        id: irisBody
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s3
-                        Text {
-                            width: parent.width
-                            text: I18n.tr("Shima arranges its island, bubbles and look in its settings overlay. Dock settings stay in Stage Editor.")
-                            color: Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
-                        }
-                        Item {
-                            width: parent.width
-                            height: Tokens.ctlH
-                            Text {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: I18n.tr("Look")
-                                color: Tokens.ink
-                                font.family: Tokens.ui
-                                font.pixelSize: Tokens.fRow
-                            }
-                            Seg {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                options: ["RYOKU", "ORIGINAL"]
-                                current: page.irisFrontend === "inir" ? "ORIGINAL" : "RYOKU"
-                                onChose: key => page.setIrisFrontend(key === "ORIGINAL" ? "inir" : "ryoku")
-                            }
-                        }
-                        Btn {
-                            text: I18n.tr("OPEN SHIMA SETTINGS")
-                            onAct: page.openIrisSettings()
-                        }
-                    }
-                }
-            }
-
-            // Python arranges itself live from its own guide: the settings
-            // stage opens with the bar's gear, so this card only routes there.
-            SettingCard {
-                id: pythonSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "python"
-                title: I18n.tr("PYTHON")
-                kana: "蛇"
-
-                Item {
-                    width: parent.width
-                    height: pythonBody.height + Tokens.s3 + Tokens.s4
-                    Column {
-                        id: pythonBody
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s3
-                        Text {
-                            width: parent.width
-                            text: I18n.tr("Python keeps its bar, widgets and look in its own settings guide. Dock settings stay in Stage Editor; Ryoku's launcher, wallpaper picker and clipboard stay on their usual keys.")
-                            color: Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
-                        }
-                        Btn {
-                            text: I18n.tr("OPEN PYTHON SETTINGS")
-                            onAct: page.openPythonSettings()
-                        }
-                    }
-                }
-            }
-
-            SettingCard {
-                id: nomarchySect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "nomarchy"
-                title: I18n.tr("NOMARCHY")
-                kana: "野"
-
-                Item {
-                    width: parent.width
-                    height: nomarchyBody.height + Tokens.s3 + Tokens.s4
-                    Column {
-                        id: nomarchyBody
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s3
-                        Text {
-                            width: parent.width
-                            text: I18n.tr("Nomarchy keeps Omarchy's configurable bar, panels and plugin menus while routing desktop actions through Ryoku.")
-                            color: Tokens.inkMuted
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
-                        }
-                        Row {
-                            spacing: Tokens.s2
-                            Btn {
-                                text: I18n.tr("CHOOSE THEME")
-                                onAct: page.openNomarchyThemes()
-                            }
-                            Btn {
-                                text: I18n.tr("OPEN PLUGINS")
-                                onAct: page.openNomarchyPlugins()
-                            }
-                        }
-                    }
-                }
-            }
-
-            // A folder style owns its own frame, rails and widgets inside its
-            // barstyles/<id>/ folder, so the Sumi editors below stand down.
+            // A style Bar Studio has no card for: a folder style that keeps its
+            // own layout. A style that declares cards replaces this note too.
             SettingCard {
                 id: folderNote
                 width: col.colWidth
-                visible: page.showActiveDetails && !page.sumiActive && ["qsbar", "orpheus", "iris", "python", "nomarchy"].indexOf(page.activeStyle) === -1
+                visible: page.showActiveDetails && !styleCards.declared && !page.sumiActive
                 title: I18n.tr("LAYOUT")
 
-                Text {
+                Loader {
                     width: parent.width
-                    leftPadding: Tokens.s4; rightPadding: Tokens.s4
-                    topPadding: Tokens.s3; bottomPadding: Tokens.s4
-                    text: I18n.tr("The %1 style manages its own layout in barstyles/%2.").arg(page.activeName).arg(page.activeStyle)
-                    color: Tokens.inkMuted
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fBody
-                    wrapMode: Text.WordWrap
+                    sourceComponent: layoutNoteEditor
                 }
             }
+        }
+    }
 
-            // OBI WIDGETS: show or hide each widget on the Obi bar.
-            SettingCard {
-                id: obiSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "obi"
-                title: I18n.tr("OBI WIDGETS")
+    // ── the editors a declared card places by name ─────────────────────────
+    // A style's studio-card.json says where they go (an "editor" block); the
+    // state they edit stays on this page. Inline editors sit between a card's
+    // text and buttons; an editor that is a card's only block fills its body.
+    readonly property var studioEditors: ({
+        "qsbar-layout": qsbarLayoutEditor,
+        "shima-look": shimaLookEditor,
+        "layout-note": layoutNoteEditor,
+        "obi-widgets": obiWidgetsEditor,
+        "nacre-layout": nacreLayoutEditor,
+        "sumi-frame": sumiFrameEditor,
+        "sumi-rails": sumiRailsEditor,
+        "sumi-widgets": sumiWidgetsEditor
+    })
 
-                Repeater {
-                    model: page.obiWidgets
-                    delegate: SettingRow {
-                        required property var modelData
-                        required property int index
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        divider: index > 0
-                        controlWidth: 54
-                        label: I18n.tr(modelData.label)
-                        desc: I18n.tr(modelData.desc)
-                        source: "shell.json"
-                        Sw {
-                            objectName: "obi-" + modelData.id
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            on: page.obiShown(modelData.id)
-                            onToggled: value => page.obiSet(modelData.id, value)
-                        }
-                    }
-                }
+    // QS Bar's layout, read-only: the order its lanes hold, from shell.json.
+    Component {
+        id: qsbarLayoutEditor
+        Text {
+            readonly property bool present: page.qsbarLayoutSummary.length > 0
+            width: parent.width
+            text: page.qsbarLayoutSummary
+            color: Tokens.inkDim
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fSmall
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    // Shima's look: the ryoku paper-and-ink frontend or the upstream iNiR one.
+    Component {
+        id: shimaLookEditor
+        Item {
+            width: parent.width
+            height: Tokens.ctlH
+            Text {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("Look")
+                color: Tokens.ink
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fRow
             }
-
-            SettingCard {
-                id: nacreSect
-                width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "nacre"
-                title: I18n.tr("NACRE LAYOUT")
-
-                Item {
-                    width: parent.width
-                    height: nacreEd.height + Tokens.s3 + Tokens.s4
-                    NacreEditor {
-                        id: nacreEd
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        config: page.fval("nacre", ({}))
-                        onStaged: value => page.fedit("nacre", value)
-                    }
-                }
+            Seg {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                options: ["RYOKU", "ORIGINAL"]
+                current: page.irisFrontend === "inir" ? "ORIGINAL" : "RYOKU"
+                onChose: key => page.setIrisFrontend(key === "ORIGINAL" ? "inir" : "ryoku")
             }
+        }
+    }
 
-            // ── FRAME: the chrome the shell draws around the desktop ─────────
-            SettingCard {
-                id: frameSect
-                width: col.colWidth
-                title: I18n.tr("FRAME")
-                visible: page.showActiveDetails && page.sumiActive
+    // A folder style that keeps its own layout, said in one line.
+    Component {
+        id: layoutNoteEditor
+        Text {
+            width: parent.width
+            leftPadding: Tokens.s4; rightPadding: Tokens.s4
+            topPadding: Tokens.s3; bottomPadding: Tokens.s4
+            text: I18n.tr("The %1 style manages its own layout in barstyles/%2.").arg(page.activeName).arg(page.activeStyle)
+            color: Tokens.inkMuted
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fBody
+            wrapMode: Text.WordWrap
+        }
+    }
 
-                SettingRow {
+    // OBI WIDGETS: show or hide each widget on the Obi bar.
+    Component {
+        id: obiWidgetsEditor
+        Column {
+            Repeater {
+                model: page.obiWidgets
+                delegate: SettingRow {
+                    required property var modelData
+                    required property int index
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    divider: index > 0
                     controlWidth: 54
-                    label: I18n.tr("Draw frame")
-                    def: page.fwas("frameEnabled") === undefined ? "" : (page.fwas("frameEnabled") ? I18n.tr("ON") : I18n.tr("OFF"))
-                    changed: page.fwas("frameEnabled") !== undefined && !!page.fval("frameEnabled", true) !== !!page.fwas("frameEnabled")
-                    desc: I18n.tr("The bounded band drawn around the desktop.")
+                    label: I18n.tr(modelData.label)
+                    desc: I18n.tr(modelData.desc)
                     source: "shell.json"
                     Sw {
-                        objectName: "frame-enabled"
+                        objectName: "obi-" + modelData.id
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        on: !!page.fval("frameEnabled", true)
-                        onToggled: value => page.fedit("frameEnabled", value)
-                    }
-                }
-                SettingRow {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    divider: true
-                    controlWidth: Math.min(240, Math.max(160, Math.round(frameSect.width * 0.34)))
-                    label: I18n.tr("Opacity")
-                    unit: "%"
-                    value: String(Math.round(page.fnum("frameOpacity", 1) * 100))
-                    def: page.fwas("frameOpacity") === undefined ? "" : String(Math.round(Number(page.fwas("frameOpacity")) * 100))
-                    changed: page.fwas("frameOpacity") !== undefined && page.fnum("frameOpacity", 1) !== Number(page.fwas("frameOpacity"))
-                    desc: I18n.tr("How solid the frame draws.")
-                    source: "shell.json"
-                    Slid {
-                        objectName: "frame-opacity"
-                        anchors.fill: parent
-                        from: 0.5; to: 1.0
-                        value: page.fnum("frameOpacity", 1)
-                        onModified: value => page.fedit("frameOpacity", value)
-                    }
-                }
-                SettingRow {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    divider: true
-                    controlWidth: 58
-                    label: I18n.tr("Thickness")
-                    unit: "px"
-                    value: String(page.fnum("frameThickness", 2))
-                    def: page.fwas("frameThickness") === undefined ? "" : String(page.fwas("frameThickness"))
-                    changed: page.fwas("frameThickness") !== undefined && page.fnum("frameThickness", 2) !== Number(page.fwas("frameThickness"))
-                    desc: I18n.tr("How far the band stands into the screen.")
-                    source: "shell.json"
-                    Step {
-                        objectName: "frame-thickness"
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        from: 0; to: 24
-                        value: page.fnum("frameThickness", 2)
-                        onModified: value => page.fedit("frameThickness", value)
-                    }
-                }
-                SettingRow {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    divider: true
-                    controlWidth: 58
-                    label: I18n.tr("Corner radius")
-                    unit: "px"
-                    value: String(page.fnum("frameCorner", 8))
-                    def: page.fwas("frameCorner") === undefined ? "" : String(page.fwas("frameCorner"))
-                    changed: page.fwas("frameCorner") !== undefined && page.fnum("frameCorner", 8) !== Number(page.fwas("frameCorner"))
-                    desc: I18n.tr("How round the frame cuts the screen's corners.")
-                    source: "shell.json"
-                    Step {
-                        objectName: "frame-corner"
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        from: 0; to: 40
-                        value: page.fnum("frameCorner", 8)
-                        onModified: value => page.fedit("frameCorner", value)
-                    }
-                }
-            }
-
-            // ── RAILS: pick an edge, then its own switches ───────────────────
-            SettingCard {
-                id: railSect
-                width: col.colWidth
-                title: I18n.tr("RAILS")
-                visible: page.showActiveDetails && page.sumiActive
-
-                Item {
-                    width: parent.width
-                    height: railRow.height + Tokens.s3 + Tokens.s3
-                    Row {
-                        id: railRow
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        spacing: Tokens.s2
-                        Repeater {
-                            model: ["left"]
-                            delegate: Rectangle {
-                                id: plate
-                                required property string modelData
-                                readonly property var pRail: page.config.rails[plate.modelData]
-                                readonly property int count: {
-                                    const zs = plate.modelData === "top" || plate.modelData === "bottom" ? ["start", "center", "end"] : ["top", "center", "bottom"];
-                                    let n = 0;
-                                    for (const zone of zs) n += (plate.pRail[zone] || []).length;
-                                    return n;
-                                }
-                                readonly property bool on: page.edge === plate.modelData
-
-                                objectName: "rail-edge-" + plate.modelData
-                                width: (railRow.width - 3 * Tokens.s2) / 4
-                                height: 48
-                                radius: Tokens.radius
-                                color: plate.on ? Tokens.bone : (pma.containsMouse ? Tokens.tint5 : "transparent")
-                                border.width: Tokens.border
-                                border.color: plate.on ? Tokens.bone : Tokens.line
-                                Behavior on color { ColorAnimation { duration: Tokens.snap } }
-
-                                Column {
-                                    anchors { left: parent.left; leftMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                                    spacing: 2
-                                    Text {
-                                        text: labels.edge(plate.modelData).toUpperCase()
-                                        color: plate.on ? Tokens.inkOnBone : Tokens.inkDim
-                                        font.family: Tokens.ui
-                                        font.pixelSize: 11
-                                        font.weight: Font.Medium
-                                        font.letterSpacing: Tokens.trackLabel
-                                    }
-                                    Text {
-                                        text: plate.pRail.enabled ? I18n.tr("on · %1").arg(plate.count) : I18n.tr("off")
-                                        color: plate.on ? Tokens.inkOnBoneDim : Tokens.inkFaint
-                                        font.family: Tokens.mono
-                                        font.pixelSize: Tokens.fTiny
-                                    }
-                                }
-                                MouseArea {
-                                    id: pma
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    preventStealing: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: page.edge = plate.modelData
-                                }
-                            }
-                        }
-                    }
-                }
-
-                SettingRow {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    divider: true
-                    controlWidth: 54
-                    label: I18n.tr("Show this rail")
-                    def: page.railWas ? (page.railWas.enabled ? I18n.tr("ON") : I18n.tr("OFF")) : ""
-                    changed: !!page.railWas && page.rail.enabled !== page.railWas.enabled
-                    desc: I18n.tr("Draw the %1 rail on the frame.").arg(labels.edge(page.edge).toLowerCase())
-                    source: "shell.json"
-                    Sw {
-                        objectName: "rail-enabled"
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        on: page.rail.enabled
-                        onToggled: value => page.stage(Model.setRail(page.config, page.edge, { enabled: value }))
-                    }
-                }
-                SettingRow {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    divider: true
-                    controlWidth: Math.min(240, Math.max(160, Math.round(railSect.width * 0.34)))
-                    label: I18n.tr("Thickness")
-                    unit: "px"
-                    value: String(page.rail.size)
-                    def: page.railWas ? String(page.railWas.size) : ""
-                    changed: !!page.railWas && page.rail.size !== page.railWas.size
-                    desc: I18n.tr("How far the %1 rail stands into the screen.").arg(labels.edge(page.edge).toLowerCase())
-                    source: "shell.json"
-                    Slid {
-                        objectName: "rail-thickness"
-                        anchors.fill: parent
-                        from: page.horizontal ? 16 : 24
-                        to: page.horizontal ? 96 : 112
-                        value: page.rail.size
-                        onModified: value => page.stage(Model.setRail(page.config, page.edge, { size: value }))
-                    }
-                }
-            }
-
-            // ── WIDGETS: the selected rail's three zones and its add drawers ──
-            SettingCard {
-                id: zoneSect
-                width: col.colWidth
-                title: I18n.tr("WIDGETS ON THE %1 RAIL").arg(labels.edge(page.edge).toUpperCase())
-                visible: page.showActiveDetails && page.sumiActive
-
-                Item {
-                    width: parent.width
-                    height: zoneEd.height + Tokens.s3 + Tokens.s4
-                    ZoneEditor {
-                        id: zoneEd
-                        anchors { left: parent.left; right: parent.right; top: parent.top }
-                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
-                        config: page.config
-                        edge: page.edge
-                        catalog: BarCatalog
-                        onStaged: next => page.stage(next)
+                        on: page.obiShown(modelData.id)
+                        onToggled: value => page.obiSet(modelData.id, value)
                     }
                 }
             }
         }
     }
 
+    // Nacre's islands, lanes and look.
+    Component {
+        id: nacreLayoutEditor
+        Item {
+            width: parent.width
+            height: nacreEd.height + Tokens.s3 + Tokens.s4
+            NacreEditor {
+                id: nacreEd
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                config: page.fval("nacre", ({}))
+                onStaged: value => page.fedit("nacre", value)
+            }
+        }
+    }
+
+    // FRAME: the chrome the shell draws around the desktop.
+    Component {
+        id: sumiFrameEditor
+        Column {
+            id: frameEditor
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                controlWidth: 54
+                label: I18n.tr("Draw frame")
+                def: page.fwas("frameEnabled") === undefined ? "" : (page.fwas("frameEnabled") ? I18n.tr("ON") : I18n.tr("OFF"))
+                changed: page.fwas("frameEnabled") !== undefined && !!page.fval("frameEnabled", true) !== !!page.fwas("frameEnabled")
+                desc: I18n.tr("The bounded band drawn around the desktop.")
+                source: "shell.json"
+                Sw {
+                    objectName: "frame-enabled"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    on: !!page.fval("frameEnabled", true)
+                    onToggled: value => page.fedit("frameEnabled", value)
+                }
+            }
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                divider: true
+                controlWidth: Math.min(240, Math.max(160, Math.round(frameEditor.width * 0.34)))
+                label: I18n.tr("Opacity")
+                unit: "%"
+                value: String(Math.round(page.fnum("frameOpacity", 1) * 100))
+                def: page.fwas("frameOpacity") === undefined ? "" : String(Math.round(Number(page.fwas("frameOpacity")) * 100))
+                changed: page.fwas("frameOpacity") !== undefined && page.fnum("frameOpacity", 1) !== Number(page.fwas("frameOpacity"))
+                desc: I18n.tr("How solid the frame draws.")
+                source: "shell.json"
+                Slid {
+                    objectName: "frame-opacity"
+                    anchors.fill: parent
+                    from: 0.5; to: 1.0
+                    value: page.fnum("frameOpacity", 1)
+                    onModified: value => page.fedit("frameOpacity", value)
+                }
+            }
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                divider: true
+                controlWidth: 58
+                label: I18n.tr("Thickness")
+                unit: "px"
+                value: String(page.fnum("frameThickness", 2))
+                def: page.fwas("frameThickness") === undefined ? "" : String(page.fwas("frameThickness"))
+                changed: page.fwas("frameThickness") !== undefined && page.fnum("frameThickness", 2) !== Number(page.fwas("frameThickness"))
+                desc: I18n.tr("How far the band stands into the screen.")
+                source: "shell.json"
+                Step {
+                    objectName: "frame-thickness"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    from: 0; to: 24
+                    value: page.fnum("frameThickness", 2)
+                    onModified: value => page.fedit("frameThickness", value)
+                }
+            }
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                divider: true
+                controlWidth: 58
+                label: I18n.tr("Corner radius")
+                unit: "px"
+                value: String(page.fnum("frameCorner", 8))
+                def: page.fwas("frameCorner") === undefined ? "" : String(page.fwas("frameCorner"))
+                changed: page.fwas("frameCorner") !== undefined && page.fnum("frameCorner", 8) !== Number(page.fwas("frameCorner"))
+                desc: I18n.tr("How round the frame cuts the screen's corners.")
+                source: "shell.json"
+                Step {
+                    objectName: "frame-corner"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    from: 0; to: 40
+                    value: page.fnum("frameCorner", 8)
+                    onModified: value => page.fedit("frameCorner", value)
+                }
+            }
+        }
+    }
+
+    // RAILS: pick an edge, then its own switches.
+    Component {
+        id: sumiRailsEditor
+        Column {
+            id: railsEditor
+            Item {
+                width: parent.width
+                height: railRow.height + Tokens.s3 + Tokens.s3
+                Row {
+                    id: railRow
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                    spacing: Tokens.s2
+                    Repeater {
+                        model: ["left"]
+                        delegate: Rectangle {
+                            id: plate
+                            required property string modelData
+                            readonly property var pRail: page.config.rails[plate.modelData]
+                            readonly property int count: {
+                                const zs = plate.modelData === "top" || plate.modelData === "bottom" ? ["start", "center", "end"] : ["top", "center", "bottom"];
+                                let n = 0;
+                                for (const zone of zs) n += (plate.pRail[zone] || []).length;
+                                return n;
+                            }
+                            readonly property bool on: page.edge === plate.modelData
+
+                            objectName: "rail-edge-" + plate.modelData
+                            width: (railRow.width - 3 * Tokens.s2) / 4
+                            height: 48
+                            radius: Tokens.radius
+                            color: plate.on ? Tokens.bone : (pma.containsMouse ? Tokens.tint5 : "transparent")
+                            border.width: Tokens.border
+                            border.color: plate.on ? Tokens.bone : Tokens.line
+                            Behavior on color { ColorAnimation { duration: Tokens.snap } }
+
+                            Column {
+                                anchors { left: parent.left; leftMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
+                                spacing: 2
+                                Text {
+                                    text: labels.edge(plate.modelData).toUpperCase()
+                                    color: plate.on ? Tokens.inkOnBone : Tokens.inkDim
+                                    font.family: Tokens.ui
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: Tokens.trackLabel
+                                }
+                                Text {
+                                    text: plate.pRail.enabled ? I18n.tr("on · %1").arg(plate.count) : I18n.tr("off")
+                                    color: plate.on ? Tokens.inkOnBoneDim : Tokens.inkFaint
+                                    font.family: Tokens.mono
+                                    font.pixelSize: Tokens.fTiny
+                                }
+                            }
+                            MouseArea {
+                                id: pma
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                preventStealing: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: page.edge = plate.modelData
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                divider: true
+                controlWidth: 54
+                label: I18n.tr("Show this rail")
+                def: page.railWas ? (page.railWas.enabled ? I18n.tr("ON") : I18n.tr("OFF")) : ""
+                changed: !!page.railWas && page.rail.enabled !== page.railWas.enabled
+                desc: I18n.tr("Draw the %1 rail on the frame.").arg(labels.edge(page.edge).toLowerCase())
+                source: "shell.json"
+                Sw {
+                    objectName: "rail-enabled"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    on: page.rail.enabled
+                    onToggled: value => page.stage(Model.setRail(page.config, page.edge, { enabled: value }))
+                }
+            }
+            SettingRow {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                divider: true
+                controlWidth: Math.min(240, Math.max(160, Math.round(railsEditor.width * 0.34)))
+                label: I18n.tr("Thickness")
+                unit: "px"
+                value: String(page.rail.size)
+                def: page.railWas ? String(page.railWas.size) : ""
+                changed: !!page.railWas && page.rail.size !== page.railWas.size
+                desc: I18n.tr("How far the %1 rail stands into the screen.").arg(labels.edge(page.edge).toLowerCase())
+                source: "shell.json"
+                Slid {
+                    objectName: "rail-thickness"
+                    anchors.fill: parent
+                    from: page.horizontal ? 16 : 24
+                    to: page.horizontal ? 96 : 112
+                    value: page.rail.size
+                    onModified: value => page.stage(Model.setRail(page.config, page.edge, { size: value }))
+                }
+            }
+        }
+    }
+
+    // WIDGETS: the selected rail's three zones and its add drawers.
+    Component {
+        id: sumiWidgetsEditor
+        Item {
+        readonly property string cardTitle: I18n.tr("WIDGETS ON THE %1 RAIL").arg(labels.edge(page.edge).toUpperCase())
+            width: parent.width
+            height: zoneEd.height + Tokens.s3 + Tokens.s4
+            ZoneEditor {
+                id: zoneEd
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                config: page.config
+                edge: page.edge
+                catalog: BarCatalog
+                onStaged: next => page.stage(next)
+            }
+        }
+    }
 }

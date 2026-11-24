@@ -54,6 +54,24 @@ class ShortcutCatalogueExtractionTest(unittest.TestCase):
                          ["Hyprland has no column model."])
 
 
+class StudioCardExtractionTest(unittest.TestCase):
+    def test_card_copy_is_catalogued(self):
+        card = json.dumps({"schema": 1, "cards": [{"title": "NOMARCHY", "glyph": "野", "blocks": [
+            {"text": "Nomarchy keeps Omarchy's bar."},
+            {"editor": "sumi-frame"},
+            {"buttons": [{"label": "CHOOSE THEME", "ipc": "nomarchy", "call": "summon",
+                          "args": ["omarchy.image-picker"]}]}]}]})
+        self.assertEqual(sync.studio_card_copy(card),
+                         ["NOMARCHY", "Nomarchy keeps Omarchy's bar.", "CHOOSE THEME"])
+
+    def test_a_broken_card_has_no_copy(self):
+        self.assertEqual(sync.studio_card_copy("{"), [])
+        self.assertEqual(sync.studio_card_copy("[1]"), [])
+        self.assertEqual(sync.studio_card_copy('{"cards": null}'), [])
+        self.assertEqual(sync.studio_card_copy('{"cards": [{"title": "X", "blocks": null}]}'), ["X"])
+        self.assertEqual(sync.studio_card_copy('{"cards": [{"blocks": [{"buttons": "x"}, 3]}]}'), [])
+
+
 class LLMUnavailableTest(unittest.TestCase):
     def test_cmd_sync_returns_three_without_writing_catalog(self):
         lang = next(iter(sync.TARGETS))
