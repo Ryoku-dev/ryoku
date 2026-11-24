@@ -31,4 +31,13 @@ function resolve(pinned, activeClients) {
     return result;
 }
 
-if (typeof module !== "undefined" && module.exports) module.exports = { pin, unpin, resolve };
+function dockRevealed(state) {
+    if (state.stageEditing)
+        return true;
+    if (state.autohide && state.fullscreen)
+        return state.pointerInside || state.popoutHeld;
+    return !state.autohide || state.pointerInside || state.workspaceEmpty
+        || !state.anyFocused || state.dragging || state.menuHere || state.popoutHeld;
+}
+
+if (typeof module !== "undefined" && module.exports) module.exports = { pin, unpin, resolve, dockRevealed };

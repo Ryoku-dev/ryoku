@@ -67,6 +67,8 @@ Popout {
     edgeGap: DockPreview.margin > 0 ? DockPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
     triggerHovered: root.cls !== ""
+    onHeldOpenChanged: DockPreview.setHeld(root.monitorName, root.heldOpen)
+    Component.onDestruction: DockPreview.setHeld(root.monitorName, false)
     alongCenter: {
         // Hold the last icon's centre through the brief cls-empty tick on
         // icon-exit (so a switch between icons slides rather than snapping to a

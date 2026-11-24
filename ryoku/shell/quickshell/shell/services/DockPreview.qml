@@ -30,6 +30,24 @@ QtObject {
     // without it every output opens a copy, welded to the wrong icon.
     property string monitorName: ""
 
+    // Per-output hold: the strip on that output is open, or the pointer is on
+    // it. The map is replaced, never mutated, so the bindings that read it
+    // re-evaluate.
+    property var _held: ({})
+
+    function setHeld(monitor, held) {
+        const name = String(monitor ?? "");
+        if (name === "" || (root._held[name] === true) === held)
+            return;
+        const next = Object.assign({}, root._held);
+        next[name] = held === true;
+        root._held = next;
+    }
+
+    function heldOn(monitor) {
+        return root._held[String(monitor ?? "")] === true;
+    }
+
     // Clear the hovered class, but only when that output owns the hover: a
     // dock on another output has already published its own hover by now, and
     // a stale leave must not erase it.

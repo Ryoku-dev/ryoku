@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { pin, unpin, resolve } = require("./dock.js");
+const { pin, unpin, resolve, dockRevealed } = require("./dock.js");
 
 let failed = 0;
 function eq(actual, expected, msg) {
@@ -22,6 +22,18 @@ eq(resolve(["kitty", "firefox"], clients), ["kitty", "firefox", "steam"], "pinne
 eq(resolve(["firefox"], clients), ["firefox", "kitty", "steam"], "live unpinned clients are inserted after pins");
 eq(unpin(["firefox", "kitty"], "firefox"), ["kitty"], "unpin removes only the requested class");
 eq(resolve(["firefox"], clients).some(value => value.includes("0x")), false, "window addresses are never persisted in dock entries");
+
+const idle = { stageEditing: false, autohide: true, fullscreen: false, pointerInside: false,
+    workspaceEmpty: false, anyFocused: true, dragging: false, menuHere: false, popoutHeld: false };
+eq(dockRevealed(idle), false, "an idle autohiding dock stays hidden");
+eq(dockRevealed({ ...idle, popoutHeld: true }), true,
+    "an autohiding dock stays revealed while its preview is held");
+eq(dockRevealed({ ...idle, pointerInside: true }), true, "the pointer on the band reveals the dock");
+eq(dockRevealed({ ...idle, autohide: false }), true, "a pinned dock is always revealed");
+eq(dockRevealed({ ...idle, fullscreen: true, popoutHeld: true }), true,
+    "the hold keeps the dock revealed under a fullscreen window too");
+eq(dockRevealed({ ...idle, fullscreen: true }), false, "a fullscreen output still hides the idle dock");
+eq(dockRevealed({ ...idle, stageEditing: true }), true, "the Stage Editor holds the dock open");
 
 if (failed > 0) { console.log("\n" + failed + " test(s) FAILED"); process.exit(1); }
 console.log("\nAll tests PASSED");
