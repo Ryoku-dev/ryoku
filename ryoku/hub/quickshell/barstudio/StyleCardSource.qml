@@ -19,14 +19,32 @@ Item {
 
     property string styleId: ""
 
-    readonly property var cards: {
-        const shipped = source.declaredIn(shippedFile, true);
+    // what the files say, worked out without side effects: the cards of the
+    // first usable file, and why any file before it was refused.
+    readonly property var lookup: {
+        const warnings = [];
+        const shipped = source.declaredIn(shippedFile, true, warnings);
         if (shipped !== null)
-            return shipped;
-        const store = source.declaredIn(storeFile, false);
-        return store !== null ? store : [];
+            return { cards: shipped, warnings: warnings };
+        const store = source.declaredIn(storeFile, false, warnings);
+        return { cards: store !== null ? store : [], warnings: warnings };
     }
+    readonly property var cards: source.lookup.cards
     readonly property bool declared: source.cards.length > 0
+
+    // a file is read again on every change; say each problem once.
+    property var warned: ({})
+    function sayWarnings() {
+        const next = {};
+        for (const warning of source.lookup.warnings) {
+            if (!source.warned[warning])
+                console.warn(warning);
+            next[warning] = true;
+        }
+        source.warned = next;
+    }
+    onLookupChanged: source.sayWarnings()
+    Component.onCompleted: source.sayWarnings()
 
     // the shell's QML, as LauncherPage finds it: the dev checkout when the
     // shell runs from one, otherwise the copy deployed beside the Hub.
@@ -45,25 +63,16 @@ Item {
 
     // null for no file, an empty one or one that was refused, so the lookup
     // goes on to the next place as if the file were not there.
-    function declaredIn(file, shipped) {
+    function declaredIn(file, shipped, warnings) {
         if (file.path === "")
             return null;
         const text = file.text();
         if (!file.loaded)
             return null;
-        const cards = source.read(file.path, text, shipped);
-        return cards.length > 0 ? cards : null;
-    }
-
-    // a file is read again on every change; say each problem once.
-    property string lastWarning: ""
-    function read(path, text, shipped) {
         const parsed = StyleCard.parse(text, { id: source.styleId, shipped: shipped });
-        const warning = parsed.error === "" ? "" : "bar studio: ignoring " + path + ": " + parsed.error;
-        if (warning !== "" && warning !== source.lastWarning)
-            console.warn(warning);
-        source.lastWarning = warning;
-        return parsed.cards;
+        if (parsed.error !== "")
+            warnings.push("bar studio: ignoring " + file.path + ": " + parsed.error);
+        return parsed.cards.length > 0 ? parsed.cards : null;
     }
 
     FileView {
