@@ -177,6 +177,7 @@ Item {
         styleId: page.activeStyle
         editors: Object.keys(page.studioEditors)
     }
+    property var cardFolds: ({})
     function runCardButton(button) {
         if (!button)
             return;
@@ -339,7 +340,20 @@ Item {
                 visible: false
                 model: page.showActiveDetails ? styleCards.cards : []
                 delegate: DeclaredCard {
+                    id: declared
                     required property var modelData
+                    required property int index
+                    // a hand-built card kept its fold while another style was
+                    // up; a declared card is made anew, so the page keeps it.
+                    readonly property string foldKey: page.activeStyle + "/" + declared.index
+                    expanded: page.cardFolds[declared.foldKey] !== false
+                    onExpandedChanged: {
+                        if ((page.cardFolds[declared.foldKey] !== false) !== declared.expanded) {
+                            const folds = Object.assign({}, page.cardFolds);
+                            folds[declared.foldKey] = declared.expanded;
+                            page.cardFolds = folds;
+                        }
+                    }
                     width: col.colWidth
                     spec: modelData
                     editors: page.studioEditors
