@@ -4,22 +4,43 @@ import Quickshell
 import Quickshell.Services.Notifications
 import Ryoku.Ui.Singletons
 import shell.modules.phone as Phone
+import "../modules/bar/barstyles/nomarchy/plugins/notifications/NotificationLogic.js" as NomarchyLogic
 
 // Notification model, faithful to the reference wayle-notification service
 // (contract 07 sec 4.3, sec 8; verified against monitoring.rs). Two flat,
 // newest-first lists with NO app grouping:
 //   history  the panel list: every tracked, non-transient notification, newest
 //            first, kept until dismissed or closed by its sender.
-//   popups   the transient popup list: newest first (insert at 0), gated by DND,
+//   popups   the transient popup list: newest first (insert at 0), gated by DND
+//            (a critical notification passes, unless Game Mode is on),
 //            dedup-then-front by id, each with its own display timer.
 // Critical notifications persist until dismissed. Other urgency levels only pick
 // the arrival cue; DND is shell-owned (bound from Flags.dnd in shell.qml) and
-// suppresses popups and their cue while history still fills.
+// suppresses popups and their cue while history still fills. A critical
+// notification is one the user has to act on (a pairing code, a failing disk),
+// so it gets through DND; Game Mode turns DND on to keep popups off a fullscreen
+// game, so there it does not.
 Singleton {
     id: root
 
     // Shell-owned Do Not Disturb; gates popups only.
     property bool dnd: false
+    // Shell-owned Game Mode (bound from Flags.gameMode in shell.qml). Its DND
+    // holds back critical notifications too.
+    property bool gameMode: false
+
+    // Whether DND keeps this notification's popup and cue back. Game Mode holds
+    // back everything. A style with its own DND policy admits what it draws, so
+    // the cue follows its rule rather than sound for a banner it will not show.
+    function heldByDnd(n) {
+        if (!root.dnd)
+            return false;
+        if (root.gameMode)
+            return true;
+        if (Config.styleOwnsDndPolicy)
+            return !NomarchyLogic.shouldBypassDnd(n, NotificationUrgency.Critical);
+        return n.urgency !== NotificationUrgency.Critical;
+    }
 
     // popup_duration: the reference wayle builder default unless the active
     // bar style supplies its own fallback.
@@ -281,11 +302,12 @@ Singleton {
             var a = Object.assign({}, root.arrivalMs);
             a[n.id] = Date.now();
             root.arrivalMs = a;
-            if (root.dnd)
+            const held = root.heldByDnd(n);
+            if (held)
                 root.markSeen(a[n.id]);
             n.tracked = true;
             root.hookClosed(n);
-            if (!root.dnd) {
+            if (!held) {
                 root.addPopup(n);
                 root.chime(n);
             }

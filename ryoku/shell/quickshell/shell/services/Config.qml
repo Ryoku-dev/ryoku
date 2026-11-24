@@ -90,6 +90,10 @@ Singleton {
         || barStyle === "caelestia"
         || barStyle === "imi"
         || (barStyle === "gokko" && BarProducts.gokkoReady)
+    // Nomarchy decides for itself what gets through Do Not Disturb (a critical
+    // notification only from a CLI sender, since chat apps abuse the urgency), so
+    // the shell's rule for critical notifications does not apply to it.
+    readonly property bool styleOwnsDndPolicy: barStyle === "nomarchy"
     // Only a style that plays its own notification sound silences the shell's
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
     readonly property bool styleOwnsNotificationSound: (barStyle === "python"

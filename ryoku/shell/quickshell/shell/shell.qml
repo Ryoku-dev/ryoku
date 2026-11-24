@@ -800,11 +800,17 @@ ShellRoot {
     }
 
     // Do-not-disturb: the notification server suppresses popups while the flag is
-    // set (the deck toggle owns the flag). (pill 196-200)
+    // set, except a critical one outside Game Mode (the deck toggle owns the
+    // flag). (pill 196-200)
     Binding {
         target: Notifs
         property: "dnd"
         value: Flags.dnd
+    }
+    Binding {
+        target: Notifs
+        property: "gameMode"
+        value: Flags.gameMode
     }
 
     // Hosted desktop widgets that show the wallpaper (a photo widget with no

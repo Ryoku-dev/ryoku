@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Fixed
+- **A critical notification now shows through Do Not Disturb.** The shell held
+  back every popup and chime while Do Not Disturb was on, so a notification the
+  user has to act on, such as a Bluetooth pairing code or the critical battery
+  alert, never appeared and timed out unseen. Critical notifications pass
+  Do Not Disturb now; Game Mode, which turns it on to keep popups off a
+  fullscreen game, still holds back everything. Normal and low notifications
+  are held back as before, and the Python bar follows the same rule for its
+  popups and its sound. Nomarchy keeps its own, narrower rule for what passes
+  Do Not Disturb, and the shell's sound follows it (`shell/services/Notifs.qml`,
+  `shell/services/Config.qml`, the
+  Python bar's `Notification.qml` and `NotificationPopups.qml`,
+  `../tests/notification-sounds.qml`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

@@ -36,6 +36,14 @@ ShellRoot {
         return fresh;
     }
 
+    function inHistory(summary): bool {
+        return Shell.Notifs.history.some(n => n.summary === summary);
+    }
+
+    function inPopups(summary): bool {
+        return Shell.Notifs.popups.some(n => n.summary === summary);
+    }
+
     function expect(cond, message): void {
         console.log((cond ? "PASS: " : "FAIL: ") + message);
     }
@@ -108,6 +116,65 @@ ShellRoot {
                 const muted = root.lines();
                 root.expect(muted.length === 0,
                     "the Stage switches still silence it: " + JSON.stringify(muted));
+                root.lines();
+                Shell.Notifs.dnd = true;
+                Quickshell.execDetached(["notify-send", "-a", "Mail", "Quiet one", "Held back"]);
+                Quickshell.execDetached(["notify-send", "-a", "Bluetooth", "-u", "critical", "Pair now", "Match the code"]);
+                root.phase = 5;
+                return;
+            }
+            case 5: {
+                if (!root.inHistory("Quiet one") || !root.inHistory("Pair now"))
+                    return;
+                root.expect(!root.inPopups("Quiet one"), "Do Not Disturb holds back a normal notification");
+                root.expect(root.inPopups("Pair now"), "a critical notification gets through Do Not Disturb");
+                const cues = root.lines();
+                root.expect(JSON.stringify(cues) === JSON.stringify(["ryoku-shell sound notification-critical"]),
+                    "only the critical one chimes under Do Not Disturb: " + JSON.stringify(cues));
+                Shell.Notifs.gameMode = true;
+                Quickshell.execDetached(["notify-send", "-a", "Bluetooth", "-u", "critical", "Pair in game", "Held too"]);
+                root.phase = 6;
+                return;
+            }
+            case 6: {
+                if (!root.inHistory("Pair in game"))
+                    return;
+                root.expect(!root.inPopups("Pair in game"), "Game Mode keeps even a critical notification off the screen");
+                const cues = root.lines();
+                root.expect(cues.length === 0, "and silent: " + JSON.stringify(cues));
+                // Nomarchy applies its own Do Not Disturb rule, and the shell's cue
+                // follows it.
+                Shell.Notifs.gameMode = false;
+                Shell.Config.barStyle = "nomarchy";
+                Quickshell.execDetached(["notify-send", "-a", "Bluetooth", "-u", "critical", "Pair in Nomarchy", "Its own rule"]);
+                root.phase = 7;
+                return;
+            }
+            case 7: {
+                if (!root.inHistory("Pair in Nomarchy"))
+                    return;
+                root.expect(!root.inPopups("Pair in Nomarchy"), "Nomarchy's own rule holds back a critical notification from another app");
+                const cues = root.lines();
+                root.expect(cues.length === 0, "and the shell's cue stays silent for it: " + JSON.stringify(cues));
+                // What Nomarchy does draw under Do Not Disturb, the shell sounds for:
+                // a critical CLI alert, and an Omarchy action toast.
+                Quickshell.execDetached(["notify-send", "-u", "critical", "CLI alarm", "Nomarchy draws it"]);
+                Quickshell.execDetached(["notify-send", "-a", "omarchy-action", "Theme changed", "Nomarchy draws it"]);
+                Quickshell.execDetached(["notify-send", "Chatter", "Nomarchy holds it back"]);
+                root.phase = 8;
+                return;
+            }
+            case 8: {
+                if (!root.inHistory("CLI alarm") || !root.inHistory("Theme changed") || !root.inHistory("Chatter"))
+                    return;
+                root.expect(root.inPopups("CLI alarm") && root.inPopups("Theme changed"),
+                    "the notifications Nomarchy admits get through Do Not Disturb");
+                root.expect(!root.inPopups("Chatter"), "a normal CLI notification is held back");
+                const cues = root.lines().sort();
+                root.expect(JSON.stringify(cues) === JSON.stringify([
+                        "ryoku-shell sound notification",
+                        "ryoku-shell sound notification-critical"]),
+                    "and the shell sounds exactly for the two it admits: " + JSON.stringify(cues));
                 Qt.quit();
                 return;
             }
