@@ -631,6 +631,7 @@ Item {
         s: root.scale
         active: root.active
         frameThickness: root.clearanceFor(DockPreview.edge)
+        monitorName: root.monitorName
     }
 
     // The dock's now-playing card, driven by MusicPreview on chip hover.

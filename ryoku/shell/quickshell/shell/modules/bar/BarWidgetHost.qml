@@ -15,6 +15,7 @@ Item {
     property string widgetId: ""
     required property string edge
     required property real scale
+    property string monitorName: ""
     // space the zone leaves this widget's group (RailZone pushes the binding);
     // only the dock consumes it, to shrink on rails too short for every zone.
     property real zoneAvail: -1
@@ -83,6 +84,7 @@ Item {
             clients: Dock.clients
             activeClass: Dock.activeClass
             maxExtent: root.zoneAvail
+            monitorName: root.monitorName
             onActivate: className => Dock.activate(className)
         }
     }

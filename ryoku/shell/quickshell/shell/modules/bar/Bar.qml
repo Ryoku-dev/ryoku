@@ -8,6 +8,7 @@ Item {
     required property real railScale
     required property var frameBars
     required property var style
+    required property string monitorName
     // Per-edge reveal baseline from the shared reveal model in shell.qml.
     required property var revealState
 
@@ -47,6 +48,7 @@ Item {
                     // 48px parity size scales its widgets down so the button and
                     // its hover highlight never overflow a small bar.
                     scale: bar.railScale * Math.min(1, bar.frameBars.rails[modelData].size / 48)
+                    monitorName: bar.monitorName
                     onMenuRequested: (id, ownerRect) => bar.menuRequested(id, ownerRect)
                     onActionRequested: id => bar.actionRequested(id)
                 }

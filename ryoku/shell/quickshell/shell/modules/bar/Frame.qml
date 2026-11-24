@@ -440,6 +440,7 @@ Scope {
                         revealState: overlay.edgeReveal
                         frameBars: overlay.frameBars
                         style: ({ group: blobGroup })
+                        monitorName: root.modelData ? root.modelData.name : ""
                         onMenuRequested: (id, ownerRect) => frameMenus.openSurface(id, ownerRect, "")
                         onSurfaceRequested: (id, ownerRect) => frameMenus.openSurface(id, ownerRect, "")
                         onActionRequested: id => root.runBarAction(id)

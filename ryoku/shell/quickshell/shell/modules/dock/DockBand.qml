@@ -240,13 +240,14 @@ Item {
     // strip still grows off the hovered icon, exactly as the retired DockRow did.
     function syncPreview() {
         if (!band.hoveredApp) {
-            DockPreview.hoveredClass = "";
+            DockPreview.clearHover(band.screenName);
             return;
         }
         const cn = band.hoveredApp.cn;
         const cx = band.horizontal ? band.hoveredApp.center : band.baseSize / 2;
         const cy = band.horizontal ? band.baseSize / 2 : band.hoveredApp.center;
         const g = band.mapToGlobal(cx, cy);
+        DockPreview.monitorName = band.screenName;
         DockPreview.gx = g.x;
         DockPreview.gy = g.y;
         DockPreview.edge = band.edge;

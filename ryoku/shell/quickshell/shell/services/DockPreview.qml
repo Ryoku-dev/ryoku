@@ -24,4 +24,17 @@ QtObject {
     // Depth (px, from the screen edge) a hovering dock reserves, so the preview
     // popout can clear it instead of overlapping. 0 for the thin frame rails.
     property real margin: 0
+
+    // The output whose dock owns the current hover ("" = none). The strip is
+    // hosted once per output, so only the popout on this output may open;
+    // without it every output opens a copy, welded to the wrong icon.
+    property string monitorName: ""
+
+    // Clear the hovered class, but only when that output owns the hover: a
+    // dock on another output has already published its own hover by now, and
+    // a stale leave must not erase it.
+    function clearHover(monitor) {
+        if (root.monitorName === String(monitor ?? ""))
+            root.hoveredClass = "";
+    }
 }

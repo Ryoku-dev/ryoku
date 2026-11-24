@@ -20,6 +20,7 @@ Item {
     required property string activeClass
     required property string edge
     required property real scale
+    required property string monitorName
     signal activate(string className)
 
     readonly property bool horizontal: edge === "top" || edge === "bottom"
@@ -197,13 +198,14 @@ Item {
                 onEntered: {
                     if (item.count > 0 && Dock.cfg("windowPreviews", true)) {
                         const c = item.mapToGlobal(item.width / 2, item.height / 2);
+                        DockPreview.monitorName = root.monitorName;
                         DockPreview.gx = c.x;
                         DockPreview.gy = c.y;
                         DockPreview.edge = root.edge;
                         DockPreview.hoveredClass = item.className;
                     }
                 }
-                onExited: if (DockPreview.hoveredClass === item.className) DockPreview.hoveredClass = "";
+                onExited: if (DockPreview.hoveredClass === item.className) DockPreview.clearHover(root.monitorName);
             }
         }
     }
