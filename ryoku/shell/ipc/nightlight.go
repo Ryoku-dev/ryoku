@@ -77,7 +77,20 @@ type nightlightState struct {
 	schedStopMin    int
 	schedFile       string
 	schedLastDesire bool
-	schedKick       chan struct{}
+	// schedArmed counts schedule changes that still owe the backend one
+	// reconciliation. A tick snapshots the counter and only clears it when
+	// the counter still matches, so a setSchedule racing the tick cannot
+	// have its arm cleared or a stale desire recorded by the older pass.
+	schedArmed uint64
+	schedKick  chan struct{}
+
+	// schedActionMu serializes a whole tick's snapshot, decision, backend
+	// action and bookkeeping with setSchedule. It is separate from schedMu
+	// because intent() publishes, and publish() takes schedMu: holding schedMu
+	// across the action would deadlock. Without it a setSchedule landing after
+	// a tick's snapshot but before its command can be overtaken by a stale
+	// desire that should no longer be applied.
+	schedActionMu sync.Mutex
 
 	// rearmMu guards the hotplug bookkeeping: outputsSeen says the wm watcher
 	// has reported a connector set at least once (the first set only primes, it

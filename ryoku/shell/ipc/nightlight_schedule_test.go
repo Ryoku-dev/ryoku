@@ -2,11 +2,35 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	wm "ryoku-wm"
+	"strings"
 	"testing"
 	"time"
 )
+
+// nlCmdCount reads the invocation log the fake shim appends beside its temp
+// file. Published frames are deduplicated, so counting commands is the only
+// honest way to assert one-shot backend behavior.
+func nlCmdCount(t *testing.T, f nlFake) int {
+	t.Helper()
+	b, err := os.ReadFile(f.temp + ".cmds")
+	if err != nil {
+		return 0
+	}
+	return len(strings.Split(strings.TrimSpace(string(b)), "\n"))
+}
+
+// clockWindowAwayFrom builds a clock window that excludes now by a wide
+// margin. A minute rolling over between building the window and ticking still
+// leaves the clock outside it: the old ±1-minute window could flip to "on"
+// right at the boundary and made the reconciliation tests flaky.
+func clockWindowAwayFrom(now time.Time) (start, stop int) {
+	const day = 24 * 60
+	cur := now.Hour()*60 + now.Minute()
+	return (cur + 90) % day, (cur - 90 + day) % day
+}
 
 func dayWindow(t *testing.T) (sunriseISO, sunsetISO string) {
 	t.Helper()
@@ -176,8 +200,8 @@ func TestInClockWindow(t *testing.T) {
 		t.Fatalf("now must sit inside the window built around it: %d..%d", inStart, inStop)
 	}
 	// The complementary window excludes now: start after it, stop before it.
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart := (cur + 3) % (24 * 60)
+	outStop := (cur - 3 + 24*60) % (24 * 60)
 	if inClockWindow(now, outStart, outStop) {
 		t.Fatal("now must sit outside the complementary window")
 	}
@@ -268,8 +292,7 @@ func TestNightlightClockTickEdges(t *testing.T) {
 		t.Fatalf("all-day window must turn the light on: %s", got.Raw)
 	}
 
-	outStart := (cur + 1) % (24 * 60)
-	outStop := (cur - 1 + 24*60) % (24 * 60)
+	outStart, outStop := clockWindowAwayFrom(now)
 	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
 		t.Fatalf("setSchedule away: %v", err)
 	}
@@ -300,5 +323,455 @@ func TestNightlightScheduleFrameCarriesClock(t *testing.T) {
 	}
 	if got.Schedule != "clock" || got.StartAt != 21*60+15 || got.StopAt != 6*60+30 {
 		t.Fatalf("frame = %+v, want clock/1275/390", got)
+	}
+}
+
+// Enabling a schedule while the backend is already running must reconcile it
+// on the next tick: a window that wants the light off turns it off right
+// away instead of waiting for the next edge, and the pass is one-shot, so a
+// settled schedule never fights the state again.
+func TestNightlightScheduleReconcilesRunningBackend(t *testing.T) {
+	f := buildNlFake(t, "nlfakerecon", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+
+	// The light is on before the schedule exists, like a manual toggle.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the backend must be on before the schedule is enabled: %s", got.Raw)
+	}
+
+	outStart, outStop := clockWindowAwayFrom(time.Now())
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule daylight window: %v", err)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a daylight window must reconcile the running backend off: %s", got.Raw)
+	}
+
+	// Command counting, not frames: a redundant backend command leaves the
+	// state unchanged and so never wakes a binding.
+	afterReconcile := nlCmdCount(t, f)
+	n.tickSchedule()
+	if got := nlCmdCount(t, f); got != afterReconcile {
+		t.Fatalf("a settled schedule sent another backend command: %d -> %d", afterReconcile, got)
+	}
+
+	// A manual toggle after reconciliation stays honoured: the next tick
+	// does not fight it.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the manual toggle must win: %s", got.Raw)
+	}
+	beforeTick := nlCmdCount(t, f)
+	n.tickSchedule()
+	if got := nlCmdCount(t, f); got != beforeTick {
+		t.Fatalf("the schedule fought a manual toggle: %d -> %d", beforeTick, got)
+	}
+}
+
+// The boot path gets the same reconciliation: a machine that shut down with
+// the light on and a daylight schedule persisted comes back up, loads the
+// schedule, and turns the light off on the first tick.
+func TestNightlightScheduleReconcilesAfterLoad(t *testing.T) {
+	f := buildNlFake(t, "nlfakeboot", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the backend must be on before the reboot: %s", got.Raw)
+	}
+	outStart, outStop := clockWindowAwayFrom(time.Now())
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule daylight window: %v", err)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("the daylight window must be off: %s", got.Raw)
+	}
+
+	// A manual toggle during the day still wins over the schedule.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true"); !got.On {
+		t.Fatalf("the manual toggle must win: %s", got.Raw)
+	}
+
+	// The fresh daemon boots with the schedule file and the light running.
+	m := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      n.schedFile,
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+	}
+	m.loadSchedule()
+	m.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a booted schedule must reconcile the light off during its day: %s", got.Raw)
+	}
+	booted := nlCmdCount(t, f)
+	m.tickSchedule()
+	if got := nlCmdCount(t, f); got != booted {
+		t.Fatalf("the booted schedule repeated a backend command: %d -> %d", booted, got)
+	}
+}
+
+func TestClockWindowAwayFromStaysAwayAfterMinuteRollover(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 30, 0, 0, time.Local)
+	start, stop := clockWindowAwayFrom(now)
+	for i := 0; i <= 5; i++ {
+		at := now.Add(time.Duration(i) * time.Minute)
+		if inClockWindow(at, start, stop) {
+			t.Fatalf("window %d..%d unexpectedly wants the light on at %v", start, stop, at.Format("15:04"))
+		}
+	}
+}
+
+// gateNlCaps swaps the fake provider for one that parks at a deterministic
+// gate when asked for caps. A tick that has snapshotted the schedule but not
+// yet reached the backend stops here, so the test can change the schedule at
+// exactly the interleaving the reconciliation guards exist for.
+func gateNlCaps(t *testing.T, f nlFake, backend string) (gateOn, entered, release string) {
+	t.Helper()
+	gateOn = filepath.Join(f.state, "caps-gate-on")
+	entered = filepath.Join(f.state, "caps-entered")
+	release = filepath.Join(f.state, "caps-release")
+	provider := filepath.Join(filepath.Dir(f.fake), "ryoku-wm-testwm")
+	script := strings.NewReplacer(
+		"@BACKEND@", backend, "@GATEON@", gateOn,
+		"@ENTER@", entered, "@RELEASE@", release,
+	).Replace(`#!/usr/bin/env bash
+set -u
+[[ "${1:-}" == caps ]] || exit 0
+if [[ -f @GATEON@ ]]; then
+  : >@ENTER@
+  while [[ ! -f @RELEASE@ ]]; do sleep 0.01; done
+fi
+printf '%s' '{"name":"testwm","supports":["nightLight"],"nightLightProcess":"@BACKEND@"}'
+`)
+	if err := os.WriteFile(provider, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return gateOn, entered, release
+}
+
+func waitForNlGate(t *testing.T, entered string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(entered); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("the tick never reached the gated backend call")
+}
+
+// startNlScheduleChange runs a schedule edit off the test goroutine and
+// reports whether it finished before the in-flight tick was released. An edit
+// that lands while the tick is between its snapshot and its backend action
+// proves those two are not serialized.
+func startNlScheduleChange(fn func()) (chan struct{}, bool) {
+	done := make(chan struct{})
+	go func() { fn(); close(done) }()
+	select {
+	case <-done:
+		return done, true
+	case <-time.After(250 * time.Millisecond):
+		return done, false
+	}
+}
+
+func finishNlScheduleChange(t *testing.T, done chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the schedule edit never finished after the tick was released")
+	}
+}
+
+// A bounds-only edit of an active schedule arms reconciliation just like a
+// mode change, even after the user manually toggled the light during the day.
+func TestNightlightBoundsOnlyEditReconcilesAfterManualToggle(t *testing.T) {
+	f := buildNlFake(t, "nlfakebounds", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+		schedKick:      make(chan struct{}, 1),
+	}
+
+	// The user turns the light on manually during the schedule's daylight.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+	outStart, outStop := clockWindowAwayFrom(time.Now())
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule clock: %v", err)
+	}
+	n.tickSchedule()
+	waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false")
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("manual intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+
+	before := nlCmdCount(t, f)
+	moved := (outStart + 1) % (24 * 60)
+	if err := n.setSchedule(nlSchedClock, nil, &moved, &outStop); err != nil {
+		t.Fatalf("bounds-only setSchedule: %v", err)
+	}
+	if got := n.scheduleMode(); got != nlSchedClock {
+		t.Fatalf("bounds-only edit changed the mode to %q", got)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a bounds-only edit must reconcile the manual toggle off: %s", got.Raw)
+	}
+	if got := nlCmdCount(t, f); got <= before {
+		t.Fatalf("bounds-only edit sent no backend command: %d -> %d", before, got)
+	}
+}
+
+// A schedule edit must be serialized with a tick's backend action: it may not
+// complete while the tick is between its snapshot and that action, or the
+// stale tick can apply a desire the user has already changed.
+func TestNightlightTickSerializesWithScheduleChange(t *testing.T) {
+	f := buildNlFake(t, "nlfakeserial", false)
+	gateOn, entered, release := gateNlCaps(t, f, "nlfakeserial")
+	t.Cleanup(func() {
+		os.Remove(gateOn)
+		os.Remove(entered)
+		os.WriteFile(release, nil, 0o644)
+	})
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	cur := time.Now().Hour()*60 + time.Now().Minute()
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedClock,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  cur, schedStopMin: cur, // all-day: tick wants the light on
+		schedKick: make(chan struct{}, 1),
+	}
+
+	if err := os.WriteFile(gateOn, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tickDone := make(chan struct{})
+	go func() { n.tickSchedule(); close(tickDone) }()
+	waitForNlGate(t, entered)
+
+	changeDone, completedEarly := startNlScheduleChange(func() {
+		if err := n.setSchedule(nlSchedOff, nil, nil, nil); err != nil {
+			t.Errorf("setSchedule off: %v", err)
+		}
+	})
+	if completedEarly {
+		t.Fatal("the schedule edit completed while a tick was still applying its backend action")
+	}
+
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	<-tickDone
+	finishNlScheduleChange(t, changeDone)
+	if got := n.scheduleMode(); got != nlSchedOff {
+		t.Fatalf("schedule mode = %q, want off", got)
+	}
+	// A disabled schedule leaves the light alone on every later tick.
+	before := nlCmdCount(t, f)
+	n.tickSchedule()
+	if got := nlCmdCount(t, f); got != before {
+		t.Fatalf("a disabled schedule sent a backend command: %d -> %d", before, got)
+	}
+}
+
+// An in-flight tick must not clear the arm of a schedule edited while it was
+// applying its own desire: the newer edit still owes a reconciliation.
+func TestNightlightInFlightTickKeepsNewerArm(t *testing.T) {
+	f := buildNlFake(t, "nlfakeinflight", false)
+	gateOn, entered, release := gateNlCaps(t, f, "nlfakeinflight")
+	t.Cleanup(func() {
+		os.Remove(gateOn)
+		os.Remove(entered)
+		os.WriteFile(release, nil, 0o644)
+	})
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	boot := &nightlightState{topic: topic, wmc: wm.OpenNamed("testwm"), stateDir: f.state, tempFile: f.temp}
+	if err := boot.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+
+	outStart, outStop := clockWindowAwayFrom(time.Now())
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedClock,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  outStart, schedStopMin: outStop,
+		schedArmed: 1, // the schedule just changed and owes one reconciliation
+		schedKick:  make(chan struct{}, 1),
+	}
+	if err := os.WriteFile(gateOn, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tickDone := make(chan struct{})
+	go func() { n.tickSchedule(); close(tickDone) }()
+	waitForNlGate(t, entered)
+
+	moved := (outStart + 1) % (24 * 60)
+	editDone, _ := startNlScheduleChange(func() {
+		if err := n.setSchedule(nlSchedClock, nil, &moved, nil); err != nil {
+			t.Errorf("bounds edit: %v", err)
+		}
+	})
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	<-tickDone
+	finishNlScheduleChange(t, editDone)
+	if n.schedArmed == 0 {
+		t.Fatal("an older tick cleared the arm of the newer schedule")
+	}
+	// The newer edit still reconciles the light into its window.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("manual intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("the newer schedule did not reconcile the light off: %s", got.Raw)
+	}
+}
+
+// Re-saving an active schedule with every value unchanged must not arm a
+// reconciliation: the bar style re-sends the whole schedule after each manual
+// toggle and temperature edit. Arming on that no-op lets the next tick undo
+// the user's manual choice during a daylight window.
+func TestNightlightNoOpScheduleSaveKeepsManualToggle(t *testing.T) {
+	f := buildNlFake(t, "nlfakenoop", false)
+	topic := newStateTopic()
+	sub := topic.subscribe()
+	defer topic.unsubscribe(sub)
+	n := &nightlightState{
+		topic: topic, wmc: wm.OpenNamed("testwm"),
+		stateDir: f.state, tempFile: f.temp,
+		schedFile:      filepath.Join(f.state, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+		schedStartMin:  nlDefaultClockStart,
+		schedStopMin:   nlDefaultClockStop,
+		schedKick:      make(chan struct{}, 1),
+	}
+
+	// The light is already on before the schedule exists, so the first
+	// reconciliation has something to turn off.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+
+	// Establish the clock schedule in a daylight window and let its one
+	// reconciliation land.
+	outStart, outStop := clockWindowAwayFrom(time.Now())
+	if err := n.setSchedule(nlSchedClock, nil, &outStart, &outStop); err != nil {
+		t.Fatalf("setSchedule clock: %v", err)
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("the daylight window must reconcile the light off: %s", got.Raw)
+	}
+	if got := n.schedArmed; got != 0 {
+		t.Fatalf("schedule still armed after reconciliation: %d", got)
+	}
+
+	// The user turns the light on manually during the day.
+	if err := n.intent("on"); err != nil {
+		t.Fatalf("intent on: %v", err)
+	}
+	waitForFrame(t, sub, func(fr nlFrame) bool { return fr.On }, "on:true")
+
+	// Re-send every value exactly as it stands: mode, margin and both clock
+	// bounds. An unchanged save is a no-op and must not re-arm.
+	margin, start, stop := n.schedMarginMin, n.schedStartMin, n.schedStopMin
+	before := nlCmdCount(t, f)
+	if err := n.setSchedule(nlSchedClock, &margin, &start, &stop); err != nil {
+		t.Fatalf("no-op setSchedule: %v", err)
+	}
+	if got := n.schedArmed; got != 0 {
+		t.Fatalf("a no-op save armed %d reconciliations", got)
+	}
+	n.tickSchedule()
+	if got := nlCmdCount(t, f); got != before {
+		t.Fatalf("a no-op save undid the manual toggle: %d -> %d", before, got)
+	}
+	if !n.running() {
+		t.Fatal("a no-op save turned the manually toggled light off")
+	}
+
+	// A genuine bounds change must still arm and reconcile, overriding the
+	// manual choice just as an edit to the requested window should.
+	moved := (start + 1) % (24 * 60)
+	if err := n.setSchedule(nlSchedClock, &margin, &moved, &stop); err != nil {
+		t.Fatalf("changed setSchedule: %v", err)
+	}
+	if got := n.schedArmed; got == 0 {
+		t.Fatal("a real schedule change did not arm reconciliation")
+	}
+	n.tickSchedule()
+	if got := waitForFrame(t, sub, func(fr nlFrame) bool { return !fr.On }, "on:false"); got.On {
+		t.Fatalf("a real schedule change must reconcile the light off: %s", got.Raw)
+	}
+	if got := nlCmdCount(t, f); got <= before {
+		t.Fatalf("a real schedule change sent no backend command: %d -> %d", before, got)
 	}
 }
