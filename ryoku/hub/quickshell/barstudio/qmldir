@@ -6,3 +6,5 @@ NacreWidgetChip 1.0 NacreWidgetChip.qml
 NacreIslandLane 1.0 NacreIslandLane.qml
 NacrePalette 1.0 NacrePalette.qml
 NacreAppearance 1.0 NacreAppearance.qml
+DeclaredCard 1.0 DeclaredCard.qml
+StyleCardSource 1.0 StyleCardSource.qml

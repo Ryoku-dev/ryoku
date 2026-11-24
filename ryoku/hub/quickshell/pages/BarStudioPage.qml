@@ -198,6 +198,21 @@ Item {
 
     CatalogLabels { id: labels }
 
+    // The active style's own cards, from the studio-card.json beside its
+    // Scene.qml. A style that declares any replaces the hand-built cards below,
+    // which stay for the styles that do not.
+    StyleCardSource { id: styleCards; styleId: page.activeStyle }
+    function runCardButton(button) {
+        if (!button)
+            return;
+        if (button.hub !== "") {
+            if (page.hub && page.hub.navigate)
+                page.hub.navigate(button.hub);
+            return;
+        }
+        Spawn.run(button.command);
+    }
+
     // ── head: the eyebrow band, the title, the blurb ─────────────────────────
     Column {
         id: head
@@ -342,11 +357,25 @@ Item {
                 }
             }
 
+            // ── the active style's declared cards (StyleCardSource) ─────────
+            Repeater {
+                // positions its cards only; CardColumns counts a visible item
+                // as a block, and this one draws nothing itself.
+                visible: false
+                model: page.showActiveDetails ? styleCards.cards : []
+                delegate: DeclaredCard {
+                    required property var modelData
+                    width: col.colWidth
+                    spec: modelData
+                    onAct: button => page.runCardButton(button)
+                }
+            }
+
             // ── QS BAR: its layout, widgets and form live in QS Bar Settings
             SettingCard {
                 id: qsbarSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "qsbar"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "qsbar"
                 title: I18n.tr("QS BAR")
                 kana: "帯"
 
@@ -387,7 +416,7 @@ Item {
             SettingCard {
                 id: orpheusSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "orpheus"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "orpheus"
                 title: I18n.tr("ORPHEUS")
                 kana: "響"
 
@@ -420,7 +449,7 @@ Item {
             SettingCard {
                 id: irisSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "iris"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "iris"
                 title: I18n.tr("SHIMA")
                 kana: "島"
 
@@ -472,7 +501,7 @@ Item {
             SettingCard {
                 id: pythonSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "python"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "python"
                 title: I18n.tr("PYTHON")
                 kana: "蛇"
 
@@ -503,7 +532,7 @@ Item {
             SettingCard {
                 id: nomarchySect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "nomarchy"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "nomarchy"
                 title: I18n.tr("NOMARCHY")
                 kana: "野"
 
@@ -543,7 +572,7 @@ Item {
             SettingCard {
                 id: folderNote
                 width: col.colWidth
-                visible: page.showActiveDetails && !page.sumiActive && ["qsbar", "orpheus", "iris", "python", "nomarchy"].indexOf(page.activeStyle) === -1
+                visible: page.showActiveDetails && !styleCards.declared && !page.sumiActive && ["qsbar", "orpheus", "iris", "python", "nomarchy"].indexOf(page.activeStyle) === -1
                 title: I18n.tr("LAYOUT")
 
                 Text {
@@ -562,7 +591,7 @@ Item {
             SettingCard {
                 id: obiSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "obi"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "obi"
                 title: I18n.tr("OBI WIDGETS")
 
                 Repeater {
@@ -591,7 +620,7 @@ Item {
             SettingCard {
                 id: nacreSect
                 width: col.colWidth
-                visible: page.showActiveDetails && page.activeStyle === "nacre"
+                visible: page.showActiveDetails && !styleCards.declared && page.activeStyle === "nacre"
                 title: I18n.tr("NACRE LAYOUT")
 
                 Item {
@@ -612,7 +641,7 @@ Item {
                 id: frameSect
                 width: col.colWidth
                 title: I18n.tr("FRAME")
-                visible: page.showActiveDetails && page.sumiActive
+                visible: page.showActiveDetails && !styleCards.declared && page.sumiActive
 
                 SettingRow {
                     anchors.left: parent.left
@@ -700,7 +729,7 @@ Item {
                 id: railSect
                 width: col.colWidth
                 title: I18n.tr("RAILS")
-                visible: page.showActiveDetails && page.sumiActive
+                visible: page.showActiveDetails && !styleCards.declared && page.sumiActive
 
                 Item {
                     width: parent.width
@@ -810,7 +839,7 @@ Item {
                 id: zoneSect
                 width: col.colWidth
                 title: I18n.tr("WIDGETS ON THE %1 RAIL").arg(labels.edge(page.edge).toUpperCase())
-                visible: page.showActiveDetails && page.sumiActive
+                visible: page.showActiveDetails && !styleCards.declared && page.sumiActive
 
                 Item {
                     width: parent.width

@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **A bar style can declare its own card in Bar Studio.** A
+  `studio-card.json` beside its `Scene.qml` gives the card a title, a glyph,
+  text and buttons that call the style's IPC or open a Hub page. Shipped and
+  Store styles both work; a style without the file keeps its hand-built card
+  (`barstudio/StyleCard.js`, `barstudio/StyleCardSource.qml`,
+  `barstudio/DeclaredCard.qml`, `docs/barstyles.md`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
