@@ -772,6 +772,92 @@ snapshots the keys and applies them live. A folder style usually ships its own
 settings surface instead, the way QS Bar carries **QS Bar Settings** (see below).
 A style with no settings omits all of this.
 
+### A style's own card in Bar Studio
+
+While a style is the active one, Bar Studio shows a card that points at its
+settings: a title, a seal glyph, a line about where its options live, and the
+button that opens them. A style declares that card in a `studio-card.json`
+beside its `Scene.qml`. A Store style lists the file in its manifest like any
+other file.
+
+```json
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "AJIADB9",
+      "glyph": "力",
+      "blocks": [
+        { "text": "Notch islands on a top band. Its own panel holds every option." },
+        { "buttons": [
+          { "label": "OPEN AJIADB9 SETTINGS", "ipc": "ajiadb9", "call": "open" }
+        ] }
+      ]
+    }
+  ]
+}
+```
+
+- `cards`: one to three cards, drawn in order where the hand-built style cards
+  sit.
+- `title`: shown as written, so write it in capitals like the other cards.
+  `glyph` is optional, at most two characters, and shows beside the title when
+  the Japanese gloss is on. A title, glyph or button label may not contain `<`,
+  so the controls that draw them never read it as markup.
+- `blocks`: one to eight, top to bottom. A `text` block is a paragraph shown as
+  plain text, never markup. A `buttons` block is a row of one to four buttons
+  that wraps when they do not fit the card; a label wider than the card ends
+  in an ellipsis.
+- A button has a `label` and exactly one action:
+  - `"ipc": "<target>", "call": "<function>"`, with optional `"args"` (up to
+    eight strings), runs `qs -c shell ipc call <target> <function> <args...>`.
+    The target and the function are plain identifiers, and the arguments are
+    passed as they are, never through a shell. A Store style may only call its
+    own target, the IPC target named after its id.
+  - `"hub": "<section>"` opens that Ryoku Settings page, such as `"displays"`.
+    A name the Hub does not know does nothing.
+  - `"ryokuShell": ["bar", "settings"]` runs `ryoku-shell bar settings`. It is
+    for the styles that ship with Ryoku; a Store style cannot use it.
+- Strings go through `I18n.tr`, so a shipped style whose strings are in the
+  catalogue is translated; any other string shows as written.
+
+The two hand-built cards, Orpheus and Nomarchy, written in this form:
+
+```json
+{ "schema": 1, "cards": [ { "title": "ORPHEUS", "glyph": "響", "blocks": [
+  { "text": "Orpheus arranges its layout, modules, form and sound in its own settings. Left-click the bar logo to open them, or use the button below." },
+  { "buttons": [ { "label": "OPEN ORPHEUS SETTINGS", "ipc": "orpheus", "call": "settings", "args": [""] } ] }
+] } ] }
+```
+
+```json
+{ "schema": 1, "cards": [ { "title": "NOMARCHY", "glyph": "野", "blocks": [
+  { "text": "Nomarchy keeps Omarchy's configurable bar, panels and plugin menus while routing desktop actions through Ryoku." },
+  { "buttons": [
+    { "label": "CHOOSE THEME", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.image-picker", "{\"source\":\"themes\"}"] },
+    { "label": "OPEN PLUGINS", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.menu", "{\"menu\":\"setup.plugins\"}"] }
+  ] }
+] } ] }
+```
+
+Where Bar Studio looks (`hub/quickshell/barstudio/StyleCardSource.qml`):
+
+1. The shell's own tree, `modules/bar/barstyles/<id>/studio-card.json`: the dev
+   checkout when the shell runs from one (`RYOKU_SHELL_DIR`), otherwise
+   `~/.config/quickshell/shell`. This is a style that ships with Ryoku, and the
+   Store refuses to install a built-in's id, so nothing can shadow it.
+2. The style's verified Store view, the one `~/.local/state/ryoku/store/barstyles.json`
+   names and the shell loads: `barstyle-views/<id>/<sha256>/studio-card.json`.
+3. Neither: the hand-built card for that id in `BarStudioPage.qml`, or the
+   **LAYOUT** note for a style Bar Studio does not know.
+
+A style that declares cards replaces every hand-built card for it, its editors
+included. A missing or empty file is the same as no file. A malformed one, an
+unknown field, a value over its limit or an action outside the forms above, is
+ignored whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's
+log, and the next place in the order is read as if the file were not there. The parser is
+`hub/quickshell/barstudio/StyleCard.js`, with its tests beside it.
+
 ## What a style may own
 
 Desktop-wide shortcuts stay with Ryoku under every style:
