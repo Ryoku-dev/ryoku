@@ -1,27 +1,52 @@
 #!/usr/bin/env bash
 # Brightness up/down for both the laptop panel and external monitors.
 #
-#   ryoku-cmd-brightness +5   raise 5%
-#   ryoku-cmd-brightness -5   lower 5%
+#   ryoku-cmd-brightness up    raise by the Ryoku Settings step
+#   ryoku-cmd-brightness down  lower by the Ryoku Settings step
+#   ryoku-cmd-brightness +5    raise 5% explicitly
+#   ryoku-cmd-brightness -5    lower 5% explicitly
 #
 # The laptop backlight goes through brightnessctl (/sys/class/backlight);
 # external desktop monitors go through DDC/CI (ddcutil setvcp 10). Both run so a
 # laptop docked to an external screen dims everything at once.
+#
+# RYOKU_BACKLIGHT_PATH / RYOKU_DRM_PATH override the sysfs roots for tests, so
+# the panel half runs without a real backlight (same seam as ryoku-hw-backlight).
 set -euo pipefail
 
-delta=${1:?usage: ryoku-cmd-brightness <+N|-N>}
-sign=${delta:0:1}
-mag=${delta#[-+]}
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json"
+backlight_path="${RYOKU_BACKLIGHT_PATH:-/sys/class/backlight}"
 
-case "$sign" in
-  +|-) ;;
-  *) echo "usage: ryoku-cmd-brightness <+N|-N>" >&2; exit 2 ;;
+# up/down take their magnitude from Ryoku Settings (display.brightnessStep, 1-25
+# percent, 5 shipped); +N and -N set an explicit percentage, which scripts and a
+# config written before the setting existed still use. jq validates the stored
+# value: not a number means 5, and a number outside the range or a fraction
+# clamps to the nearest whole step, so a negative value cannot stall the keys.
+case "${1:-}" in
+  up | down)
+    if [[ ${1} == up ]]; then sign=+; else sign=-; fi
+    mag="$(jq -r '(.display.brightnessStep // 5) as $s | if ($s|type) == "number" then ($s|floor|if . < 1 then 1 elif . > 25 then 25 else . end) else 5 end' "$cfg" 2>/dev/null || echo 5)"
+    ;;
+  [+-]*)
+    sign=${1:0:1}
+    mag=${1#[-+]}
+    case "$mag" in
+      '' | *[!0-9]*)
+        echo "usage: ryoku-cmd-brightness <up|down|+N|-N>" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "usage: ryoku-cmd-brightness <up|down|+N|-N>" >&2
+    exit 2
+    ;;
 esac
 
 # Laptop panel: only if a backlight device is present. Pin the panel's real
 # backlight -- on ASUS AMD+NVIDIA laptops brightnessctl's default pick is the
 # unreliable nvidia_wmi_ec_backlight, so ryoku-hw-backlight names the right one.
-if compgen -G "/sys/class/backlight/*" >/dev/null; then
+if compgen -G "$backlight_path/*" >/dev/null; then
   device=$(ryoku-hw-backlight 2>/dev/null || true)
   if [[ $sign == "+" ]]; then
     brightnessctl ${device:+-d "$device"} set "${mag}%+" >/dev/null 2>&1 || true

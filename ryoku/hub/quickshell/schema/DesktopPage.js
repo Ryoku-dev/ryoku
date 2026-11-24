@@ -17,6 +17,28 @@ var rows = [{
         "ctl": "sw",
         "src": "shell"
     },{
+        "tab": "Notifications",
+        "group": "VOLUME AND BRIGHTNESS",
+        "key": "audio.volumeStep",
+        "label": "Volume step",
+        "desc": "How far each press of the volume keys moves the volume",
+        "ctl": "step",
+        "src": "shell",
+        "lo": 1,
+        "hi": 20,
+        "unit": "%"
+    },{
+        "tab": "Notifications",
+        "group": "VOLUME AND BRIGHTNESS",
+        "key": "display.brightnessStep",
+        "label": "Brightness step",
+        "desc": "How far each press of the brightness keys moves the screen",
+        "ctl": "step",
+        "src": "shell",
+        "lo": 1,
+        "hi": 25,
+        "unit": "%"
+    },{
         "tab": "Clipboard",
         "group": "LAYOUT",
         "key": "clipboard.widthPercent",

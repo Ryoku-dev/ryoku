@@ -587,6 +587,7 @@ Rectangle {
         "reloadCover": ReloadCoverModel.empty(),
         "language": "Auto", "barStyle": "orpheus", "showJapaneseGloss": true, "obi": {}, "nacre": NacreConfig.defaultConfig(), "qsbar": {}, "dock": {},
         "notifications.show_images": false,
+        "audio.volumeStep": 5, "display.brightnessStep": 5,
         "deckFrostEnabled": true, "deckFrost": 0.45,
         "clipboard.widthPercent": 65, "clipboard.heightPercent": 42, "clipboard.bottomPercent": 0,
         "clipboard.panelRadius": 18, "clipboard.paneRadius": 12, "clipboard.cardRadius": 9,

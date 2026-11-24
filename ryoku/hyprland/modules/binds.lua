@@ -201,9 +201,10 @@ hl.bind(K("XF86AudioNext"),        hl.dsp.exec_cmd("playerctl next"),           
 hl.bind(K("XF86AudioPrev"),        hl.dsp.exec_cmd("playerctl previous"),                             { locked = true })
 hl.bind(K(mod .. " + SHIFT + A"), hl.dsp.exec_cmd("ryoku-restart-audio")) -- recover audio when sound stops coming back
 
--- Brightness keys (laptop backlight + external DDC monitors)
-hl.bind(K("XF86MonBrightnessUp"),   hl.dsp.exec_cmd("ryoku-cmd-brightness +5"), { locked = true, repeating = true }) -- raise screen brightness
-hl.bind(K("XF86MonBrightnessDown"), hl.dsp.exec_cmd("ryoku-cmd-brightness -5"), { locked = true, repeating = true }) -- lower screen brightness
+-- Brightness keys (laptop backlight + external DDC monitors). ryoku-cmd-brightness
+-- steps by display.brightnessStep in shell.json, so Ryoku Settings owns the step.
+hl.bind(K("XF86MonBrightnessUp"),   hl.dsp.exec_cmd("ryoku-cmd-brightness up"),   { locked = true, repeating = true }) -- raise screen brightness
+hl.bind(K("XF86MonBrightnessDown"), hl.dsp.exec_cmd("ryoku-cmd-brightness down"), { locked = true, repeating = true }) -- lower screen brightness
 
 -- Touchpad lock (the FN touchpad key), through the window-manager seam
 hl.bind(K("XF86TouchpadToggle"), hl.dsp.exec_cmd("ryoku wm act input.touchpad toggle"), { locked = true }) -- toggle the touchpad

@@ -63,8 +63,8 @@
       "id": "ryoku.ryoku-cmd-brightness.adjust",
       "group": "ryoku-power",
       "title": "Adjust screen brightness",
-      "command": "ryoku-cmd-brightness <change>",
-      "description": "Raises or lowers the internal panel and supported external displays by a percentage.",
+      "command": "ryoku-cmd-brightness up",
+      "description": "Raises or lowers the internal panel and supported external displays by the step in Ryoku Settings; +N or -N sets an explicit percentage.",
       "tool": "ryoku-cmd-brightness",
       "level": "basic"
     },
