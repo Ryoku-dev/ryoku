@@ -31,12 +31,4 @@ QtObject {
     function heldOn(monitor) {
         return root._held[String(monitor ?? "")] === true;
     }
-
-    // Clear the hovered class, but only when that output owns the hover: a
-    // dock on another output has already published its own hover by now, and
-    // a stale leave must not erase it.
-    function clearHover(monitor) {
-        if (root.monitorName === String(monitor ?? ""))
-            root.hovered = false;
-    }
 }

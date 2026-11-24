@@ -150,6 +150,8 @@ ShellRoot {
             // 11. card's hold clears
             MusicPreview.setHeld("probe-a", false);
             probeLogic.check("card's hold clears", MusicPreview.heldOn("probe-a") === false);
+            // Reset music state so it does not leak into the hold phases below
+            MusicPreview.hovered = false;
 
             // PHASE A: re-arm the hover as the owner of "probe-a"
             DockPreview.monitorName = "probe-a";
