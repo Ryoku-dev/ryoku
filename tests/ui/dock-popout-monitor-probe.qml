@@ -139,6 +139,8 @@ ShellRoot {
 
             // MUSIC SCOPING CHECKS 8-11
             // 8. Set monitorName to "probe-a", hover true, cardA owns the hover
+            // The binding re-evaluates synchronously on the imperative assignment below;
+            // check 8 would read a stale value if the assignment had not just occurred.
             MusicPreview.monitorName = "probe-a";
             MusicPreview.hovered = true;
             probeLogic.check("card on hovered output owns hover", cardA.ownsHover === true && cardA.musicHovered === true);
