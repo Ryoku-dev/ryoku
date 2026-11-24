@@ -9,9 +9,13 @@
 # The laptop backlight goes through brightnessctl (/sys/class/backlight);
 # external desktop monitors go through DDC/CI (ddcutil setvcp 10). Both run so a
 # laptop docked to an external screen dims everything at once.
+#
+# RYOKU_BACKLIGHT_PATH / RYOKU_DRM_PATH override the sysfs roots for tests, so
+# the panel half runs without a real backlight (same seam as ryoku-hw-backlight).
 set -euo pipefail
 
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json"
+backlight_path="${RYOKU_BACKLIGHT_PATH:-/sys/class/backlight}"
 
 # up/down take their magnitude from Ryoku Settings (display.brightnessStep, 1-25
 # percent, 5 shipped); +N and -N set an explicit percentage, which scripts and a
@@ -42,7 +46,7 @@ esac
 # Laptop panel: only if a backlight device is present. Pin the panel's real
 # backlight -- on ASUS AMD+NVIDIA laptops brightnessctl's default pick is the
 # unreliable nvidia_wmi_ec_backlight, so ryoku-hw-backlight names the right one.
-if compgen -G "/sys/class/backlight/*" >/dev/null; then
+if compgen -G "$backlight_path/*" >/dev/null; then
   device=$(ryoku-hw-backlight 2>/dev/null || true)
   if [[ $sign == "+" ]]; then
     brightnessctl ${device:+-d "$device"} set "${mag}%+" >/dev/null 2>&1 || true

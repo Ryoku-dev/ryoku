@@ -60,7 +60,8 @@ store '{"audio":{"volumeStep":20}}'
 store '{"audio":{"volumeStep":10}}'
 [[ $(volumePress 3 down) == 0% ]] || fail "down at the bottom = $(volumePress 3 down), want 0%"
 [[ $(volumePress 95 up) == 100% ]] || fail "up at the 100% cap = $(volumePress 95 up), want 100%"
-store '{"qsbar":{"audioBoost":true},"audio":{"step":10}}'
+store '{"qsbar":{"audioBoost":true},"audio":{"volumeStep":10}}'
+[[ $(volumePress 90 up) == 100% ]] || fail "boost step 10 up from 90 = $(volumePress 90 up), want 100%"
 [[ $(volumePress 145 up) == 150% ]] || fail "boost up from 145 = $(volumePress 145 up), want 150%"
 [[ $(volumePress 155 up) == 150% ]] || fail "boost up from 155 = $(volumePress 155 up), want 150%"
 
@@ -97,13 +98,13 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$tmp/backlight.call
 printf '#!/usr/bin/env bash\nexit 1\n' >"$tmp/bin/ryoku-hw-backlight"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/ddcutil"
 chmod +x "$tmp/bin/brightnessctl" "$tmp/bin/ryoku-hw-backlight" "$tmp/bin/ddcutil"
-mkdir -p "$tmp/drm/card0-eDP-1"
+mkdir -p "$tmp/drm/card0-eDP-1" "$tmp/bl/amdgpu_bl0"
 echo connected >"$tmp/drm/card0-eDP-1/status"
 
 # brightnessPress <up|down|+N|-N> -- run one press, print the brightnessctl args.
 brightnessPress() {
 	: >"$tmp/backlight.calls"
-	PATH="$tmp/bin:$PATH" RYOKU_DRM_PATH="$tmp/drm" "$brightness" "$1"
+	PATH="$tmp/bin:$PATH" RYOKU_DRM_PATH="$tmp/drm" RYOKU_BACKLIGHT_PATH="$tmp/bl" "$brightness" "$1"
 	cat "$tmp/backlight.calls"
 }
 
