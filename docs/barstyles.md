@@ -816,7 +816,9 @@ other file.
     passed as they are, never through a shell. A Store style may only call its
     own target, the IPC target named after its id.
   - `"hub": "<section>"` opens that Ryoku Settings page, such as `"displays"`.
-    A name the Hub does not know does nothing.
+    A name the Hub does not know does nothing. A retired page name the Hub
+    still takes (`stage`, `widgets`, `visualizer`) opens the desktop editor
+    it moved to, as it does for any caller.
   - `"ryokuShell": ["bar", "settings"]` runs `ryoku-shell bar settings`. It is
     for the styles that ship with Ryoku; a Store style cannot use it.
 - Strings go through `I18n.tr`, so a shipped style whose strings are in the
