@@ -144,7 +144,7 @@ ShellRoot {
                     // PHASE C: re-arm the hover as the owner of "probe-a"
                     DockPreview.monitorName = "probe-a";
                     DockPreview.hoveredClass = "firefox";
-                    // Wait 2000 ms for the hold to be published (extended from 1400)
+                    // Wait 2000 ms for the hold to be published
                     wait(2000, function() {
                         // check: the strip publishes its hold again
                         probeLogic.check("the strip publishes its hold again", DockPreview.heldOn("probe-a") === true);
