@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Night Light runs outside the shell service's cgroup (#948).** A toggle left
+  the gamma backend inside the shell daemon's cgroup, where doctor listed it as
+  a shell child and a shell restart could take it down; the daemon now starts it
+  in `app.slice` through a transient user scope when a user systemd manager
+  answers, and spawns it directly when none is reachable (`ipc/nightlight.go`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
