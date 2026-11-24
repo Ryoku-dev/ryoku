@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const StyleCard = require("./StyleCard.js");
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = path.dirname(fileURLToPath(import.meta.url));
 const barstyles = path.join(here, "../../../shell/quickshell/shell/modules/bar/barstyles");
 const hubCards = path.join(here, "cards");
 const page = fs.readFileSync(path.join(here, "../pages/BarStudioPage.qml"), "utf8");
