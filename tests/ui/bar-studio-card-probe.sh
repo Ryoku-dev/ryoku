@@ -43,6 +43,7 @@ run() {
     XDG_CACHE_HOME="$work/cache" \
     QT_QPA_PLATFORM=offscreen \
     PROBE_EXPECT="$1" \
+    PROBE_STYLE="${2:-}" \
     QML2_IMPORT_PATH="$work:${QML2_IMPORT_PATH:-$HOME/.local/lib/qt6/qml}" \
         timeout 30 "$qs_bin" -p "$work/hub/probe.qml" >"$work/log" 2>&1 || true
     if ! grep -q CARD-PROBE-DONE "$work/log"; then
@@ -63,4 +64,13 @@ run layout
 grep -q "bar studio: ignoring .*must be the style's own id" "$work/log" \
     || { echo "bar-studio-card-probe: no log line for the refused file"; exit 1; }
 
-echo "bar-studio-card-probe: a Store style's card draws, runs its own IPC call, and a bad file falls back"
+# A refused file falls through: a Store "obi" with a bad file still gets the
+# Hub's own Obi card.
+obi="barstyle-views/obi/$(printf obi | sha256sum | cut -c1-64)"
+mkdir -p "$work/state/ryoku/store/$obi"
+printf '[{"id":"obi","version":"1.0.0","scene":"Scene.qml","view":"%s"}]\n' "$obi" \
+    >"$work/state/ryoku/store/barstyles.json"
+echo '{"schema": 1, "cards": []}' >"$work/state/ryoku/store/$obi/studio-card.json"
+run obi obi
+
+echo "bar-studio-card-probe: a Store style's card draws, runs its own IPC call, a bad file falls back, and a refused file falls through"

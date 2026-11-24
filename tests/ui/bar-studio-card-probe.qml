@@ -5,7 +5,8 @@ import "pages"
 // Bar Studio draws the card a Store style declares in its studio-card.json, in
 // place of the LAYOUT note, and its button runs the declared IPC call. The
 // shell script lays out a Store index and view for "probe-style"; a second run
-// makes that file malformed and expects the LAYOUT note back.
+// makes that file malformed and expects the LAYOUT note back. A third gives
+// Obi a refused Store file and expects the Hub's own Obi card behind it.
 ShellRoot {
     id: probe
 
@@ -13,7 +14,7 @@ ShellRoot {
 
     QtObject {
         id: fakeHub
-        property var store: ({ barStyle: "probe-style" })
+        property var store: ({ barStyle: Quickshell.env("PROBE_STYLE") || "probe-style" })
         property var committed: fakeHub.store
         function val(key) { return fakeHub.store[key]; }
     }
@@ -45,7 +46,10 @@ ShellRoot {
             const button = probe.find(page, item => item.objectName === "studio-card-button-1-0");
             const note = probe.find(page, item => item.title === "LAYOUT" && item.visible);
             let ok = true;
-            if (probe.expectCard) {
+            if (Quickshell.env("PROBE_EXPECT") === "obi") {
+                const obi = probe.find(page, item => item.title === "OBI WIDGETS" && item.visible);
+                ok = !!obi && !!probe.find(page, item => item.objectName === "obi-media");
+            } else if (probe.expectCard) {
                 ok = !!button && button.visible && button.text === "OPEN PROBE SETTINGS" && !note;
                 if (button)
                     button.act();
