@@ -1,6 +1,16 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Python's bar can show coding-agent limits.** A new Agent usage module
+  shows each agent with usage data (Claude, Codex, OpenCode) as its mark with
+  its main percentages, coloured by how close the limit is and dimmed when the
+  data is stale. Clicking it opens a panel with a bar per limit window (Codex's
+  extra buckets included), when each resets, the pace against the window,
+  today's tokens and rate, OpenCode's per-model totals and a Monday-first chart
+  of this week; middle-click refreshes. It reads the same `AiUsage` caches as
+  the QS Bar, hides itself when no agent has data, and is translated into
+  English, Polish, Russian, Ukrainian, German, French, Spanish, Italian,
+  Portuguese and Dutch. Add it from the guide's Bar tab.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

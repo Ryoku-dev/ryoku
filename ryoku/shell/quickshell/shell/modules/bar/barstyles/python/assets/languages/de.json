@@ -348,6 +348,7 @@
         "battery": "Akku",
         "focus": "Fokus",
         "sysmon": "Systemmonitor",
+        "agents": "Agent-Nutzung",
         "timedate": {
           "name": "Zeit & Datum",
           "style": {
@@ -1851,5 +1852,28 @@
   },
   "datetime": {
     "full_date": "dddd, d. MMMM"
+  },
+  "agents": {
+    "title": "Agent-Nutzung",
+    "subtitle": "Aktualisiert alle paar Minuten",
+    "refreshing": "Wird aktualisiert…",
+    "empty": "Noch keine Agent-Nutzung. Ryoku liest die Caches, die die Sammler von Claude, Codex und OpenCode schreiben.",
+    "window5h": "5 Stunden",
+    "window7d": "Wöchentlich",
+    "windowDays": "{n} Tage",
+    "windowHours": "{n} Stunden",
+    "resets": "Zurückgesetzt in {in} · {at}",
+    "ahead": "{n}% über dem Tempo",
+    "under": "{n}% unter dem Tempo",
+    "onPace": "Im Tempo",
+    "runsOut": "aufgebraucht ~{at}",
+    "today": "Heute  {n} Tokens",
+    "rate": "{n} Tokens/h",
+    "blocked": "Limit erreicht",
+    "stale": "Zuletzt bekannt",
+    "models": "Modelle",
+    "modelToday": "heute {n}",
+    "thisWeek": "Diese Woche",
+    "weekTotal": "{n} Tokens"
   }
 }
