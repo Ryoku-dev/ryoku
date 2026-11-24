@@ -85,7 +85,7 @@ rejects({ schema: 2, cards: [] }, store, "schema is not 1", "a newer schema");
 rejects({ schema: 1, cards: [] }, store, "cards is not a list", "no cards");
 rejects({ schema: 1, cards: [{ title: "X", blocks: [{ text: "t" }] }], extra: 1 }, store, "unknown field \"extra\"", "an unknown top-level field");
 rejects(one([{ text: "t", buttons: [] }]), store, "unknown field \"buttons\"", "a block with two kinds");
-rejects(one([{ image: "x.png" }]), store, "neither a text nor a buttons block", "an unknown block kind");
+rejects(one([{ image: "x.png" }]), store, "neither a text, a buttons nor an editor block", "an unknown block kind");
 rejects(one([]), store, "blocks is not a list", "a card with no blocks");
 rejects({ schema: 1, cards: [{ title: "  ", blocks: [{ text: "t" }] }] }, store, "title is empty", "a blank title");
 rejects({ schema: 1, cards: [{ title: "X".repeat(41), blocks: [{ text: "t" }] }] }, store, "longer than 40", "a long title");
@@ -117,6 +117,18 @@ rejects(btn({ ipc: "desktop", call: "editSection" }), store, "must be the style'
 rejects(btn({ ryokuShell: ["bar", "settings"] }), store, "only for styles that ship with Ryoku", "a Store card calling ryoku-shell");
 rejects(btn({ ryokuShell: ["bar", "--json"] }), shipped, "plain words", "a ryoku-shell flag");
 rejects(btn({ ryokuShell: [] }), shipped, "plain words", "an empty ryoku-shell call");
+
+// a shipped style may place one of the Hub's editors by name
+{
+    const editors = { id: "sumi", shipped: true, editors: ["sumi-frame", "layout-note"] };
+    const parsed = StyleCard.parse(JSON.stringify({ schema: 1, cards: [{ title: "FRAME", blocks: [{ editor: "sumi-frame" }] }] }), editors);
+    eq(parsed.error, "", "a shipped editor card parses");
+    eq(parsed.cards[0].blocks, [{ kind: "editor", editor: "sumi-frame" }], "the editor block names its editor");
+    rejects({ schema: 1, cards: [{ title: "FRAME", blocks: [{ editor: "rm-rf" }] }] }, editors, "not one of the Hub's editors", "an editor the page does not have");
+    rejects({ schema: 1, cards: [{ title: "FRAME", blocks: [{ editor: "sumi-frame" }] }] }, { id: "x", shipped: false, editors: ["sumi-frame"] },
+        "only for styles that ship with Ryoku", "a Store card placing an editor");
+    rejects({ schema: 1, cards: [{ title: "FRAME", blocks: [{ editor: "sumi-frame", text: "t" }] }] }, editors, "unknown field", "an editor block with text");
+}
 
 // the Store view is the one BarProducts would load
 {

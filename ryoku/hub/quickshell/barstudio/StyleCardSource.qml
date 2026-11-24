@@ -7,8 +7,10 @@ import "StyleCard.js" as StyleCard
 // beside its Scene.qml. A style that ships with Ryoku is looked up in the
 // shell's own tree first, the way BarProducts resolves a built-in before the
 // Store, and the Store can never install a built-in's id; any other style is
-// read from its verified Store view, the copy the shell loads. A missing file
-// means no cards; a malformed one means no cards and one line in the log.
+// read from its verified Store view, the copy the shell loads. Last come the
+// Hub's own declarations (barstudio/cards/<id>.json) for Store styles whose
+// editors live in the Hub, Obi and Nacre. A missing file means no cards; a
+// malformed one means no cards and one line in the log.
 //
 // The files are read as the page is built, not a frame later: Bar Studio's
 // columns are balanced once, over the cards present at its first layout, so
@@ -18,6 +20,8 @@ Item {
     id: source
 
     property string styleId: ""
+    // the editor names the page can place, for an editor block to name one.
+    property var editors: []
 
     // what the files say, worked out without side effects: the cards of the
     // first usable file, and why any file before it was refused.
@@ -27,7 +31,10 @@ Item {
         if (shipped !== null)
             return { cards: shipped, warnings: warnings };
         const store = source.declaredIn(storeFile, false, warnings);
-        return { cards: store !== null ? store : [], warnings: warnings };
+        if (store !== null)
+            return { cards: store, warnings: warnings };
+        const hub = source.declaredIn(hubFile, true, warnings);
+        return { cards: hub !== null ? hub : [], warnings: warnings };
     }
     readonly property var cards: source.lookup.cards
     readonly property bool declared: source.cards.length > 0
@@ -69,7 +76,7 @@ Item {
         const text = file.text();
         if (!file.loaded)
             return null;
-        const parsed = StyleCard.parse(text, { id: source.styleId, shipped: shipped });
+        const parsed = StyleCard.parse(text, { id: source.styleId, shipped: shipped, editors: source.editors });
         if (parsed.error !== "")
             warnings.push("bar studio: ignoring " + file.path + ": " + parsed.error);
         return parsed.cards.length > 0 ? parsed.cards : null;
@@ -96,6 +103,15 @@ Item {
     FileView {
         id: storeFile
         path: source.storeView !== "" ? source.storeRoot + "/" + source.storeView + "/studio-card.json" : ""
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+    }
+
+    FileView {
+        id: hubFile
+        path: source.validId ? Quickshell.shellDir + "/barstudio/cards/" + source.styleId + ".json" : ""
         blockLoading: true
         watchChanges: true
         printErrors: false

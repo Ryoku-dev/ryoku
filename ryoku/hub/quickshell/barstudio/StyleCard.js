@@ -5,8 +5,10 @@
 //
 // The file is data from whoever made the style. A Store style may only reach
 // its own IPC target and the Hub's pages; a style that ships with Ryoku may
-// also call any shell IPC target and the ryoku-shell CLI. Anything outside
-// these forms rejects the whole file, so a card is never drawn half-understood.
+// also call any shell IPC target and the ryoku-shell CLI, and place one of the
+// Hub's own editors (Sumi's frame, Obi's widgets, ...) by name. Anything
+// outside these forms rejects the whole file, so a card is never drawn
+// half-understood.
 
 const SCHEMA = 1;
 const MAX_CARDS = 3;
@@ -114,7 +116,15 @@ function block(raw, where, ctx) {
             fail(where + ".buttons is not a list of 1 to " + MAX_BUTTONS + " buttons");
         return { kind: "buttons", buttons: list.map((b, i) => button(b, where + ".buttons[" + i + "]", ctx)) };
     }
-    fail(where + " is neither a text nor a buttons block");
+    if (raw.editor !== undefined) {
+        onlyKeys(raw, ["editor"], where);
+        if (!ctx.shipped)
+            fail(where + ".editor is only for styles that ship with Ryoku");
+        if (typeof raw.editor !== "string" || ctx.editors.indexOf(raw.editor) < 0)
+            fail(where + ".editor is not one of the Hub's editors");
+        return { kind: "editor", editor: raw.editor };
+    }
+    fail(where + " is neither a text, a buttons nor an editor block");
 }
 
 function card(raw, where, ctx) {
@@ -131,10 +141,15 @@ function card(raw, where, ctx) {
     };
 }
 
-// parse(text, { id, shipped }) -> { cards, error }. `cards` is empty when the
-// file is malformed, and `error` then says where; an empty text is no file.
+// parse(text, { id, shipped, editors }) -> { cards, error }. `editors` names
+// the editors the page can place. `cards` is empty when the file is malformed,
+// and `error` then says where; an empty text is no file.
 function parse(text, ctx) {
-    const context = { id: String(ctx && ctx.id || ""), shipped: !!(ctx && ctx.shipped) };
+    const context = {
+        id: String(ctx && ctx.id || ""),
+        shipped: !!(ctx && ctx.shipped),
+        editors: Array.isArray(ctx && ctx.editors) ? ctx.editors : []
+    };
     if (typeof text !== "string" || text.trim() === "")
         return { cards: [], error: "" };
     try {
