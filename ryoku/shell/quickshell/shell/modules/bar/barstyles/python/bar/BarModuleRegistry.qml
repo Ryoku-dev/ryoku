@@ -141,6 +141,12 @@ QtObject {
             defaultVariant: "default",
             face: "faces/sysmon/SysMonFace.qml"
         },
+        "agents": {
+            name: typeof I18n !== "undefined" ? I18n.t("guide.bar.modules.agents", "Agent usage") : "Agent usage",
+            icon: "󰚩",
+            defaultVariant: "default",
+            face: "faces/agents/AgentsFace.qml"
+        },
         "kb": {
             name: typeof I18n !== "undefined" ? I18n.t("guide.bar.modules.keyboard", "Keyboard") : "Keyboard",
             icon: "󰌌",

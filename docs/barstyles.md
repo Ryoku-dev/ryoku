@@ -894,6 +894,18 @@ converters, launcher web search, notes, app-limit views, widget undo and redo,
 shared media watchers and the 2.3.1 media, lyrics and blue-light fixes.
 Existing `python.*` settings remain valid.
 
+Ryoku adds an **Agent usage** module (`agents`) that Serpantinum does not have.
+It reads `AiUsage`, the same caches the QS Bar's AI widget uses, and shows each
+agent with data as its mark and the percentages of its general limit windows,
+coloured by how close the limit is and dimmed when stale. A click opens the
+`agents` popup (`agents/AgentsPopup.qml`): per agent, a bar for every window of
+every bucket with its reset countdown and clock time, a pace marker and line
+when `AiUsage.pace` has one, today's tokens and rate, the per-model totals a
+collector reports, and a Monday-first chart of the current week. A middle click
+refreshes. Shared formatting lives in the `AgentsFormat` singleton, strings
+under `agents` in the language catalogs, and the module hides itself when no
+agent has data. It is not in the default layout.
+
 The media module carries Serpantinum's later **Hide when nothing is playing**
 option (`python.bar.mediaHideWhenIdle`, upstream `b4e470a`). Ryoku adds two
 more under the same guide cards: **Fit to the track** (`mediaFitWidth`) sizes

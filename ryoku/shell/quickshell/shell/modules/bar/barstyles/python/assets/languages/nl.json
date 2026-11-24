@@ -347,6 +347,7 @@
         "battery": "Batterij",
         "focus": "Focus",
         "sysmon": "Systeemmonitor",
+        "agents": "Agentgebruik",
         "timedate": {
           "name": "Tijd & datum",
           "style": {
@@ -1804,5 +1805,28 @@
   },
   "datetime": {
     "full_date": "dddd, d MMMM"
+  },
+  "agents": {
+    "title": "Agentgebruik",
+    "subtitle": "Wordt om de paar minuten bijgewerkt",
+    "refreshing": "Vernieuwen…",
+    "empty": "Nog geen agentgebruik. Ryoku leest de caches die de verzamelaars van Claude, Codex en OpenCode schrijven.",
+    "window5h": "5 uur",
+    "window7d": "Wekelijks",
+    "windowDays": "{n} dagen",
+    "windowHours": "{n} uur",
+    "resets": "Reset over {in} · {at}",
+    "ahead": "{n}% boven het tempo",
+    "under": "{n}% onder het tempo",
+    "onPace": "Op tempo",
+    "runsOut": "op rond {at}",
+    "today": "Vandaag  {n} tokens",
+    "rate": "{n} tokens/u",
+    "blocked": "Limiet bereikt",
+    "stale": "Laatst bekend",
+    "models": "Modellen",
+    "modelToday": "vandaag {n}",
+    "thisWeek": "Deze week",
+    "weekTotal": "{n} tokens"
   }
 }

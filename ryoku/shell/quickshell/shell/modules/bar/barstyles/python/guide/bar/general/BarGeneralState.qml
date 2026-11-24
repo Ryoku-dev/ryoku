@@ -226,6 +226,7 @@ GuideTab {
             "vis": ThemeBackend.mauve,
             "tray": ThemeBackend.yellow,
             "sysmon": ThemeBackend.mauve,
+            "agents": ThemeBackend.peach,
             "kb": ThemeBackend.text,
             "wifi": ThemeBackend.blue,
             "bt": ThemeBackend.mauve,

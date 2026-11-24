@@ -89,6 +89,15 @@ function getLayout(name, mx, my, mw, mh, userScale, barPosition) {
                 "right": { anchor: "bottom-right", mr: 52, mb: 5 }
             }
         },
+        "agents": {
+            w: 440, h: 720, comp: "agents/AgentsPopup.qml",
+            pos: {
+                "top": { anchor: "top-right", mt: 52, mr: 4 },
+                "bottom": { anchor: "bottom-right", mb: 52, mr: 4 },
+                "left": { anchor: "top-left", mt: 5, ml: 52 },
+                "right": { anchor: "top-right", mt: 5, mr: 52 }
+            }
+        },
         "guide": {
             w: 1200, h: 750, comp: "guide/GuidePopup.qml", draggable: true,
             pos: {

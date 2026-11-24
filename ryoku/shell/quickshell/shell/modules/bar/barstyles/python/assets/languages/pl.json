@@ -1175,6 +1175,7 @@
         "battery": "Bateria",
         "focus": "Aktywne okno",
         "sysmon": "Monitor systemu",
+        "agents": "Użycie agentów",
         "timedate": {
           "name": "Data i godzina",
           "style": {
@@ -1804,5 +1805,28 @@
         "loading": "Ładowanie języków..."
       }
     }
+  },
+  "agents": {
+    "title": "Użycie agentów",
+    "subtitle": "Aktualizacja co kilka minut",
+    "refreshing": "Odświeżanie…",
+    "empty": "Brak danych o użyciu agentów. Ryoku czyta pamięć podręczną zapisywaną przez kolektory Claude, Codex i OpenCode.",
+    "window5h": "5-godzinny",
+    "window7d": "Tygodniowy",
+    "windowDays": "{n}-dniowy",
+    "windowHours": "{n}-godzinny",
+    "resets": "Reset za {in} · {at}",
+    "ahead": "{n}% ponad tempo",
+    "under": "{n}% poniżej tempa",
+    "onPace": "Zgodnie z tempem",
+    "runsOut": "skończy się ok. {at}",
+    "today": "Dziś  {n} tokenów",
+    "rate": "{n} tokenów/h",
+    "blocked": "Limit osiągnięty",
+    "stale": "Ostatnie znane",
+    "models": "Modele",
+    "modelToday": "dziś {n}",
+    "thisWeek": "Ten tydzień",
+    "weekTotal": "{n} tokenów"
   }
 }

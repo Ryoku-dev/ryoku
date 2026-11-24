@@ -1,0 +1,7 @@
+singleton AgentsFormat 1.0 AgentsFormat.qml
+AgentsPopup 1.0 AgentsPopup.qml
+AgentCard 1.0 AgentCard.qml
+AgentMark 1.0 AgentMark.qml
+UsageWindow 1.0 UsageWindow.qml
+ModelList 1.0 ModelList.qml
+WeekChart 1.0 WeekChart.qml
