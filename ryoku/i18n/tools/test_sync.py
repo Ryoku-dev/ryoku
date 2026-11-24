@@ -67,6 +67,9 @@ class StudioCardExtractionTest(unittest.TestCase):
     def test_a_broken_card_has_no_copy(self):
         self.assertEqual(sync.studio_card_copy("{"), [])
         self.assertEqual(sync.studio_card_copy("[1]"), [])
+        self.assertEqual(sync.studio_card_copy('{"cards": null}'), [])
+        self.assertEqual(sync.studio_card_copy('{"cards": [{"title": "X", "blocks": null}]}'), ["X"])
+        self.assertEqual(sync.studio_card_copy('{"cards": [{"blocks": [{"buttons": "x"}, 3]}]}'), [])
 
 
 class LLMUnavailableTest(unittest.TestCase):

@@ -200,18 +200,16 @@ def studio_card_copy(text):
         doc = json.loads(text)
     except ValueError:
         return []
+    def dicts(obj, key):
+        items = obj.get(key) if isinstance(obj, dict) else None
+        return [x for x in items if isinstance(x, dict)] if isinstance(items, list) else []
+
     out = []
-    for card in doc.get("cards", []) if isinstance(doc, dict) else []:
-        if not isinstance(card, dict):
-            continue
+    for card in dicts(doc, "cards"):
         out.append(card.get("title"))
-        for block in card.get("blocks", []):
-            if not isinstance(block, dict):
-                continue
+        for block in dicts(card, "blocks"):
             out.append(block.get("text"))
-            for button in block.get("buttons", []) or []:
-                if isinstance(button, dict):
-                    out.append(button.get("label"))
+            out += [button.get("label") for button in dicts(block, "buttons")]
     return [s.strip() for s in out if isinstance(s, str) and s.strip()]
 
 
