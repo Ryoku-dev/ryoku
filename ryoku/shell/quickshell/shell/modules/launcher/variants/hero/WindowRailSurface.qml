@@ -23,8 +23,7 @@ PanelWindow {
 
     readonly property string surfaceMonitor: modelData
         ? String(modelData.name || "") : ""
-    readonly property real s: Screens.monitorScale(modelData,
-            Wm.outputScale(win.surfaceMonitor), 1.2)
+    readonly property real s: Screens.monitorScale(modelData, 1.2)
         * Math.max(0.8, Math.min(1.4, Config.fontScale))
     readonly property bool sameMonitor: launcherSurface
         && String(launcherSurface.surfaceMonitor || "") === surfaceMonitor

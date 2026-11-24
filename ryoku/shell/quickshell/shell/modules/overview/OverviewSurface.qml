@@ -47,7 +47,7 @@ Scope {
 
     PanelWindow {
         id: win
-        readonly property real s: Screens.monitorScale(root.screen, Wm.outputScale(root.screen ? root.screen.name : ""), 1.25) * Math.max(0.8, Math.min(1.4, Config.fontScale)) * Tokens.uiScaleFor(root.screen ? root.screen.name : "")
+        readonly property real s: Screens.monitorScale(root.screen, 1.25) * Math.max(0.8, Math.min(1.4, Config.fontScale)) * Tokens.uiScaleFor(root.screen ? root.screen.name : "")
         readonly property bool isFocused: !root.focusedMon || root.focusedMon === (root.screen ? root.screen.name : "")
         readonly property bool shown: root.active && root.available
 
