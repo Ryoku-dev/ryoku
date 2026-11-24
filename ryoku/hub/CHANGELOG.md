@@ -4,10 +4,10 @@
 
 ### Added
 - **Desktop > Notifications steps the volume and brightness keys.** Two
-  steppers, Volume step and Brightness step (1 to 25 percent, 5 shipped),
-  written as `audio.step` and `display.brightnessStep`, so the keys that raise
-  the pop-ups move by the amount chosen here (`schema/DesktopPage.js`,
-  `Hub.qml` in the shipped defaults).
+  steppers, Volume step (1 to 20 percent) and Brightness step (1 to 25 percent),
+  5 shipped, written as `audio.volumeStep` and `display.brightnessStep`, so the
+  keys that raise the pop-ups move by the amount chosen here
+  (`schema/DesktopPage.js`, `Hub.qml` in the shipped defaults).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed

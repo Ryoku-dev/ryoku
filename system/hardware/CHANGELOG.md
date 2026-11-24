@@ -4,10 +4,11 @@
 
 ### Changed
 - `audio/ryoku-volume`: **the volume keys step by a setting.** The grid comes
-  from `audio.step` in shell.json (1 to 25 percent, 5 shipped), so Ryoku
-  Settings and the keys agree and one number replaces the five-point literal.
-  The old 65 to 67 detour before 70 is gone: every press lands on the grid, and
-  `qsbar.audioBoost` still caps the range at 150%.
+  from `audio.volumeStep` in shell.json (1 to 20 percent, 5 shipped, the same
+  key and range as #927), so Ryoku Settings and the keys agree and one number
+  replaces the five-point literal. The old 65 to 67 detour before 70 is gone:
+  every press lands on the grid, and `qsbar.audioBoost` still caps the range at
+  150%.
 
 ### Added
 - `bluetooth/ryoku-bt-agent`: **the pairing agent no longer floods the journal

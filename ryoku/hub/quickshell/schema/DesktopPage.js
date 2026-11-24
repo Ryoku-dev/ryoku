@@ -19,13 +19,13 @@ var rows = [{
     },{
         "tab": "Notifications",
         "group": "VOLUME AND BRIGHTNESS",
-        "key": "audio.step",
+        "key": "audio.volumeStep",
         "label": "Volume step",
         "desc": "How far each press of the volume keys moves the volume",
         "ctl": "step",
         "src": "shell",
         "lo": 1,
-        "hi": 25,
+        "hi": 20,
         "unit": "%"
     },{
         "tab": "Notifications",

@@ -15,8 +15,8 @@ import (
 // per-edge bar toggle and the toggle/reveal/hide-all trio, audio
 // volume-up/down/mute, brightness up/down, lock check, settings open/close).
 // The volume and brightness steps are Ryoku Settings choices in shell.json
-// (audio.step and display.brightnessStep). The media-key helpers own both the
-// grid and the reading, so the bar's wheel shells out to the same helper the key
+// (audio.volumeStep and display.brightnessStep). The media-key helpers own both
+// the grid and the reading, so the bar's wheel shells out to the same helper the key
 // runs instead of stepping the sink on its own: one press, one amount.
 
 // barEdges are the four frame edges plus "all". The reference offered per-edge
@@ -40,7 +40,7 @@ func parseBarEdge(args []string) (edge, action string, ok bool) {
 
 // audioCmd maps an audio subcommand to the invocation that carries it out. The
 // volume keys and the bar's wheel have to land on the same level, so up/down go
-// through ryoku-volume, which owns the grid, the audio.step setting and the
+// through ryoku-volume, which owns the grid, the audio.volumeStep setting and the
 // boost cap; mute toggles the sink itself.
 func audioCmd(sub string) (string, []string, bool) {
 	switch sub {

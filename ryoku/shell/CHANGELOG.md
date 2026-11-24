@@ -2,13 +2,13 @@
 
 ## Unreleased
 - **The volume and brightness keys step by a setting, not a literal.** The
-  `audio` and `brightness` IPC verbs read `audio.step` and
-  `display.brightnessStep` from shell.json (1 to 25 percent, 5 shipped). The
-  `audio` up/down verbs now run `ryoku-volume`, the same helper the media keys
-  run, so the bar's wheel lands where the key lands instead of stepping the sink
-  itself, and it can reach the `qsbar.audioBoost` cap. `ryoku-cmd-brightness`
-  takes `up`/`down` beside its `+N` form (`ipc/control.go`,
-  `scripts/ryoku-cmd-brightness`).
+  `audio` and `brightness` IPC verbs read `audio.volumeStep` and
+  `display.brightnessStep` from shell.json (volume 1 to 20 percent, the same key
+  and range as #927; brightness 1 to 25 percent; 5 shipped). The `audio` up/down
+  verbs now run `ryoku-volume`, the same helper the media keys run, so the bar's
+  wheel lands where the key lands instead of stepping the sink itself, and it
+  can reach the `qsbar.audioBoost` cap. `ryoku-cmd-brightness` takes `up`/`down`
+  beside its `+N` form (`ipc/control.go`, `scripts/ryoku-cmd-brightness`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.
