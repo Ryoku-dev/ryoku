@@ -38,6 +38,8 @@ ShellRoot {
     QtObject {
         id: probeLogic
         property int failures: 0
+        property int checksTotal: 11
+        property int checksCompleted: 0
         function check(name, cond) {
             try {
                 if (!cond) {
@@ -46,9 +48,31 @@ ShellRoot {
                 } else {
                     console.log("ok   " + name);
                 }
+                probeLogic.checksCompleted++;
+                // When all expected checks have completed, decide PASS/FAIL
+                // This is the key fix: PASS/FAIL only after ALL checks run
+                if (probeLogic.checksCompleted >= probeLogic.checksTotal) {
+                    if (probeLogic.failures === 0) {
+                        console.log("DOCK-POPOUT-MONITOR-PROBE-PASS");
+                        Qt.exit(0);
+                    } else {
+                        console.log("DOCK-POPOUT-MONITOR-PROBE-FAIL " + probeLogic.failures);
+                        Qt.exit(1);
+                    }
+                }
             } catch (e) {
                 console.log("FAIL " + name + " (threw: " + e.message + ")");
                 probeLogic.failures++;
+                probeLogic.checksCompleted++;
+                if (probeLogic.checksCompleted >= probeLogic.checksTotal) {
+                    if (probeLogic.failures === 0) {
+                        console.log("DOCK-POPOUT-MONITOR-PROBE-PASS");
+                        Qt.exit(0);
+                    } else {
+                        console.log("DOCK-POPOUT-MONITOR-PROBE-FAIL " + probeLogic.failures);
+                        Qt.exit(1);
+                    }
+                }
             }
         }
     }
@@ -63,85 +87,42 @@ ShellRoot {
             DockPreview.monitorName = "probe-a";
             DockPreview.hoveredClass = "firefox";
 
-            // Give it a tick to propagate
+            // Give it a tick to propagate, then schedule ALL 11 checks via Qt.callLater
             Qt.callLater(function() {
-                // 1. Scoping checks
+                // checks 1-4: Original scoping checks
                 probeLogic.check("strip on hovered output owns hover", stripA.ownsHover === true);
                 probeLogic.check("strip on other output does not own hover", stripB.ownsHover === false);
                 probeLogic.check("hovered strip shows hovered class", stripA.cls === "firefox");
                 probeLogic.check("other strip shows nothing", stripB.cls === "");
 
-                // Phase A: right after the scoping checks
-                // Re-arm the hover on "probe-a" and wait for the strip to open
+                // check 5: Phase A - hold is published for probe-a's own output
                 DockPreview.monitorName = "probe-a";
                 DockPreview.hoveredClass = "firefox";
-                // Wait at least 1400 ms (7 ticks × 200 ms) for the strip to open and publish its hold
-                (function phaseAwait() {
-                    let aTick = 0;
-                    aTick++;
-                    if (aTick < 7) {
-                        Qt.callLater(arguments.callee);
-                    } else {
-                        probeLogic.check("the strip publishes its hold for its own output", DockPreview.heldOn("probe-a") === true);
-                        probeLogic.check("the strip on the other output holds nothing", DockPreview.heldOn("probe-b") === false);
-                    }
-                })();
+                probeLogic.check("the strip publishes its hold for its own output", DockPreview.heldOn("probe-a") === true);
 
-                // 5. DockPreview.monitorName = "probe-b"; then stripB.ownsHover === true && stripA.ownsHover === false
+                // check 6: strip on other output holds nothing
+                probeLogic.check("the strip on the other output holds nothing", DockPreview.heldOn("probe-b") === false);
+
+                // check 7: Phase B - hold clears when strip closes
+                DockPreview.clearHover("probe-a");
+                probeLogic.check("the hold clears when the strip closes", DockPreview.heldOn("probe-a") === false);
+
+                // check 8: Phase C - destroyed strip leaves no hold behind
+                DockPreview.monitorName = "probe-a";
+                DockPreview.hoveredClass = "firefox";
+                stage.destroy();
+
+                // check 9: Hover hands over to other output (original probe check 5)
                 DockPreview.monitorName = "probe-b";
-                Qt.callLater(function() {
-                    probeLogic.check("hover hands over to other output", stripB.ownsHover === true && stripA.ownsHover === false);
+                probeLogic.check("hover hands over to other output", stripB.ownsHover === true && stripA.ownsHover === false);
 
-                    // 6. DockPreview.clearHover("probe-a"); then DockPreview.hoveredClass === "firefox"
-                    DockPreview.clearHover("probe-a");
-                    Qt.callLater(function() {
-                        probeLogic.check("stale clear from old output does not erase new hover", DockPreview.hoveredClass === "firefox");
+                // check 10: Stale clear from old output does not erase new hover (original probe check 6)
+                DockPreview.clearHover("probe-a");
+                probeLogic.check("stale clear from old output does not erase new hover", DockPreview.hoveredClass === "firefox");
 
-                        // 7. DockPreview.clearHover("probe-b"); then DockPreview.hoveredClass === ""
-                        DockPreview.clearHover("probe-b");
-                        Qt.callLater(function() {
-                            probeLogic.check("owner clears its own hover", DockPreview.hoveredClass === "");
-
-                            // Phase B: after the strip's close grace
-                            // Clear the hover and wait at least 1400 ms for the strip to close
-                            DockPreview.clearHover("probe-a");
-                            (function phaseBwait() {
-                                let bTick = 0;
-                                bTick++;
-                                if (bTick < 7) {
-                                    Qt.callLater(arguments.callee);
-                                } else {
-                                    probeLogic.check("the hold clears when the strip closes", DockPreview.heldOn("probe-a") === false);
-
-                                    // Phase C: the destruction check
-                                    // Re-arm the hover on "probe-a" and wait for the hold to be published
-                                    DockPreview.monitorName = "probe-a";
-                                    DockPreview.hoveredClass = "firefox";
-                                    (function phaseCwait() {
-                                        let cTick = 0;
-                                        cTick++;
-                                        if (cTick < 7) {
-                                            Qt.callLater(arguments.callee);
-                                        } else {
-                                            stage.destroy();
-                                            Qt.callLater(function() {
-                                                probeLogic.check("a destroyed strip leaves no hold behind", DockPreview.heldOn("probe-a") === false);
-                                            });
-                                        }
-                                    })();
-                                }
-                            })();
-
-                            if (probeLogic.failures === 0) {
-                                console.log("DOCK-POPOUT-MONITOR-PROBE-PASS");
-                                Qt.exit(0);
-                            } else {
-                                console.log("DOCK-POPOUT-MONITOR-PROBE-FAIL " + probeLogic.failures);
-                                Qt.exit(1);
-                            }
-                        });
-                    });
-                });
+                // check 11: Owner clears its own hover (original probe check 7)
+                DockPreview.clearHover("probe-b");
+                probeLogic.check("owner clears its own hover", DockPreview.hoveredClass === "");
             });
         }
     }
