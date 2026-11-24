@@ -44,7 +44,8 @@ SettingCard {
                             color: Tokens.inkMuted
                             font.family: Tokens.ui
                             font.pixelSize: Tokens.fBody
-                            wrapMode: Text.WordWrap
+                            // a word wider than the card (a long URL) breaks too
+                            wrapMode: Text.Wrap
                         }
                     }
                     Component {
