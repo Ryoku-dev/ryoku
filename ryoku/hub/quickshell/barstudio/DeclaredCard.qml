@@ -24,6 +24,16 @@ SettingCard {
 
     // an editor may name its card itself, when the title follows its state
     // (Sumi's widgets card names the rail it edits).
+    // A declared card is made when its style is picked, where a hand-built
+    // card already stood at its full height: it opens at that height, and
+    // its folds animate as any card's do once it has.
+    animateHeight: false
+    Timer {
+        interval: Tokens.swap
+        running: true
+        onTriggered: card.animateHeight = true
+    }
+
     title: wholeEditor.item && wholeEditor.item.cardTitle ? wholeEditor.item.cardTitle
         : card.spec ? I18n.tr(card.spec.title) : ""
     kana: card.spec ? card.spec.glyph : ""
