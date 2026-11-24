@@ -43,14 +43,16 @@ Item {
     readonly property string storeView: StyleCard.storeView(
         storeIndexFile.loaded ? storeIndexFile.text() : "", source.styleId)
 
-    // null for no file, so an empty list still means "read, and nothing usable".
+    // null for no file, an empty one or one that was refused, so the lookup
+    // goes on to the next place as if the file were not there.
     function declaredIn(file, shipped) {
         if (file.path === "")
             return null;
         const text = file.text();
         if (!file.loaded)
             return null;
-        return source.read(file.path, text, shipped);
+        const cards = source.read(file.path, text, shipped);
+        return cards.length > 0 ? cards : null;
     }
 
     // a file is read again on every change; say each problem once.

@@ -58,6 +58,8 @@ SettingCard {
                                     required property var modelData
                                     required property int index
                                     objectName: "studio-card-button-" + slot.index + "-" + index
+                                    // a label wider than the card elides
+                                    width: Math.min(implicitWidth, slot.width)
                                     text: I18n.tr(modelData.label)
                                     onAct: card.act(modelData)
                                 }

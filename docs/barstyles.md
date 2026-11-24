@@ -806,7 +806,8 @@ other file.
   so the controls that draw them never read it as markup.
 - `blocks`: one to eight, top to bottom. A `text` block is a paragraph shown as
   plain text, never markup. A `buttons` block is a row of one to four buttons
-  that wraps when they do not fit the card.
+  that wraps when they do not fit the card; a label wider than the card ends
+  in an ellipsis.
 - A button has a `label` and exactly one action:
   - `"ipc": "<target>", "call": "<function>"`, with optional `"args"` (up to
     eight strings), runs `qs -c shell ipc call <target> <function> <args...>`.
@@ -851,10 +852,10 @@ Where Bar Studio looks (`hub/quickshell/barstudio/StyleCardSource.qml`):
    **LAYOUT** note for a style Bar Studio does not know.
 
 A style that declares cards replaces every hand-built card for it, its editors
-included. A missing file is the same as no file. A malformed one, an unknown
-field, a value over its limit or an action outside the forms above, is ignored
-whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's log, and
-the hand-built card shows as if the file were not there. The parser is
+included. A missing or empty file is the same as no file. A malformed one, an
+unknown field, a value over its limit or an action outside the forms above, is
+ignored whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's
+log, and the next place in the order is read as if the file were not there. The parser is
 `hub/quickshell/barstudio/StyleCard.js`, with its tests beside it.
 
 ## What a style may own
