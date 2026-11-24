@@ -807,7 +807,8 @@ other file.
 - `blocks`: one to eight, top to bottom. A `text` block is a paragraph shown as
   plain text, never markup. A `buttons` block is a row of one to four buttons
   that wraps when they do not fit the card; a label wider than the card ends
-  in an ellipsis.
+  in an ellipsis. An `editor` block places one of the Hub's own editors by
+  name; only a style that ships with Ryoku may use one (see below).
 - A button has a `label` and exactly one action:
   - `"ipc": "<target>", "call": "<function>"`, with optional `"args"` (up to
     eight strings), runs `qs -c shell ipc call <target> <function> <args...>`.
@@ -821,7 +822,8 @@ other file.
 - Strings go through `I18n.tr`, so a shipped style whose strings are in the
   catalogue is translated; any other string shows as written.
 
-The two hand-built cards, Orpheus and Nomarchy, written in this form:
+Orpheus and Nomarchy declare theirs like this, in the `studio-card.json`
+beside their `Scene.qml`:
 
 ```json
 { "schema": 1, "cards": [ { "title": "ORPHEUS", "glyph": "響", "blocks": [
@@ -840,6 +842,28 @@ The two hand-built cards, Orpheus and Nomarchy, written in this form:
 ] } ] }
 ```
 
+A setting that is more than a button stays a Hub editor, written in
+`BarStudioPage.qml` beside the state it edits, and a shipped declaration places
+it with `{ "editor": "<name>" }`. Between a card's text and buttons it sits
+inside the card's margins; as a card's only block it fills the card, the way
+setting rows run edge to edge. An editor may name its card itself: Sumi's
+widgets card names the rail it edits.
+
+| Editor | What it is | Placed by |
+|---|---|---|
+| `qsbar-layout` | QS Bar's lane order, read-only | `qsbar` |
+| `shima-look` | Shima's RYOKU / ORIGINAL look | `iris` |
+| `sumi-frame`, `sumi-rails`, `sumi-widgets` | Sumi's frame, rails and rail widgets | `sumi` |
+| `obi-widgets` | Obi's widget switches | Hub's `obi.json` |
+| `nacre-layout` | Nacre's layout editor | Hub's `nacre.json` |
+| `layout-note` | "The X style manages its own layout" | Hub's `obi.json`, `nacre.json` |
+
+Obi and Nacre are Store styles whose editors live in the Hub, so the Hub
+carries their declarations in `hub/quickshell/barstudio/cards/<id>.json`. A new
+editor is a `Component` in `BarStudioPage.qml` and one row in its
+`studioEditors` map; `barstudio/StudioCards.test.mjs` checks that every shipped
+declaration parses against that map and that every editor in it is placed.
+
 Where Bar Studio looks (`hub/quickshell/barstudio/StyleCardSource.qml`):
 
 1. The shell's own tree, `modules/bar/barstyles/<id>/studio-card.json`: the dev
@@ -848,15 +872,20 @@ Where Bar Studio looks (`hub/quickshell/barstudio/StyleCardSource.qml`):
    Store refuses to install a built-in's id, so nothing can shadow it.
 2. The style's verified Store view, the one `~/.local/state/ryoku/store/barstyles.json`
    names and the shell loads: `barstyle-views/<id>/<sha256>/studio-card.json`.
-3. Neither: the hand-built card for that id in `BarStudioPage.qml`, or the
-   **LAYOUT** note for a style Bar Studio does not know.
+3. The Hub's own declarations, `hub/quickshell/barstudio/cards/<id>.json`.
+4. None of these: the **LAYOUT** note.
 
-A style that declares cards replaces every hand-built card for it, its editors
-included. A missing or empty file is the same as no file. A malformed one, an
-unknown field, a value over its limit or an action outside the forms above, is
-ignored whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's
-log, and the next place in the order is read as if the file were not there. The parser is
-`hub/quickshell/barstudio/StyleCard.js`, with its tests beside it.
+A missing or empty file is the same as no file. A malformed one, an unknown
+field, a value over its limit or an action outside the forms above, is ignored
+whole with one `bar studio: ignoring <path>: <reason>` line in the Hub's log,
+and the next place in the order is read as if the file were not there. The
+parser is `hub/quickshell/barstudio/StyleCard.js`, with its tests beside it. The
+files are read as the page is built, because Bar Studio balances its columns
+once over the cards present at its first layout.
+
+The card text, titles and button labels of the shipped declarations are in the
+translation catalogue: `ryoku/i18n/tools/sync.py extract` reads every
+`studio-card.json` and the Hub's `cards/*.json`.
 
 ## What a style may own
 

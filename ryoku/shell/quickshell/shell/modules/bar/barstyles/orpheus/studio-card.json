@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "ORPHEUS",
+      "glyph": "響",
+      "blocks": [
+        { "text": "Orpheus arranges its layout, modules, form and sound in its own settings. Left-click the bar logo to open them, or use the button below." },
+        { "buttons": [ { "label": "OPEN ORPHEUS SETTINGS", "ipc": "orpheus", "call": "settings", "args": [""] } ] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "PYTHON",
+      "glyph": "蛇",
+      "blocks": [
+        { "text": "Python keeps its bar, widgets and look in its own settings guide. Dock settings stay in Stage Editor; Ryoku's launcher, wallpaper picker and clipboard stay on their usual keys." },
+        { "buttons": [ { "label": "OPEN PYTHON SETTINGS", "ipc": "main", "call": "handleCommand", "args": ["toggle", "guide", ""] } ] }
+      ]
+    }
+  ]
+}

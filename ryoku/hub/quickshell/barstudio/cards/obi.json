@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "cards": [
+    { "title": "LAYOUT", "blocks": [ { "editor": "layout-note" } ] },
+    { "title": "OBI WIDGETS", "blocks": [ { "editor": "obi-widgets" } ] }
+  ]
+}

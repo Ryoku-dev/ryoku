@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The built-in bar styles carry their Bar Studio card.** QS Bar, Orpheus,
+  Shima, Python, Nomarchy and Sumi ship a `studio-card.json` beside their
+  `Scene.qml`, which the Hub reads to draw their card in Bar Studio
+  (`modules/bar/barstyles/<id>/studio-card.json`, `docs/barstyles.md`).
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

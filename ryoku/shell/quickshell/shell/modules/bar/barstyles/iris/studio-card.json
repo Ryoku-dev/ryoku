@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "SHIMA",
+      "glyph": "島",
+      "blocks": [
+        { "text": "Shima arranges its island, bubbles and look in its settings overlay. Dock settings stay in Stage Editor." },
+        { "editor": "shima-look" },
+        { "buttons": [ { "label": "OPEN SHIMA SETTINGS", "ipc": "iris", "call": "settings", "args": [""] } ] }
+      ]
+    }
+  ]
+}

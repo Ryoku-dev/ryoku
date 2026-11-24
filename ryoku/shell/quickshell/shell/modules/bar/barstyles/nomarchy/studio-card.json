@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "NOMARCHY",
+      "glyph": "野",
+      "blocks": [
+        { "text": "Nomarchy keeps Omarchy's configurable bar, panels and plugin menus while routing desktop actions through Ryoku." },
+        { "buttons": [
+          { "label": "CHOOSE THEME", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.image-picker", "{\"source\":\"themes\"}"] },
+          { "label": "OPEN PLUGINS", "ipc": "nomarchy", "call": "summon", "args": ["omarchy.menu", "{\"menu\":\"setup.plugins\"}"] }
+        ] }
+      ]
+    }
+  ]
+}

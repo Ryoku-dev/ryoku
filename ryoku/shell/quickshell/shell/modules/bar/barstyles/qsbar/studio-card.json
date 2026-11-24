@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "cards": [
+    {
+      "title": "QS BAR",
+      "glyph": "帯",
+      "blocks": [
+        { "text": "The QS Bar arranges its own layout, widgets and form in QS Bar Settings. The bar logo opens it, or the button below." },
+        { "editor": "qsbar-layout" },
+        { "buttons": [ { "label": "OPEN QS BAR SETTINGS", "ryokuShell": ["bar", "settings"] } ] }
+      ]
+    }
+  ]
+}

@@ -9,6 +9,12 @@
   Store styles both work; a style without the file keeps its hand-built card
   (`barstudio/StyleCard.js`, `barstudio/StyleCardSource.qml`,
   `barstudio/DeclaredCard.qml`, `docs/barstyles.md`).
+- **The built-in styles' Bar Studio cards are declaration files.** QS Bar,
+  Orpheus, Shima, Python, Nomarchy and Sumi carry a `studio-card.json` beside
+  their `Scene.qml`, and the Hub carries Obi's and Nacre's in
+  `barstudio/cards/`. Their settings editors stay in `pages/BarStudioPage.qml`
+  and are placed by name; the cards look and act as before, and the LAYOUT
+  note is the only card left for a style without a file.
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed

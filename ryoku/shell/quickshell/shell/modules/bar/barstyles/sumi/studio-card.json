@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "cards": [
+    { "title": "FRAME", "blocks": [ { "editor": "sumi-frame" } ] },
+    { "title": "RAILS", "blocks": [ { "editor": "sumi-rails" } ] },
+    { "title": "WIDGETS", "blocks": [ { "editor": "sumi-widgets" } ] }
+  ]
+}
