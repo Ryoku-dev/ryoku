@@ -133,7 +133,12 @@ Singleton {
         if (mode !== "depth" && mode !== "parallax")
             return [];
         const section = adapter[mode] || {};
-        return Array.isArray(section.front) ? section.front : [];
+        const front = section.front;
+        if (Array.isArray(front))
+            return front;
+        // JsonAdapter can expose a saved array as an iterable Qt sequence.
+        return front && typeof front === "object" && typeof front[Symbol.iterator] === "function"
+            ? Array.from(front) : [];
     }
     function isFront(mode, id) {
         return root.frontList(mode).indexOf(id) >= 0;

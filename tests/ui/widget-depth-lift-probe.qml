@@ -96,8 +96,10 @@ ShellRoot {
         Stage.Config.setFront("depth", "clock", true);
         check("lift is idempotent",
             Stage.Config.frontList("depth").length === 1);
+        Stage.Config.setFront("parallax", "calendar", true);
         check("parallax list stays separate",
-            Stage.Config.isFront("parallax", "clock") === false);
+            Stage.Config.isFront("parallax", "clock") === false
+            && Stage.Config.isFront("depth", "calendar") === false);
 
         // The widget menu builds its Depth row only while the wall cuts; the
         // row toggles its own scope and the card stays open.
@@ -150,6 +152,24 @@ ShellRoot {
         console.log(failures === 0 ? "PROBE-CHECKS-PASS" : "PROBE-CHECKS-FAIL " + failures);
         finish.restart();
     }
+
+    function checkSavedFront() {
+        check("Depth lifts are restored after restart",
+            Stage.Config.isFront("depth", "clock")
+            && Stage.Config.isFront("depth", "probe.tile")
+            && !Stage.Config.isFront("depth", "visualizer"));
+        check("Parallax keeps its own list after restart",
+            Stage.Config.isFront("parallax", "calendar")
+            && !Stage.Config.isFront("parallax", "clock")
+            && !Stage.Config.isFront("depth", "calendar"));
+
+        Stage.Config.setFront("depth", "clock", false);
+        check("unlifting a restored widget keeps the other lifts",
+            !Stage.Config.isFront("depth", "clock")
+            && Stage.Config.isFront("depth", "probe.tile")
+            && Stage.Config.isFront("parallax", "calendar"));
+        finish.restart();
+    }
     Timer {
         id: finish
         interval: 800
@@ -167,6 +187,11 @@ ShellRoot {
     Timer {
         interval: 500
         running: true
-        onTriggered: root.run()
+        onTriggered: {
+            if (Quickshell.env("RYOKU_PROBE_RESTART") === "1")
+                root.checkSavedFront();
+            else
+                root.run();
+        }
     }
 }
