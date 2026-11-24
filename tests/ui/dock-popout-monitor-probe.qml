@@ -38,7 +38,7 @@ ShellRoot {
     QtObject {
         id: probeLogic
         property int failures: 0
-        property int checksTotal: 11
+        property int checksTotal: 12
         property int checksCompleted: 0
         function check(name, cond) {
             try {
@@ -50,7 +50,6 @@ ShellRoot {
                 }
                 probeLogic.checksCompleted++;
                 // When all expected checks have completed, decide PASS/FAIL
-                // This is the key fix: PASS/FAIL only after ALL checks run
                 if (probeLogic.checksCompleted >= probeLogic.checksTotal) {
                     if (probeLogic.failures === 0) {
                         console.log("DOCK-POPOUT-MONITOR-PROBE-PASS");
@@ -77,52 +76,89 @@ ShellRoot {
         }
     }
 
+    // Wait helper - at ShellRoot level, not inside stage
     Timer {
+        id: waitTimer
+        property var then: null
+        interval: 0
+        repeat: false
+        onTriggered: {
+            const next = waitTimer.then;
+            waitTimer.then = null;
+            if (next) next();
+        }
+    }
+    function wait(ms, then) {
+        waitTimer.interval = ms;
+        waitTimer.then = then;
+        waitTimer.restart();
+    }
+
+    Timer {
+        id: rootTimer
         interval: 200
         running: true
         repeat: false
         onTriggered: {
-            // 1. DockPreview.monitorName = "probe-a"; DockPreview.hoveredClass = "firefox";
-            //    then stripA.ownsHover === true ("the strip on the hovered output owns the hover")
+            // Arm the hover as the owner of "probe-a"
             DockPreview.monitorName = "probe-a";
             DockPreview.hoveredClass = "firefox";
 
-            // Give it a tick to propagate, then schedule ALL 11 checks via Qt.callLater
-            Qt.callLater(function() {
-                // checks 1-4: Original scoping checks
-                probeLogic.check("strip on hovered output owns hover", stripA.ownsHover === true);
-                probeLogic.check("strip on other output does not own hover", stripB.ownsHover === false);
-                probeLogic.check("hovered strip shows hovered class", stripA.cls === "firefox");
-                probeLogic.check("other strip shows nothing", stripB.cls === "");
+            // Scoping checks 1-4 (the existing four)
+            probeLogic.check("strip on hovered output owns hover", stripA.ownsHover === true);
+            probeLogic.check("strip on other output does not own hover", stripB.ownsHover === false);
+            probeLogic.check("hovered strip shows hovered class", stripA.cls === "firefox");
+            probeLogic.check("other strip shows nothing", stripB.cls === "");
 
-                // check 5: Phase A - hold is published for probe-a's own output
-                DockPreview.monitorName = "probe-a";
-                DockPreview.hoveredClass = "firefox";
+            // Scoping checks 5-7: hover handover and clears
+            // 5. DockPreview.monitorName = "probe-b"; then stripB.ownsHover === true && stripA.ownsHover === false
+            DockPreview.monitorName = "probe-b";
+            probeLogic.check("hover hands over to other output", stripB.ownsHover === true && stripA.ownsHover === false);
+
+            // 6. DockPreview.clearHover("probe-a"); then DockPreview.hoveredClass === "firefox"
+            DockPreview.clearHover("probe-a");
+            probeLogic.check("stale clear from old output does not erase new hover", DockPreview.hoveredClass === "firefox");
+
+            // 7. DockPreview.clearHover("probe-b"); then DockPreview.hoveredClass === ""
+            DockPreview.clearHover("probe-b");
+            probeLogic.check("owner clears its own hover", DockPreview.hoveredClass === "");
+
+            // PHASE A: re-arm the hover as the owner of "probe-a"
+            DockPreview.monitorName = "probe-a";
+            DockPreview.hoveredClass = "firefox";
+            // Wait 1400 ms for the strip to open and publish its hold
+            wait(1400, function() {
+                // check: the strip publishes its hold for its own output
                 probeLogic.check("the strip publishes its hold for its own output", DockPreview.heldOn("probe-a") === true);
-
-                // check 6: strip on other output holds nothing
+                // check: the strip on the other output holds nothing
                 probeLogic.check("the strip on the other output holds nothing", DockPreview.heldOn("probe-b") === false);
 
-                // check 7: Phase B - hold clears when strip closes
+                // PHASE B: clear the hover AS THE OWNER ("probe-a")
+                // Per the brief: after the strip's close grace (1200 ms)
                 DockPreview.clearHover("probe-a");
-                probeLogic.check("the hold clears when the strip closes", DockPreview.heldOn("probe-a") === false);
+                // Wait 1400 ms (covers the close grace)
+                wait(1400, function() {
+                    // check: the hold clears when the strip closes
+                    probeLogic.check("the hold clears when the strip closes", DockPreview.heldOn("probe-a") === false);
 
-                // check 8: Phase C - destroyed strip leaves no hold behind
-                DockPreview.monitorName = "probe-a";
-                DockPreview.hoveredClass = "firefox";
-                stage.destroy();
-
-                // check 9: Hover hands over to other output (original probe check 5)
-                DockPreview.monitorName = "probe-b";
-                probeLogic.check("hover hands over to other output", stripB.ownsHover === true && stripA.ownsHover === false);
-
-                // check 10: Stale clear from old output does not erase new hover (original probe check 6)
-                DockPreview.clearHover("probe-a");
-                probeLogic.check("stale clear from old output does not erase new hover", DockPreview.hoveredClass === "firefox");
-
-                // check 11: Owner clears its own hover (original probe check 7)
-                DockPreview.clearHover("probe-b");
-                probeLogic.check("owner clears its own hover", DockPreview.hoveredClass === "");
+                    // PHASE C: re-arm the hover as the owner of "probe-a"
+                    DockPreview.monitorName = "probe-a";
+                    DockPreview.hoveredClass = "firefox";
+                    // Wait 2000 ms for the hold to be published (extended from 1400)
+                    wait(2000, function() {
+                        // check: the strip publishes its hold again
+                        probeLogic.check("the strip publishes its hold again", DockPreview.heldOn("probe-a") === true);
+                        // stage.destroy();
+                        // Destroy strips individually and wait for destruction to propagate
+                        stripA.destroy();
+                        stripB.destroy();
+                        // wait 2000 ms for destruction propagation
+                        wait(2000, function() {
+                            // check: a destroyed strip leaves no hold behind
+                            probeLogic.check("a destroyed strip leaves no hold behind", DockPreview.heldOn("probe-a") === false);
+                        });
+                    });
+                });
             });
         }
     }
