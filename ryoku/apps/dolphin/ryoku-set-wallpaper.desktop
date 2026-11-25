@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Service
+MimeType=image/jpeg;image/png;image/webp;image/gif;image/bmp;image/avif;image/tiff;
+Actions=setRyokuWallpaper;
+NotShowIn=KDE;
+X-KDE-Priority=TopLevel
+
+[Desktop Action setRyokuWallpaper]
+Name=Set as Wallpaper
+Icon=preferences-desktop-wallpaper
+Exec=ryogami wallpaper import %f

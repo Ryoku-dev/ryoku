@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **Dolphin's Set as Wallpaper sets the Ryoku wallpaper.** Plasma's own action
+  asks the Plasma shell over D-Bus, so on a Ryoku session it failed with "The
+  name is not activatable". A service menu now runs the new
+  `ryogami wallpaper import`, which copies the picture into the wallpaper
+  library so it shows up in the picker, then sets it. The menu entry is hidden
+  in a Plasma session, so Plasma's own action keeps working there
+  (`apps/dolphin/`, `shell/ryogami/`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

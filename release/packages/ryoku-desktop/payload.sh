@@ -435,6 +435,11 @@ EOF
   install -Dm644 "$_repo/ryoku/apps/nautilus/ryoku-stash-menu.py" \
     "$pkgdir/usr/share/nautilus-python/extensions/ryoku-stash-menu.py"
 
+  # Dolphin's Set as Wallpaper: Plasma's own action needs a Plasma shell, so
+  # ship one that goes through ryogami, hidden from Plasma sessions.
+  install -Dm644 "$_repo/ryoku/apps/dolphin/ryoku-set-wallpaper.desktop" \
+    "$pkgdir/usr/share/kio/servicemenus/ryoku-set-wallpaper.desktop"
+
   # GPU primary-renderer udev rule: boot-stable /dev/dri/ryoku-gpu-* symlinks
   # that ryoku-gpu pins via AQ_DRM_DEVICES. vendor location = active on boot,
   # so `ryoku-gpu install-udev` is never needed on an installed system.

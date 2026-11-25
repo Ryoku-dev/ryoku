@@ -61,6 +61,19 @@ func (d *daemon) wallpaperVerb(line string) string {
 			return "err wallpaper: " + err.Error()
 		}
 		return "ok"
+	case "import":
+		path := strings.TrimSpace(strings.TrimPrefix(rest, mode))
+		if path == "" {
+			return "err wallpaper: import requires a path"
+		}
+		kept, err := d.importToLibrary(path)
+		if err != nil {
+			return "err wallpaper: " + err.Error()
+		}
+		if err := d.applyWallpaper(typeOf(kept), kept, "set", d.setTargets(screen), nil, nil); err != nil {
+			return "err wallpaper: " + err.Error()
+		}
+		return "ok"
 	case "preview":
 		path := strings.TrimSpace(strings.TrimPrefix(rest, mode))
 		if path == "" {

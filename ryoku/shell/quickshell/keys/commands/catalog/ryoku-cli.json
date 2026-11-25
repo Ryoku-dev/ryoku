@@ -4239,6 +4239,20 @@
       ]
     },
     {
+      "id": "ryoku.ryogami.wallpaper.import",
+      "group": "ryoku-look",
+      "title": "Add a picture to the library and set it",
+      "command": "ryogami wallpaper import <path>",
+      "description": "Copies an image or video into the wallpaper library, then applies it.",
+      "tool": "ryogami",
+      "level": "basic",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
       "id": "ryoku.ryogami.wallpaper.set.screen",
       "group": "ryoku-look",
       "title": "Set one screen's wallpaper",

@@ -368,6 +368,10 @@ user chmod -R u+w "$QYLOCK_DIR/themes/clockwork/orbital"'
       ryoku/apps/nautilus/ryoku-stash-menu.py \
       "$out/share/ryoku/nautilus/ryoku-stash-menu.py"
 
+    install -Dm644 \
+      ryoku/apps/dolphin/ryoku-set-wallpaper.desktop \
+      "$out/share/kio/servicemenus/ryoku-set-wallpaper.desktop"
+
     # ── Browser integration ────────────────────────────────────
 
     mkdir -p "$out/share/ryoku/browser"
