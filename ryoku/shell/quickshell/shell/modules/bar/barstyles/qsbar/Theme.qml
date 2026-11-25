@@ -1237,7 +1237,14 @@ Item {
         for (var i = 0; i < list.length; i++) p = Math.max(p, aiDayTokens(list[i]))
         return p
     }
-    function aiFmtClock(ts) { return ts > 0 ? TimeFormat.format(new Date(ts * 1000)) : "" }
+    // A past time, with its weekday unless it was today ("Mon 15:11").
+    function aiFmtClock(ts) {
+        if (!(ts > 0)) return ""
+        var d = new Date(ts * 1000)
+        var time = TimeFormat.format(d)
+        if (d.toDateString() === new Date().toDateString()) return time
+        return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()] + " " + time
+    }
     function aiUsd(v) { return "$" + (Number(v) || 0).toFixed(2) }
     function aiTokenCount(v) {
         var a = Math.max(0, v || 0)

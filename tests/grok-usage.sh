@@ -73,14 +73,17 @@ def write(cwd, sid, lines):
 
 write("%2Fsrc%2Fa", "s1", [chunk, turn("p1", 1000, 15_000_000_000), turn("p2", 500, 5_000_000_000)])
 # a fork inherits p1 and adds p3
-write("%2Fsrc%2Fb", "s2", [turn("p1", 1000, 15_000_000_000), turn("p3", 250, 0, model="grok-4.6")])
+# a turn whose _meta is not an object still counts, by its envelope timestamp
+odd = turn("p4", 100, 0)
+odd["params"]["_meta"] = ["not", "an", "object"]
+write("%2Fsrc%2Fb", "s2", [turn("p1", 1000, 15_000_000_000), turn("p3", 250, 0, model="grok-4.6"), odd])
 PY
 HOME="$d/home" GROK_HOME="$d/grok" "$collector"
 cache="$d/home/.cache/grok-usage.json"
 check "source is the session logs" _source sessions "$cache"
-# p1 + p2 + p3 = 1750; the fork's copy of p1 and the chat chunk add nothing.
-check "each turn counted once" _today_tokens 1750 "$cache"
-check "7-day total" _7d_tokens 1750 "$cache"
+# p1 + p2 + p3 + p4 = 1850; the fork's copy of p1 and the chat chunk add nothing.
+check "each turn counted once" _today_tokens 1850 "$cache"
+check "7-day total" _7d_tokens 1850 "$cache"
 check "cost is ticks / 1e10" _cost_today 2.0 "$cache"
 check "no log means no allowance" 7d-utilization "" "$cache"
 
@@ -105,7 +108,7 @@ PY
 HOME="$d/home" GROK_HOME="$d/grok" "$collector"
 check "newest reading wins" 7d-utilization 0.0500 "$cache"
 check "plan tier from the log" _plan "SuperGrok Plus" "$cache"
-check "tokens still counted with a limit" _today_tokens 1750 "$cache"
+check "tokens still counted with a limit" _today_tokens 1850 "$cache"
 
 # --- 3. a reading whose period has ended is not shown as current ---
 python3 - "$d/grok/logs/unified.jsonl" <<'PY'
@@ -117,8 +120,37 @@ json.dump({"ts": iso(now - 3 * 86400), "msg": "billing: fetched credits config",
            "ctx": {"config": {"creditUsagePercent": 80.0,
                               "currentPeriod": {"end": iso(now - 3600)}}}}, open(sys.argv[1], "w"))
 PY
+rm -f "$cache"
 HOME="$d/home" GROK_HOME="$d/grok" "$collector"
 check "expired period drops the allowance" 7d-utilization "" "$cache"
+
+# --- 3b. a current period that is not weekly is not shown as the weekly window ---
+python3 - "$d/grok/logs/unified.jsonl" <<'PY'
+import json, sys, time
+from datetime import datetime, timezone
+iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+now = int(time.time())
+json.dump({"ts": iso(now - 60), "msg": "billing: fetched credits config",
+           "ctx": {"config": {"creditUsagePercent": 30.0,
+                              "currentPeriod": {"type": "USAGE_PERIOD_TYPE_MONTHLY",
+                                                "end": iso(now + 20 * 86400)}}}}, open(sys.argv[1], "w"))
+PY
+rm -f "$cache"
+HOME="$d/home" GROK_HOME="$d/grok" "$collector"
+check "non-weekly period drops the allowance" 7d-utilization "" "$cache"
+
+# --- 3c. a rotated log keeps the last published reading until its week ends ---
+: > "$d/grok/logs/unified.jsonl"
+now=$(date +%s)
+printf '{"7d-utilization":"0.0700","7d-reset":"%s","_plan":"SuperGrok Plus","_limit_checked_at":%s}\n' \
+  "$((now + 86400))" "$((now - 3600))" > "$cache"
+HOME="$d/home" GROK_HOME="$d/grok" "$collector"
+check "rotated log keeps the current reading" 7d-utilization 0.0700 "$cache"
+check "kept reading keeps its tier" _plan "SuperGrok Plus" "$cache"
+check "kept reading keeps its age" _limit_checked_at "$((now - 3600))" "$cache"
+printf '{"7d-utilization":"0.0700","7d-reset":"%s"}\n' "$((now - 60))" > "$cache"
+HOME="$d/home" GROK_HOME="$d/grok" "$collector"
+check "a kept reading ends with its week" 7d-utilization "" "$cache"
 
 # --- 4. a turn older than the 7-day window does not count ---
 d="$work/old"

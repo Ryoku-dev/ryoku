@@ -9,8 +9,8 @@ reads. No network, no credentials.
 The plan allowance comes from Grok's own log: each time the CLI fetches it (at
 start and on /usage) it logs "billing: fetched credits config" with the percent
 used and the current period. The newest such line gives the 7d utilization and
-reset. With no reading, or once its period has ended, no utilization is written
-and the widget shows tokens instead of a stale or invented percentage.
+reset. With no reading, a period that is not weekly, or once the period has
+ended, no utilization is written and the widget shows tokens instead.
 """
 import json
 import os
@@ -75,14 +75,17 @@ def read_limit(now: float) -> dict | None:
             continue
         if entry.get("msg") != LIMIT_MARKER:
             continue
-        period = config.get("currentPeriod") or {}
-        reset = iso_ts(period.get("end") or config.get("billingPeriodEnd"))
+        period = config.get("currentPeriod")
+        period = period if isinstance(period, dict) else {}
+        # The widget shows this as a weekly window and paces it over seven days.
+        if period.get("type") != "USAGE_PERIOD_TYPE_WEEKLY":
+            return None
+        reset = iso_ts(period.get("end"))
         if reset <= now:
             return None
         return {
             "utilization": min(1.0, max(0.0, used / 100.0)),
             "reset": reset,
-            "weekly": period.get("type") == "USAGE_PERIOD_TYPE_WEEKLY",
             "plan": str(ctx.get("subscriptionTier") or ""),
             "checked_at": iso_ts(entry.get("ts")),
         }
@@ -109,7 +112,8 @@ def parse_turn(line: str) -> dict | None:
     usage = update.get("usage")
     if not isinstance(usage, dict):
         return None
-    meta = envelope["params"].get("_meta") or {}
+    meta = envelope["params"].get("_meta")
+    meta = meta if isinstance(meta, dict) else {}
     stamp_ms = as_int(meta.get("agentTimestampMs")) or as_int(envelope.get("timestamp")) * 1000
     if stamp_ms <= 0:
         return None
@@ -219,13 +223,36 @@ def recent_days(turns: list[dict], days: int = 7) -> list[dict]:
                         for i in range(days - 1, -1, -1))]
 
 
+def kept_limit(now: float) -> dict | None:
+    """The reading the last run published, while its week is still current.
+
+    Grok rotates its log and logs a reading only when it fetches the allowance
+    (at start and on /usage), so a current reading can drop out of the log
+    while its week runs on. Its checked-at time keeps the age visible.
+    """
+    try:
+        cur = json.loads(CACHE_FILE.read_text())
+        reset = int(cur["7d-reset"])
+        utilization = float(cur["7d-utilization"])
+    except Exception:
+        return None
+    if reset <= now:
+        return None
+    return {
+        "utilization": min(1.0, max(0.0, utilization)),
+        "reset": reset,
+        "plan": str(cur.get("_plan") or ""),
+        "checked_at": as_int(cur.get("_limit_checked_at")),
+    }
+
+
 def main() -> None:
     if not SESSIONS_DIR.is_dir():
         stale_last()
         return
 
     now = time.time()
-    limit = read_limit(now)
+    limit = read_limit(now) or kept_limit(now)
     turns = load_turns(now - WINDOW_HORIZON_S)
     today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_ms = int(today_start.timestamp() * 1000)
@@ -257,7 +284,6 @@ def main() -> None:
         out["7d-utilization"] = f"{limit['utilization']:.4f}"
         out["7d-reset"] = str(limit["reset"])
         out["_limit_checked_at"] = limit["checked_at"]
-        out["_limit_weekly"] = limit["weekly"]
         out["status"] = ("rejected" if limit["utilization"] >= 1.0
                          else "allowed_warning" if limit["utilization"] >= 0.9
                          else "allowed")

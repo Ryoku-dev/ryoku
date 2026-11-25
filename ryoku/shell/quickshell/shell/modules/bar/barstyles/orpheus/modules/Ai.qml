@@ -98,7 +98,7 @@ Item {
         const tool = AiUsage.tool(id);
         const name = AiUsage.labels[id] || id;
         if (!tool.has5h && !tool.has7d)
-            return name + " " + tool.today + " tokens today";
+            return I18n.tr("%1 %2 tokens today").arg(name).arg(tool.today);
         const state = tool.blocked ? "limit reached, " : "";
         return name + " " + state + root.windowText(id, false)
             + ", " + root.windowText(id, true);

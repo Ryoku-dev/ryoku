@@ -1,3 +1,5 @@
+AiModelList AiModelList.qml
+AiModelUsageRow AiModelUsageRow.qml
 AiUsagePanel AiUsagePanel.qml
 BatteryPanel BatteryPanel.qml
 BluetoothPanel BluetoothPanel.qml

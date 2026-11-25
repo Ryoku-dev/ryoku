@@ -56,8 +56,7 @@ Item {
     readonly property int  ocToday:  root.aiOcToday
     readonly property bool ocHas:    root.aiOcHas
 
-    // ── Grok ──
-    property bool gkActive: false
+    // ── Grok ── (no process probe: its chip waits for collected data)
     readonly property bool gkFresh:  root.aiGkFresh
     readonly property bool gkHas:    root.aiGkHas
     readonly property int  gkToday:  root.aiGkToday
@@ -77,7 +76,7 @@ Item {
     readonly property bool showCl: root.aiToolShown("claude")   && (clHas || clActive)
     readonly property bool showCx: root.aiToolShown("codex")    && (cxHas || cxActive)
     readonly property bool showOc: root.aiToolShown("opencode") && (ocHas || ocActive)
-    readonly property bool showGk: root.aiToolShown("grok")     && (gkHas || gkActive)
+    readonly property bool showGk: root.aiToolShown("grok")     && gkHas
 
     // codex reports its weekly window only sometimes; fall back to the primary
     // window for the number, but only flag pace off a genuine 7-day window.
@@ -175,18 +174,12 @@ Item {
         command: ["bash", "-c", "ps -eo args | grep -E '(^|/| )opencode( |$)|opencode-ai' | grep -vE 'grep|opencode-usage' >/dev/null && echo 1 || echo 0"]
         stdout: StdioCollector { onStreamFinished: { rootMod.ocActive = (this.text.trim() === "1") } }
     }
-    Process {
-        id: detectGrok
-        command: ["bash", "-c", "pgrep -x grok >/dev/null 2>&1 && echo 1 || echo 0"]
-        stdout: StdioCollector { onStreamFinished: { rootMod.gkActive = (this.text.trim() === "1") } }
-    }
     Timer {
         interval: 5000; running: root.modClaude || root.aiUsageVisible; repeat: true; triggeredOnStart: true
         onTriggered: {
             detectClaude.running = false; detectClaude.running = true
             detectCodex.running = false;  detectCodex.running = true
             detectOpenCode.running = false; detectOpenCode.running = true
-            detectGrok.running = false; detectGrok.running = true
         }
     }
 
