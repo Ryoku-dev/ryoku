@@ -632,11 +632,14 @@ Item {
             var row = pg.customRowAsBind(pg.customRows[i], i);
             // the provider's reason for a bind it has seen, carried across: the
             // lens is the legend's view, so a row the provider cannot express
-            // keeps the "not on" tag it earns there. The chord has to be the one
-            // the provider saw: a bind added or re-chorded this session has no
+            // keeps the "not on" tag it earns there. The reason reads the bind's
+            // action, its command and its chord, so it travels only while all
+            // three are the ones the provider saw: the label carries the first
+            // two and the chord the third. A bind edited this session has no
             // reason yet, and the provider decides on save.
             var was = saved[row.id];
-            if (was && was.unhonored && pg.normKeys(was.combo) === pg.normKeys(row.combo))
+            if (was && was.unhonored && was.desc === row.desc
+                && pg.normKeys(was.combo) === pg.normKeys(row.combo))
                 row.unhonored = was.unhonored;
             custom.push(row);
         }
@@ -661,26 +664,29 @@ Item {
         };
     }
     // the plain-words name for a stored bind, mirroring customLabel in
-    // ryoku/wm/hyprland/legend.go, so the lens reads like the saved legend.
+    // ryoku/wm/hyprland/legend.go word for word: the row delegate translates it
+    // where it paints, exactly as it translates the legend's own rows, so a
+    // rebuilt row and the saved row it stands in for read the same in every
+    // language. It is also what tells whether a stored reason still applies.
     function customLabel(row) {
         var action = "" + (row.action || "exec");
         var value = ("" + (row.value || "")).trim();
         switch (action) {
         case "exec":
         case "":
-            return I18n.tr("Run: %1").arg(value);
+            return "Run: " + value;
         case "close":
-            return I18n.tr("Close window");
+            return "Close window";
         case "fullscreen":
-            return I18n.tr("Fullscreen");
+            return "Fullscreen";
         case "togglefloating":
-            return I18n.tr("Float or tile");
+            return "Float or tile";
         case "workspace":
-            return I18n.tr("Focus workspace %1").arg(value);
+            return "Focus workspace " + value;
         case "movetoworkspace":
-            return I18n.tr("Send to workspace %1").arg(value);
+            return "Send to workspace " + value;
         case "movetoworkspacesilent":
-            return I18n.tr("Send to workspace %1 quietly").arg(value);
+            return "Send to workspace " + value + " quietly";
         }
         return action.charAt(0).toUpperCase() + action.slice(1);
     }
