@@ -1,3 +1,4 @@
+//@ pragma AppId ryoku-hub
 import QtQuick
 import Quickshell
 import Quickshell.Io

@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { pin, unpin, resolve, dockRevealed } = require("./dock.js");
+const { pin, unpin, resolve, dockRevealed, classOf } = require("./dock.js");
 
 let failed = 0;
 function eq(actual, expected, msg) {
@@ -34,6 +34,18 @@ eq(dockRevealed({ ...idle, fullscreen: true, popoutHeld: true }), true,
     "the hold keeps the dock revealed under a fullscreen window too");
 eq(dockRevealed({ ...idle, fullscreen: true }), false, "a fullscreen output still hides the idle dock");
 eq(dockRevealed({ ...idle, stageEditing: true }), true, "the Stage Editor holds the dock open");
+
+const titleMap = { "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore", "ryovm": "ryovm", "Ryotunes": "ryotunes" };
+eq(classOf("ryoku-hub", "Configuración Ryoku", titleMap), "ryoku-hub",
+    "a Quickshell app with a stable app id resolves by that id, whatever its title says");
+eq(classOf("ryostore", "Tienda Ryoku", titleMap), "ryostore",
+    "a translated title never changes the identity of an app that carries an app id");
+eq(classOf("org.quickshell", "Ryotunes", titleMap), "ryotunes",
+    "a Quickshell app without an app id falls back to the title map");
+eq(classOf("org.quickshell", "Configuración Ryoku", titleMap), "org.quickshell",
+    "an unknown Quickshell title keeps the generic id");
+eq(classOf("firefox", "Firefox", titleMap), "firefox", "a normal app keeps its own id");
+eq(classOf("", "", titleMap), "", "a window with no identity resolves to nothing");
 
 if (failed > 0) { console.log("\n" + failed + " test(s) FAILED"); process.exit(1); }
 console.log("\nAll tests PASSED");

@@ -1,3 +1,4 @@
+//@ pragma AppId ryostore
 import QtQuick
 import Quickshell
 import Quickshell.Io

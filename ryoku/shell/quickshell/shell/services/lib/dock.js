@@ -40,4 +40,17 @@ function dockRevealed(state) {
         || !state.anyFocused || state.dragging || state.menuHere || state.popoutHeld;
 }
 
-if (typeof module !== "undefined" && module.exports) module.exports = { pin, unpin, resolve, dockRevealed };
+/** The dock identity of a window. Ryoku's own Quickshell apps carry a stable
+ * app id (`//@ pragma AppId`), so they resolve by that id whatever the locale
+ * says their title is. A foreign Quickshell client (Ryotunes) has no app id
+ * of its own and falls back to the title map. */
+function classOf(appId, title, titleMap) {
+    const id = typeof appId === "string" ? appId.trim() : "";
+    if (id && id !== "org.quickshell")
+        return id;
+    const map = titleMap && typeof titleMap === "object" ? titleMap : {};
+    const mapped = typeof title === "string" ? map[title] : "";
+    return mapped || id;
+}
+
+if (typeof module !== "undefined" && module.exports) module.exports = { pin, unpin, resolve, dockRevealed, classOf };
