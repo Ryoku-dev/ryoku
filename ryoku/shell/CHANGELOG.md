@@ -1,6 +1,21 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The window preview opens on the monitor you hovered.** Each output hosts
+  its own preview strip, but the hover state was shared, so every strip opened
+  welded to the hovered icon; the hover now belongs to one output.
+- **The auto-hiding dock stays out while the pointer is on the preview.** The
+  preview is its own surface, so the dock saw the pointer leave the bar and
+  retracted underneath it; the strip now reports that it is in use, and the
+  now-playing card does the same.
+- **The shell chrome is no longer scaled twice on a scaled display (#955).**
+  The factor multiplied the compositor's output scale into the logical height
+  Quickshell reports, so the bar, the dock and the popouts came out larger than
+  designed; the physical panel height alone sets it now.
+- **Ryoku Settings, Ryostore and Ryovm keep their dock icon in any language
+  (#953).** The dock recognised Ryoku's own windows by their translated title,
+  so a desktop in another language showed them as unknown clients; each app
+  carries a stable Wayland app id now and the dock reads that first.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **Ryostore opens floating at the size it was designed for.** Its Hyprland
+  rules shared a name, so the title rule was replaced by a class rule that
+  matched nothing, and Wayfire's app-id rule carried a smaller geometry than
+  the title one; now that the store has a stable app id, both compositors float
+  it as designed (`hyprland/modules/window_rules.lua`,
+  `wm/wayfire/config_rules.go`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"
