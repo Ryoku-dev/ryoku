@@ -1,6 +1,7 @@
 pragma Singleton
 
 import QtQuick
+import Quickshell
 
 // Shared hover state for the dock's window-preview strip. RailDock writes the
 // hovered app class and the hovered icon's screen-centre on hover; the
@@ -8,7 +9,7 @@ import QtQuick
 // grow a live preview welded to that icon. Empty `hoveredClass` = nothing
 // hovered, which lets the popout's own hover-grace melt it shut. Only the dock
 // writes here, so a second dock instance on another rail simply retargets it.
-QtObject {
+Singleton {
     id: root
 
     // The app class currently hovered on the dock ("" = none). The popout shows
@@ -31,25 +32,10 @@ QtObject {
     property string monitorName: ""
 
     // Per-output hold: the strip on that output is open, or the pointer is on
-    // it. The map is replaced, never mutated, so the bindings that read it
-    // re-evaluate.
-    property var _held: ({})
-
-    function setHeld(monitor, held) {
-        const name = String(monitor ?? "");
-        if (name === "" || (root._held[name] === true) === held)
-            return;
-        const next = Object.assign({}, root._held);
-        if (held === true)
-            next[name] = true;
-        else
-            delete next[name];
-        root._held = next;
-    }
-
-    function heldOn(monitor) {
-        return root._held[String(monitor ?? "")] === true;
-    }
+    // it. PreviewHold owns the map, so the logic lives in one place while this
+    // preview keeps its own state.
+    PreviewHold { id: holdMap }
+    readonly property var holds: holdMap
 
     // Clear the hovered class, but only when that output owns the hover: a
     // dock on another output has already published its own hover by now, and

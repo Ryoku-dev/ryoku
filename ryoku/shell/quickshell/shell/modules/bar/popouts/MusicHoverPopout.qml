@@ -47,8 +47,8 @@ Popout {
     edgeGap: MusicPreview.margin > 0 ? MusicPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
     triggerHovered: root.musicHovered && root.present
-    onHeldOpenChanged: MusicPreview.setHeld(root.monitorName, root.heldOpen)
-    Component.onDestruction: { MusicPreview.setHeld(root.monitorName, false); AudioBars.setActive(root, false) }
+    onHeldOpenChanged: MusicPreview.holds.set(root.monitorName, root.heldOpen)
+    Component.onDestruction: { MusicPreview.holds.set(root.monitorName, false); AudioBars.setActive(root, false) }
     alongCenter: {
         if (MusicPreview.gx < 0)
             return -1;

@@ -7,6 +7,9 @@ import "modules/bar/popouts" as BarPopouts
 // Probe: the DockPreviewPopout on each monitor must only show the strip when
 // that monitor's dock owns the hover. The DockPreview singleton now carries
 // `monitorName` so only the popout on that output opens; the other stays closed.
+// The popouts are built at runtime instead of being declared inline: destroy()
+// is only supported on objects the engine created from a Component, and the
+// probe has to destroy a strip to prove its hold dies with it.
 ShellRoot {
     id: root
 
@@ -15,35 +18,29 @@ ShellRoot {
 
     BlobGroup { id: probeGroup }
 
+    // The popouts under test, created by the root timer.
+    property var stripA: null
+    property var stripB: null
+    property var cardA: null
+    property var cardB: null
+
     Item {
         id: stage
         width: root.span
         height: root.tall
+    }
 
+    Component {
+        id: stripComponent
         BarPopouts.DockPreviewPopout {
-            id: stripA
-            monitorName: "probe-a"
             group: probeGroup
             frameThickness: 16
         }
+    }
 
-        BarPopouts.DockPreviewPopout {
-            id: stripB
-            monitorName: "probe-b"
-            group: probeGroup
-            frameThickness: 16
-        }
-
+    Component {
+        id: cardComponent
         BarPopouts.MusicHoverPopout {
-            id: cardA
-            monitorName: "probe-a"
-            group: probeGroup
-            frameThickness: 16
-        }
-
-        BarPopouts.MusicHoverPopout {
-            id: cardB
-            monitorName: "probe-b"
             group: probeGroup
             frameThickness: 16
         }
@@ -114,6 +111,12 @@ ShellRoot {
         running: true
         repeat: false
         onTriggered: {
+            // Build the popouts under test, one per monitor.
+            root.stripA = stripComponent.createObject(stage, { monitorName: "probe-a" });
+            root.stripB = stripComponent.createObject(stage, { monitorName: "probe-b" });
+            root.cardA = cardComponent.createObject(stage, { monitorName: "probe-a" });
+            root.cardB = cardComponent.createObject(stage, { monitorName: "probe-b" });
+
             // Arm the hover as the owner of "probe-a"
             DockPreview.monitorName = "probe-a";
             DockPreview.hoveredClass = "firefox";
@@ -147,11 +150,11 @@ ShellRoot {
             // 9. cardB on other output does not own hover
             probeLogic.check("card on other output does not own hover", cardB.ownsHover === false && cardB.musicHovered === false);
             // 10. card's hold is per output
-            MusicPreview.setHeld("probe-a", true);
-            probeLogic.check("card's hold is per output", MusicPreview.heldOn("probe-a") === true && MusicPreview.heldOn("probe-b") === false);
+            MusicPreview.holds.set("probe-a", true);
+            probeLogic.check("card's hold is per output", MusicPreview.holds.has("probe-a") === true && MusicPreview.holds.has("probe-b") === false);
             // 11. card's hold clears
-            MusicPreview.setHeld("probe-a", false);
-            probeLogic.check("card's hold clears", MusicPreview.heldOn("probe-a") === false);
+            MusicPreview.holds.set("probe-a", false);
+            probeLogic.check("card's hold clears", MusicPreview.holds.has("probe-a") === false);
             // Reset music state so it does not leak into the hold phases below
             MusicPreview.hovered = false;
 
@@ -161,9 +164,9 @@ ShellRoot {
             // Wait 1400 ms for the strip to open and publish its hold
             wait(1400, function() {
                 // check: the strip publishes its hold for its own output
-                probeLogic.check("the strip publishes its hold for its own output", DockPreview.heldOn("probe-a") === true);
+                probeLogic.check("the strip publishes its hold for its own output", DockPreview.holds.has("probe-a") === true);
                 // check: the strip on the other output holds nothing
-                probeLogic.check("the strip on the other output holds nothing", DockPreview.heldOn("probe-b") === false);
+                probeLogic.check("the strip on the other output holds nothing", DockPreview.holds.has("probe-b") === false);
 
                 // PHASE B: clear the hover AS THE OWNER ("probe-a")
                 // Per the brief: after the strip's close grace (1200 ms)
@@ -171,7 +174,7 @@ ShellRoot {
                 // Wait 1400 ms (covers the close grace)
                 wait(1400, function() {
                     // check: the hold clears when the strip closes
-                    probeLogic.check("the hold clears when the strip closes", DockPreview.heldOn("probe-a") === false);
+                    probeLogic.check("the hold clears when the strip closes", DockPreview.holds.has("probe-a") === false);
 
                     // PHASE C: re-arm the hover as the owner of "probe-a"
                     DockPreview.monitorName = "probe-a";
@@ -179,15 +182,16 @@ ShellRoot {
                     // Wait 2000 ms for the hold to be published
                     wait(2000, function() {
                         // check: the strip publishes its hold again
-                        probeLogic.check("the strip publishes its hold again", DockPreview.heldOn("probe-a") === true);
-                        // stage.destroy();
-                        // Destroy strips individually and wait for destruction to propagate
+                        probeLogic.check("the strip publishes its hold again", DockPreview.holds.has("probe-a") === true);
+                        // Destroy the strips and the cards, then wait for destruction to propagate
                         stripA.destroy();
                         stripB.destroy();
+                        cardA.destroy();
+                        cardB.destroy();
                         // wait 2000 ms for destruction propagation
                         wait(2000, function() {
                             // check: a destroyed strip leaves no hold behind
-                            probeLogic.check("a destroyed strip leaves no hold behind", DockPreview.heldOn("probe-a") === false);
+                            probeLogic.check("a destroyed strip leaves no hold behind", DockPreview.holds.has("probe-a") === false);
                         });
                     });
                 });
