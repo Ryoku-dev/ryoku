@@ -25,7 +25,7 @@ var ROUTES = [
       keywords: "arrange order move reorder left center centre right lane add widget plugin unlock drag reset layout hide show" },
     { id: "widgets", label: "Widgets", gloss: "\u90e8\u54c1", file: "WidgetsRoute", section: "bar",
       desc: "Show, size, colour and tune each widget.",
-      keywords: "widget show hide on off density icon compact colour fill ai claude codex opencode volume boost clock weather sensor temperature plugin settings" },
+      keywords: "widget show hide on off density icon compact colour fill ai claude codex opencode grok volume boost clock weather sensor temperature plugin settings" },
     { id: "dock",    label: "Dock",    gloss: "\u53f0", file: "DockRoute", section: "bar",
       desc: "The app dock opposite the bar.",
       keywords: "dock app pinned pin edge autohide auto hide magnify frost depth shadow label media chip peek" },

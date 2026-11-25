@@ -97,6 +97,8 @@ Item {
     readonly property string hintText: root.shown.map(id => {
         const tool = AiUsage.tool(id);
         const name = AiUsage.labels[id] || id;
+        if (!tool.has5h && !tool.has7d)
+            return I18n.tr("%1 %2 tokens today").arg(name).arg(tool.today);
         const state = tool.blocked ? "limit reached, " : "";
         return name + " " + state + root.windowText(id, false)
             + ", " + root.windowText(id, true);

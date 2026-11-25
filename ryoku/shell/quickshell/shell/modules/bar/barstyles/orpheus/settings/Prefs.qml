@@ -145,7 +145,7 @@ Singleton {
             actions: ["launcher", "capture", "clipboard"],
             trayLimit: 6,
             statusItems: ["wifi", "bluetooth", "volume", "mic"],
-            aiTools: ["claude", "codex", "opencode"],
+            aiTools: ["claude", "codex", "opencode", "grok"],
             aiAlertAt: 80
         };
     }
@@ -205,7 +205,7 @@ Singleton {
             ["wifi", "bluetooth", "volume", "mic"],
             ["wifi", "bluetooth", "volume", "mic"]);
         case "aiTools": return subset(value,
-            ["claude", "codex", "opencode"], ["claude", "codex", "opencode"]);
+            ["claude", "codex", "opencode", "grok"], ["claude", "codex", "opencode", "grok"]);
         case "aiAlertAt": return Math.round(clamp(value, 50, 100, 80));
         default: return value;
         }

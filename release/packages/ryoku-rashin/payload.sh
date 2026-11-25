@@ -46,7 +46,7 @@ install)
 		"$destdir/usr/share/icons/hicolor/scalable/apps/rashin-app.svg"
 	# The guard runs a collector only for a tool that is installed or has its
 	# local data, so an idle box with none of them launches nothing.
-	for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage; do
+	for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage grok-usage; do
 		install -Dm755 "$RYOKU_SRC/ryoku/rashin/usage/$collector" "$destdir/usr/bin/$collector"
 	done
 	if [ "$init" = systemd ]; then

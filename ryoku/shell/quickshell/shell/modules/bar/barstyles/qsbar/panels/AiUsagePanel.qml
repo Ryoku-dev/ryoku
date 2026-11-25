@@ -6,7 +6,7 @@ import Quickshell.Wayland
 import Ryoku.Ui.Singletons
 
 // AI usage panel in the omarchy-agent-usage presentation: one stacked card per
-// provider (Claude Code · OpenAI Codex · OpenCode). Each card carries the
+// provider (Claude Code · OpenAI Codex · OpenCode · Grok). Each card carries the
 // provider mark, its weekly allowance used and reset countdown, a full-width
 // weekly meter, the prorated-pace line with the expected-used figure, a LAST 7
 // DAYS token bar chart, and the remaining limit windows. A provider reddens
@@ -73,13 +73,23 @@ PanelWindow {
     readonly property var    ocRecent:    root.aiOcRecent
     readonly property var    ocExtras:    ocHas ? [{ label: "5h", pct: ocPct5h, resetTs: 0 }] : []
 
+    // ── Grok ── (weekly allowance when its CLI logged a current reading)
+    readonly property bool   gkHas:       root.aiGkHas
+    readonly property bool   gkHas7d:     root.aiGkHas7d
+    readonly property bool   gkFresh:     root.aiGkFresh
+    readonly property var    gkModels:    root.aiGkModels
+    readonly property var    gkRecent:    root.aiGkRecent
+    readonly property string gkSummary:   I18n.tr("%1 tokens today · %2").arg(root.aiTokenCount(root.aiGkToday)).arg(root.aiUsd(root.aiGkCostToday))
+                                          + (gkFresh ? "" : I18n.tr("  (stale)"))
+
     // The panel is the detail view for the pill, so it answers the same choice:
     // an agent the user took off the bar does not come back here. A chosen agent
     // still needs data before it earns a card.
     readonly property bool   clShow:      root.aiToolShown("claude")   && clHas
     readonly property bool   cxShow:      root.aiToolShown("codex")    && cxHas
     readonly property bool   ocShow:      root.aiToolShown("opencode") && ocHas
-    readonly property bool   anyShow:     clShow || cxShow || ocShow
+    readonly property bool   gkShow:      root.aiToolShown("grok")     && gkHas
+    readonly property bool   anyShow:     clShow || cxShow || ocShow || gkShow
 
     readonly property real reveal: root.aiUsageReveal
     visible: reveal > 0.001
@@ -106,6 +116,8 @@ PanelWindow {
         property int paceTs: 0       // genuine weekly reset for pace (0 ⇒ none)
         property string plan: ""
         property string emptyText: I18n.tr("no data")
+        property bool metered: true  // false ⇒ no allowance: summary replaces "% used" and the meter
+        property string summary: ""  // with an allowance, shown on its own line under the pace
         property var recent: []
         property var extras: []      // [{label, pct, resetTs}] of the other windows
 
@@ -153,11 +165,11 @@ PanelWindow {
                     font.family: aiPanel.root.mono; font.pixelSize: 14; font.weight: Font.Medium
                 }
                 UiText {
-                    text: pcard.has
-                        ? (I18n.tr("%1% used").arg(pcard.pct)
+                    text: !pcard.has ? pcard.emptyText
+                        : !pcard.metered ? pcard.summary
+                        : (I18n.tr("%1% used").arg(pcard.pct)
                            + (pcard.resetTs > 0 ? I18n.tr(" · resets in %1").arg(aiPanel.root.aiFmtReset(pcard.resetTs)) : "")
                            + (pcard.fresh ? "" : I18n.tr("  (stale)")))
-                        : pcard.emptyText
                     color: pcard.sub
                     font.family: aiPanel.root.mono; font.pixelSize: 11
                 }
@@ -166,7 +178,7 @@ PanelWindow {
 
         // weekly meter
         Rectangle {
-            visible: pcard.has
+            visible: pcard.has && pcard.metered
             width: parent.width; height: 6; radius: 3
             color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
             Rectangle {
@@ -193,6 +205,14 @@ PanelWindow {
                 color: aiPanel.root.sumi
                 font.family: aiPanel.root.mono; font.pixelSize: 11
             }
+        }
+
+        UiText {
+            visible: pcard.has && pcard.metered && pcard.summary !== ""
+            width: parent.width
+            text: pcard.summary
+            color: pcard.sub
+            font.family: aiPanel.root.mono; font.pixelSize: 11
         }
 
         // LAST 7 DAYS token bar chart
@@ -271,60 +291,6 @@ PanelWindow {
                     font.family: aiPanel.root.mono; font.pixelSize: 11
                 }
             }
-        }
-    }
-
-    // ── compact OpenCode per-model usage row (kept from the qsbar widget) ──
-    component ModelUsageRow: Item {
-        property string name: ""
-        property string totalLabel: ""
-        property string inputLabel: ""
-        property string outputLabel: ""
-        property string reasoningLabel: ""
-        property string cacheReadLabel: ""
-        property string cacheWriteLabel: ""
-        property string todayLabel: ""
-        property int pct: 0
-
-        width: parent ? parent.width : 0
-        height: 42
-
-        UiText {
-            id: modelName
-            anchors.left: parent.left; anchors.top: parent.top
-            width: parent.width * 0.68
-            text: name
-            elide: Text.ElideRight
-            color: aiPanel.root.ink
-            font.family: aiPanel.root.mono; font.pixelSize: 10; font.weight: Font.Medium
-        }
-        UiText {
-            anchors.right: parent.right; anchors.top: parent.top
-            text: totalLabel
-            color: aiPanel.root.seal
-            font.family: aiPanel.root.mono; font.pixelSize: 10; font.weight: Font.Medium
-        }
-        Rectangle {
-            anchors.left: parent.left; anchors.right: parent.right
-            anchors.top: modelName.bottom; anchors.topMargin: 5
-            height: 6; radius: 3
-            color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.14)
-            Rectangle {
-                width: parent.width * Math.max(0, Math.min(100, pct)) / 100
-                height: parent.height; radius: 3
-                color: aiPanel.root.seal
-                Behavior on width { NumberAnimation { duration: 300 } }
-            }
-        }
-        UiText {
-            text: I18n.tr("I %1  O %2").arg(inputLabel).arg(outputLabel)
-                + (reasoningLabel !== "0" ? I18n.tr("  R %1").arg(reasoningLabel) : "")
-                + (cacheReadLabel !== "0" ? I18n.tr("  CR %1").arg(cacheReadLabel) : "")
-                + (cacheWriteLabel !== "0" ? I18n.tr("  CW %1").arg(cacheWriteLabel) : "")
-                + (todayLabel !== "0" ? I18n.tr("  today %1").arg(todayLabel) : "")
-            elide: Text.ElideRight
-            color: aiPanel.root.sumiHi
-            font.family: aiPanel.root.mono; font.pixelSize: 9
         }
     }
 
@@ -478,38 +444,24 @@ PanelWindow {
                     recent: aiPanel.ocRecent; extras: aiPanel.ocExtras
                 }
 
-                // OpenCode per-model breakdown (no omarchy equivalent; kept)
-                Item {
-                    visible: aiPanel.ocShow && aiPanel.ocModels.length > 0
-                    width: parent.width; height: 16
-                    UiText {
-                        anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("MODELS")
-                        color: root.sumiHi
-                        font.family: root.mono; font.pixelSize: 10; font.letterSpacing: 1
-                    }
-                    UiText {
-                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("recent")
-                        color: root.sumi
-                        font.family: root.mono; font.pixelSize: 10
-                    }
+                AiModelList { width: parent.width; theme: aiPanel.root; shown: aiPanel.ocShow; models: aiPanel.ocModels }
+
+                Rectangle { visible: (aiPanel.clShow || aiPanel.cxShow || aiPanel.ocShow) && aiPanel.gkShow; width: parent.width; height: 1; color: root.sep }
+
+                // ── Grok ──
+                ProviderCard {
+                    visible: aiPanel.gkShow
+                    name: "Grok"
+                    logo: Qt.resolvedUrl("../assets/grok.svg"); logoSize: Qt.size(36, 36)
+                    has: aiPanel.gkHas; fresh: aiPanel.gkFresh; plan: root.aiGkPlan
+                    metered: aiPanel.gkHas7d; summary: aiPanel.gkSummary
+                    pct: root.aiGkPct7d
+                    resetTs: aiPanel.gkHas7d ? root.aiGkReset7dTs : 0
+                    paceTs: aiPanel.gkHas7d ? root.aiGkReset7dTs : 0
+                    recent: aiPanel.gkRecent
                 }
-                Repeater {
-                    model: aiPanel.ocShow ? aiPanel.ocModels : []
-                    ModelUsageRow {
-                        width: col.width
-                        name: modelData.name || ""
-                        totalLabel: modelData.totalLabel || ""
-                        inputLabel: modelData.inputLabel || "0"
-                        outputLabel: modelData.outputLabel || "0"
-                        reasoningLabel: modelData.reasoningLabel || "0"
-                        cacheReadLabel: modelData.cacheReadLabel || "0"
-                        cacheWriteLabel: modelData.cacheWriteLabel || "0"
-                        todayLabel: modelData.todayLabel || "0"
-                        pct: parseInt(modelData.pct) || 0
-                    }
-                }
+
+                AiModelList { width: parent.width; theme: aiPanel.root; shown: aiPanel.gkShow; models: aiPanel.gkModels }
             }
         }
     }

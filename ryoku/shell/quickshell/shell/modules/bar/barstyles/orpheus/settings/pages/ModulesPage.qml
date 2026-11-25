@@ -38,7 +38,8 @@ Item {
     readonly property var aiChoices: [
         { value: "claude", label: "Claude", icon: "auto_awesome" },
         { value: "codex", label: "Codex", icon: "auto_awesome" },
-        { value: "opencode", label: "OpenCode", icon: "auto_awesome" }
+        { value: "opencode", label: "OpenCode", icon: "auto_awesome" },
+        { value: "grok", label: "Grok", icon: "auto_awesome" }
     ]
     readonly property var readingChoices: [
         { value: "cpu", label: "Processor", icon: "memory" },

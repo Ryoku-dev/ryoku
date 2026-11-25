@@ -313,7 +313,8 @@ pkgs.stdenv.mkDerivation {
     for helper in \
       ryoku/rashin/usage/claude-usage \
       ryoku/rashin/usage/codex-usage \
-      ryoku/rashin/usage/opencode-usage
+      ryoku/rashin/usage/opencode-usage \
+      ryoku/rashin/usage/grok-usage
     do
       install -Dm755 \
         "$helper" \

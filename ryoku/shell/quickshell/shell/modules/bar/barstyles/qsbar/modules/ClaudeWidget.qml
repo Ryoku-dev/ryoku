@@ -5,9 +5,10 @@ import Quickshell.Io
 import Ryoku.Ui.Singletons
 
 // AI-usage bar display in the omarchy-agent-usage presentation: one inline chip
-// per tracked provider (Claude Code · OpenAI Codex · OpenCode), each showing the
-// provider mark, its WEEKLY allowance used, and the countdown to reset —
-// "Claude 31% · 15h 59m". A provider turns red when it is burning faster than
+// per tracked provider (Claude Code · OpenAI Codex · OpenCode · Grok), each showing
+// the provider mark, its WEEKLY allowance used, and the countdown to reset:
+// "Claude 31% · 15h 59m". Grok's allowance is the last reading its CLI logged;
+// with none current, its chip shows today's tokens. A provider turns red when it is burning faster than
 // the seven-day clock (behind pace). Click opens the AiUsagePanel; right/middle
 // click regenerates. root.modClaude gates the whole display.
 Item {
@@ -55,12 +56,27 @@ Item {
     readonly property int  ocToday:  root.aiOcToday
     readonly property bool ocHas:    root.aiOcHas
 
+    // ── Grok ── (no process probe: its chip waits for collected data)
+    readonly property bool gkFresh:  root.aiGkFresh
+    readonly property bool gkHas:    root.aiGkHas
+    readonly property int  gkToday:  root.aiGkToday
+    readonly property int  gkTokens7d: root.aiGkTokens7d
+    readonly property real gkCostToday: root.aiGkCostToday
+    readonly property real gkCost7d: root.aiGkCost7d
+    readonly property string gkModel: root.aiGkModel
+    readonly property bool gkHas7d:  root.aiGkHas7d
+    readonly property int  gkPct7d:  root.aiGkPct7d
+    readonly property int  gkReset7dTs: root.aiGkReset7dTs
+    readonly property string gkPlan: root.aiGkPlan
+    readonly property int  gkLimitCheckedAt: root.aiGkLimitCheckedAt
+
     // ── which providers earn a chip ──
     // the user chooses which agents ride the bar; a chosen one still has to have
     // data (or a live session) before it takes up room.
     readonly property bool showCl: root.aiToolShown("claude")   && (clHas || clActive)
     readonly property bool showCx: root.aiToolShown("codex")    && (cxHas || cxActive)
     readonly property bool showOc: root.aiToolShown("opencode") && (ocHas || ocActive)
+    readonly property bool showGk: root.aiToolShown("grok")     && gkHas
 
     // codex reports its weekly window only sometimes; fall back to the primary
     // window for the number, but only flag pace off a genuine 7-day window.
@@ -70,7 +86,7 @@ Item {
     // The collectors ship with ryoku-rashin. Without them there is no usage to
     // read, and a running tool alone would raise an empty "0%" chip.
     property bool collectorsInstalled: false
-    readonly property bool shown: root.modClaude && collectorsInstalled && (showCl || showCx || showOc)
+    readonly property bool shown: root.modClaude && collectorsInstalled && (showCl || showCx || showOc || showGk)
 
     readonly property string tooltipText: {
         var lines = []
@@ -107,6 +123,23 @@ Item {
             if (ocTokens) lines.push(I18n.tr("%1 tokens").arg(ocTokens) + (ocRate ? "  · " + ocRate : ""))
             if (ocToday > 0) lines.push(I18n.tr("today: %1M tok").arg((ocToday / 1e6).toFixed(2)))
             if (ocModel) lines.push(ocModel)
+        }
+        if (showGk) {
+            if (lines.length) lines.push("")
+            lines.push(I18n.tr("Grok") + (gkPlan ? "  (" + gkPlan + ")" : "")
+                + (gkFresh ? "" : "  · " + I18n.tr("stale, last refresh failed")))
+            if (gkHas7d) {
+                var g7 = root.aiFmtReset(gkReset7dTs)
+                lines.push(I18n.tr("Weekly") + ": " + gkPct7d + "%" + (g7 ? "  (" + I18n.tr("reset in %1").arg(g7) + ")" : ""))
+                var gkp = root.aiPaceText(gkPct7d, gkReset7dTs)
+                if (gkp) lines.push(I18n.tr("pace: %1").arg(gkp))
+                if (gkLimitCheckedAt > 0)
+                    lines.push(I18n.tr("limit as of %1").arg(root.aiFmtClock(gkLimitCheckedAt)))
+            }
+            lines.push(I18n.tr("today: %1 tokens · %2").arg(root.aiTokenCount(gkToday)).arg(root.aiUsd(gkCostToday)))
+            lines.push(I18n.tr("7d: %1 tokens · %2").arg(root.aiTokenCount(gkTokens7d)).arg(root.aiUsd(gkCost7d)))
+            if (!gkHas7d) lines.push(I18n.tr("No current plan limit; open grok to refresh it"))
+            if (gkModel) lines.push(gkModel)
         }
         return lines.length ? lines.join("\n") : I18n.tr("AI usage")
     }
@@ -158,6 +191,7 @@ Item {
         property int resetTs: 0     // reset used for the countdown
         property int paceTs: 0      // genuine weekly reset for pace (0 ⇒ no pace)
         property bool fresh: true   // false ⇒ the collector could not refetch
+        property string valueText: "" // replaces "pct% · countdown" for a tool with no allowance
         property bool tinted: true  // false ⇒ show the logo in its own colours (Claude)
         property url logo: ""       // Codex / OpenCode vector mark
         property size logoSize: Qt.size(14, 14)
@@ -220,7 +254,7 @@ Item {
         UiText {
             anchors.verticalCenter: parent.verticalCenter
             visible: !rootMod.root.iconOnly("G7")
-            text: chip.pct + "%" + (chip.countdown ? " · " + chip.countdown : "")
+            text: chip.valueText || (chip.pct + "%" + (chip.countdown ? " · " + chip.countdown : ""))
             color: chip.col
             font.family: rootMod.root.mono
             font.pixelSize: 12
@@ -267,6 +301,19 @@ Item {
             markW: 20; markH: 12
             pct: rootMod.ocPct7d; resetTs: 0; paceTs: 0
             fresh: rootMod.ocFresh
+        }
+
+        Divider { visible: (rootMod.showCl || rootMod.showCx || rootMod.showOc) && rootMod.showGk }
+
+        Chip {
+            visible: rootMod.showGk
+            name: "Grok"
+            logo: Qt.resolvedUrl("../assets/grok.svg"); logoSize: Qt.size(28, 28)
+            pct: rootMod.gkPct7d
+            resetTs: rootMod.gkHas7d ? rootMod.gkReset7dTs : 0
+            paceTs: rootMod.gkHas7d ? rootMod.gkReset7dTs : 0
+            valueText: rootMod.gkHas7d ? "" : I18n.tr("%1 today").arg(rootMod.root.aiTokenCount(rootMod.gkToday))
+            fresh: rootMod.gkFresh
         }
     }
 

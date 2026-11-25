@@ -67,7 +67,7 @@ EOF
 for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami \
 	ryoku-idle ryoku-clamshell pipewire bluetoothctl ryoku-rashin prowl \
 	ryoku-palette-bridge ryoku \
-	claude-usage codex-usage opencode-usage nmcli \
+	claude-usage codex-usage opencode-usage grok-usage nmcli \
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	mkstub "$b"
 done
@@ -141,17 +141,17 @@ chmod +x "$WORK/bin/ryoku-idle"
 
 # hook-only and collector stubs must return, never sleep.
 for b in ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryoku \
-	claude-usage codex-usage opencode-usage nmcli \
+	claude-usage codex-usage opencode-usage grok-usage nmcli \
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	echo exit0 > "$WORK/ctl/$b"
 done
 
 # Data-only installations remain collectable, and a colocated guard finds the
 # matching collectors without a package-path override.
-mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.local/share/opencode/storage"
+mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.local/share/opencode/storage" "$HOME/.grok/sessions"
 printf '{}\n' >"$HOME/.claude/.credentials.json"
 "$WORK/bin/ryoku-ai-usage"
-for collector in claude-usage codex-usage opencode-usage; do
+for collector in claude-usage codex-usage opencode-usage grok-usage; do
 	[ "$(grep -c "^$collector" "$LOG")" -eq 1 ] || fail "data-only guard skipped $collector"
 done
 : >"$LOG"

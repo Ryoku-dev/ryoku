@@ -4,12 +4,13 @@ set -u
 BIN=${RYOKU_AI_USAGE_BIN_DIR:-$(dirname "$0")}
 # A service starts with a minimal PATH, so also look where the tools usually
 # land: beside the collectors, and the per-user install locations.
-PATH="${PATH:-}:$BIN:$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.local/share/mise/shims:$HOME/.opencode/bin"
+PATH="${PATH:-}:$BIN:$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.local/share/mise/shims:$HOME/.opencode/bin:$HOME/.grok/bin"
 export PATH
 
 CODEX_DATA=${CODEX_HOME:-"$HOME/.codex"}
 OPENCODE_DATA_HOME=${XDG_DATA_HOME:-"$HOME/.local/share"}
 OPENCODE_DATA=${OPENCODE_DATA_DIR:-"$OPENCODE_DATA_HOME/opencode"}
+GROK_DATA=${GROK_HOME:-"$HOME/.grok"}
 
 wants_claude() {
 	command -v claude >/dev/null 2>&1 || [ -f "$HOME/.claude/.credentials.json" ]
@@ -25,8 +26,12 @@ wants_opencode() {
 		[ -f "$OPENCODE_DATA/opencode.db" ]
 }
 
+wants_grok() {
+	command -v grok >/dev/null 2>&1 || [ -d "$GROK_DATA/sessions" ]
+}
+
 available() {
-	wants_claude || wants_codex || wants_opencode
+	wants_claude || wants_codex || wants_opencode || wants_grok
 }
 
 if [ "${1:-}" = --available ]; then
@@ -47,4 +52,7 @@ if wants_codex; then
 fi
 if wants_opencode; then
 	"$BIN/opencode-usage" || true
+fi
+if wants_grok; then
+	"$BIN/grok-usage" || true
 fi
