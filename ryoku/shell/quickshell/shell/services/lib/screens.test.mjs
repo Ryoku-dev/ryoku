@@ -75,7 +75,8 @@ eq(monitorScale(logical(1080)), 1, "an unscaled 1080p panel is exactly 1.0");
 eq(monitorScale(logical(1280)), 1280 / 1080, "the factor is the logical height over 1080");
 eq(monitorScale(logical(1280)) * 1.25, 1600 / 1080,
     "the compositor scales the surface back up: the panel's physical height sets the factor");
-eq(monitorScale(logical(1280), 1.2), 1.2, "the second argument is the cap, not the output scale");
+eq(monitorScale(logical(1280), 1.2), 1280 / 1080,
+    "a cap above the factor does not change it; the second argument is not the output scale");
 eq(monitorScale(logical(1600), 1.2), 1.2, "a tall panel never balloons past the cap");
 eq(monitorScale(logical(1440)), 1440 / 1080, "a fractional-resolution panel scales by its own height");
 eq(monitorScale(null), 1, "a surface with no screen yet falls back to 1");
