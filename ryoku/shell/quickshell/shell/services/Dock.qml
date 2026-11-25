@@ -71,7 +71,9 @@ Singleton {
     // more than one identity. Persist desktop-entry ids, then resolve window
     // classes through the desktop database so every dock design groups the same
     // application and aliases do not create duplicate pins.
-    readonly property var quickshellApps: ({ "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore", "ryovm": "ryovm" })
+    // Quickshell clients that carry no stable app id of their own, by window
+    // title. Ryoku's own apps set `//@ pragma AppId` and resolve by app id.
+    readonly property var quickshellApps: ({ "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore", "ryovm": "ryovm", "Ryotunes": "ryotunes" })
     function plainId(value) {
         return String(value ?? "").trim().replace(/\.desktop$/i, "");
     }
@@ -106,10 +108,7 @@ Singleton {
     }
     function classOf(w) {
         if (!w) return "";
-        const cls = w.appId;
-        if (cls === "org.quickshell" && root.quickshellApps[w.title])
-            return root.canonicalId(root.quickshellApps[w.title]);
-        return root.canonicalId(cls);
+        return root.canonicalId(DockList.classOf(w.appId, w.title, root.quickshellApps));
     }
 
     property var _clients: []
@@ -130,8 +129,8 @@ Singleton {
             const w = wins[i];
             const id = String(w?.id ?? "");
             const appId = String(w?.appId ?? "");
-            const specialId = appId === "org.quickshell"
-                ? String(root.quickshellApps[w?.title] ?? "") : "";
+            const resolved = DockList.classOf(appId, w?.title, root.quickshellApps);
+            const specialId = resolved !== appId ? resolved : "";
             records.push({
                 id: id,
                 appId: appId,
@@ -149,8 +148,7 @@ Singleton {
         for (const toplevel of toplevels) {
             if (!toplevel?.appId)
                 continue;
-            const id = root.canonicalId(toplevel.appId === "org.quickshell"
-                ? (root.quickshellApps[toplevel.title] || toplevel.appId) : toplevel.appId);
+            const id = root.canonicalId(DockList.classOf(toplevel.appId, toplevel.title, root.quickshellApps));
             if (!id)
                 continue;
             directCounts.set(id, (directCounts.get(id) || 0) + 1);
@@ -179,10 +177,8 @@ Singleton {
         root._clients = result;
         root._focusedClient = focused || activeToplevel;
         root._activeClass = focused
-            ? root.canonicalId((focused.appId === "org.quickshell"
-                ? root.quickshellApps[focused.title] : "") || focused.appId)
-            : activeToplevel ? root.canonicalId(activeToplevel.appId === "org.quickshell"
-                ? (root.quickshellApps[activeToplevel.title] || activeToplevel.appId) : activeToplevel.appId) : "";
+            ? root.canonicalId(DockList.classOf(focused.appId, focused.title, root.quickshellApps))
+            : activeToplevel ? root.canonicalId(DockList.classOf(activeToplevel.appId, activeToplevel.title, root.quickshellApps)) : "";
     }
 
     Connections {
@@ -380,8 +376,7 @@ Singleton {
                 matches.push(wins[i]);
         if (matches.length === 0) {
             const direct = Array.from(Wm.toplevels ?? []).find(toplevel =>
-                root.sameApp(toplevel?.appId === "org.quickshell"
-                    ? (root.quickshellApps[toplevel.title] || toplevel.appId) : toplevel?.appId, id));
+                root.sameApp(DockList.classOf(toplevel?.appId, toplevel?.title, root.quickshellApps), id));
             if (direct)
                 direct.activate();
             else

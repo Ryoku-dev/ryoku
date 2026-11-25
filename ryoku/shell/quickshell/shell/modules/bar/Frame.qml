@@ -176,12 +176,11 @@ Scope {
     PanelWindow {
         id: overlay
 
-        // Physical panel height (Quickshell's is logical: a logical-only term
-        // shrinks the popouts and the needle panel as the display scale rises),
-        // the accessibility font scale, and this monitor's interface scale, so
-        // the popout chrome matches the rails it grows out of.
-        readonly property real s: Screens.monitorScale(root.modelData,
-            Wm.outputScale(root.modelData ? root.modelData.name : ""))
+        // The factor is the logical height over 1080, because the compositor
+        // scales the surface back up; the font scale and the interface scale
+        // still multiply in afterwards, so the popout chrome matches the rails
+        // it grows out of.
+        readonly property real s: Screens.monitorScale(root.modelData)
             * Math.max(0.7, Math.min(1.6, Config.fontScale)) * root.uiScale
         readonly property var frameBars: Config.normalizedFrameBars
         // Read through `overlay.` and keep the rail host's id distinct: an id
@@ -440,6 +439,7 @@ Scope {
                         revealState: overlay.edgeReveal
                         frameBars: overlay.frameBars
                         style: ({ group: blobGroup })
+                        monitorName: root.modelData ? root.modelData.name : ""
                         onMenuRequested: (id, ownerRect) => frameMenus.openSurface(id, ownerRect, "")
                         onSurfaceRequested: (id, ownerRect) => frameMenus.openSurface(id, ownerRect, "")
                         onActionRequested: id => root.runBarAction(id)

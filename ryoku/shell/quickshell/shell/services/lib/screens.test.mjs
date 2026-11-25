@@ -66,33 +66,21 @@ ok(recreated !== slices[0].modelData, "a re-enabled output is a different object
 ok(slices.find(s => s.modelData === recreated) === undefined, "identity matching misses it, which is the bug");
 ok(sliceForScreen(slices, recreated) === slices[0], "matching on name still resolves it to its own slice");
 
-// --- monitor-derived size factor ------------------------------------------
-
-// Quickshell reports the LOGICAL rectangle: a 1600 px panel at scale 1.25
-// arrives as height 1280. A logical-only term made chrome shrink as the
-// display scale rose (the surfaces stayed their old physical size while every
-// app grew); the factor must use the physical height.
+// The compositor scales the surface back up by the output scale, so the
+// factor must be the LOGICAL height over 1080: the physical result then
+// tracks the panel whatever the scale is. Multiplying the scale in as well
+// scaled the chrome twice (issue #955).
 const logical = (h) => ({ name: "eDP-1", width: 2048, height: h });
-eq(monitorScale(logical(1280), 1.25), 1280 * 1.25 / 1080,
-    "a scaled output sizes from its physical height, not the logical rectangle");
-eq(monitorScale(logical(1080), 1), 1,
-    "an unscaled 1080p panel is exactly 1.0");
-eq(monitorScale(logical(1280), 1.25, 1.2), 1.2,
-    "the cap still clamps the physical factor");
-eq(monitorScale(logical(1600), 1.6, 1.2), 1.2,
-    "a tall scaled panel never balloons past the cap");
-eq(monitorScale(logical(1440), 1.0666666666666669), 1440 * 1.0666666666666669 / 1080,
-    "a fractional scale multiplies without rounding");
-eq(monitorScale(logical(1080), 0), 1,
-    "an output the daemon has not reported a scale for yet behaves as scale 1");
-eq(monitorScale(logical(1080), undefined), 1,
-    "a missing scale is tolerated as 1");
-eq(monitorScale(null, 2), 1,
-    "a surface with no screen yet falls back to 1");
-eq(monitorScale({ name: "x", width: 0, height: 0 }, 2), 1,
-    "a 0x0 placeholder output is not scaled to zero");
-ok(monitorScale(logical(1280), 1.25) > monitorScale(logical(1280), 1),
-    "raising the display scale grows the factor, never shrinks it");
+eq(monitorScale(logical(1080)), 1, "an unscaled 1080p panel is exactly 1.0");
+eq(monitorScale(logical(1280)), 1280 / 1080, "the factor is the logical height over 1080");
+eq(monitorScale(logical(1280)) * 1.25, 1600 / 1080,
+    "the compositor scales the surface back up: the panel's physical height sets the factor");
+eq(monitorScale(logical(1280), 1.2), 1280 / 1080,
+    "a cap above the factor does not change it; the second argument is not the output scale");
+eq(monitorScale(logical(1600), 1.2), 1.2, "a tall panel never balloons past the cap");
+eq(monitorScale(logical(1440)), 1440 / 1080, "a fractional-resolution panel scales by its own height");
+eq(monitorScale(null), 1, "a surface with no screen yet falls back to 1");
+eq(monitorScale({ name: "x", width: 0, height: 0 }), 1, "a 0x0 placeholder output is not scaled to zero");
 
 if (failed > 0) { console.log("\n" + failed + " test(s) FAILED"); process.exit(1); }
 console.log("\nAll tests PASSED");

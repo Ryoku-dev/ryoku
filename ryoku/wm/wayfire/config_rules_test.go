@@ -50,7 +50,7 @@ func TestBuiltinWindowRulesCoverRyokuFloats(t *testing.T) {
 		"update":                      {`app_id is "dev.ryoku.update"`, largeGeometry},
 		"ryovm":                       {`title is "ryovm"`, largeGeometry},
 		"ryoport_ssh":                 {`app_id is "dev.ryoku.ryoport_ssh"`, compactGeometry},
-		"ryostore_app":                {`app_id is "ryostore"`, mediumGeometry},
+		"ryostore_app":                {`app_id is "ryostore"`, largeGeometry},
 		"picture_in_picture":          {`title contains "Picture-in-Picture"`, ""},
 		"picture_in_picture_chromium": {`title contains "Picture in picture"`, ""},
 		"rashin_setup":                {`app_id is "ryoku-rashin-setup"`, mediumGeometry},

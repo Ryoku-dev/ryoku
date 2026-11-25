@@ -1,3 +1,4 @@
+//@ pragma AppId ryovm
 import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons

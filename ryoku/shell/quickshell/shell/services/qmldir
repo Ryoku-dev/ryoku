@@ -23,6 +23,7 @@ singleton Tray Tray.qml
 singleton Dock Dock.qml
 singleton DockPreview DockPreview.qml
 singleton MusicPreview MusicPreview.qml
+PreviewHold PreviewHold.qml
 singleton BarProducts BarProducts.qml
 singleton DockProducts DockProducts.qml
 singleton Designs Designs.qml

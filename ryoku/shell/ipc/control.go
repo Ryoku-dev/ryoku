@@ -168,10 +168,10 @@ func hubAlive() bool {
 }
 
 // hubRaise brings the Hub window to the focused workspace. The Hub is the only
-// floating org.quickshell client the shell spawns, so app-id targeting is
-// unambiguous.
+// floating Quickshell client the shell spawns, and it carries its own app id
+// (`//@ pragma AppId ryoku-hub`), so app-id targeting is unambiguous.
 func (d *daemon) hubRaise() {
-	_ = d.wmc.Act(wm.ActionAppFocus, "org.quickshell")
+	_ = d.wmc.Act(wm.ActionAppFocus, "ryoku-hub")
 }
 
 func (d *daemon) hub(sub, section string) string {

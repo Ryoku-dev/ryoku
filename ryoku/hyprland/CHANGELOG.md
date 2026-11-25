@@ -33,6 +33,11 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Ryostore floats at the size it was designed for.** Both of its rules used
+  the name `float-ryostore`, so the later class rule replaced the title one and
+  nothing matched the Quickshell window; the class rule now matches the app id
+  the store carries and keeps its 1180x760 geometry
+  (`modules/window_rules.lua`).
 - **Unplugging the external monitor no longer leaves an invalid layout.** A
   panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
   Hyprland reports for a disabled output, and the hotplug fallback woke it with

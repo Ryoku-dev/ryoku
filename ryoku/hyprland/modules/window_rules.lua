@@ -212,7 +212,7 @@ hl.window_rule({
     name   = "float-ryostore",
     match  = { class = "ryostore" },
     float  = true,
-    size   = fit(900, 600),
+    size   = fit(1180, 760),
     center = true,
 })
 

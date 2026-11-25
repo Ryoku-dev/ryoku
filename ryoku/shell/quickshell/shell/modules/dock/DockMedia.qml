@@ -206,12 +206,13 @@ Item {
     function syncMusicPreview() {
         if (chipHover.hovered) {
             const c = media.mapToGlobal(media.width / 2, media.height / 2);
+            MusicPreview.monitorName = media.band.screenName;
             MusicPreview.gx = c.x;
             MusicPreview.gy = c.y;
             MusicPreview.edge = media.band.edge;
             MusicPreview.margin = media.band.reservedDepth + 14;
             MusicPreview.hovered = true;
-        } else if (MusicPreview.hovered) {
+        } else if (MusicPreview.hovered && MusicPreview.monitorName === media.band.screenName) {
             MusicPreview.hovered = false;
         }
     }

@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
 import shell.services
+import "../../services/lib/dock.js" as DockList
 import stage
 import shell.modules.stage.frame
 
@@ -82,20 +83,19 @@ PanelWindow {
         return active !== undefined && !(Wm.windows ?? []).some(w => w.workspace === active.id);
     }
     readonly property bool menuHere: Dock.menuOpen && Dock.menuScreen === dock.screenName
-    readonly property bool revealed: {
-        // The editor is showing this dock's settings page: it holds open.
-        if (dock.stageEditing)
-            return true;
-        // Suppress only auto-hide docks; stale fullscreen state would hide pinned docks.
-        if (dock.autohide && dock.monFullscreen)
-            return dock.pointerInside;
-        return !dock.autohide
-            || dock.pointerInside
-            || dock.workspaceEmpty
-            || !Dock.anyFocused
-            || band.dragging
-            || dock.menuHere;
-    }
+    readonly property bool popoutHeld: DockPreview.holds.has(dock.screenName)
+        || MusicPreview.holds.has(dock.screenName)
+    readonly property bool revealed: DockList.dockRevealed({
+        stageEditing: dock.stageEditing,
+        autohide: dock.autohide,
+        fullscreen: dock.monFullscreen,
+        pointerInside: dock.pointerInside,
+        workspaceEmpty: dock.workspaceEmpty,
+        anyFocused: Dock.anyFocused,
+        dragging: band.dragging,
+        menuHere: dock.menuHere,
+        popoutHeld: dock.popoutHeld
+    })
 
     // Keep the reported edit edge at its resting depth; reveal and hover
     // animation must not move edit guides under the pointer.

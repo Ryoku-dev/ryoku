@@ -19,6 +19,8 @@ import Ryoku.Ui.Singletons
 Popout {
     id: root
 
+    required property string monitorName
+
     // ---- layout ------------------------------------------------------------
     readonly property real pad: 12 * root.s
     readonly property real tileW: 184 * root.s
@@ -34,7 +36,8 @@ Popout {
     // the close grace. Without it, leaving the icon empties the window list and
     // collapses the body -- and its input mask -- out from under a pointer on
     // its way onto the strip, so the popout shuts the instant you reach for it.
-    readonly property string cls: DockPreview.hoveredClass
+    readonly property bool ownsHover: DockPreview.monitorName === root.monitorName
+    readonly property string cls: root.ownsHover ? DockPreview.hoveredClass : ""
     property string shownClass: ""
     onClsChanged: if (root.cls !== "") root.shownClass = root.cls;
     // Every open window of the hovered class, across all workspaces. A window on
@@ -64,6 +67,8 @@ Popout {
     edgeGap: DockPreview.margin > 0 ? DockPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
     triggerHovered: root.cls !== ""
+    onHeldOpenChanged: DockPreview.holds.set(root.monitorName, root.heldOpen)
+    Component.onDestruction: DockPreview.holds.set(root.monitorName, false)
     alongCenter: {
         // Hold the last icon's centre through the brief cls-empty tick on
         // icon-exit (so a switch between icons slides rather than snapping to a
