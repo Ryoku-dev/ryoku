@@ -211,7 +211,7 @@ var wayfireBuiltinRules = []wayfireBuiltinRule{
 	{key: "ryoport_console", condition: `app_id is "dev.ryoku.ryoport_console"`, floating: true},
 	{key: "ryoport_vnc_lower", condition: `app_id is "vncviewer"`, floating: true},
 	{key: "ryoport_vnc_upper", condition: `app_id is "Vncviewer"`, floating: true},
-	{key: "ryostore_app", condition: `app_id is "ryostore"`, action: mediumGeometry, floating: true},
+	{key: "ryostore_app", condition: `app_id is "ryostore"`, action: largeGeometry, floating: true},
 	{key: "rashin_setup", condition: `app_id is "ryoku-rashin-setup"`, action: mediumGeometry, floating: true},
 	{key: "looking_glass", condition: `app_id is "looking-glass-client"`, action: largeGeometry, floating: true},
 	{key: "qemu_lower", condition: `app_id is "qemu"`, action: largeGeometry, floating: true},
