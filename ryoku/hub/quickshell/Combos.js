@@ -76,8 +76,26 @@ function foldChordText(s) {
         .replace(/\bnum(?:pad)?\s*([0-9])\b/g, "kp$1");
 }
 
+// the legend repeats the user's own binds in a Custom category: Go writes
+// Category "Custom" and ID "custom.<n>" for them, on every provider. They are a
+// copy of the live store, so a pass over the legend skips them and counts the
+// store's rows instead, or every custom chord would look like a clash with
+// itself. A compositor's own fixed binds also carry kind "custom" -- Wayfire
+// titles its exclusives that way -- but they sit under their own category with
+// their own id, so it is the category and the id, not the kind, that tell a
+// user's row from a shipped one.
+function isUserCopy(bind) {
+    if (!bind)
+        return false;
+    if ((bind.category || "") === "Custom")
+        return true;
+    return ("" + (bind.id || "")).indexOf("custom.") === 0;
+}
+
 // a chord or query as canonical search tokens. Unknown tokens keep their own
-// spelling, so an exotic key still compares literally.
+// spelling, so an exotic key still compares literally. The modifier folds run
+// first, so an imported chord ("MOD + Q") answers a search for "super+q" the
+// same way normKeys already says they are one chord.
 function searchTokens(s) {
     var parts = foldChordText(s).split(/[\s+]+/);
     var out = [];
@@ -87,7 +105,7 @@ function searchTokens(s) {
             continue;
         if (t.indexOf("kp_") === 0)
             t = "kp" + t.substring(3);
-        t = searchAliases[t] || t;
+        t = modifierAliases[t] || searchAliases[t] || t;
         out.push(t);
     }
     return out;
@@ -157,7 +175,7 @@ function shippedKeys(categories, rebinds, disabled) {
     for (var c = 0; c < categories.length; c++) {
         var binds = categories[c].binds || [];
         for (var b = 0; b < binds.length; b++) {
-            if ((binds[b].kind || "") === "custom")
+            if (isUserCopy(binds[b]))
                 continue;
             var def = binds[b].combo || "";
             if (off[def])
@@ -185,8 +203,10 @@ function disabledSet(disabled) {
 
 // how many shortcuts hold each effective chord: the shipped legend (rebinds
 // applied, families expanded) plus the custom rows. The legend carries the
-// custom rows too, so they are skipped there and counted once from `customRows`
-// or every custom chord would look like a clash with itself.
+// user's custom rows too, so they are skipped there and counted once from
+// `customRows` or every custom chord would look like a clash with itself. A
+// compositor's own fixed binds (kind "custom" under their own category) are
+// shipped, so they count like any other.
 function effectiveCounts(categories, rebinds, customRows, disabled) {
     var off = disabledSet(disabled);
     var m = {};
@@ -194,7 +214,7 @@ function effectiveCounts(categories, rebinds, customRows, disabled) {
     for (var c = 0; c < categories.length; c++) {
         var binds = categories[c].binds || [];
         for (var b = 0; b < binds.length; b++) {
-            if ((binds[b].kind || "") === "custom")
+            if (isUserCopy(binds[b]))
                 continue;
             var def = binds[b].combo || "";
             if (off[def])

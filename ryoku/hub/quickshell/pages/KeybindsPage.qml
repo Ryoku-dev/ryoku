@@ -314,7 +314,7 @@ Item {
         for (var c = 0; c < pg.categories.length; c++) {
             var binds = pg.categories[c].binds || [];
             for (var b = 0; b < binds.length; b++) {
-                if ((binds[b].kind || "") === "custom")
+                if (Combos.isUserCopy(binds[b]))
                     continue;
                 var combo = binds[b].combo || "";
                 if (pg.isRebound(combo) && pg.comboConflict(combo))
@@ -484,10 +484,10 @@ Item {
     // draft rebind and a family member both name the row they shadow. "" when
     // nothing shipped matches.
     function shippedDescFor(norm) {
-        for (var c = 0; c < pg.categories.length; c++) {
-            var binds = pg.categories[c].binds || [];
+        for (var c = 0; c < pg.legendCats.length; c++) {
+            var binds = pg.legendCats[c].binds || [];
             for (var b = 0; b < binds.length; b++) {
-                if ((binds[b].kind || "") === "custom")
+                if (Combos.isUserCopy(binds[b]))
                     continue;
                 var chords = Combos.expandFamily(pg.bindCombo(binds[b]));
                 for (var i = 0; i < chords.length; i++)
@@ -584,10 +584,13 @@ Item {
         return false;
     }
 
-    // the chord a legend row fires on: a custom row keeps its own keys (rebinds
-    // are keyed on shipped defaults), and a switched-off row holds none.
+    // the chord a legend row fires on: one of the user's own keeps its keys (a
+    // rebind or a switch-off is keyed on a shipped default, never on it), and a
+    // switched-off shipped row holds none. A compositor's own fixed bind is not
+    // the user's, so the switch-off applies to it like it does to any shipped
+    // row.
     function bindCombo(bind) {
-        if ((bind.kind || "") === "custom")
+        if (Combos.isUserCopy(bind))
             return bind.combo || "";
         if (pg.isDisabled(bind.combo || ""))
             return "";
@@ -602,20 +605,84 @@ Item {
         }
         return false;
     }
+    // the legend as it stands now: the shipped categories without the snapshot's
+    // copy of the user's own binds, plus those binds rebuilt from the live store.
+    // The snapshot carries the saved rows as of page load, so without this a
+    // custom bind added in this session is counted by the badge and then absent
+    // from the lens and its notes: a new clash with a shipped bind would show
+    // one side, and two new custom binds on one chord would show nothing at all.
+    readonly property var legendCats: {
+        var out = [];
+        for (var c = 0; c < pg.categories.length; c++) {
+            var binds = pg.categories[c].binds || [];
+            var keep = [];
+            for (var b = 0; b < binds.length; b++)
+                if (!Combos.isUserCopy(binds[b]))
+                    keep.push(binds[b]);
+            if (keep.length)
+                out.push({ name: pg.categories[c].name, binds: keep });
+        }
+        var custom = [];
+        for (var i = 0; i < pg.customRows.length; i++)
+            custom.push(pg.customRowAsBind(pg.customRows[i], i));
+        if (custom.length)
+            out.push({ name: I18n.tr("Custom"), binds: custom });
+        return out;
+    }
+    // a stored bind as a legend row, so the lens renders it the way the legend
+    // does once it is saved: the same label, the same keycaps, the same tag.
+    function customRowAsBind(row, i) {
+        var keys = "" + (row.keys || "");
+        return {
+            id: "custom." + i,
+            category: "Custom",
+            desc: pg.customLabel(row),
+            label: pg.customLabel(row),
+            combo: keys,
+            keys: pg.comboToCaps(keys),
+            kind: "custom",
+            rebindable: false,
+            locked: false
+        };
+    }
+    // the plain-words name for a stored bind, mirroring customLabel in
+    // ryoku/wm/hyprland/legend.go, so the lens reads like the saved legend.
+    function customLabel(row) {
+        var action = "" + (row.action || "exec");
+        var value = ("" + (row.value || "")).trim();
+        switch (action) {
+        case "exec":
+        case "":
+            return I18n.tr("Run: %1").arg(value);
+        case "close":
+            return I18n.tr("Close window");
+        case "fullscreen":
+            return I18n.tr("Fullscreen");
+        case "togglefloating":
+            return I18n.tr("Float or tile");
+        case "workspace":
+            return I18n.tr("Focus workspace %1").arg(value);
+        case "movetoworkspace":
+            return I18n.tr("Send to workspace %1").arg(value);
+        case "movetoworkspacesilent":
+            return I18n.tr("Send to workspace %1 quietly").arg(value);
+        }
+        return action.charAt(0).toUpperCase() + action.slice(1);
+    }
     // the legend narrowed to every row that holds a clashing chord, both sides
     // included. It reads the live draft, so resolving a clash empties the view.
     readonly property var conflictCats: {
         if (!pg.conflictFilter)
             return [];
         var out = [];
-        for (var c = 0; c < pg.categories.length; c++) {
-            var binds = pg.categories[c].binds || [];
+        for (var c = 0; c < pg.legendCats.length; c++) {
+            var binds = pg.legendCats[c].binds || [];
             var keep = [];
             for (var b = 0; b < binds.length; b++)
                 if (pg.bindInConflict(binds[b]))
                     keep.push(binds[b]);
             if (keep.length)
-                out.push({ name: pg.categories[c].name, binds: keep });
+                out.push({ name: pg.legendCats[c].name, binds: keep });
         }
         return out;
     }
@@ -632,8 +699,8 @@ Item {
                 mine[n] = true;
         }
         var names = [];
-        for (var c = 0; c < pg.categories.length; c++) {
-            var binds = pg.categories[c].binds || [];
+        for (var c = 0; c < pg.legendCats.length; c++) {
+            var binds = pg.legendCats[c].binds || [];
             for (var b = 0; b < binds.length; b++) {
                 var other = binds[b];
                 if (other === bind || (other.id && other.id === bind.id))
@@ -1713,7 +1780,7 @@ Item {
                                         required property var modelData
                                         required property int index
                                         readonly property string combo: rowItem.modelData.combo || ""
-                                        readonly property bool customRow: (rowItem.modelData.kind || "") === "custom"
+                                        readonly property bool customRow: Combos.isUserCopy(rowItem.modelData)
                                         // a custom row is keyed on its own chord, not on a shipped
                                         // default: a rebind or a switch-off for a shipped chord
                                         // must never move or hide it.

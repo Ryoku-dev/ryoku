@@ -41,7 +41,8 @@ vm.createContext(context);
 vm.runInContext(source, context);
 const {
     qtKeyName, chordFrom, isFamilyChord, familyFrom, expandFamily, shippedKeys, normKeys,
-    rowConflict, effectiveCounts, conflictKeys, chordMatches, isChordQuery,
+    rowConflict, effectiveCounts, conflictKeys, chordMatches, isChordQuery, searchTokens,
+    isUserCopy,
 } = context;
 
 // A KeyEvent as Quickshell delivers it: key code + a modifier bitmask.
@@ -169,7 +170,7 @@ test("shippedKeys expands a family so a digit custom bind is caught shadowing it
 test("the legend's custom rows are not shipped, so they do not shadow themselves", () => {
     const cats = [
         { name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] },
-        { name: "Custom", binds: [{ combo: "SUPER + J", kind: "custom" }] },
+        { name: "Custom", binds: [{ id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" }] },
     ];
     const keys = shippedKeys(cats, {});
     assert.ok(keys[normKeys("SUPER + Q")]);
@@ -210,7 +211,7 @@ test("a chord another config spelled with its own modifier words still clashes",
 test("effectiveCounts counts a custom row once and sees real clashes only", () => {
     const cats = [
         { name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] },
-        { name: "Custom", binds: [{ combo: "SUPER + J", kind: "custom" }] },
+        { name: "Custom", binds: [{ id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" }] },
     ];
     const custom = [{ keys: "SUPER + J" }];
     const counts = effectiveCounts(cats, {}, custom, []);
@@ -231,6 +232,36 @@ test("conflictKeys sees rebinds, families and switched-off binds", () => {
 
     const fam = [{ name: "Workspaces", binds: [{ combo: "SUPER + {n}", kind: "wm" }] }];
     assert.ok(conflictKeys(fam, {}, [{ keys: "SUPER + 3" }], [])[normKeys("SUPER + 3")]);
+});
+
+test("a compositor's own fixed bind counts, only the user's copy is skipped", () => {
+    // Wayfire titles its exclusives with kind "custom" too, under their own
+    // category; the skip that keeps a custom row from shadowing itself must not
+    // swallow them, or a clash with one goes unreported on Wayfire.
+    const cats = [{
+        name: "Legend",
+        binds: [
+            { id: "wayfire.zoom", category: "Wayfire", combo: "SUPER + CTRL + KP_5", kind: "custom" },
+            { id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" },
+        ],
+    }];
+    const keys = shippedKeys(cats, {});
+    assert.ok(keys[normKeys("SUPER + CTRL + KP_5")], "the compositor's own bind is shipped");
+    assert.ok(!keys[normKeys("SUPER + J")], "the user's copy is not");
+    assert.equal(rowConflict([{ keys: "SUPER + J" }], 0, keys), "");
+    assert.equal(rowConflict([{ keys: "SUPER + CTRL + KP_5" }], 0, keys), "shipped");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "SUPER + CTRL + KP_5" }], [])[normKeys("SUPER + CTRL + KP_5")], 2);
+});
+
+test("chord search folds an imported spelling on both the query and the chord", () => {
+    // the page stores an imported bind the way its config wrote it, so a search
+    // has to fold the same modifier words normKeys folds to find it.
+    assert.deepEqual(searchTokens("MOD + Q"), searchTokens("super+q"));
+    assert.deepEqual(searchTokens("MAINMOD + SHIFT + Q"), searchTokens("super+shift+q"));
+    assert.equal(chordMatches("super+q", "MOD + Q"), true);
+    assert.equal(chordMatches("mod+q", "SUPER + Q"), true);
+    assert.equal(chordMatches("super+ctrl+l", "CONTROL_L + SUPER + L"), true);
+    assert.equal(chordMatches("super+ctrl+l", "SUPER + ALT + L"), false);
 });
 
 test("chord search folds case, spacing, order and modifier aliases", () => {
