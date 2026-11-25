@@ -73,7 +73,7 @@ func TestFileManagerNumberCommitsDisplayedChoice(t *testing.T) {
 	if got.picks["file-manager"] != "dolphin" {
 		t.Fatalf("number 2 committed %q, want dolphin", got.picks["file-manager"])
 	}
-	if got.cur().key != "rashin" {
-		t.Fatalf("file-manager commit advanced to %q, want rashin", got.cur().key)
+	if got.cur().key != "hyakki" {
+		t.Fatalf("file-manager commit advanced to %q, want hyakki", got.cur().key)
 	}
 }

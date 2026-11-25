@@ -1,0 +1,558 @@
+{
+ "scenario": "state-listening",
+ "frameS": 0.016666666,
+ "every": 4,
+ "frames": [
+  {
+   "i": 0,
+   "fps": 30,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "idle",
+    "gesture": "",
+    "flat": 1,
+    "face": 0,
+    "loose": 0,
+    "spin": 0,
+    "scale": 0.8602321803993351,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1,
+    "bright": 1,
+    "hoverY": 0.5,
+    "lap": {
+     "from": "idle",
+     "to": "idle",
+     "progress": 1,
+     "glow": 0
+    }
+   }
+  },
+  {
+   "i": 4,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.7765350447313024,
+    "face": 0,
+    "loose": 0.23712588066142376,
+    "spin": 0,
+    "scale": 0.9265347943550465,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.0381943229480073,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.133333328,
+     "glow": 0.4278629736178944
+    }
+   }
+  },
+  {
+   "i": 8,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.5052904470899903,
+    "face": 0,
+    "loose": 0.5142817256475046,
+    "spin": 0,
+    "scale": 0.9811057738593517,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.0872953559931187,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.266666656,
+     "glow": 0.521047237869399
+    }
+   }
+  },
+  {
+   "i": 12,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.306329351777498,
+    "face": 0,
+    "loose": 0.7110464632098334,
+    "spin": 0,
+    "scale": 1.0070523787981185,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1259402061960797,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.399999984,
+     "glow": 0.5327756795764096
+    }
+   }
+  },
+  {
+   "i": 16,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.17954820798285337,
+    "face": 0,
+    "loose": 0.8332316605588639,
+    "spin": 0,
+    "scale": 1.0175180215000947,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.152594498964822,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.533333312,
+     "glow": 0.5483171535446322
+    }
+   }
+  },
+  {
+   "i": 20,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.10342380796498936,
+    "face": 0,
+    "loose": 0.9051377368405026,
+    "spin": 0,
+    "scale": 1.0214488737701402,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1700346770797567,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.66666664,
+     "glow": 0.567269143793982
+    }
+   }
+  },
+  {
+   "i": 24,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.05902185512353937,
+    "face": 0,
+    "loose": 0.9464265859031051,
+    "spin": 0,
+    "scale": 1.022910253752532,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1811756303960497,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.799999968,
+     "glow": 0.5891408037712058
+    }
+   }
+  },
+  {
+   "i": 28,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.03351132413462213,
+    "face": 0,
+    "loose": 0.9698538360483155,
+    "spin": 0,
+    "scale": 1.0234973959733666,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1882109665708858,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 0.9333332959999999,
+     "glow": 0.6133656690167671
+    }
+   }
+  },
+  {
+   "i": 32,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.01897343593223742,
+    "face": 0,
+    "loose": 0.9830676912902943,
+    "spin": 0,
+    "scale": 1.0237822300316246,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1926284345463671,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.6393163282956261
+    }
+   }
+  },
+  {
+   "i": 36,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.010725536522718442,
+    "face": 0,
+    "loose": 0.9904984775465713,
+    "spin": 0,
+    "scale": 1.0239764164675969,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1953942565206173,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.6663206732173668
+    }
+   }
+  },
+  {
+   "i": 40,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.006057753369453826,
+    "face": 0,
+    "loose": 0.9946707970285708,
+    "spin": 0,
+    "scale": 1.0239860958510538,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1971234826690234,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.6936793054890762
+    }
+   }
+  },
+  {
+   "i": 44,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.003419725754359717,
+    "face": 0,
+    "loose": 0.9970116946066406,
+    "spin": 0,
+    "scale": 1.0240664141877813,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1982038328052529,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.7206836509623087
+    }
+   }
+  },
+  {
+   "i": 48,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.001929975281149628,
+    "face": 0,
+    "loose": 0.9983245430096434,
+    "spin": 0,
+    "scale": 1.0240745477580209,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1988785440818506,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.7466343113298681
+    }
+   }
+  },
+  {
+   "i": 52,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.0010890439330887294,
+    "face": 0,
+    "loose": 0.9990606796291527,
+    "spin": 0,
+    "scale": 1.02401035217907,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1992998433823527,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.7708591781731416
+    }
+   }
+  },
+  {
+   "i": 56,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.0006144712917560225,
+    "face": 0,
+    "loose": 0.9994734011051629,
+    "spin": 0,
+    "scale": 1.0238749670158291,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1995628838939139,
+    "bright": 1,
+    "hoverY": 1,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.7927308402157096
+    }
+   }
+  },
+  {
+   "i": 60,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.0003466863902937821,
+    "face": 0,
+    "loose": 0.9997047847088888,
+    "spin": 0,
+    "scale": 1.0236707955518647,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1997271068385686,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.8116828329445441
+    }
+   }
+  },
+  {
+   "i": 64,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.00019559610936433557,
+    "face": 0,
+    "loose": 0.9998345015165773,
+    "spin": 0,
+    "scale": 1.0234014621276326,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.199829632961766,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.8272243097421746
+    }
+   }
+  },
+  {
+   "i": 68,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0.000110351191383154,
+    "face": 0,
+    "loose": 1,
+    "spin": 0,
+    "scale": 1.023071747803162,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.1998936403222331,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.8389527545552361
+    }
+   }
+  },
+  {
+   "i": 72,
+   "fps": 60,
+   "redraw": true,
+   "stop": false,
+   "pose": {
+    "state": "listening",
+    "gesture": "",
+    "flat": 0,
+    "face": 0,
+    "loose": 1,
+    "spin": 0,
+    "scale": 1.0226875054872862,
+    "squash": 0,
+    "leanX": 0,
+    "leanY": 0,
+    "unravel": 0,
+    "straighten": 0,
+    "tempo": 1.2,
+    "bright": 1,
+    "hoverY": 0.75,
+    "lap": {
+     "from": "idle",
+     "to": "listening",
+     "progress": 1,
+     "glow": 0.8465644068479872
+    }
+   }
+  }
+ ]
+}

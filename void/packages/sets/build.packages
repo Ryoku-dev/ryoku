@@ -14,6 +14,12 @@ qt6-wayland-devel
 wayland-devel
 wayland-protocols
 Vulkan-Headers
+python3
+libxkbcommon-devel
+libglvnd-devel
+libX11-devel
+libXcursor-devel
+libXfixes-devel
 ffmpeg6-devel
 gtk+3-devel
 libwebkit2gtk41-devel

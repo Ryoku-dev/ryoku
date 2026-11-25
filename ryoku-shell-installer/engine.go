@@ -1917,7 +1917,7 @@ func hardwareLanes(f *facts) []string {
 }
 
 // selectedInstallPackages names chosen packages the edition's package sets do
-// not carry: the file manager, Ryoku apps, Rashin, and offline gaming bundles.
+// not carry: the file manager, Ryoku apps, Hyakki, and offline gaming bundles.
 // Arch's network-only CachyOS bundle has its own guarded install step.
 func selectedInstallPackages(p *plan) []string {
 	var packages []string
@@ -1931,7 +1931,7 @@ func selectedInstallPackages(p *plan) []string {
 		}
 		if component.Group == "ryoku-apps" || component.ID == "radio" ||
 			component.Group == devToolchainGroup ||
-			component.Step == installerplan.ComponentRashin ||
+			component.Step == installerplan.ComponentHyakki ||
 			(component.Step == installerplan.StepGaming && !component.NeedsNetwork) {
 			packages = append(packages, component.Packages...)
 		}
@@ -3245,9 +3245,9 @@ func (e *engine) reconcileHiddenDesktopEntries() error {
 	return nil
 }
 
-func (e *engine) syncRashinMarker() error {
-	path := filepath.Join(e.f.homeDir, ".local/state/ryoku/rashin-on-pending")
-	want := e.p.componentOn("rashin")
+func (e *engine) syncHyakkiMarker() error {
+	path := filepath.Join(e.f.homeDir, ".local/state/ryoku/hyakki-on-pending")
+	want := e.p.componentOn("hyakki")
 	if e.dry {
 		action := i18n.T("remove")
 		if want {
@@ -3296,7 +3296,7 @@ func stepPreferences(e *engine) error {
 	if err := e.setDefaultFileManager(); err != nil {
 		return err
 	}
-	if err := e.syncRashinMarker(); err != nil {
+	if err := e.syncHyakkiMarker(); err != nil {
 		return err
 	}
 	return e.writeDefaultRiceMarker()

@@ -113,10 +113,10 @@ ContentPage {
             ContentSubsectionLabel { text: Translation.tr("AI Chat Logo") }
 
             ConfigSelectionArray {
-                currentValue: Config.options.background.widgets.search_pill.aiLogo ?? "rashin"
+                currentValue: Config.options.background.widgets.search_pill.aiLogo ?? "hyakki"
                 onSelected: value => Config.options.background.widgets.search_pill.aiLogo = value
                 options: [
-                    { displayName: Translation.tr("Rashin"), icon: "neurology", value: "rashin" },
+                    { displayName: Translation.tr("Hyakki"), icon: "neurology", value: "hyakki" },
                     { displayName: Translation.tr("Gemini"), icon: "auto_awesome", value: "gemini" },
                     { displayName: Translation.tr("OpenAI"), icon: "neurology", value: "openai" },
                     { displayName: Translation.tr("Claude"), icon: "psychology", value: "claude" },

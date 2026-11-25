@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "id": "broken-spec-pose",
+  "name": "Moth (test)",
+  "artwork": {
+    "kind": "svg",
+    "image": "moth.svg"
+  },
+  "animations": {
+    "states": {
+      "idle": "spec"
+    }
+  },
+  "personality": {
+    "voiceLines": "lines.json",
+    "promptPersona": "persona.md",
+    "idleHumor": false
+  },
+  "voice": {
+    "engine": "system",
+    "speed": 1.1,
+    "honorific": "none"
+  }
+}

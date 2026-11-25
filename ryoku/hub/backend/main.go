@@ -86,8 +86,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
-	case "rashin":
-		if err := runRashin(args[1:]); err != nil {
+	case "hyakki":
+		if err := runHyakki(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
@@ -223,7 +223,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop plugins rebuild [--all|--stale] [--checkout <dir>] [<id>...]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop plugins add [--inspect] <git-url> [<plugin>...]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop plugins remove <id>")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub rashin status|on|off")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub hyakki status|on|off")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub phone status|on|off|plan-enable|plan-disable|devices|pair|unpair")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub wifi connect <ssid>   (passphrase on stdin)")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub wm list")

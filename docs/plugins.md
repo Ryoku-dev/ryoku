@@ -605,7 +605,7 @@ unsandboxed with your permissions. R1..R11 are what keep it honest.
 
 ## Share it
 
-A widget written on one desktop (by hand, or by asking Rashin) reaches every
+A widget written on one desktop (by hand, or by asking Hyakki) reaches every
 other one through Ryostore. Two commands do the packaging, so the catalogue's
 per-file hashes are never typed by hand:
 

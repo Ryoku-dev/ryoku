@@ -2,10 +2,12 @@ package kit
 
 import (
 	"image"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"weak"
 
 	"gioui.org/io/input"
 	"gioui.org/layout"
@@ -112,6 +114,22 @@ func TestSpacedCapsAtRest(t *testing.T) {
 	}
 	if _, wake := router.WakeupTime(); wake {
 		t.Error("a spaced line asked for a frame")
+	}
+}
+
+func TestTrackedLabelsReleaseRetiredShapers(t *testing.T) {
+	retired := func() weak.Pointer[text.Shaper] {
+		th := theme.New(palette.Signature(true))
+		var router input.Router
+		var ops op.Ops
+		gtx := partsFrame(&router, &ops, time.Unix(1000, 0), image.Pt(800, 100))
+		LayoutTracked(gtx, th, th.T.Group, th.R.Fg, 1.4, "Closed native window")
+		return weak.Make(th.Shaper)
+	}()
+	runtime.GC()
+	runtime.GC()
+	if retired.Value() != nil {
+		t.Fatal("cached labels retain a retired theme's font shaper")
 	}
 }
 

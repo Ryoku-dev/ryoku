@@ -137,8 +137,8 @@ loaded defines `revisited()` on its root: the frame calls it when a kept page is
 shown again, and it re-reads in the background without clearing the rows, unless
 an action or an unsaved edit is under way.
 
-Large schema pages can set `SettingsPage.asynchronousSections`. Rashin uses it
-to paint its first section before building the rest in reading order, spread
+Large schema pages can set `SettingsPage.asynchronousSections`
+to paint their first section before building the rest in reading order, spread
 across frames. Completed sections stay in the page cache; unfinished sections
 stop building while hidden. Search and outline jumps wait for the target and
 preceding sections' rows, finish their layout and open More options when needed.
@@ -935,67 +935,34 @@ leave. `components/performance/PerformanceStore.qml` (a JSON file kept key by
 key) and `components/graphics/GraphicsStore.qml` (`ryoku-hub gpu` calls, with
 prompts and a Needs you probe) are the two to read first.
 
-### The Rashin page and Theia
+### The Hyakki page
 
-`schema/rashin.js` holds the Rashin page, opened from Apps > Rashin, with the
-Theia hero first. Its sections, in order:
-Rashin (the master switch and app features), Theia, Reading, Writing,
-Translate, Listening, Quiet places, Model, Status and Open Rashin.
-Theia is what Sight used to be called; the row ids that existed keep their
-`sight-` names (`sight-enabled`, `sight-highlight`, `sight-mode`,
-`sight-target`, `sight-languages`, `sight-local-only`, `sight-engine`,
-`sight-model`, `sight-shortcut`, `sight-status`) so deep links and search keep
-working, and the registry's keywords keep "sight". Deep links are
-`rashin/theia-on`, `rashin/theia-f-<id>` and the existing `rashin/sight-*`.
+`schema/hyakki.js` holds Apps > Hyakki. It is a lifecycle page with links into
+the native app, not a second form for Oni's settings.
 
-- **The master row** (`theia-on`) is a custom `TheiaHero`: the Theia switch,
-  a sentence saying what is listening ("Listening for Right Alt three times
-  and Left Alt while you highlight."), a keycap for each gesture and how many
-  of the 21 desktop features are on, all live. Gestures and Start with sit under it.
-- **A row per feature**, `theia-f-<id>`. Theia's 21 features (`inplace`,
-  `summarize`, `deepread`, `math`, `learn`, `readaloud`, `proofread`,
-  `rewrite`, `tone`, `fluent`, `humanize`, `aicheck`, `inclusive`, `reactions`,
-  `reply`, `voice`, `translatestyle`, `dictionary`, `overimage`,
-  `quiet`, `save`) bind to `{ store: "sight", key:
-  "features.<id>", fallback: false }`. Each draws with `TheiaFeatureSwitch`:
-  chips for where it shows and a switch, grouped by what it does. All are off
-  by default.
-  `theia-f-save` writes `sight.features.save` and Rashin's `collections`
-  together, inside `SightStore`, so Reset and Undo put both back.
-- **Rashin app features** replaces the app's per-feature switches with a count,
-  "N of 20 on", and Open in Rashin, which runs
-  `rashin open --tab settings --view features`. Rashin's own Settings > Features
-  groups the switches under Ask, Answers, Agents and Teams, and Memory and
-  Index, with links to any further settings while the feature is on.
-- **Options**, `theia-o-<key>`, bind to `{ store: "sight", key: "<key without
-  sight.>", fallback: <default> }` and show `when` their feature is on and
-  Theia is on; a feature with more than two options folds the rest under More
-  options.
-- **Custom editors** in `components/rashin/`: `TheiaBubblePicker` (up to four
-  bubble actions as chips, the core four and the features that are on, with
-  arrows to reorder), `TheiaPinnedPicker` (up to two extra tabs),
-  `TheiaTones` (the 23 tones as chips, which ones show first),
-  `TheiaCategories` (the 14 writing check categories, listing those turned
-  off), `TheiaVoice` (My voice: your samples, Learn, the notes it writes that
-  you can edit, Save and Clear, through `rashin call writing.voice.*`),
-  `TheiaQuietApps` (quiet apps, added from the running windows listed once each
-  by `ryoku wm state`), `TheiaVoices` (the reading voice from `sight.voices`
-  with a Test button, installing `espeak-ng` with the usual package job when it
-  is missing) and `TheiaWords` (Your words, the personal spelling dictionary
-  used by the built-in English checker, through `writing.words`,
-  `writing.words.add` and `writing.words.remove`). Fix writing needs no grammar
-  package; Automatic uses English on this computer, other languages with your
-  model, with US, UK, CA, AU and IN dialects for English.
-- **Two stores.** `SightStore` is `shell.json`'s `sight.*` through the bus.
-  `RashinFeaturesStore` (store name `rashinFeatures`) reads `features` from
-  `rashin status --json`, which shows Rashin's status without starting
-  rashind, so opening the page never wakes it. Its write path remains for
-  Save's paired `collections` switch, through `rashin call settings.set`.
-- **Shortcuts.** The In place gesture has a key menu like the other two there,
-  writing `sight.inplace.key`.
+- **Use Hyakki** installs the optional app when needed and turns it on.
+  Turning it off from this page stops it and removes the app; conversations
+  and settings stay. `hyakki off` stops the runtime without uninstalling it.
+- **Open Hyakki** opens the native app. Super+Alt+Space focuses its window,
+  whose desktop app id is `dev.ryoku.Hyakki`.
+- **Desktop shortcuts** opens the shared shortcut editor. Alt+Space remains
+  the shell's thin Quick Ask client, web search and downloads.
+- **Vision and screen**, **Oni on the desktop**, **Oni privacy**, **Writing**,
+  **Oni voice**, **Hyakki app features**, and **Models and providers** open
+  the matching native settings views with
+  `hyakki open --tab settings --view <view>`. The schema uses `oni-screen`,
+  `oni`, `oni-privacy`, `oni-writing`, `oni-voice`, `features`, and `providers`.
 
-Every "Sight" a person can read is "Theia". The behaviour of each feature is in
-`docs/rashin.md`.
+Opening a settings link grants no screen, microphone or input permission.
+Oni's Pick chooses a window with one click; it is not a frozen-screen drag-box
+selector. The retired Theia/Sight pages and gestures are not another assistant
+alongside Oni. Clipboard OCR, Voice typing and ryoshot remain independent.
+
+Legacy data migration uses `ryoku-host hyakki migrate` as the desktop user,
+without sudo or pkexec, before retirement. The coordinator refuses active
+legacy GUI/workers or an uninspectable supervisor, restores legacy activation
+if native migration fails, and preserves the user's existing opt-in.
+See [Hyakki](hyakki.md) for lifecycle, migration and native settings.
 
 ## Changes
 

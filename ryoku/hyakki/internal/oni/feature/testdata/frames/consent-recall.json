@@ -1,0 +1,1 @@
+{"kind":"consent","data":{"id":"recall-1","feature":"recall","class":"disclosure","destination":"hosted","route":"openrouter/model","question":"Send 2 passages (Eigenvalues, Linear maps) to openrouter/model?","expiresMs":120000}}

@@ -26,20 +26,20 @@ func TestProductStepsExistInOrder(t *testing.T) {
 		b := flowIndex(f, "browser")
 		s := flowIndex(f, "login-shell")
 		files := flowIndex(f, "file-manager")
-		rashin := flowIndex(f, "rashin")
+		hyakki := flowIndex(f, "hyakki")
 		gaming := flowIndex(f, "gaming")
 		a := flowIndex(f, "apps")
 		review := flowIndex(f, "review")
-		if b < 0 || s < 0 || files < 0 || rashin < 0 || gaming < 0 || a < 0 || review < 0 {
-			t.Fatalf("%s product steps missing: browser=%d shell=%d files=%d rashin=%d gaming=%d apps=%d review=%d",
-				variant, b, s, files, rashin, gaming, a, review)
+		if b < 0 || s < 0 || files < 0 || hyakki < 0 || gaming < 0 || a < 0 || review < 0 {
+			t.Fatalf("%s product steps missing: browser=%d shell=%d files=%d hyakki=%d gaming=%d apps=%d review=%d",
+				variant, b, s, files, hyakki, gaming, a, review)
 		}
-		if !(b < s && s < files && files < rashin && rashin < gaming && gaming < a && a < review) {
-			t.Fatalf("%s product steps out of order: browser=%d shell=%d files=%d rashin=%d gaming=%d apps=%d review=%d",
-				variant, b, s, files, rashin, gaming, a, review)
+		if !(b < s && s < files && files < hyakki && hyakki < gaming && gaming < a && a < review) {
+			t.Fatalf("%s product steps out of order: browser=%d shell=%d files=%d hyakki=%d gaming=%d apps=%d review=%d",
+				variant, b, s, files, hyakki, gaming, a, review)
 		}
 		if f[b].kind != kSelect || f[s].kind != kSelect || f[files].kind != kSelect ||
-			f[rashin].kind != kConfirm || f[gaming].kind != kConfirm || f[a].kind != kApps {
+			f[hyakki].kind != kConfirm || f[gaming].kind != kConfirm || f[a].kind != kApps {
 			t.Fatalf("%s product step kinds changed", variant)
 		}
 		if !f[b].numbered || !f[s].numbered || !f[files].numbered {
@@ -53,7 +53,7 @@ func TestProductStepsExistInOrder(t *testing.T) {
 	}
 	m := newModel()
 	if m.picks["browser"] != "firefox" || m.picks["login-shell"] != "fish" ||
-		m.picks["file-manager"] != "nautilus" || m.picks["rashin"] != "0" || m.picks["gaming"] != "0" {
+		m.picks["file-manager"] != "nautilus" || m.picks["hyakki"] != "0" || m.picks["gaming"] != "0" {
 		t.Fatalf("product defaults = %#v", m.picks)
 	}
 }
@@ -170,7 +170,7 @@ func TestAppsUseSharedComponentCatalogue(t *testing.T) {
 	}
 	for _, row := range rows {
 		switch row.ID {
-		case "files", "stash-menu", "rashin", "cachyos-layer", "cachyos-gaming", "void-gaming":
+		case "files", "stash-menu", "hyakki", "cachyos-layer", "cachyos-gaming", "void-gaming":
 			t.Errorf("step-owned component %q remains in Apps & tools", row.ID)
 		}
 	}
@@ -257,37 +257,37 @@ func TestDeselectDoesNotTouchRequiredPackages(t *testing.T) {
 	}
 }
 
-func TestRashinIsAChoiceOnEveryEdition(t *testing.T) {
+func TestHyakkiIsAChoiceOnEveryEdition(t *testing.T) {
 	for _, variant := range []string{"plain", variantCachyOS, variantVoid} {
 		plan := installerChoicesForVariant(variant)
-		rashin, ok := plan.Component("rashin")
-		if !ok || !rashin.Available || rashin.Locked || rashin.Component.DefaultOn {
-			t.Fatalf("%s Rashin component = %+v, want available default-off choice", variant, rashin)
+		hyakki, ok := plan.Component("hyakki")
+		if !ok || !hyakki.Available || hyakki.Locked || hyakki.Component.DefaultOn {
+			t.Fatalf("%s Hyakki component = %+v, want available default-off choice", variant, hyakki)
 		}
 		selected := plan.DefaultComponents()
-		selected["rashin"] = false
-		if got := strings.Join(plan.DropComponentPackages(selected), ","); !strings.Contains(got, "ryoku-rashin") {
-			t.Fatalf("%s: turning off Rashin did not drop ryoku-rashin: %q", variant, got)
+		selected["hyakki"] = false
+		if got := strings.Join(plan.DropComponentPackages(selected), ","); !strings.Contains(got, "hyakki") {
+			t.Fatalf("%s: turning off Hyakki did not drop hyakki: %q", variant, got)
 		}
 	}
 }
 
-func TestRashinAndArchGamingStepBehaviour(t *testing.T) {
+func TestHyakkiAndArchGamingStepBehaviour(t *testing.T) {
 	flow := stepsForVariant("plain")
-	rashin := model{
-		variant: "plain", flow: flow, idx: flowIndex(flow, "rashin"),
-		state: "wizard", picks: map[string]string{"rashin": "0", "gaming": "0"},
+	hyakki := model{
+		variant: "plain", flow: flow, idx: flowIndex(flow, "hyakki"),
+		state: "wizard", picks: map[string]string{"hyakki": "0", "gaming": "0"},
 		netOnline: true, cpuV3: true,
 	}
-	rashin.loadStep()
-	if rashin.yes {
-		t.Fatal("Rashin did not default to No")
+	hyakki.loadStep()
+	if hyakki.yes {
+		t.Fatal("Hyakki did not default to No")
 	}
-	rashin.yes = true
-	next, _ := rashin.onKey("enter")
-	rashin = next.(model)
-	if rashin.picks["rashin"] != "1" || rashin.cur().key != "gaming" {
-		t.Fatalf("Rashin choice did not advance: pick=%q step=%q", rashin.picks["rashin"], rashin.cur().key)
+	hyakki.yes = true
+	next, _ := hyakki.onKey("enter")
+	hyakki = next.(model)
+	if hyakki.picks["hyakki"] != "1" || hyakki.cur().key != "gaming" {
+		t.Fatalf("Hyakki choice did not advance: pick=%q step=%q", hyakki.picks["hyakki"], hyakki.cur().key)
 	}
 
 	for _, test := range []struct {
@@ -420,7 +420,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	env := m.installEnv()
 	for _, want := range []string{
 		"RYOKU_BROWSER=firefox", "RYOKU_LOGIN_SHELL=fish",
-		"RYOKU_FILE_MANAGER=nautilus", "RYOKU_RASHIN=0",
+		"RYOKU_FILE_MANAGER=nautilus", "RYOKU_HYAKKI=0",
 		"RYOKU_CACHYOS_LAYER=0",
 	} {
 		if !envHas(env, want) {
@@ -436,7 +436,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	}
 	defaultSet := asSet(drops)
 	for _, want := range []string{
-		"chromium", "zen-browser-bin", "zsh", "blesh", "dolphin", "thunar", "ryoku-rashin",
+		"chromium", "zen-browser-bin", "zsh", "blesh", "dolphin", "thunar", "hyakki",
 	} {
 		if !defaultSet[want] {
 			t.Errorf("default drop list %q missing %s", drops, want)
@@ -451,19 +451,19 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 		}
 	}
 
-	m.picks["rashin"] = "1"
+	m.picks["hyakki"] = "1"
 	env = m.installEnv()
-	if !envHas(env, "RYOKU_RASHIN=1") {
-		t.Errorf("selected Rashin did not reach the environment: %v", env)
+	if !envHas(env, "RYOKU_HYAKKI=1") {
+		t.Errorf("selected Hyakki did not reach the environment: %v", env)
 	}
 	selectedDrops, ok := envValue(env, "RYOKU_DROP_PACKAGES")
 	if !ok {
-		t.Fatal("selected Rashin environment has no drop list")
+		t.Fatal("selected Hyakki environment has no drop list")
 	}
-	if asSet(selectedDrops)["ryoku-rashin"] {
-		t.Errorf("selected Rashin remains in drop list %q", selectedDrops)
+	if asSet(selectedDrops)["hyakki"] {
+		t.Errorf("selected Hyakki remains in drop list %q", selectedDrops)
 	}
-	m.picks["rashin"] = "0"
+	m.picks["hyakki"] = "0"
 
 	m.picks["gaming"] = "1"
 	if env = m.installEnv(); !envHas(env, "RYOKU_CACHYOS_LAYER=1") {
@@ -508,7 +508,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	m.picks["browser"] = "chromium"
 	m.picks["login-shell"] = "zsh"
 	m.picks["file-manager"] = "dolphin"
-	m.picks["rashin"] = "0"
+	m.picks["hyakki"] = "0"
 	m.keep = appDefaults()
 	m.keep["vm"] = false
 	m.keep["flatpak"] = false
@@ -522,7 +522,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 		t.Fatal("deselections must emit a drop list")
 	}
 	set := asSet(csv)
-	for _, want := range []string{"qemu-desktop", "flatpak", "ryoport", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "ryoku-rashin"} {
+	for _, want := range []string{"qemu-desktop", "flatpak", "ryoport", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "hyakki"} {
 		if !set[want] {
 			t.Errorf("drop list %q missing %s", csv, want)
 		}
@@ -532,8 +532,8 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 			t.Errorf("chosen product package %s appears in %q", keep, csv)
 		}
 	}
-	if !envHas(env, "RYOKU_FILE_MANAGER=dolphin") || !envHas(env, "RYOKU_RASHIN=0") {
-		t.Errorf("updated file-manager/Rashin choices missing from %v", env)
+	if !envHas(env, "RYOKU_FILE_MANAGER=dolphin") || !envHas(env, "RYOKU_HYAKKI=0") {
+		t.Errorf("updated file-manager/Hyakki choices missing from %v", env)
 	}
 	if hidden, ok := envValue(env, "RYOKU_HIDE_APPS"); ok {
 		t.Errorf("deselected package emitted hidden apps %q", hidden)
@@ -558,13 +558,13 @@ func TestEditionOnlyEnvironmentVariables(t *testing.T) {
 		return false
 	}
 	for _, variant := range []string{variantCachyOS, variantVoid} {
-		m := model{variant: variant, picks: map[string]string{"disk": "whole", "rashin": "0", "gaming": "0"}}
+		m := model{variant: variant, picks: map[string]string{"disk": "whole", "hyakki": "0", "gaming": "0"}}
 		env := m.installEnv()
 		if hasPrefix(env, "RYOKU_CACHYOS_LAYER=") || hasPrefix(env, "RYOKU_GAMING=") {
 			t.Errorf("%s emitted an edition gaming variable instead of component drops: %v", variant, env)
 		}
-		if !has(env, "RYOKU_RASHIN=0") {
-			t.Errorf("%s did not pass the Rashin choice through: %v", variant, env)
+		if !has(env, "RYOKU_HYAKKI=0") {
+			t.Errorf("%s did not pass the Hyakki choice through: %v", variant, env)
 		}
 	}
 }
@@ -579,7 +579,7 @@ func TestEditionGamingChoiceControlsDropPackages(t *testing.T) {
 			}
 			drops := func(pick string) map[string]bool {
 				m := model{variant: variant, picks: map[string]string{
-					"disk": "whole", "rashin": "1", "gaming": pick,
+					"disk": "whole", "hyakki": "1", "gaming": pick,
 				}}
 				var csv string
 				for _, value := range m.installEnv() {
@@ -614,14 +614,14 @@ func TestReviewNamesProductChoices(t *testing.T) {
 	m.picks["browser"] = "chromium"
 	m.picks["login-shell"] = "zsh"
 	m.picks["file-manager"] = "dolphin"
-	m.picks["rashin"] = "1"
+	m.picks["hyakki"] = "1"
 	m.picks["gaming"] = "0"
 	m.keep = appDefaultsForVariant("plain")
 	m.keep["ryoport"] = false
 	body := stripSGR(m.reviewBody(100))
 	for _, want := range []string{
 		"browser", "Chromium", "shell", "Zsh", "files", "Dolphin",
-		"Rashin", "minus ryoport", "Gaming", "No",
+		"Hyakki", "minus ryoport", "Gaming", "No",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Review does not show %q:\n%s", want, body)

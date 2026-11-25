@@ -176,7 +176,7 @@ equal(W.plan({ sources, states, scope: "dictionary", query: "tbh", typing: false
 const blocked = { ...ranked, "web": { state: "paused", items: [], until: "2026-11-18T15:20:00-05:00" } };
 const stuck = W.plan({ sources, states: blocked, scope: "all", cap: 3, query: "tbh", typing: false, flying: false });
 equal(ids(stuck), ["definition", "fallback", "github", "wikipedia", "youtube"], "a paused lane leaves two ways on in its place");
-equal([stuck[1].title, stuck[1].state, stuck[1].until, stuck[1].rows.map(r => r.target)], ["Web", "paused", "2026-11-18T15:20:00-05:00", ["ask", "browser"]], "ask Rashin, then the browser, and until when");
+equal([stuck[1].title, stuck[1].state, stuck[1].until, stuck[1].rows.map(r => r.target)], ["Web", "paused", "2026-11-18T15:20:00-05:00", ["ask", "browser"]], "ask Hyakki, then the browser, and until when");
 const broken = W.plan({ sources, states: { "web": { state: "error", items: [], error: "No engine answered" } }, scope: "all", query: "tbh", typing: false, flying: false });
 equal([ids(broken), broken[0].state, broken[0].error], [["fallback"], "error", "No engine answered"], "a failed lane does the same with its reason");
 equal(ids(W.plan({ sources, states: blocked, scope: "all", query: "tbh more", typing: true })), ["suggestions", "definition", "wikipedia"], "typing on does not show the ways on: no web engine runs for it");

@@ -193,9 +193,9 @@ func TestBashResolverReadsTheSameManifest(t *testing.T) {
 				t.Fatalf("bash resolver: %v\n%s", err, output)
 			}
 			drop := append(DropPackages("firefox", "fish"), DropPackagesFor(FileManager, "nautilus")...)
-			if rashin, ok := plan.Component("rashin"); ok &&
-				!componentSelected(rashin, plan.DefaultComponents()) {
-				drop = append(drop, rashin.Component.Packages...)
+			if hyakki, ok := plan.Component("hyakki"); ok &&
+				!componentSelected(hyakki, plan.DefaultComponents()) {
+				drop = append(drop, hyakki.Component.Packages...)
 			}
 			want := "browser=firefox\nshell=fish\nfiles=nautilus\ndrops=" + strings.Join(drop, ",") + "\n" +
 				"browsers=" + strings.Join(plan.AvailableIDs(Browser), ",") + ",\n" +
@@ -290,9 +290,9 @@ func TestComponentAvailabilityByEdition(t *testing.T) {
 				gaming.Component.NeedsNetwork != test.needsNetwork {
 				t.Errorf("gaming component = %+v, want id=%q network=%v", gaming, test.gamingID, test.needsNetwork)
 			}
-			rashin, ok := plan.Component("rashin")
-			if !ok || !rashin.Available || rashin.Locked || rashin.Component.DefaultOn {
-				t.Errorf("rashin availability = %+v, want an available, unlocked, default-off choice", rashin)
+			hyakki, ok := plan.Component("hyakki")
+			if !ok || !hyakki.Available || hyakki.Locked || hyakki.Component.DefaultOn {
+				t.Errorf("hyakki availability = %+v, want an available, unlocked, default-off choice", hyakki)
 			}
 			terminal, ok := plan.Component("terminal")
 			if !ok || !terminal.Available || !terminal.Locked ||
@@ -375,9 +375,9 @@ func TestComponentDropAndHideRules(t *testing.T) {
 	selected := arch.DefaultComponents()
 	selected["ryoport"] = false
 	selected["ryomanager"] = false
-	selected["rashin"] = false
+	selected["hyakki"] = false
 	drop := arch.DropComponentPackages(selected)
-	for _, want := range []string{"ryoport", "ryomanager", "ryoku-rashin"} {
+	for _, want := range []string{"ryoport", "ryomanager", "hyakki"} {
 		if !contains(drop, want) {
 			t.Errorf("drop packages %v missing %s", drop, want)
 		}
@@ -394,9 +394,9 @@ func TestComponentDropAndHideRules(t *testing.T) {
 	for _, edition := range []string{"void", "fedora"} {
 		plan := resolvedPlan(t, edition)
 		planSelected := plan.DefaultComponents()
-		planSelected["rashin"] = false
-		if !contains(plan.DropComponentPackages(planSelected), "ryoku-rashin") {
-			t.Fatalf("%s kept ryoku-rashin after Rashin was turned off", edition)
+		planSelected["hyakki"] = false
+		if !contains(plan.DropComponentPackages(planSelected), "hyakki") {
+			t.Fatalf("%s kept hyakki after Hyakki was turned off", edition)
 		}
 	}
 

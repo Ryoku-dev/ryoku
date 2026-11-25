@@ -26,7 +26,6 @@ import "modules/osd"
 import "modules/notifications"
 import "modules/capture"
 import "modules/ask"
-import "modules/sight"
 import "modules/gamebar"
 import "modules/confirm"
 import Ryoku.Ui
@@ -53,8 +52,6 @@ import stage as Stage
  */
 Scope {
     id: root
-    BusTopic { id: sightTopic; topic: "sight" }
-    ShellSetting { id: theiaOn; path: "sight.on"; fallback: true }
     property var desktopLayersReady: ({})
     function markDesktopLayerReady(name) {
         const next = Object.assign({}, desktopLayersReady);
@@ -377,60 +374,6 @@ Scope {
                 }
             }
             Timer { id: askHold; interval: 15000 }
-
-            LazyLoader {
-                id: sightLoader
-                readonly property var cards: {
-                    const rows = sightTopic.data && sightTopic.data.cards || [];
-                    return rows.filter(function(card) {
-                        return String(card.output || (ShellState.primary ? ShellState.primary.name : ""))
-                            === String(perScreen.modelData.name);
-                    });
-                }
-                readonly property var selection: {
-                    const select = sightTopic.data && sightTopic.data.select;
-                    if (!select) return null;
-                    const frames = (select.frames || []).filter(function(frame) {
-                        return String(frame.output) === String(perScreen.modelData.name);
-                    });
-                    return frames.length > 0 ? Object.assign({}, select, { frames: frames }) : null;
-                }
-                readonly property var highlight: sightTopic.data && sightTopic.data.highlight || null
-                readonly property var inplace: {
-                    const value = sightTopic.data && sightTopic.data.inplace;
-                    return value && String(value.output || (ShellState.primary ? ShellState.primary.name : "")) === String(perScreen.modelData.name) ? value : null;
-                }
-                readonly property var speaking: sightTopic.data && sightTopic.data.speaking || null
-                property bool open: theiaOn.value !== false && (cards.length > 0 || selection !== null || highlight !== null || inplace !== null)
-                property bool showNow: false
-                activeAsync: theiaOn.value !== false && (open || sightHold.running)
-                onItemChanged: if (item) Qt.callLater(function() { sightLoader.showNow = sightLoader.open; })
-                onActiveChanged: if (!active) sightCollect.restart()
-                onOpenChanged: {
-                    if (open) {
-                        if (item) showNow = true;
-                        return;
-                    }
-                    showNow = false;
-                    if (active) sightHold.restart();
-                }
-                SightSurface {
-                    screen: perScreen.modelData
-                    active: sightLoader.showNow
-                    cards: sightLoader.cards
-                    selection: sightLoader.selection
-                    highlight: sightLoader.highlight
-                    inplace: sightLoader.inplace
-                    speaking: sightLoader.speaking
-                    hidden: sightTopic.data ? sightTopic.data.hidden === true : false
-                }
-            }
-            Timer { id: sightHold; interval: 15000 }
-            Timer {
-                id: sightCollect
-                interval: 1000
-                onTriggered: if (!sightLoader.active) gc()
-            }
 
             LazyLoader {
                 id: askBubbleLoader
@@ -1248,7 +1191,7 @@ Scope {
     }
     CustomShortcut {
         name: "ask"
-        description: I18n.tr("Open the Rashin bar")
+        description: I18n.tr("Open the Hyakki bar")
         onPressed: root.toggleSurface("ask")
     }
 

@@ -23,8 +23,8 @@ fail() {
 # every translation. The model's tokenizer.json is a third-party vocabulary,
 # and the em-dash is one of its tokens, as it is in the vocabularies of the
 # grammar checker's tagger and chunker models (ported from Harper). The skill
-# sets are upstream files kept byte-identical by bin/ryoku-dev-sync-rashin-skills.
-exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/rashin/internal/index/embed/model/|^ryoku/rashin/internal/grammar/pos/model/|^ryoku/rashin/internal/skills/sets/'
+# sets are upstream files kept byte-identical by bin/ryoku-dev-sync-hyakki-skills.
+exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/hyakki/internal/index/embed/model/|^ryoku/hyakki/internal/grammar/pos/model/|^ryoku/hyakki/internal/skills/sets/'
 text='\.(md|txt|sh|bash|yml|yaml|toml|json|jsonc|conf|lua|tpl|fish|desktop|rules)$|(^|/)(README|NOTICE|LICENSE)$'
 # A Go module's vendor/ holds upstream files as `go mod vendor` copies them, the
 # same trees scan-slop and the review gate already treat as vendored.

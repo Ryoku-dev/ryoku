@@ -1,0 +1,6 @@
+[
+  {"id": 3, "idx": 1, "name": null, "output": "eDP-1", "is_urgent": false, "is_active": true, "is_focused": true, "active_window_id": 17},
+  {"id": 7, "idx": 2, "name": null, "output": "eDP-1", "is_urgent": false, "is_active": false, "is_focused": false, "active_window_id": 25},
+  {"id": 4, "idx": 1, "name": "term", "output": "DP-1", "is_urgent": false, "is_active": true, "is_focused": false, "active_window_id": 21},
+  {"id": 8, "idx": 2, "name": null, "output": "DP-1", "is_urgent": false, "is_active": false, "is_focused": false, "active_window_id": null}
+]

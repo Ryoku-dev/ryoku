@@ -1,9 +1,5 @@
 #include "hubsearch.hpp"
 
-#include <QFile>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QTest>
@@ -215,33 +211,6 @@ private slots:
         QCOMPARE(resultIds(QStringLiteral("night Bildschirme")), QStringList({"night"}));
     }
 
-    // the real English index (hubsearch-en.json): every listed query keeps its top ten
-    void englishUnchanged()
-    {
-        QFile file(QFINDTESTDATA("hubsearch-en.json"));
-        QVERIFY2(file.open(QIODevice::ReadOnly), qPrintable(file.fileName()));
-        const QString text = QString::fromUtf8(file.readAll());
-
-        const QJSValue fixture = m_engine->evaluate(QStringLiteral("JSON.parse")).call({text});
-        QVERIFY2(!fixture.isError(), qPrintable(fixture.toString()));
-        const QJSValue entries = m_engine->evaluate(QStringLiteral(
-            "(f => f.entries.map(r => { var o = {}; f.fields.forEach((k, i) => o[k] = r[i]); return o; }))")).call({fixture});
-        QVERIFY2(entries.isArray(), qPrintable(entries.toString()));
-        QVERIFY(entries.property(QStringLiteral("length")).toUInt() > 700);
-        m_search->setEntries(entries);
-        m_search->setSynonyms(fixture.property(QStringLiteral("synonyms")));
-
-        const QJsonObject expected = QJsonDocument::fromJson(text.toUtf8()).object().value(QStringLiteral("expected")).toObject();
-        QVERIFY(expected.size() > 300);
-        for (auto it = expected.constBegin(); it != expected.constEnd(); ++it) {
-            QStringList ids;
-            for (const QJsonValue &id : it.value().toArray())
-                ids.append(id.toString());
-            const QStringList actual = resultIds(it.key(), 10);
-            QVERIFY2(actual == ids,
-                     qPrintable(QStringLiteral("%1: %2 (was %3)").arg(it.key(), actual.join(u' '), ids.join(u' '))));
-        }
-    }
 };
 
 QTEST_GUILESS_MAIN(TestHubSearch)

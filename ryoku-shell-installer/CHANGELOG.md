@@ -1,6 +1,9 @@
 # Changelog: ryoku-shell-installer
 
 ## Unreleased
+- **Hyakki replaces the Rashin choice.** Interactive and unattended installs
+  use the same `hyakki` component, `--hyakki` flag and `RYOKU_HYAKKI` setting;
+  leaving it unselected does not install or activate the app.
 - **Removed the Wayfire compositor choice.** Existing-system installs now
   offer Hyprland and niri on Arch, CachyOS and Fedora, and niri on Void.
 

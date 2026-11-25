@@ -4,7 +4,7 @@ import QtQuick
 import Quickshell
 import Lithic
 
-// The Rashin bar in the desktop's design (theme.design), followed live. A design
+// The Hyakki bar in the desktop's design (theme.design), followed live. A design
 // decides corners, how the planes are layered, the type's manner and the motion;
 // every colour is a Lithic role, so the palette stays the reader's own.
 //   lithic    a stone4 slip cut top-left and bottom-right, ruled by hairlines,

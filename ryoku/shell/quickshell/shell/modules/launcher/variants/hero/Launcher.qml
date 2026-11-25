@@ -142,7 +142,7 @@ Item {
         if (activeMode === "file") return "FILE";
         if (activeMode === "recent") return "REC";
         if (activeMode === "help") return "HELP";
-        if (askMode) return "RASHIN";
+        if (askMode) return "HYAKKI";
         var prefix = String(activeRoute.prefix || "");
         if (prefix === "/file") return "FILE";
         if (prefix === "/folder") return "FOLDER";

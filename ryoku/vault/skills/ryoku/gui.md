@@ -64,7 +64,7 @@ search keywords and the alias table for old ids live in
 | Apps | Terminal | `terminal` | the login shell, the prompt, the fastfetch splash |
 | Apps | Screen capture | `screen-capture` | screenshots and screen recording |
 | Apps | Voice typing | `voice-typing` | dictation |
-| Apps | Rashin | `rashin` | opt-in Ask, Agent and Index controls |
+| Apps | Hyakki | `hyakki` | opt-in lifecycle and links to native Oni, model, feature and privacy settings |
 | Apps | Add-ons | `add-ons` | Ryostore add-ons, shell plugins and bundles |
 | Accounts | Users | `users` | the people on this computer, their pictures and permissions, and profile accounts |
 | Accounts | Sign-in & security | `sign-in` | the keyring, fingerprint, security keys |
@@ -128,8 +128,8 @@ Quick settings, ryoshot, and Ask are outside Ryoku Settings. Reach them here:
 | Launch an app | App launcher | Super+Space | the shell launcher (Ryoku Settings > Desktop > App launcher tunes it and picks launchers installed items provide) |
 | System activity, connections, levels, and session actions | Quick settings (its look is picked in Ryoku Settings > Desktop > Quick settings) | Super+Escape | `ryoku-shell quicksettings` |
 | Screenshots and recordings | ryoshot capture bar | Super+Shift+S | `ryoku-shell screenshot` |
-| Read-only system answers, web search and downloads | Rashin bar | Alt+Space | `rashin ask <question>`, `ryoku-shell ask web`, `ryoku-shell ask downloads` |
-| Persistent external-harness sessions | Rashin app, Agent tab | Super+Alt+Space | `rashin-app` |
+| Read-only system answers, web search and downloads | Hyakki bar | Alt+Space | `hyakki ask <question>`, `ryoku-shell ask web`, `ryoku-shell ask downloads` |
+| Native conversations and tool-using sessions | Hyakki app, Agents destination | Super+Alt+Space | `hyakki open` (`hyakki-app`, app id `dev.ryoku.Hyakki`) |
 | Install or create a separate account profile | Ryostore > Profiles, then Ryoku Settings > Accounts > Users | open Ryostore, choose Profiles | `ryostore settings profiles <id>` hands off to Ryoku Settings' `users fromProfile` IPC |
 
 An item that is installed but not active is not loaded, so its settings window

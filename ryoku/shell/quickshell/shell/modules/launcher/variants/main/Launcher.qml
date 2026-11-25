@@ -72,7 +72,7 @@ Item {
         if (p === "=") return I18n.tr("CALC");
         if (p === "?") return I18n.tr("WEB");
         if (p === "@") return I18n.tr("RADIO");
-        if (askMode) return "RASHIN";
+        if (askMode) return "HYAKKI";
         return "";
     }
     readonly property bool actionMode: routed.provider === "actions"
@@ -85,7 +85,7 @@ Item {
     // action catalog), not once the user types "/play"; then the results take
     // the space and nothing clips.
     readonly property bool actionBrowse: actionMode && routed.query.length === 0
-    // "\" prefix: a one-shot quick ask to the Rashin agent. No provider claims
+    // "\" prefix: a one-shot quick ask to the Hyakki agent. No provider claims
     // it; the panel owns the whole body and the Enter key while active.
     readonly property bool askMode: query.length > 0 && query[0] === "\\"
     readonly property string askQuestion: askMode ? query.slice(1).replace(/^\s+/, "") : ""

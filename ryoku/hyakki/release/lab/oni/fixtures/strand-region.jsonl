@@ -1,0 +1,2 @@
+{"atMs":3000,"frame":{"kind":"strand.target","data":{"seq":1,"x":0.56,"y":0.46,"w":0.04,"h":0.04,"mode":"region","region":{"x":860,"y":380,"w":480,"h":270}}}}
+{"atMs":12000,"frame":{"kind":"strand.retract","data":{"seq":1}}}

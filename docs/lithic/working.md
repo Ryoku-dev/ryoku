@@ -104,7 +104,7 @@ attributes.
 
 Use the module `github.com/ryoku-dev/ryoku/docs/lithic/library/go`. Read
 the desktop once, build its theme and watch for changes through the window's
-life, as Rashin does:
+life, as Hyakki does:
 
 ```go
 desktop := palette.ReadDesktop()

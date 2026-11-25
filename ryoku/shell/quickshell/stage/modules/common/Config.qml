@@ -3786,7 +3786,7 @@ Singleton {
                         property string action1: "ai_chat"
                         property string action2: "music_rec"
                         property string action3: "search"
-                        property string aiLogo: "rashin"
+                        property string aiLogo: "hyakki"
                         property string outerLeftIcon: "spark"
                         property bool useMaterialSymbolForOuterLeftIcon: false
                     }

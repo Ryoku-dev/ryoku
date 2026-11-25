@@ -1,0 +1,111 @@
+{
+ "scenario": "skip-cover",
+ "frameS": 0.016666666,
+ "every": 4,
+ "env": {
+  "anchor": {
+   "X": 1700,
+   "Y": 900
+  },
+  "centre": {
+   "X": 960,
+   "Y": 540
+  },
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "w": 1920,
+   "h": 1080
+  },
+  "reduced": false,
+  "batterySaver": false
+ },
+ "frames": [
+  {
+   "i": 0,
+   "fps": 0,
+   "redraw": true,
+   "stop": true,
+   "seq": 0,
+   "phase": "home",
+   "u": 0,
+   "tip": {
+    "X": 0,
+    "Y": 0
+   },
+   "loosen": 0,
+   "bbox": {
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0
+   },
+   "strokes": []
+  },
+  {
+   "i": 1,
+   "fps": 0,
+   "redraw": false,
+   "stop": true,
+   "seq": 1,
+   "phase": "home",
+   "u": 0,
+   "tip": {
+    "X": 0,
+    "Y": 0
+   },
+   "loosen": 0,
+   "bbox": {
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0
+   },
+   "arrived": true,
+   "skipped": "covers-screen",
+   "strokes": []
+  },
+  {
+   "i": 2,
+   "fps": 0,
+   "redraw": false,
+   "stop": true,
+   "seq": 1,
+   "phase": "home",
+   "u": 0,
+   "tip": {
+    "X": 0,
+    "Y": 0
+   },
+   "loosen": 0,
+   "bbox": {
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0
+   },
+   "strokes": []
+  },
+  {
+   "i": 3,
+   "fps": 0,
+   "redraw": false,
+   "stop": true,
+   "seq": 1,
+   "phase": "home",
+   "u": 0,
+   "tip": {
+    "X": 0,
+    "Y": 0
+   },
+   "loosen": 0,
+   "bbox": {
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0
+   },
+   "strokes": []
+  }
+ ]
+}

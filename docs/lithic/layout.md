@@ -523,7 +523,7 @@ from the player bar opens above it and stays inside the window.
 
 A conversation app is not a list and detail window either. Its window is
 built around one reading column and the field that feeds it, so it has its
-own shape. Rashin is the reference.
+own shape. Hyakki is the reference.
 
 | Part | Expanded | Medium | Compact |
 |---|---|---|---|

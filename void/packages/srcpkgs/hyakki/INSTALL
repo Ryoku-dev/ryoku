@@ -1,0 +1,6 @@
+#!/bin/sh
+case "${ACTION:-}" in
+pre)
+    printf '%s\n' 'Before replacing or removing Hyakki, run "hyakki off" as each user and follow its runit steps.'
+    ;;
+esac

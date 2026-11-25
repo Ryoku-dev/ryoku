@@ -104,9 +104,9 @@ mapfile -t PKGS < <(
   # installer selects asusctl only on a matching laptop. All compositor
   # variants bake because the TUI offers each one and an offline install has no
   # network to fetch a missing variant. The fresh-install apps bake beside
-  # ryoku-rashin. The optional CachyOS layer remains network-only on plain.
+  # hyakki. The optional CachyOS layer remains network-only on plain.
   printf '%s\n' ryoku-keyring ryoku-desktop ryoku-desktop-hyprland ryoku-desktop-niri asusctl \
-    ryoku-rashin ryotunes ryomanager "${file_managers[@]}"
+    hyakki ryotunes ryomanager "${file_managers[@]}"
 )
 # dedupe, keep order.
 mapfile -t PKGS < <(printf '%s\n' "${PKGS[@]}" | without_replaced | awk '!seen[$0]++')
@@ -583,7 +583,7 @@ mapfile -t aur_expected < <(read_list "$pkgdir/aur.packages" | without_replaced)
 for req in "${nv_required[@]}" "${nv_legacy_fetch[@]}" nvidia-utils libva-nvidia-driver \
            mesa vulkan-radeon vulkan-intel vulkan-icd-loader \
            ryoku-keyring ryoku-desktop ryoku-desktop-hyprland ryoku-desktop-niri \
-           ryoku-rashin ryotunes ryomanager "${file_managers[@]}" \
+           hyakki ryotunes ryomanager "${file_managers[@]}" \
            "${aur_expected[@]}"; do
   repo_has_pkg "$req" || missing+=("$req")
 done
@@ -638,7 +638,7 @@ EOF
     # an unqualified ryoku-desktop with several providers in the repo makes
     # pacman prompt for a choice, which a build script cannot answer.
     printf '%s\n' amd-ucode intel-ucode ryoku-keyring ryoku-desktop \
-      ryoku-desktop-hyprland ryoku-desktop-niri ryoku-rashin \
+      ryoku-desktop-hyprland ryoku-desktop-niri hyakki \
       ryotunes ryomanager "${file_managers[@]}"
   } | without_replaced | awk '!seen[$0]++' )
 

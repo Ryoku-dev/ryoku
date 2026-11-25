@@ -1,0 +1,10 @@
+{"atMs":2000,"frame":{"kind":"strand.target","data":{"seq":1,"x":0.45,"y":0.45,"w":0.04,"h":0.04}}}
+{"atMs":2300,"frame":{"kind":"bubble","data":{"seq":1,"tone":"say","text":"The build finished; this is the file it changed."}}}
+{"atMs":5000,"frame":{"kind":"strand.target","data":{"seq":2,"x":0.93,"y":0.02,"w":0.05,"h":0.04}}}
+{"atMs":5300,"frame":{"kind":"bubble","data":{"seq":2,"tone":"answer","text":"Up here, in the corner."}}}
+{"atMs":8000,"frame":{"kind":"strand.target","data":{"seq":3,"x":0.01,"y":0.5,"w":0.04,"h":0.05}}}
+{"atMs":8300,"frame":{"kind":"bubble","data":{"seq":3,"tone":"warn","text":"This one sits against the left edge of the screen, so the card has to open toward the middle."}}}
+{"atMs":11000,"frame":{"kind":"strand.target","data":{"seq":4,"x":0.4,"y":0.94,"w":0.05,"h":0.05}}}
+{"atMs":11300,"frame":{"kind":"bubble","data":{"seq":4,"tone":"say","text":"Down at the bottom."}}}
+{"atMs":15000,"frame":{"kind":"strand.retract","data":{"seq":4}}}
+{"atMs":19000,"frame":{"kind":"bubble","data":{"seq":5,"tone":"say","text":"Nothing is out now."}}}

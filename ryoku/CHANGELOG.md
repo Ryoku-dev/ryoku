@@ -1,6 +1,16 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Hyakki replaces Rashin and Theia.** One native app, the Oni daemon and Oni
+  Vision handle the assistant and its optional desktop features. The Hub and
+  shortcuts open Hyakki rather than keeping the old assistant alongside it.
+  Existing app data moves through a backed-up migration; the shared Ryoku
+  vault, external models and local Git work stay in place.
+  Migration refuses busy owners before retiring their units, and suppresses
+  inherited activation for this user without changing other users. The first
+  login keeps an explicit Off choice.
+- **Tracked labels release retired font shapers.** Cached outlines no longer
+  keep the old theme's loaded font maps alive.
 - **Wayfire support was removed.** Ryoku now supports Hyprland and niri;
   doctor moves an older Wayfire installation to a supported desktop before
   removing its retired variant.

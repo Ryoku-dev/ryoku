@@ -94,12 +94,12 @@ locked behind a text editor.
   `ryoku-shell-installer/` converts an existing supported system, which is
   the only Fedora path. Fedora keeps GRUB, with a Ryoku snapshots submenu.
   Atomic and other rpm-ostree editions are refused.
-- **Rashin** (`ryoku/rashin/`, optional and off by default) is Ryoku's AI
-  system. Ask answers read-only system questions through free models, Agent
-  connects the coding harnesses you already use, and Index searches project and
-  system code. One daemon owns sessions and the index; the Gio app and
-  Alt+Space bar are socket clients. Enable it from Ryoku Settings > Apps > Rashin. See
-  `docs/rashin.md`.
+- **Hyakki** (`ryoku/hyakki/`, optional and off by default) is Ryoku's AI
+  system. Ask answers read-only questions, Agents work with tools under the
+  session's permissions, and Index searches project and system code. The native
+  app and Alt+Space Quick Ask are clients of the `oni` daemon; Oni's optional
+  desktop surface has its own native capability and privacy controls. Enable
+  Hyakki from Ryoku Settings > Apps > Hyakki. See `docs/hyakki.md`.
 
 ## Working on it
 

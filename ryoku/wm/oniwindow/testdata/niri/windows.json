@@ -1,0 +1,92 @@
+[
+  {
+    "id": 12,
+    "title": "notes.md - Text Editor",
+    "app_id": "org.gnome.TextEditor",
+    "pid": 4211,
+    "workspace_id": 3,
+    "is_focused": false,
+    "is_floating": false,
+    "is_urgent": false,
+    "layout": {
+      "pos_in_scrolling_layout": [1, 1],
+      "tile_size": [944.0, 1152.0],
+      "window_size": [940, 1148],
+      "tile_pos_in_workspace_view": null,
+      "window_offset_in_tile": [2.0, 2.0]
+    },
+    "focus_timestamp": {"secs": 1763800010, "nanos": 120000000}
+  },
+  {
+    "id": 17,
+    "title": "Calculator",
+    "app_id": "org.gnome.Calculator",
+    "pid": 4377,
+    "workspace_id": 3,
+    "is_focused": true,
+    "is_floating": true,
+    "is_urgent": false,
+    "layout": {
+      "pos_in_scrolling_layout": null,
+      "tile_size": [364.0, 624.0],
+      "window_size": [360, 620],
+      "tile_pos_in_workspace_view": [1180.0, 210.0],
+      "window_offset_in_tile": [2.0, 2.0]
+    },
+    "focus_timestamp": {"secs": 1763800042, "nanos": 500000000}
+  },
+  {
+    "id": 21,
+    "title": "nero@hyakki: ~",
+    "app_id": "kitty",
+    "pid": 5120,
+    "workspace_id": 4,
+    "is_focused": false,
+    "is_floating": false,
+    "is_urgent": false,
+    "layout": {
+      "pos_in_scrolling_layout": [1, 1],
+      "tile_size": [1264.0, 1392.0],
+      "window_size": [1260, 1388],
+      "tile_pos_in_workspace_view": null,
+      "window_offset_in_tile": [2.0, 2.0]
+    },
+    "focus_timestamp": {"secs": 1763800001, "nanos": 0}
+  },
+  {
+    "id": 30,
+    "title": "Color Picker",
+    "app_id": "nl.hjdskes.gcolor3",
+    "pid": 6001,
+    "workspace_id": 4,
+    "is_focused": false,
+    "is_floating": true,
+    "is_urgent": false,
+    "layout": {
+      "pos_in_scrolling_layout": null,
+      "tile_size": [420.0, 300.0],
+      "window_size": [420, 300],
+      "tile_pos_in_workspace_view": [180.0, 300.0],
+      "window_offset_in_tile": [0.0, 0.0]
+    },
+    "focus_timestamp": {"secs": 1763800030, "nanos": 0}
+  },
+  {
+    "id": 25,
+    "title": "Picture-in-Picture",
+    "app_id": "firefox",
+    "pid": 3900,
+    "workspace_id": 7,
+    "is_focused": false,
+    "is_floating": true,
+    "is_urgent": false,
+    "layout": {
+      "pos_in_scrolling_layout": null,
+      "tile_size": [480.0, 270.0],
+      "window_size": [480, 270],
+      "tile_pos_in_workspace_view": null,
+      "window_offset_in_tile": [0.0, 0.0]
+    },
+    "focus_timestamp": null
+  }
+]

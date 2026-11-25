@@ -46,9 +46,9 @@ check_vendor_tree() {
   done < <(find "$vendor" -type f -print0)
 }
 
-check_vendor_tree ryoku/i18n ryoku/rashin/vendor/ryoku-i18n ryoku-i18n
+check_vendor_tree ryoku/i18n ryoku/hyakki/vendor/ryoku-i18n ryoku-i18n
 check_vendor_tree docs/lithic/library/go \
-  ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go lithic-go
+  ryoku/hyakki/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go lithic-go
 
 (( status == 0 )) && say "vendor: window-manager seams, ryoku-i18n and Lithic Go copies match their sources"
 exit "$status"

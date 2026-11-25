@@ -18,6 +18,18 @@ traps that cost time on the second compositor, is in
 signature, or an `isNiri`-style test anywhere else. Consumers ask what the
 compositor *can do*, never which one it is.
 
+Hyakki's native window helpers follow that boundary too. `ryoku/wm/oniwindow`
+owns bounded window snapshots, event streams and standalone provider detection;
+`ryoku/wm/reflex` owns the strictly allowlisted window operations. They are Go
+submodules linked into the native programs, not additional login services.
+Their generated vendor mirrors are build inputs; the source under `ryoku/wm`
+remains authoritative. The app and Hands consumers use their typed interfaces
+rather than speaking compositor sockets themselves.
+
+The private compositor lab under `ryoku/hyakki/release/lab/oni` drives both
+providers deliberately, like the repository's other test harnesses. That
+test-only boundary does not exempt native production code from isolation.
+
 A provider is one binary, `ryoku-wm-<name>`, shipped by
 `ryoku-desktop-<name>`. It implements twelve verbs:
 
@@ -107,7 +119,7 @@ niri adds `nest <dir> <width>x<height>` and claims `nestedSession` for it: a
 hidden niri inside a headless weston, with `dir` as its runtime dir and a config
 of its own, so none of its sockets, apps or settings meet the user's session.
 It prints `{"display":"wayland-N"}` once the nested session is up and stops it
-when stdin closes or on a signal. Rashin runs it through `ryoku wm nest` to give
+when stdin closes or on a signal. Hyakki runs it through `ryoku wm nest` to give
 an agent a screen of its own, which it drives with a virtual pointer and
 keyboard and reads with screencopy.
 
@@ -178,12 +190,12 @@ that change what a user sees:
   them are reported by `apply` rather than silently dropped.
 - **`nestedSession`** is niri's alone. Hyprland cannot open inside the headless
   weston a nest starts on, because its backend needs a newer `wl_compositor`
-  than weston offers, so Rashin offers agents no screen on Hyprland.
+  than weston offers, so Hyakki offers agents no nested screen on Hyprland.
 - **`pointerPosition`** is Hyprland's alone, and only Hyprland needs it.
   Hyprland sends no pointer enter to a layer surface it maps under a pointer
-  that is not moving, so Theia's highlight bubble and in-place toast ask
-  `pointer.locate` where the pointer is. niri sends that enter the moment the
-  overlay maps and has no pointer query, so the overlay learns it there.
+  that is not moving. An overlay that needs the stationary pointer's position
+  can ask `pointer.locate`. niri sends that enter the moment the overlay maps
+  and has no pointer query, so the overlay learns it there.
 
 `nightLight` is the one shared capability the desktop drives through named
 actions rather than a settings row:
@@ -311,8 +323,9 @@ rebinds applied, unbinds removed, and one winner per chord. There is no seeded
 bind block to subtract from.
 `desktop.keybindDisabled` names a shipped chord the user switched off: Hyprland
 never registers it, while niri releases it before rebinds resolve.
-A catalogue bind can also name the program it launches (`Needs`). Ask needs
-`rashind`; the Rashin app needs `rashin-app`. While that program is not on PATH,
+A catalogue bind can also name the program it launches (`Needs`). The Hyakki
+app needs `hyakki-app`; the shell's Quick Ask bar has no optional-program
+requirement. While a required program is not on PATH,
 every provider registers no chord and keeps a legend row that names what is
 missing, so removing an optional app does not leave a dead shortcut. The config
 is authored

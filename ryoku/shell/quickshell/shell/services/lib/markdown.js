@@ -1,4 +1,4 @@
-// A Rashin answer, from Markdown to the rich text a TextEdit lays out. Qt's own
+// A Hyakki answer, from Markdown to the rich text a TextEdit lays out. Qt's own
 // Markdown import sets every block flush against the next, so this writes the
 // blocks itself: a half line between them, a little air between list items, and
 // code on a tinted run of its own.

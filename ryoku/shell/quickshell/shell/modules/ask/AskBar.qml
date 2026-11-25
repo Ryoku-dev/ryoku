@@ -10,7 +10,7 @@ import shell.services
 import "bar"
 import "look"
 
-// The Rashin bar (Alt+Space): a command bar over everything, in the desktop's
+// The Hyakki bar (Alt+Space): a command bar over everything, in the desktop's
 // design. This is the window, its arrival and its clients; the body is
 // bar/BarSurface. mode is where the shell asked it to open: "ask" is the root
 // list and "web" opens web search over it.
@@ -46,8 +46,8 @@ Scope {
         }
     }
 
-    RashinClient { id: rashinClient }
-    RashinSession { id: askSession; client: rashinClient; kind: "ask" }
+    HyakkiClient { id: hyakkiClient }
+    HyakkiSession { id: askSession; client: hyakkiClient; kind: "ask" }
     SearchClient { id: searchClient }
     DownloadsClient { id: downloadsClient }
 
@@ -142,7 +142,7 @@ Scope {
                     width: holder.width
                     height: holder.height
                     s: root.s
-                    rashin: rashinClient
+                    hyakki: hyakkiClient
                     session: askSession
                     search: searchClient
                     downloads: downloadsClient

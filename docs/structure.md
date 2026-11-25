@@ -28,8 +28,7 @@ Start with the guide that matches the job:
   [development](development.md), [Ryoku Settings](hub.md), [internationalization](i18n.md),
   [compositors](compositors.md), [adding a window
   manager](adding-a-window-manager.md), [Hyprland
-  plugins](hyprland-plugins.md), [Rashin](rashin.md), [Rashin in the
-  terminal](rashin-terminal.md) and [dictation](dictation.md).
+  plugins](hyprland-plugins.md), [Hyakki](hyakki.md) and [dictation](dictation.md).
 
 The rest of this page maps those guides to the source tree.
 
@@ -110,7 +109,7 @@ truth for the live desktop.
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
   its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, `ask` the
-  Rashin bar and `kit` Kit's frame and sections (one folder per section under
+  Quick Ask bar and `kit` Kit's frame and sections (one folder per section under
   `kit/sections/`), which `kit.qml` beside `shell.qml` runs as its own program on
   `Super+K` (both in `docs/sidebars.md`), and
   `desktop` the wallpaper clock and enabled third-party widgets); `subshells/`
@@ -189,8 +188,8 @@ truth for the live desktop.
 - `vault/` the Ryoku-core machine map, read-only wiki, and `ryoku` agent skill.
   The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, makes
   that map available to installed agent tools, and keeps user-owned memory
-  and journal files outside generated fences. Rashin reads this vault as
-  context but keeps its own team credentials separately. See `docs/vault.md`.
+  and journal files outside generated fences. Hyakki reads this vault as
+  context but keeps its own app data separately. See `docs/vault.md`.
 - `hub/` Ryoku Settings, the settings app (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go program the pages call for anything outside the shell
   daemon: it saves the window manager's neutral store
@@ -205,18 +204,19 @@ truth for the live desktop.
   is "Ryoku Settings"; the binary and config keep the internal `hub` name.
   Deployed to `~/.config/quickshell/hub`; built by the shell's `deploy.sh`. How
   it is built and how to extend it is in `docs/hub.md`.
-- `rashin/` the optional AI system in one Go module: `cmd/rashind/` is the
-  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio app.
-  `internal/engine/` runs Ask, Agents, Teams, Dreams and Work with native
-  tools; `internal/gateway/` routes to managed local llama.cpp, user local
-  servers and free or pinned paid providers; `internal/localmodels/` handles
-  the catalogue, downloads and on-demand runtime. `internal/index/` handles
-  system and project code search. `systemd/` ships socket activation and
-  `usage/` the separate coding-agent usage collectors. Ryoku Settings owns
-  the opt-in switch; the Alt+Space bar is a thin socket client. See
-  `docs/rashin.md` and `docs/rashin-terminal.md`.
-- `assets/` `brand/` the 力 logo and icons and Rashin's seal (`rashin-mark*.svg`,
-  `rashin-lockup.svg`; the app icon and the console favicon link to them),
+- `hyakki/` the optional AI system. Its main Go module retains the internal
+  name `ryoku-rashin`; canonical native window and reflex adapters live in the
+  `wm/oniwindow/` and `wm/reflex/` Go submodules. Its physical command siblings
+  are `cmd/hyakki/` (CLI),
+  `cmd/oni/` (daemon), `cmd/hyakki-app/` (Gio app) and `cmd/oni-surface/`
+  (desktop surface). `internal/engine/` runs the native sessions,
+  `internal/localmodels/` manages optional local models, `internal/index/`
+  provides cited source search, and `internal/oni/` defines desktop
+  capabilities. Native services and packaging live with the app; the desktop's
+  package integration lives under `release/packages/hyakki/`. The Hub manages
+  lifecycle and links to native settings; Alt+Space is a thin Quick Ask client.
+  See `docs/hyakki.md`.
+- `assets/` `brand/` the 力 logo and icons,
   `wallpapers/` the shipped wallpaper set (installs to `Wallpapers/` under the
   configured Pictures folder), and `ryodecors/` the decor art the
   `Decor`/`Placard` components render (installs to the Pictures folder's
@@ -316,7 +316,7 @@ serves them with no release infrastructure.
 - `packages/` one directory per pacman package in the `[ryoku]` repo, each a
   `PKGBUILD`. 40 in all, in four groups by why they exist:
   - built from the checked-out monorepo: the components (`ryoku-shell`,
-    `ryoku-hub`, `ryoku-rashin`, `ryoku`, `ryoku-blobs`,
+    `ryoku-hub`, `hyakki`, `ryoku`, `ryoku-blobs`,
     `ryotunes`, `ryogami` the wallpaper daemon), the `ryoku-desktop` umbrella,
     `ryoku-keyring`, the `gpk` package manager, and the on-demand key sounds:
     `ryoku-keysounds-profiles` (the samples and the importer, shared) and

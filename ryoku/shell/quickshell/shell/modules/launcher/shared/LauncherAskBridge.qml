@@ -18,8 +18,8 @@ Scope {
 
     signal recentReady()
 
-    Ask.RashinClient { id: socketClient }
-    Ask.RashinSession { id: askSession; client: socketClient; kind: "ask" }
+    Ask.HyakkiClient { id: socketClient }
+    Ask.HyakkiSession { id: askSession; client: socketClient; kind: "ask" }
 
     function flush() {
         if (!socketClient.ready || pending.length === 0)

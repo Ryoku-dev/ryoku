@@ -3,9 +3,9 @@
 Ryoku's download engine and search daemon. Two binaries from one module:
 
 - `ryoget serve` is the on-demand user daemon behind Kit's Downloads and the
-  Rashin bar's quick downloads. Everything else `ryoget` does is a command line
+  Hyakki bar's quick downloads. Everything else `ryoget` does is a command line
   client of that daemon.
-- `ryoseek serve` is the on-demand search daemon behind the Rashin bar's Web
+- `ryoseek serve` is the on-demand search daemon behind the Hyakki bar's Web
   view (see [ryoseek](#ryoseek)). It never links the download engine.
 
 Build with `CGO_ENABLED=0 go build -tags nosqlite,purego_utp`.
@@ -189,7 +189,7 @@ over cleanly. The finished file never replaces an existing one: it lands as
 
 ## ryoseek
 
-The search daemon behind the Rashin bar's Web view: one per user, started when the bar
+The search daemon behind the Hyakki bar's Web view: one per user, started when the bar
 first searches. It owns every engine's request budget and block timer, so they outlive
 the bar. It imports `internal/search` and never the download engine.
 
@@ -235,7 +235,7 @@ One compact JSON object per line, at most 1 MiB; only the daemon's own user may 
 
 Client to daemon:
 
-- `{"hello":{"client":"bar"|"rashin"|"cli","version":2,"lang":"en-US"}}` first. `lang` is the
+- `{"hello":{"client":"bar"|"hyakki"|"cli","version":2,"lang":"en-US"}}` first. `lang` is the
   full locale; it picks Wikipedia's and the dictionary's language and the Accept-Language
   every engine sees. A query sent before hello runs with `en-US`.
 - `{"id":N,"q":"...","scope":"all"|<scope>|<sourceId>,"mode":"suggest"|"full"}`. A newer

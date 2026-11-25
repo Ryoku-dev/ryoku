@@ -1,16 +1,16 @@
-# Quick settings, ryoshot, the Rashin bar, the clipboard, and Kit
+# Quick settings, ryoshot, the Hyakki bar, the clipboard, and Kit
 
 Five global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
 - `Super+Escape` opens **Quick settings** at the top-right of the focused display, under the bar.
 - `Super+Shift+S` opens the floating **ryoshot** capture bar.
-- `Alt+Space` opens the **Rashin bar** near the top third of the focused display.
-- `Super+V` opens the **clipboard** history on the Rashin bar's line of the focused display.
+- `Alt+Space` opens the **Hyakki bar** near the top third of the focused display.
+- `Super+V` opens the **clipboard** history on the Hyakki bar's line of the focused display.
 - `Super+K` opens **Kit** in the middle of the focused display.
 
 Quick settings closes with Escape or a click outside, and Escape first steps back out of an
-open page. The Rashin bar closes with Escape, its close button, or a click outside. The
+open page. The Hyakki bar closes with Escape, its close button, or a click outside. The
 clipboard closes once something is copied, with Escape, or with a click outside. Kit closes
 with Escape, a click outside, or `Super+K` again. ryoshot has its own close control.
 The shortcuts are editable in **Ryoku Settings > Windows > Keyboard shortcuts**.
@@ -188,9 +188,9 @@ and webcam toggles. The delay and microphone choices persist in `ryoshot.json`.
 The settings popover keeps the save behaviour and links to **Ryoku Settings >
 Apps > Screen capture**.
 
-## Rashin bar
+## Hyakki bar
 
-The Rashin bar is a keyboard-first command bar in the style of Raycast. It draws
+The Hyakki bar is a keyboard-first command bar in the style of Raycast. It draws
 in the desktop's design (`theme.design`: Lithic, Material, Adwaita or Fluent) and
 palette, and follows a change live. Its QML is created when Alt+Space opens it
 and released 15 s after it closes, so a closed bar costs nothing.
@@ -198,7 +198,7 @@ and released 15 s after it closes, so a closed bar costs nothing.
 One field leads every view. The root view ranks what you type: a calculator
 answer for an expression, `Download <host>` first for a link or magnet,
 `Download N links` when the field holds several, downloads, recent asks when
-Rashin is on, and two fallbacks that always close the list, `Ask Rashin` and
+Hyakki is on, and two fallbacks that always close the list, `Ask Hyakki` and
 `Search the web`.
 
 The empty list is news, not history. It shows every download that is moving,
@@ -210,11 +210,11 @@ its own clearing. Recent asks are the conversations with a message in the last
 day, three at most. Delete removes one, with five seconds to undo it (Ctrl+Z or
 Undo in the foot); Quick Ask's list of past asks does the same.
 
-- **Quick Ask** (Tab, or `\`) sends a one-shot, read-only question to Rashin.
+- **Quick Ask** (Tab, or `\`) sends a one-shot, read-only question to Hyakki.
   The answer streams into the bar with copy, file, folder, link and
-  proposed-command actions; **Open in Rashin** continues it in the app and
-  **Pin** keeps it as a bubble on the desktop. With Rashin off or absent the view
-  says so and opens its settings; the bar never starts Rashin.
+  proposed-command actions; **Open in Hyakki** continues it in the native app and
+  **Pin** keeps it as a bubble on the desktop. With Hyakki off or absent the view
+  says so and opens its settings; the bar never starts a disabled Hyakki.
 - **Web** (`?`) searches in place. While you type it shows suggestions, a
   Wikipedia row and, for a word or a "what does X mean" question, a definition
   card. The full search runs on Enter, on picking a suggestion, or once you stop
@@ -224,8 +224,8 @@ Undo in the foot); Quick Ask's list of past asks does the same.
   and the AUR on Arch-based editions. All keeps the best few that match, a scope
   or a source shows its whole list. An engine that is blocking this computer
   shows as paused until a time instead of failing, and when every web engine is
-  out the view offers Ask Rashin and Search in the browser. Enter opens a result
-  in the browser; its actions copy the link, ask Rashin about the page, or
+  out the view offers Ask Hyakki and Search in the browser. Enter opens a result
+  in the browser; its actions copy the link, ask Hyakki about the page, or
   download it.
 - **Downloads** (`/`) hands over to Kit's Downloads, where the download manager
   lives (see Kit below). The bar keeps the quick paths: a link and Enter starts
@@ -315,10 +315,10 @@ terminal.
 
 ## Clipboard
 
-`Super+V` opens the clipboard history as a palette on the Rashin bar's line, so both open where
+`Super+V` opens the clipboard history as a palette on the Hyakki bar's line, so both open where
 the eye already is. One field searches it, the list sits on the left, a preview of the selected
 item fills the right, and the foot says what Enter does and opens every other action with
-`Ctrl+K`. It is built from the Rashin bar's parts, so it draws in the desktop's design and
+`Ctrl+K`. It is built from the Hyakki bar's parts, so it draws in the desktop's design and
 palette the same way and follows a change live.
 
 The tabs at the end of the field switch between **Recent**, everything newest first under
@@ -386,7 +386,8 @@ where it also turns off.
   enlarged first; a photo only from its thumbnail, where big lettering still reads. Only words
   tesseract is sure of are kept, so a photo's grain adds nothing, and a QR code's text is read
   too.
-- It reads in Theia's OCR languages, the ones installed for tesseract, else English.
+- It uses the clipboard's own `clipboard.ocrLanguages`, restricted to languages installed for
+  tesseract, with English as the fallback. It does not depend on Hyakki or Oni.
 - The text stays with the history on this computer and survives a restart. Turning the switch
   off forgets it. **Copy text** in the preview copies a picture's text.
 
@@ -475,7 +476,7 @@ ryoku-kit [section [page]]
 ```
 
 `quicksettings` opens Quick settings, `clipboard` toggles the clipboard, `screenshot`
-launches ryoshot, `ask` and `ask web` open the Rashin bar on its root or Web view, and
+launches ryoshot, `ask` and `ask web` open the Hyakki bar on its root or Web view, and
 `ask downloads` opens Kit's Downloads. `cheatsheet` toggles Kit, and `ryoku-kit` opens it
 on a section (`downloads`, `keys`, `commands`, `phone`, `devtools`, `typing`) and, if given,
 one of its pages. The compositor providers expose the same actions without putting
@@ -488,7 +489,7 @@ both laid out inside the work area so the bar stays uncovered and live.
 `AskBar.qml` is one full-screen overlay surface that holds the bar and its
 click-away area, so the keyboard always stays with the bar on both compositors.
 Kit's `Kit.qml` is the same kind of overlay, with the dim, on the focused display, and
-`ClipboardSurface.qml` is one too, on the Rashin bar's line, built when it first opens and
+`ClipboardSurface.qml` is one too, on the Hyakki bar's line, built when it first opens and
 released 15 s after it closes. They use overlay-layer keyboard focus while open and reserve no
 window space.
 Per-display UI scale is applied to every dimension, and reduced-motion settings
@@ -531,7 +532,7 @@ The clipboard lives under `ryoku/shell/quickshell/shell/modules/clipboard/`:
 `ClipboardSurface.qml` is the window and its arrival, `ClipPalette.qml` the body (its state,
 keys and actions), `ClipRow.qml` one row, `ClipDetail.qml` the preview, `ClipTabs.qml` the
 Recent and Starred tabs, and `lib/clip.js` reads an entry (link, colour, command, code, files),
-its age and its day, with its tests beside it. It reuses the Rashin bar's `look/` parts and its
+its age and its day, with its tests beside it. It reuses the Hyakki bar's `look/` parts and its
 `bar/` field, list, foot and action panel. The topic is `shell/services/Clipboard.qml`.
 
 ryoshot lives in `ryoku/shell/quickshell/ryoshot/`. The shell keeps only the

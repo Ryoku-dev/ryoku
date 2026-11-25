@@ -72,7 +72,6 @@ func (e *clipEntry) MarshalJSON() ([]byte, error) {
 }
 
 type clipState struct {
-	primary  primarySelectionState
 	mu       sync.Mutex
 	entries  []*clipEntry // newest at front
 	nextID   uint64
@@ -105,7 +104,7 @@ func (d *daemon) startClipboard() {
 		if d.settings == nil {
 			return nil
 		}
-		return d.settings.stringsAt("sight.ocrLanguages")
+		return d.settings.stringsAt("clipboard.ocrLanguages")
 	}
 	s.load()
 	d.clip = s

@@ -1,0 +1,45 @@
+{
+  "DP-1": {
+    "name": "DP-1",
+    "make": "Dell Inc.",
+    "model": "DELL U2720Q",
+    "serial": "F8KPM13",
+    "physical_size": [600, 340],
+    "modes": [
+      {"width": 2560, "height": 1440, "refresh_rate": 59951, "is_preferred": true}
+    ],
+    "current_mode": 0,
+    "is_custom_mode": false,
+    "vrr_supported": false,
+    "vrr_enabled": false,
+    "logical": {"x": 1920, "y": 0, "width": 2560, "height": 1440, "scale": 1.0, "transform": "Normal"}
+  },
+  "eDP-1": {
+    "name": "eDP-1",
+    "make": "BOE",
+    "model": "0x0BCA",
+    "serial": null,
+    "physical_size": [310, 200],
+    "modes": [
+      {"width": 2880, "height": 1800, "refresh_rate": 120000, "is_preferred": true}
+    ],
+    "current_mode": 0,
+    "is_custom_mode": false,
+    "vrr_supported": true,
+    "vrr_enabled": false,
+    "logical": {"x": 0, "y": 0, "width": 1920, "height": 1200, "scale": 1.5, "transform": "Normal"}
+  },
+  "HDMI-A-1": {
+    "name": "HDMI-A-1",
+    "make": "Unknown",
+    "model": "Unknown",
+    "serial": null,
+    "physical_size": null,
+    "modes": [],
+    "current_mode": null,
+    "is_custom_mode": false,
+    "vrr_supported": false,
+    "vrr_enabled": false,
+    "logical": null
+  }
+}

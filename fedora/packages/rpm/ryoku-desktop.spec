@@ -127,7 +127,7 @@ Suggests:       thunar
 Suggests:       ryotunes
 Suggests:       ryoport
 Suggests:       ryomanager
-Suggests:       ryoku-rashin
+Suggests:       hyakki
 Suggests:       waifu2x-ncnn-vulkan
 Suggests:       pavucontrol
 Suggests:       songrec

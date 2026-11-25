@@ -4,7 +4,7 @@ import QtQuick
 import Lithic
 import Ryoku.Blobs
 
-// Rashin's seal. It moves only while it has a reason to: `active` says Rashin is
+// Hyakki's seal. It moves only while it has a reason to: `active` says Hyakki is
 // working (or the pinned bubble is shown), and reduced motion holds it still.
 Item {
     id: root

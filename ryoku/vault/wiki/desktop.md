@@ -23,9 +23,11 @@ helps when you want to change something.
   place.
 - **Controls:** press Super+Escape for activity, connections, levels, extensions,
   and hold-to-activate session actions.
-- **Rashin bar:** press Alt+Space to ask Rashin (optional, read-only), search
+- **Hyakki bar:** press Alt+Space to ask Hyakki (optional, read-only), search
   the web and start downloads. The Ryoku vault, wiki, skill, and source map
-  belong to the desktop and remain when Rashin is off.
+  belong to the desktop and remain when Hyakki is off.
+- **Hyakki app:** press Super+Alt+Space for the native app and its Oni settings.
+  Ryoku Settings > Apps > Hyakki manages lifecycle and links into those settings.
 - **Kit:** press Super+K for the download manager, every shortcut, a command
   library, your phone, dev tools and a typing test, one tab each.
 
@@ -42,7 +44,8 @@ helps when you want to change something.
 | Super+V | Clipboard history |
 | Super+Shift+S | Screenshot and recording action bar |
 | Super+L | Lockscreen |
-| Alt+Space | Rashin bar |
+| Alt+Space | Hyakki bar |
+| Super+Alt+Space | Hyakki native app (`dev.ryoku.Hyakki`) |
 | Super+K | Kit: keys, commands, phone, developer tools, and typing test |
 
 Ryoku Settings > Windows > Keyboard shortcuts is the source to use when a chord should change.
@@ -67,4 +70,4 @@ ryoku wm caps
 
 Continue with [Hyprland in Lua](hyprland-lua.md) or [niri in
 KDL](niri-kdl.md) only when Ryoku Settings cannot express a raw config change. See
-[Rashin](rashin.md) for the two assistant lanes and approval choices.
+[Hyakki](hyakki.md) for native sessions, Oni, lifecycle and privacy.

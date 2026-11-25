@@ -69,7 +69,7 @@ while IFS=$'\t' read -r id scope activation systemd_unit runit_service disable_r
 	if [[ $scope == user && $activation == session-global && $systemd_unit != - ]]; then
 		unit_path=$(find \
 			"$ROOT/ryoku/shell/systemd/user" \
-			"$ROOT/ryoku/rashin/systemd" \
+			"$ROOT/ryoku/hyakki/systemd" \
 			"$ROOT/system/hardware/bluetooth" \
 			-maxdepth 1 -type f -name "$systemd_unit" -print -quit)
 		[[ -n $unit_path ]] || fail "globally enabled user unit has no source: $systemd_unit"
@@ -78,24 +78,16 @@ while IFS=$'\t' read -r id scope activation systemd_unit runit_service disable_r
 	fi
 done < "$SERVICE_MANIFEST"
 
-grep -qxF $'rashind\tuser\ton-demand\trashind.socket\t-\tpreserve' "$SERVICE_MANIFEST" \
-	|| fail "rashind must stay socket-activated and on demand"
-grep -qxF $'ryoku-ai-usage\tuser\ton-demand\tryoku-ai-usage.timer\tryoku-ai-usage\tpreserve' "$SERVICE_MANIFEST" \
-	|| fail "Rashin usage collection must stay on demand"
-grep -qxF $'rashind-routines\tuser\ton-demand\trashind-routines.timer\trashind-routines\tpreserve' "$SERVICE_MANIFEST" \
-	|| fail "the Rashin routines wake must stay on demand: the daemon enables it while a routine is on"
-[[ ! -d $INIT/user/ryoku-rashin && ! -d $INIT/user/ryoku-prowl ]] \
-	|| fail "Void must not supervise Rashin or Prowl at session start"
 
 while IFS= read -r unit; do
 	name=${unit##*/}
 	# Socket activation owns the service as one lifecycle row.
-	[[ $name == rashind.service ]] && continue
+	[[ $name == oni.service ]] && continue
 	[[ $(grep -cxF "$name" <(cut -f4 "$SERVICE_MANIFEST")) == 1 ]] \
 		|| fail "payload systemd unit needs exactly one service activation row: ${unit#"$ROOT/"}"
 done < <(find \
 	"$ROOT/ryoku/shell/systemd/user" \
-	"$ROOT/ryoku/rashin/systemd" \
+	"$ROOT/ryoku/hyakki/systemd" \
 	"$ROOT/ryoku/palette-bridge/packaging/systemd" \
 	"$ROOT/ryoku/shell/ryoget/packaging/systemd" \
 	"$ROOT/ryoku/cli/systemd" \
@@ -272,17 +264,6 @@ check_parity "$ROOT/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.
 check_parity "$ROOT/ryoku/shell/ryoget/packaging/systemd/ryoget.service" "$INIT/user/ryoget"
 check_parity "$ROOT/ryoku/shell/ryoget/packaging/systemd/ryoseek.service" "$INIT/user/ryoseek"
 check_parity "$ROOT/system/hardware/bluetooth/ryoku-bluetooth-reset.service" "$INIT/user/ryoku-bluetooth-reset"
-# the loop runs the collector guard, which launches only the installed tools'
-# collectors; tests/void-init-runit.sh covers the guard's own choice
-grep -qF 'RYOKU_AI_USAGE_BIN_DIR="$BIN" "$BIN/ryoku-ai-usage"' \
-	"$INIT/user/ryoku-ai-usage/run" \
-	|| parity_fail "ai-usage loop lost the collector guard"
-# the routines loop asks rashin itself, which starts the daemon only when a
-# routine is on, every half hour like rashind-routines.timer
-grep -qF '"$BIN/rashin" routines wake' "$INIT/user/rashind-routines/run" \
-	|| parity_fail "routines wake loop lost the rashin routines wake call"
-grep -qF 'RASHIN_ROUTINES_PERIOD:-1800' "$INIT/user/rashind-routines/run" \
-	|| parity_fail "routines wake loop lost the half hour period"
 # snapper's packaged cron helper already applies every enabled cleanup algorithm
 # to every registered config; the runit loop preserves the timer's cadence.
 grep -qF '/etc/cron.hourly/snapper' "$INIT/system/snapper-cleanup/run" \

@@ -134,8 +134,8 @@ ryoku_newer_repo_targets() {
 ryoku_deploy_packages() {
   local -a pkgs=(ryoku-keyring ryoku-desktop "ryoku-desktop-$RYOKU_COMPOSITOR")
   local package
-  # Fresh-install apps remain independently removable. Rashin is opt in.
-  for package in ryoku-rashin ryotunes ryoport ryomanager; do
+  # Fresh-install apps remain independently removable. Hyakki is opt in.
+  for package in hyakki ryotunes ryoport ryomanager; do
     ryoku_drop_pkg "$package" || pkgs+=("$package")
   done
   # The base set already carries Nautilus. Repeating the selected packages here
@@ -339,12 +339,12 @@ ryoku_seed_wallpapers() {
 
 ryoku_narrate_seed_self() {
   [[ -n ${RYOKU_DRYRUN:-} ]] || return 0
-  local user=$1 rice=$2 rashin=$3 hidden=${4:-} dropped=${5:-}
+  local user=$1 rice=$2 hyakki=$3 hidden=${4:-} dropped=${5:-}
   local shell=$6 init=$7 locale=$8
   [[ -n $hidden ]] || hidden=none
   [[ -n $dropped ]] || dropped=none
-  log 'DRYRUN: users seed-self account=%s rice=%s rashin=%s hidden-apps=%s shell=%s init=%s locale=%s provisioned-ledger=%s' \
-    "$user" "$rice" "$rashin" "$hidden" "$shell" "$init" "$locale" "$dropped"
+  log 'DRYRUN: users seed-self account=%s rice=%s hyakki=%s hidden-apps=%s shell=%s init=%s locale=%s provisioned-ledger=%s' \
+    "$user" "$rice" "$hyakki" "$hidden" "$shell" "$init" "$locale" "$dropped"
 }
 
 ryoku_deploy_seed() {
@@ -354,13 +354,13 @@ ryoku_deploy_seed() {
     zsh) shell=/usr/bin/zsh ;;
     bash) shell=/usr/bin/bash ;;
   esac
-  [[ ${RYOKU_RASHIN:-0} == 1 ]] && args+=(--rashin)
+  [[ ${RYOKU_HYAKKI:-0} == 1 ]] && args+=(--hyakki)
   if [[ -n ${RYOKU_HIDE_APPS:-} ]]; then
     local -a hidden=()
     IFS=, read -ra hidden <<<"$RYOKU_HIDE_APPS"
     for id in "${hidden[@]}"; do args+=(--hide-app "$id"); done
   fi
-  ryoku_narrate_seed_self "$user" default "${RYOKU_RASHIN:-0}" \
+  ryoku_narrate_seed_self "$user" default "${RYOKU_HYAKKI:-0}" \
     "${RYOKU_HIDE_APPS:-}" "${RYOKU_DROP_PACKAGES:-}" "$shell" systemd \
     "${RYOKU_LOCALE:-C.UTF-8}"
   if [[ ! -x /mnt/usr/bin/ryoku-host && -z ${RYOKU_DRYRUN:-} ]]; then

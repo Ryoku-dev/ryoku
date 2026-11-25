@@ -76,20 +76,22 @@ func TestPlanManifestLeavesProvisionedLaneToShippedApps(t *testing.T) {
 	}
 }
 
-func TestPlanManifestNeverPullsRashinOntoABoxWithoutIt(t *testing.T) {
-	// Rashin is opt in: only the installer or Hub may install it, never a
-	// baseline or later manifest convergence pass.
-	m := &ryokumanifest.Manifest{
-		Base:        []string{"base"},
-		FirstParty:  []string{"ryoku-desktop", "ryoku-rashin"},
-		Provisioned: ryokumanifest.AppNames(),
-	}
-	installed := map[string]bool{"base": true, "ryoku-desktop": true}
-	plan := PlanManifest(m, installed, m, installed)
-	for _, n := range plan.Install {
-		if n == "ryoku-rashin" {
-			t.Fatalf("install = %v; optional Rashin must not come back through the manifest", plan.Install)
-		}
+func TestPlanManifestNeverInstallsOptionalHyakkiOrRetiredPackage(t *testing.T) {
+	for _, name := range []string{"hyakki", "ryoku-rashin"} {
+		t.Run(name, func(t *testing.T) {
+			m := &ryokumanifest.Manifest{
+				Base:        []string{"base"},
+				FirstParty:  []string{"ryoku-desktop", name},
+				Provisioned: ryokumanifest.AppNames(),
+			}
+			installed := map[string]bool{"base": true, "ryoku-desktop": true}
+			for _, baseline := range []map[string]bool{installed, {"base": true, "ryoku-desktop": true, name: true}} {
+				plan := PlanManifest(m, baseline, m, installed)
+				if len(plan.Install) != 0 || len(plan.AUR) != 0 {
+					t.Fatalf("manifest revived an optional or retired package: %+v", plan)
+				}
+			}
+		})
 	}
 }
 

@@ -69,8 +69,8 @@ let
     inherit pkgs src;
   };
 
-  rashin = import ./ryoku-rashin.nix {
-    inherit pkgs src;
+  hyakki = import ./hyakki.nix {
+    inherit pkgs src version;
   };
 
 
@@ -288,7 +288,7 @@ let
       hub
       paletteBridge
       ryoget
-      rashin
+      hyakki
       ryostore
       ryomotion
       ryoportPackage
@@ -304,7 +304,7 @@ let
       wmNiri
       helpers
       qml
-    ];
+    ] ++ hyakki.runtimePackages;
   };
 in
 {
@@ -318,7 +318,7 @@ in
     hub
     paletteBridge
     ryoget
-    rashin
+    hyakki
     ryostore
     ryomotion
     livewall

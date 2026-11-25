@@ -11,7 +11,7 @@ type ComponentStep string
 
 const (
 	ComponentApps   ComponentStep = "apps"
-	ComponentRashin ComponentStep = "rashin"
+	ComponentHyakki ComponentStep = "hyakki"
 	StepGaming      ComponentStep = "gaming"
 )
 
@@ -84,7 +84,7 @@ func parseComponents(data []byte) ([]Component, error) {
 		if component.ID == "" || component.Label == "" || component.Group == "" || component.GroupLabel == "" {
 			return nil, fmt.Errorf("installer components line %d is incomplete", lineNo+1)
 		}
-		if component.Step != ComponentApps && component.Step != ComponentRashin && component.Step != StepGaming {
+		if component.Step != ComponentApps && component.Step != ComponentHyakki && component.Step != StepGaming {
 			return nil, fmt.Errorf("installer components line %d has unknown step %q", lineNo+1, component.Step)
 		}
 		if fields[6] != "on" && fields[6] != "off" {
@@ -242,7 +242,7 @@ func (p EditionPlan) DropComponentPackages(selected map[string]bool) []string {
 		component := availability.Component
 		// Offline optional bundles are baked into images and named by the fresh
 		// install transaction, so an off choice must remove them explicitly.
-		dropWhenOff := component.DefaultOn || component.Step == ComponentRashin ||
+		dropWhenOff := component.DefaultOn || component.Step == ComponentHyakki ||
 			(component.Step == StepGaming && !component.NeedsNetwork)
 		if !availability.Available || !dropWhenOff || componentSelected(availability, selected) {
 			continue

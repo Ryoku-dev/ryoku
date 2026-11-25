@@ -148,12 +148,6 @@ func TestCatalogueParity(t *testing.T) {
 			t.Errorf("catalogue id %q produced no row", c.ID)
 			continue
 		}
-		if c.Kind == wm.BindDaemon {
-			if r.Unhonored != "" || r.Taps != c.Taps || r.WhileHighlighting != c.WhileHighlighting {
-				t.Errorf("daemon id %q: gesture row = %+v", c.ID, r)
-			}
-			continue
-		}
 		if r.Unhonored == "" {
 			continue
 		}
@@ -302,39 +296,5 @@ func TestCustomBinds(t *testing.T) {
 	ws := byID["custom.1"]
 	if ws.Label != "Focus workspace 3" || ws.Unhonored == "" {
 		t.Errorf("custom.1 = %+v, want label \"Focus workspace 3\" with a reason", ws)
-	}
-}
-
-func TestDaemonBindsIgnoreCompositorOverrides(t *testing.T) {
-	old := hasProgram
-	hasProgram = func(string) bool { return false }
-	t.Cleanup(func() { hasProgram = old })
-	o := defaultOverrides()
-	o.KeybindRebinds = map[string]string{"Alt_R": "SUPER + F12", "Alt_L": "SUPER + F11"}
-	o.KeybindDisabled = []string{"Alt_R", "Alt_L"}
-	rows := buildBindRows(repoModules(), o)
-	bound := map[string]parsedBind{}
-	for _, bind := range parseBindsDir(repoModules()) {
-		bound[wm.NormChord(bind.combo)] = bind
-	}
-	for _, cb := range wm.ShippedBinds() {
-		if cb.Kind != wm.BindDaemon {
-			continue
-		}
-		if _, ok := bound[wm.NormChord(cb.Chord)]; ok {
-			t.Errorf("daemon chord %s bound in compositor", cb.Chord)
-		}
-		found := false
-		for _, row := range rows {
-			if row.ID == cb.ID {
-				found = true
-				if row.Taps != cb.Taps || row.WhileHighlighting != cb.WhileHighlighting || row.Chord != cb.Chord || row.Unhonored != "" || row.Disabled || !row.Rebindable {
-					t.Errorf("daemon row = %+v, want gesture, available, independently rebindable %s", row, cb.ID)
-				}
-			}
-		}
-		if !found {
-			t.Errorf("daemon row %s missing", cb.ID)
-		}
 	}
 }

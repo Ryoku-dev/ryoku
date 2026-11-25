@@ -1,8 +1,8 @@
 # Ryoku vault
 
 The Ryoku vault is the machine map shared by coding agents on a Ryoku desktop.
-It belongs to Ryoku core and works without Rashin installed or enabled. Rashin
-can read and index it when the user turns Rashin on, but it does not own the
+It belongs to Ryoku core and works without Hyakki installed or enabled. Hyakki
+can read and index it when the user turns Hyakki on, but it does not own the
 vault.
 
 ## Paths

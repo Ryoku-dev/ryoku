@@ -1,0 +1,163 @@
+Hyakki
+
+Unreleased
+
+- Oni settings have separate pages for presence, voice, screen help, quick commands, writing and privacy, with direct links from Ryoku Settings and no second set of app switches
+- The optional first-run tour works without an account, enables nothing by itself and keeps its practice inside Hyakki; starting a fresh Ask keeps an earlier unsent draft recoverable
+- Local activity shows what its existing owners actually recorded, marks unreadable records as unknown and clears only the selected records without resetting spending limits; imported-chat clear also removes its search index
+- Optional parts can remove Hyakki-owned models, packs and data without touching distribution programs, shared files or parts still in use
+- `hyakki mcp` offers approved programs seven individually selected productivity tools over stdio, off by default; suggested notes wait in the Inbox and screen asks still need disclosure
+- The text reader also finds Void's `tesseract-ocr` executable, while keeping the same pipe-only input and command restrictions
+- Writing review recovers still-pending approvals when opened later, keeps their original expiry and binds every click to the card shown instead of its replacement
+- Pressed voice rewrite requests prepare an exact-text review in the app; spoken agreement never sends a rewrite, and apply/undo wait for the user to return to the unchanged original window
+- Focus guard keeps whole browser windows announcement-only, rechecks dedicated app identity before closing and can return only its last authorized Hands tab in the same surviving browser
+- Focus guard checks the requested app name before loose installed-app matching can replace it with another name; unrelated questions and notes remain available
+- Rewrite reads and undo use the right display when Wayland names its socket with an absolute path, without changing the daemon's runtime environment
+- Assignment compares changed numbers and operators on the same text line, so lost OCR from a repeated heading does not start another solve; a clock rollover or typed answer is not a new problem
+- Folded Settings headers expose their named button and open state to accessibility tools, so provider and local-model controls remain reachable
+- Stopping voice cancels and reaps in-flight file decoders and removes their temporary speech before graceful shutdown returns
+- Cached text headings no longer keep retired font shapers and their loaded fonts alive
+- Concurrent writing checks keep their local grammar cache synchronized and return the same corrections as an individual check
+- Closing a search index joins queued refreshes before releasing its store
+- Hands reads long browser pages without spending its read deadline on inline text layout, while keeping its control and prompt limits
+- Hands records refusals made before execution as code-only activity, without keeping field names or typed text
+- After the person presses a browser control, Hands refreshes a stale reading or destroyed document context under the same deadline instead of repeating the action
+- Hands waits for a new document to finish parsing before reading its controls and result
+- Hands keeps its picture question when you return to Hyakki to approve it in a browser, one app or the separate desktop, and still refuses to act on Hyakki itself
+- Hands waits for its separate desktop to close before Hyakki exits, so a normal shutdown leaves no workspace folder behind
+- Approved programs can show a named Oni notice without a perch, with readable wrapped text and a Dismiss button that leaves other tasks alone
+- Oni reads small text near window edges without lowering its confidence checks or moving its word boxes
+- Oni keeps small, distant controls readable when enlarging a window picture
+- Oni keeps the last word beside a blinking text cursor readable without weakening its read-back checks
+- Hands waits for typed text to finish rendering before judging read-back, without typing it twice
+- Hands establishes pointer focus before a click without moving outside the picked window
+- Hands keeps its goal field available while a task is running, with a separate Add to queue action; waiting tasks never start by themselves
+- Hands ends a task when its chosen window closes, including while paused or waiting for a handoff
+- Hands can click controls on its own separate desktop using window positions reported by the compositor
+- Oni avoids quadratic sorting work when drawing overlapping strokes in its pointing thread
+- Private Hands checks now restore the right picker mode and isolate waiting tasks and retained drafts, without changing input permissions or safety limits
+- Private desktop checks keep system-bus clients on their own bus, so host power-profile changes cannot enter an idle sample
+- Private desktop shutdown checks wait for both process exit and runtime-folder removal; forced-kill checks still leave the folder for the next-start sweep
+- Private window-theft checks round compositor positions to whole logical pixels before moving a window
+- `hyakki on` and `hyakki off` on a runit session print the exact `sv` steps for your own service folder, or the `ryoku-host` ones on Ryoku, and change no service themselves
+- Deferred first-login activation respects a saved off choice, including one written while it was waiting; invalid configuration is reported without replacing it or crashing activation
+- Package recipes for Arch, Fedora, Void and Nix build all four programs from the source archive, enable nothing at install, and list every optional program with what it's for, from one table in `release/optional.json`
+- Clean Void package builds use the official chroot's dependency syntax and extraction tool; Nix keeps XCB and the Vulkan loader available to the native app without an app wrapper
+- The licensing docs now cover the programs Hands runs: Chromium, weston, niri and grim, each checked against the project's own licence file; other Chromium-family browsers are marked unverified
+- A team member Hyakki hosts can ask for Hands in the nested desktop or one window you pick, never your whole desktop: the request waits as a one-time approval, Oni's pill can allow it once or say no, Hyakki's own Hands then works toward the member's goal, and a restart or a new run of the task makes the answer stale so the member asks again
+- Oni's pill shows a hosted harness's read- or write-tier permission requests for its team task, to allow once, for the conversation or refuse; a danger-tier request only points to the app, and leaving a card to the app decides nothing
+- Oni can rewrite the text you selected in another window, off until turned on: it shows the selection and where it would go first, types a one-paragraph result back over it, offers anything longer to copy, and undo checks the original really came back before saying so; the clipboard is never touched
+- Say "forget that I live in Lisbon", "no, I meant Porto" or "correct tea to coffee" with the talk key: a card shows exactly what would be forgotten or changed, and nothing changes until you say yes with the key or answer it in the app; "what do you know about me" reads what memory holds, masked, with no model
+- Recall answers "what did I ask Claude about…" and "what's in my notes about…" from the chats you imported, past conversations and memory: on a model on this computer nothing leaves it, and a hosted model first shows a card with the passages' titles and the route
+- Import your ChatGPT, Claude or Gemini export files into recall from the app or the command line; each chat is kept as Markdown with secrets scrubbed and card numbers masked, the export stays where it is, and an archive pointing outside itself or holding an oversized file is refused whole; nothing watches your downloads
+- Assignment mode solves the problem on the window Oni sits on after showing the picture and route: the answer shows first, then the steps, an answer you type into the same problem is not a new one, and a problem solved before comes back with no request; with no pinned model only a model on this computer answers, and a hosted pin stops at the day's attempt and token limits, or once a hosted reply came back unmeasured
+- Recall, rewrite and assignment mode each have their own switch, off until turned on and changed only from the Hyakki app; recall leaves the Ryoku vault out unless its own switch is on, and assignment mode needs looking at windows
+- Memory refuses payment card, social security, national identity and bank account numbers from every caller, including agents, teams, the command line and learning; memories kept before this show those numbers masked until edited or forgotten
+- Dictation, Hands, screen asks, spoken notes and memory share one judge of secrets, private fields and card or identity numbers, so a word one of them refused is now refused by all
+- The account popover says what signing in gets you: Ryoku Ember's hosted models, paid with pay-as-you-go Ember credits, while local models and your own keys need no account
+- A signed-in account with no Ember credits leads with Add Ember credits, which opens the account page's plans; Get an Ember API key is now a quieter act below the account page
+- Ryoku Ember requests refused for unaccepted account terms or missing credits say so plainly and offer Accept terms or Add Ember credits beside Try again
+- While signed out, model pickers and Add a provider list Ryoku Ember as a row that opens the account popover; it is never picked as a model
+- The popover no longer names Ryoku's own account server, only the account page's host; another server is still named so it can be checked
+- Hyakki now has a contained native build for the CLI, Oni daemon and Gio app, with Wayland and X11 support by default
+- Native packaging stages the app, optional user services, usage collectors and desktop data without enabling anything or changing a running session
+- Source archives retain the dependency sources and licenses, with GPLv3-only combined-binary terms and unchanged upstream grants
+- Reopening an existing window uses the native desktop activation path, including compositor-authorized Wayland tokens, without requiring a Ryoku window-manager helper
+- A failed second-instance launch now returns a failure exit status instead of reporting success
+- Manual usage refresh respects activation, shares the scheduled job lock and stops its current child when Hyakki is turned off
+- Bundled dependency notices retain upstream attribution grants alongside license files
+- Project actions publish RPC results on the UI owner thread rather than mutating state while the project view is rendering
+- App architecture and terminal contracts now live with the standalone corresponding source; Ryoku retains its desktop integration guide
+- Team reporting supports governed trees and peers, task goal lineage, per-seat tool and skill restrictions, trust ceilings and spending limits
+- Team seats can use the native engine, an ACP CLI, a monitored command or a synchronous webhook without an implicit runtime or hosted-provider fallback
+- Held deliveries are bound to one execution and resume generation; failed delivery revokes that execution before further work can start
+- Process-readable credential exports require separate consent, including new team grants, while revocation remains available without renewed consent
+- Teams can start from six source-cited Yokai structures, with editable rosters, worked examples and local suggestions that do not spend credits
+- Custom structure recipes can be cloned, hidden, deleted and restored without losing edits to a stale save
+- Team charts now show actual managers and equal peers, and task defaults no longer invent a leader for a peer team
+- Changing a roster keeps its reviewed budget and oversight, and a failed first load recovers the finite defaults
+- Native strategy approvals resume the task once without confusing conversation permissions, and resumed team prompts use the current plan
+- A separate new team starts with fresh consent and defaults rather than inheriting the previous team's enabled tools
+- Native tasks stop requesting models when their report is accepted, and immediate answers to help or escalation requests no longer strand the task
+- Team settings now edit actual reporting lines through the chart or keyboard pickers, with reviewed manager replacement and stale-edit recovery
+- Spirit settings expose the canonical runtime and narrowing policy, with versioned YAML, masked vault references and reviewed revision restore
+- Uncertain team storage commits now stop board work and remain blocked after restart, including scheduled questions and ledger writes
+- Owner permission waits no longer spend the task or its assigning ancestors' active-minute allowances, and abandoned waits cannot bypass the cap after restart
+- Native tasks yield after an accepted delegation rather than making more model requests before the delegated report
+- Short selection menus now support keyboard navigation, including disabled choices and cancellation
+- Work now offers reviewed task reassignment, retaining previous conversations and results without transferring old execution approvals
+- Oni's bundled character files are declared with their license, provenance and digest, and packaging checks fail on undeclared assets, model or voice data, or reference-product marks
+- The notice credits Nūs Companion by Pranav Desu (Apache-2.0) for Oni's guide, voice and consent patterns; its names and artwork are not shipped
+- Oni can now appear on the desktop: `oni-surface` draws the chosen character in a small layer-shell surface on niri and Hyprland, started by `hyakki oni show` or the app and never at login
+- The character shows its state (idle, listening, thinking, reading, speaking, error, sleeping) and ten short gestures, takes its colours from the desktop palette, and draws a character's own artwork with a fallback for any missing pose
+- Oni can be dragged anywhere or pinned to a corner; its place is remembered per display, survives restarts, and it flies back to that place when a display is added, removed or rescaled
+- Oni stops drawing when nothing changes, paints once and stops when asleep, steps aside under fullscreen windows by default, stops when hidden, and exits when switched off; it never keeps the daemon running
+- Reduce motion follows the desktop by default and can be forced on or off for Oni; with it on, each event draws one still frame
+- Oni can point: a strand reaches from its head to a spot on the screen, taps, holds, swings to a new spot without going home, rewinds, curls round a window's corner, lassos a control or draws round a region, and places a speech bubble that never covers what it points at
+- The daemon waits for the strand to land before it moves on; only the surface showing Oni may report a landing, and late or repeated reports change nothing
+- Settings > Oni has a Sounds switch, off by default: short original motifs for the strand and gestures, synthesised with no audio files, played through `pw-cat` or `paplay` and silent whenever the microphone is live
+- The strand stops drawing once it holds still, takes no clicks, and draws once per change with reduce motion on
+- Oni can perch on a window: drag it over one to see the window outlined, drop it to sit at the window's top corner with its strand curled there and a chip naming the app and title, or run `hyakki oni perch WINDOW`; it follows the window when it moves, resizes or changes display
+- A perch ends when you drag Oni off, use the chip, run `hyakki oni detach`, close the window, unplug its display or switch Oni off; a drop on the empty desktop, or on a niri tiled window that has no position on screen, is refused with the reason
+- Settings > Oni has Follow the focused window, off by default, which moves the perch to whichever window you focus
+- Oni can look at the window it is perched on and answer about it, or point at the part you asked about, with `hyakki oni ask QUESTION` or from the app; it is off until you turn on Let Oni look at a window
+- Before a picture leaves Oni it shows the exact thumbnail, how it was taken and whether it stays on this computer or goes to a named provider and model; it asks once per destination per session, or every time if you choose, and the model disclosed is the only one that may answer
+- Oni's picture is of the perched window only: a compositor toplevel capture when it can name the window, else the region under it, refused when the window is covered or not focused and with Oni's own pixels painted white; it never falls back to the whole desktop
+- Pictures stay in memory and are wiped when the question is answered, declined, left for 2 minutes, replaced or the perch ends; nothing is written to disk or kept in a session
+- Screen asks never click or type, give the model no tools, refuse to point at password, card, bank or identity fields, and treat words in the window as content, never instructions
+- The Oni lab gains `phase10.sh`, fixture windows and a deterministic loopback vision fixture, proving perch, capture, consent and pointing on niri and Hyprland without touching the desktop in use
+- Settings has an Oni section with the character picker, a live preview, size, reduce motion, fullscreen courtesy and reset to Oni
+- Native builds and packages include `oni-surface`, and the bundled notices carry the Wayland protocol licences it is built from
+- Oni's settings gain voice choices, all off until you turn them on: the wake phrase, open mic, spoken replies, the microphone, the speech engines and dictation with its mode; a voice question is an Ask with the typed question's disclosure, and dictation is its own feature that never puts your words on Oni's frames
+- While you talk to Oni the character shows listening, thinking and speaking, wakes if it was asleep, never plays its sounds with the microphone open or armed, and moves with the microphone and speech levels
+- Oni now answers what you say: a press shows your words as you speak, answers the time, the date and timers on its own, says a short acknowledgement before asking the model, and speaks the first sentence of the answer; pressing again while Oni speaks cuts it off mid-word
+- Oni never takes its own voice heard back through the microphone as a question, including an acknowledgement and the reply after it heard as one, and only a press answers a consent question by voice; wake-phrase or open-mic speech is asked to press the key
+- A spoken question the model could not answer, for example because the chosen model is unavailable, is now said as "I could not get an answer." instead of ending in silence after the acknowledgement
+- The fallback speech model runs with its voice activity model, as measured, and downloading the fallback in Settings shows and fetches both
+- With the wake phrase on, anything said without it first is dropped where it is heard and never shown, logged or kept; the wake phrase and open mic turn themselves off at their limits, and only while armed do they keep Hyakki running
+- After answering inside a wake-phrase session, Oni shows listening until the session's 15 seconds are up, since it still takes what you say; it no longer shows armed, which means only the wake phrase is heard
+- The first words of the first press after voice is turned on show sooner with Parakeet: the speech model's integrity check now runs as the talk key goes down instead of delaying the first partial
+- Dictation types into the window that had focus when it started, a few words at a time while that window still has focus, never through the clipboard; a polish that fails falls back to Clean and says so
+- Dictation on Hyprland no longer loses the first character of every few words: each typing call waits 50 ms after handing the desktop its keymap before the first key
+- A provider's model listing closes its connection when the read ends, so the daemon is no longer woken in a burst, about 90 seconds after it starts, when those idle connections expire
+- With voice on, hold Ctrl+Alt (or the chord set in Settings) to talk to Oni: `oni-surface` reads only that the chord went down or up, never which keys you type, ignores AltGr and key repeat, cancels the press when another key joins it, and reads no keys at all while voice is off
+- When the keyboards cannot be read, Settings says why and suggests binding `hyakki oni talk start` on press and `hyakki oni talk stop` on release in your desktop instead
+- While the wake phrase or open mic keeps the microphone open, a mic mark sits beside Oni in the desktop's design and palette; it cannot be dismissed, and stays on screen even with Oni hidden
+- New commands: `hyakki oni talk start|stop|cancel`, `hyakki oni speak stop`, `hyakki oni dictate start|stop|cancel [--mode exact|clean|polished]` and `hyakki oni voice-test [--seconds N]`, each with `--json`
+- Settings › Oni has a Voice group: talking to Oni, the microphone with a test meter that keeps nothing, the talk chord (refused, with why, when it would type or uses AltGr), spoken replies, and the voice and speech engine with what is installed here
+- A speech model not on this computer downloads only after Settings shows its size, licence and checksum and you agree; it is checked against that checksum before it is used
+- Turning on the wake phrase or open mic first says that the microphone stays on continuously and the limits the daemon keeps: a wake question listens 15 seconds at most, wake stays armed an hour at most, open mic 3 minutes at most
+- Settings › Oni has a Dictation group: its switch, Exact, Clean or Polished, polishing on this computer by default or on the Ask route after a disclosure, and the dictionary, snippets and per-app styles kept in Hyakki's state, refused in the editor when past their limits
+- A dictation started from Settings that could not type everything keeps the rest there with Copy, and says why the window was left
+- Oni speaks with the installed `espeak-ng` until a recorded clip voice is available; a Kokoro voice is an optional pack in Hyakki's data folder, run by an installed `sherpa-onnx`, which Hyakki never bundles or downloads and which goes when its folder is deleted
+- The notice and the Oni licensing document list every speech engine, model, voice and program the voice loop can run or download, with its license, source and how it arrives, and carry the CC BY 4.0 attribution for NVIDIA Parakeet; none of them is bundled
+- Oni can walk you through a task on the window it is perched on, one step at a time: it reads the window, points at the control for the step with its strand, and shows a card with the step, a short checklist of what is done and what comes next, and Next, Circle it and Stop; it is off until you turn on guides, and each step's picture is asked about as a screen question's is
+- A guide moves on when you press Next, say "next" while holding the talk key, or a menu or dialog opens; it never watches your clicks, checks whether the window changed before reading the next step, and stops after 12 steps, after a read that takes longer than 75 seconds, or when you stop it, detach Oni, close the window or switch Oni off
+- With Keep on, a guide whose every step was checked against the window's own words can be kept when it ends, each time only after you say yes; a kept walkthrough replays on this computer for the same goal in the same app without asking a model or sending a picture, falls back to a model read when a control has moved, and is dropped after two misses in a row
+- Kept walkthroughs stay in Hyakki's state, at most 80, readable only by you, holding the app, the goal and each step's control label but no window title, picture or anything you typed; a step at a password, PIN, card, bank or identity field is never kept or replayed
+- Select-and-ask: `hyakki oni pick` or the app lets you click any spot on screen and ask about it; Oni perches on that window, refuses a private field before anything is sent, answers in its bubble, and can offer to walk you through it
+- Guides, keeping, replay and select-and-ask read the window's words with an installed `tesseract` when there is one, sending it the picture on its standard input and writing nothing to disk; Hyakki never bundles or installs it, and only English is supported
+- With Oni perched and guides on, asking aloud how to do something on screen starts a guide; only a press of the talk key answers its questions or moves it on, while "stop" and "circle it" work however you spoke
+- The Oni lab gains `phase11.sh` and `phase12.sh`, proving the voice loop, dictation, guides, Keep, replay, hints and select-and-ask on niri and Hyprland against a virtual microphone, a GTK 4 guide window and the loopback vision fixture, without touching the desktop in use
+- New commands: `hyakki oni guide start GOAL|next|stop|circle` (a step's picture asks on stdin as `oni ask` does), `hyakki oni keep|skip ID` for the offer to keep a finished guide, `hyakki oni keeps [--forget KEY|--all]` and `hyakki oni pick [--text QUESTION]|cancel`, each with `--json`
+- Settings › Oni has Guides and Kept walkthroughs groups: the guide, Keep and hints switches, each saying what it needs while that is off; a goal to walk through with its steps, checklist, Next, Circle it again and Stop shown while that part of Settings is open; the question whether to keep a finished guide; and the kept walkthroughs by goal and app with Forget and Forget all
+- Without `tesseract` installed, Settings says that guides run as best guesses and keeping, replaying and asking about a picked spot are unavailable
+- With hints on, Oni perched on a window whose app has a kept walkthrough may offer it again: Show me replays it on this computer, Skip quiets that app's hints for the rest of the day, and an untouched hint goes after 45 seconds; at most one hint every 20 minutes and each walkthrough once a day, recorded in Hyakki's state with no title, picture or screen text
+- Show me replays a kept walkthrough even on a Ryoku Ember route, since a replay sends nothing; if a step has to be read by the model instead, the guide stops with a line saying only the Hyakki app can use that route
+- `hyakki oni keeps --all` and Settings' Forget all also clear the record of hints offered; a hint record that cannot be read is shown in Kept walkthroughs with Start over, and both move it aside beside the new one
+- A guide step whose picture waits on your yes now gets its full 75-second read once you allow it, instead of ending when the yes comes late; the question itself still lapses after 2 minutes
+- Quick commands, off until you turn them on: while you talk to Oni, a short command acts at once instead of becoming a question: open an app, a site or a search, open a new browser tab, snap a window left or right, maximize it on niri, change or mute the volume, play or pause music, take a screenshot, or move and resize Oni; each is said in a few words as it happens, and what cannot be done on this desktop Oni says it cannot do
+- Quick commands never send, buy, delete, submit, install or remove anything and never type into another window; at most 6 run from one sentence and 12 in a minute, the same app opens at most once in 4 seconds, and speech meant for someone else is left alone
+- Notes, routine replays and settings by voice need the talk key held; from the wake phrase or open mic Oni asks you to press it, and open-mic speech counts only when it names the character. By voice a setting can only be turned down or changed in look and sound, never turn on the microphone, wake, guides, decisions or hands
+- Apps opened by a quick command run in their own systemd scope where systemd runs, so they stay open when Hyakki's daemon stops
+- Reminders, off until you turn them on: "remind me in 20 minutes to stretch", "at 4" or "tomorrow at 9:30", up to 7 days ahead; timers, up to 24 hours, are now kept too and survive a daemon restart. Both can be listed and cancelled by voice, wait a little while you are talking to Oni, say so when they come late, and show as a notification while Oni is hidden
+- A pending reminder or timer keeps Hyakki running only while the next is due within 35 minutes; the routines wake unit, now shared by team routines and reminders, starts it again in time. Where the wake unit cannot be armed, Settings and `hyakki oni reminders` say Oni stays running while a reminder is set
+- Routines: after three quick commands in a row, Oni offers once to keep them; only a yes with the talk key held, or Keep, saves one, and "run my routine" replays it with no model, skipping an app that is no longer installed. They are not Teams routines and are never scheduled
+- "Remember that…" with the talk key held keeps a note as a personal memory fact; passwords and card and ID numbers are refused, and Oni says when memory is off
+- With decisions on, a command the rules miss may be sorted by the typed decision route; its answer never grants a permission, a hosted decision needs the talk key and a yes on a card naming your account, and running out of Ember credits falls back to the rules
+- Typed decision results say when Ember credits ran out (`creditsExhausted`), so a consumer falls back to rules without reading the notice's wording
+- The local decision route is asked only once Hyakki finds the server you installed: the address must be on this computer, the computer needs at least 6 GiB of memory and 4 processor cores, and the server must list its models within 750 ms; otherwise the route is refused with the reason and nothing is sent. Hyakki still bundles and starts no decision server, and Settings' decision row says whether the local server was detected, not found, or this computer is too small (`fastdecisions.local`, app only, asked once per visit)
+- New commands: `hyakki oni reminders [--cancel ID|--all]`, `hyakki oni routines [--run [NAME]|--forget NAME|--all]` and `hyakki oni reflex log`, each with `--json`; they list reminders by their own words, routines by name and length and the quick-command log by command, never anything said
+- Settings › Oni gains Quick commands, Reminders and timers, Routines and Quick command log groups: the quick command switch says it needs Talk to Oni, since quick commands are only spoken; the reminder, routine, note and decision switches each say they need quick commands; letting a decision model sort commands first shows where a command would go and what is sent; reminders list with Cancel, routines with Run and Forget, and the log by command, route, timing and outcome
+- The Oni lab gains `phase13.sh`, proving quick commands, timers, reminders, routines, notes and the local decision route on niri and Hyprland against a lab app catalogue, a browser, a media player and a notification server of its own, with `systemd-run` and the wake unit's bridge stubbed, without touching the desktop in use
+- The Oni licensing document lists every program quick commands can run, none of them bundled, and the reference-product mark check now covers the quick-command executors

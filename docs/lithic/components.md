@@ -394,7 +394,7 @@ corner state mark. Round designs draw a plane-less rounded row and a tone
 dot. In Go `kit.Tablet` uses the selected wash and `OnContainer` text, not
 a solid `sel` plane; hover and press are separate foreground washes. Set
 `Listed` when it sits inside `kit.RowList`, which paints the wash. The Hub's
-launcher app list uses it (`components/launcher/AppListEditor.qml`); Rashin
+launcher app list uses it (`components/launcher/AppListEditor.qml`); Hyakki
 and Ryotunes list their resources with it.
 
 Library: QML `Tablet`, web `.l-tablet`, Go `kit.Tablet`, terminal `term.RenderTablet`
@@ -758,7 +758,7 @@ Library: QML `Blade`, web `.l-blade`, Go `kit.FillBlade`, `kit.Blade`, terminal 
 
 Views of one resource: a 44 strip over a 1 px `vein` baseline, each label its
 text plus 24, the current one `fg` with a 3 px `fg` blade that moves and
-resizes over 240 ms, others `fg3`. At most five. Rashin's and Ryotunes's pages
+resizes over 240 ms, others `fg3`. At most five. Hyakki's and Ryotunes's pages
 use them; the Hub uses a Segmented instead.
 
 Library: QML `Tabs`, web `.l-tabs`, Go `kit.Tabs`, terminal `term.RenderTabs`
@@ -767,7 +767,7 @@ Library: QML `Tabs`, web `.l-tabs`, Go `kit.Tabs`, terminal `term.RenderTabs`
 
 Chips that narrow a list, with live counts: 32 tall, inset 13, cut 6, 4
 apart, `label` type; the selected chip is a `sel` fill that glides over
-240 ms; the count follows by 6 in `caption`. Rashin, Ryotunes and Ryoport
+240 ms; the count follows by 6 in `caption`. Hyakki, Ryotunes and Ryoport
 narrow their lists with them.
 
 Library: QML `Filters`, web `.l-filters`, Go `kit.Filters`, terminal `term.RenderFilters`
@@ -776,7 +776,7 @@ Library: QML `Filters`, web `.l-filters`, Go `kit.Filters`, terminal `term.Rende
 
 A group's name in `group` and its count in `caption`, both `fg3`; insets 14
 top, 6 bottom, 6 left, 4 right. Groups appear only when they have rows. Used
-in Rashin's and Ryotunes's lists.
+in Hyakki's and Ryotunes's lists.
 
 Library: QML `GroupHeader`, web `.l-group-header`, Go `kit.GroupHeader`, terminal `term.RenderGroupHeader`
 
@@ -784,7 +784,7 @@ Library: QML `GroupHeader`, web `.l-group-header`, Go `kit.GroupHeader`, termina
 
 Static `stone2` tablets, 4 apart, each with two `stone3` bars 8 tall and 8
 apart at 60 and 35 percent of the width, holding a list's shape while it
-loads. Rashin and Ryotunes use it; the Hub shows Working instead.
+loads. Hyakki and Ryotunes use it; the Hub shows Working instead.
 
 Library: QML `Skeleton`, web `.l-skeleton`, Go `kit.Skeleton`, terminal -
 
@@ -801,7 +801,7 @@ Library: QML `Tooltip`, web `.l-tooltip`, Go `kit.Tooltip`, terminal -
 
 A settings page's sections as a side list: 200 wide, 34 from the column,
 rows 48 tall and 4 apart, the current one a `sel` fill; below expanded it
-becomes a Picker. Rashin's and Ryotunes's settings pages use it. The Hub hangs
+becomes a Picker. Hyakki's and Ryotunes's settings pages use it. The Hub hangs
 its sections in the sidebar as the section outline instead
 ([layout.md](layout.md#the-sidebar-tree)).
 
@@ -813,7 +813,7 @@ A draft form at most 600 wide with an aside that previews what saving will
 make or write: from 820 of room the aside sits 34 to the right, 36 percent of
 the width within 300 to 400; narrower, it follows the form. The aside is a
 standard slab with a `title`, a `detail` `fg2` note and literal previews in
-`monoSm` on a cut-6 `field` block. Rashin's forms use them.
+`monoSm` on a cut-6 `field` block. Hyakki's forms use them.
 
 Library: QML `Aside` and `DraftColumns`, web `.l-aside` and `.l-draft-columns`, Go `kit.Aside` and `kit.DraftColumns`, terminal `term.RenderAside` and `term.RenderDraftColumns`
 
@@ -836,6 +836,6 @@ copies of them (Ryoport `ui/app/`, `ui/kit/`, `ui/pages/common/`):
 
 Library: QML `AppFrame`, `Rail`, `NewPlaque`, `Pane`, `Header`, `MineralField`, `SplitPlaque`, `BecomingName`; web `.l-app-frame`, `.l-rail`, `.l-new-plaque`, `.l-pane`, `.l-header`, `.l-mineral-field`, `.l-split-plaque`, `.l-becoming-name`; Go `kit.` with the same names; terminal `term.RenderMineralField` and `term.RenderSplitPlaque`
 
-Rashin's sidebar uses a separate `kit.PlaqueLine` New action, with a small
-line icon plaque when folded (`ryoku/rashin/internal/app/shell/sidebar.go`).
+Hyakki's sidebar uses a separate `kit.PlaqueLine` New action, with a small
+line icon plaque when folded (`ryoku/hyakki/internal/app/shell/sidebar.go`).
 It does not borrow Ryoport's gold `NewPlaque`.

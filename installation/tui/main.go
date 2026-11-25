@@ -557,7 +557,7 @@ func stepsForVariant(variant string) []step {
 			desc: []string{i18n.T("Choose the shell that opens in terminals."), i18n.T("Shared command-line tools stay available with every choice.")}},
 		{key: "file-manager", title: i18n.T("File manager"), kind: kSelect, items: fileManagersForVariant(variant), numbered: true,
 			desc: []string{i18n.T("Choose the app that opens folders and files.")}},
-		{key: "rashin", title: i18n.T("Rashin"), kind: kConfirm, desc: []string{
+		{key: "hyakki", title: i18n.T("Hyakki"), kind: kConfirm, desc: []string{
 			i18n.T("Optional AI for asking about your system"),
 			i18n.T("and running coding agents."),
 			i18n.T("It stays off until you turn it on."),
@@ -1083,7 +1083,7 @@ func newModel() model {
 	m.picks["browser"] = installerplan.FreshDefault(installerplan.Browser)
 	m.picks["login-shell"] = installerplan.FreshDefault(installerplan.LoginShell)
 	m.picks["file-manager"] = installerplan.FreshDefault(installerplan.FileManager)
-	m.picks["rashin"] = "0"
+	m.picks["hyakki"] = "0"
 	m.picks["gaming"] = "0"
 	m.netOnline = probeNetworkOnline()
 	if variant == "plain" {
@@ -1210,8 +1210,8 @@ func (m *model) loadStep() {
 		m.input, m.yes = "", false
 		m.inputErr, m.encStage, m.pass1, m.encErr = "", 0, "", ""
 		m.wipeStage, m.eraseInput = 0, ""
-		if s.key == "rashin" {
-			m.yes = def(m.picks["rashin"], "0") == "1"
+		if s.key == "hyakki" {
+			m.yes = def(m.picks["hyakki"], "0") == "1"
 		}
 		if s.key == "gaming" {
 			reason := m.gamingUnavailableReason()
@@ -1616,7 +1616,7 @@ func (m model) onKey(k string) (tea.Model, tea.Cmd) {
 		case "n":
 			m.yes = false
 		case "enter":
-			if s.key == "rashin" || s.key == "gaming" {
+			if s.key == "hyakki" || s.key == "gaming" {
 				value := "0"
 				if m.yes {
 					value = "1"
@@ -3410,7 +3410,7 @@ func (m model) helpBody() string {
 var stepIcon = map[string]string{
 	"keyboard": "", "locale": "", "timezone": "", "network": "",
 	"hardware": "", "profile": "", "gpu": "", "compositor": "",
-	"browser": "", "login-shell": "", "file-manager": "", "rashin": "",
+	"browser": "", "login-shell": "", "file-manager": "", "hyakki": "",
 	"cachyos": "", "apps": "", "diskpick": "", "disk": "",
 	"partitions": "", "hostname": "", "administrator": "",
 	"root-account": "", "other-people": "", "encryption": "", "review": "",
@@ -3577,9 +3577,9 @@ func (m model) reviewBody(w int) string {
 	if m.hwBIOS {
 		firmware = i18n.T("Legacy BIOS")
 	}
-	rashin := i18n.T("No")
-	if def(m.picks["rashin"], "0") == "1" {
-		rashin = i18n.T("Yes")
+	hyakki := i18n.T("No")
+	if def(m.picks["hyakki"], "0") == "1" {
+		hyakki = i18n.T("Yes")
 	}
 	lines := []string{
 		bold(cBrand, i18n.T("Review, then confirm to install")), "",
@@ -3590,7 +3590,7 @@ func (m model) reviewBody(w int) string {
 		row(i18n.T("wm"), compositorLabel(m.picks["compositor"])), row(i18n.T("browser"), browserLabel(m.picks["browser"])),
 		row(i18n.T("shell"), loginShellLabel(m.picks["login-shell"])),
 		row(i18n.T("files"), fileManagerLabel(m.picks["file-manager"])),
-		row(i18n.T("Rashin"), rashin),
+		row(i18n.T("Hyakki"), hyakki),
 		row(i18n.T("apps"), m.appsReviewCell()),
 	}
 	if flowIndex(m.flow, "gaming") >= 0 {

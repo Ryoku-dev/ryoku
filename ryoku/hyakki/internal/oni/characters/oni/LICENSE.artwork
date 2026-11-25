@@ -1,0 +1,12 @@
+Oni character files
+
+SPDX-License-Identifier: GPL-3.0-only
+
+The files in this directory (profile.json, static.svg, persona.md, lines.json,
+PROVENANCE.md and this file) are original works authored for Hyakki. They are
+distributed under the GNU General Public License version 3 only, the terms of
+the combined Hyakki distribution described in the root NOTICE and in
+docs/licensing.md. The complete license text is the root LICENSE file.
+
+This grant does not replace or broaden any other license in Hyakki, and it
+grants no right to any name or mark. Provenance is recorded in PROVENANCE.md.

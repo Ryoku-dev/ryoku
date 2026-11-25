@@ -39,7 +39,7 @@ def exercise(shell: str) -> None:
         target = cfg / shell
         target.mkdir(parents=True)
         shutil.copy(REPO / f"ryoku/apps/{shell}/ryoku.{ 'bash' if shell == 'bash' else 'zsh'}", target)
-        shutil.copy(REPO / f"ryoku/apps/{shell}/rashin.{ 'bash' if shell == 'bash' else 'zsh'}", target)
+        shutil.copy(REPO / f"ryoku/apps/{shell}/hyakki.{ 'bash' if shell == 'bash' else 'zsh'}", target)
         (cfg / "ryoku-terminal").mkdir(parents=True)
         shutil.copy(REPO / "ryoku/apps/terminal-shell/env.sh", cfg / "ryoku-terminal/env.sh")
         if shell == "bash":
@@ -54,7 +54,7 @@ def exercise(shell: str) -> None:
             body = "printf ':\\n'\n" if name in ("starship", "zoxide", "mise", "fzf") else "exit 0\n"
             write_stub(bindir / name, body)
         write_stub(
-            bindir / "rashin",
+            bindir / "hyakki",
             "case \" $* \" in\n"
             "  *\" ask --buffer -- \"*) printf \"touch '%s/ran'\\n\" \"$HOME\" ;;\n"
             "esac\n",

@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "soft-no-artwork",
+  "name": "Moth (test)",
+  "animations": {
+    "states": {
+      "idle": "poses/rest.svg",
+      "ready": "poses/rest.svg",
+      "listening": "poses/alert.svg",
+      "working": "poses/alert.svg",
+      "reading": "poses/rest.svg",
+      "thinking": "poses/alert.svg",
+      "speaking": "poses/rest.svg",
+      "error": "poses/alert.svg",
+      "sleeping": "poses/rest.svg"
+    },
+    "gestures": {
+      "acknowledge": "poses/alert.svg",
+      "done": "poses/alert.svg",
+      "error": "poses/alert.svg",
+      "poke": "poses/alert.svg",
+      "nudge": "poses/alert.svg",
+      "wake": "poses/alert.svg",
+      "sleep": "poses/alert.svg",
+      "arrive": "poses/alert.svg",
+      "gulp": "poses/alert.svg",
+      "settle": "poses/alert.svg"
+    }
+  },
+  "personality": {
+    "voiceLines": "lines.json",
+    "promptPersona": "persona.md",
+    "idleHumor": false
+  },
+  "voice": {
+    "engine": "system",
+    "speed": 1.1,
+    "honorific": "none"
+  }
+}

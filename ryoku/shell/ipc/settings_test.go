@@ -237,6 +237,24 @@ func TestPatchRejectsInvalidSchemaValues(t *testing.T) {
 	}
 }
 
+func TestRetiredVisionWritesLeavePreferencesUntouched(t *testing.T) {
+	for _, path := range []string{"sight", "sight.on", "sight.features.inplace", "sight.ocrLanguages"} {
+		t.Run(path, func(t *testing.T) {
+			store := newTestStore(t)
+			before := string(store.frameLocked())
+			if err := store.patch(path, rm(`true`)); err == nil {
+				t.Fatal("retired gesture setting accepted")
+			}
+			if string(store.frameLocked()) != before {
+				t.Fatal("rejected gesture write changed active preferences")
+			}
+			if _, err := os.Stat(store.path); !os.IsNotExist(err) {
+				t.Fatalf("rejected gesture write created a store: %v", err)
+			}
+		})
+	}
+}
+
 // TestPatchClampsFloatStrengths checks the float knobs clamp into range instead
 // of erroring (the shipped newtypes clamp), so an out-of-range float patch
 // succeeds with the boundary value.
@@ -1182,22 +1200,22 @@ func TestSettingsBoolAt(t *testing.T) {
 	}
 }
 
-// the clipboard reads pictures in Theia's OCR languages, and a hand-edited list must
+// the clipboard reads pictures in the clipboard's OCR languages, and a hand-edited list must
 // not hand tesseract an empty or non-string language
 func TestSettingsStringsAt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shell.json")
-	body := `{"sight":{"ocrLanguages":["eng","",3,"jpn"],"mode":"explain"}}`
+	body := `{"clipboard":{"ocrLanguages":["eng","",3,"jpn"],"mode":"explain"}}`
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	s := newSettingsStore(path)
-	if got := s.stringsAt("sight.ocrLanguages"); !reflect.DeepEqual(got, []string{"eng", "jpn"}) {
-		t.Errorf("stringsAt(sight.ocrLanguages) = %#v, want eng and jpn", got)
+	if got := s.stringsAt("clipboard.ocrLanguages"); !reflect.DeepEqual(got, []string{"eng", "jpn"}) {
+		t.Errorf("stringsAt(clipboard.ocrLanguages) = %#v, want eng and jpn", got)
 	}
-	if got := s.stringsAt("sight.mode"); got != nil {
+	if got := s.stringsAt("clipboard.mode"); got != nil {
 		t.Errorf("stringsAt on a string = %#v, want nil", got)
 	}
-	if got := s.stringsAt("sight.missing"); got != nil {
+	if got := s.stringsAt("clipboard.missing"); got != nil {
 		t.Errorf("stringsAt on a missing leaf = %#v, want nil", got)
 	}
 }

@@ -78,7 +78,7 @@ func TestReadBasePackagesSkipsBootChain(t *testing.T) {
 func TestVoidPackagePlanMatchesResolver(t *testing.T) {
 	root := filepath.Clean("..")
 	p := &plan{browser: "chromium", shell: "zsh", compositor: "niri", devtools: true}
-	p.setComponent("rashin", true)
+	p.setComponent("hyakki", true)
 	f := &facts{distro: voidLinux, hasNvidia: true}
 	e := &engine{f: f, p: p, payload: root}
 
@@ -453,7 +453,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 				distro = newFedoraLinux()
 			}
 			p := defaultPlanForEdition(&facts{distro: distro}, edition)
-			p.setComponent("rashin", true)
+			p.setComponent("hyakki", true)
 			p.fileManager = "dolphin"
 			e := &engine{f: &facts{distro: distro}, p: p, payload: root}
 			packages, err := e.readEditionPackages(editionName)
@@ -461,7 +461,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 				t.Fatal(err)
 			}
 			set := packageSet(packages)
-			for _, pkg := range []string{"dolphin", "ryotunes", "ryoport", "ryomanager", "ryoku-rashin", "mpv", "mpv-mpris"} {
+			for _, pkg := range []string{"dolphin", "ryotunes", "ryoport", "ryomanager", "hyakki", "mpv", "mpv-mpris"} {
 				if !set[pkg] {
 					t.Errorf("selected package %s is missing from %v", pkg, packages)
 				}
@@ -475,23 +475,23 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 	}
 }
 
-func TestRashinSelectionWritesFirstLoginMarker(t *testing.T) {
+func TestHyakkiSelectionWritesFirstLoginMarker(t *testing.T) {
 	home := t.TempDir()
 	selected := true
 	e := &engine{
 		f: &facts{homeDir: home},
-		p: &plan{components: map[string]*bool{"rashin": &selected}},
+		p: &plan{components: map[string]*bool{"hyakki": &selected}},
 	}
-	if err := e.syncRashinMarker(); err != nil {
+	if err := e.syncHyakkiMarker(); err != nil {
 		t.Fatal(err)
 	}
-	marker := filepath.Join(home, ".local/state/ryoku/rashin-on-pending")
+	marker := filepath.Join(home, ".local/state/ryoku/hyakki-on-pending")
 	if body, err := os.ReadFile(marker); err != nil || string(body) != "pending\n" {
 		t.Fatalf("marker = %q, %v", body, err)
 	}
 
 	selected = false
-	if err := e.syncRashinMarker(); err != nil {
+	if err := e.syncHyakkiMarker(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {

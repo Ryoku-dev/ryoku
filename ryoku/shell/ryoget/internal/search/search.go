@@ -1,6 +1,6 @@
 // Package search is Ryoku's web search: keyless sources queried under one
 // rate governor, ranked and merged here, and served to clients (the bar,
-// Rashin, the CLI) by the ryoseek daemon over JSON lines.
+// Hyakki, the CLI) by the ryoseek daemon over JSON lines.
 package search
 
 import (

@@ -102,7 +102,7 @@ func parseDesktopEntry(body []byte) (DesktopEntry, error) {
 func Essentials() []string {
 	return []string{
 		"kitty.desktop", "nemo.desktop", "org.gnome.Nautilus.desktop", "org.kde.dolphin.desktop",
-		"pcmanfm.desktop", "pcmanfm-qt.desktop", "dev.ryoku.rashin.desktop", "ryogami.desktop",
+		"pcmanfm.desktop", "pcmanfm-qt.desktop", "dev.ryoku.Hyakki.desktop", "ryogami.desktop",
 		"ryoku-hub.desktop", "ryoku-nvim.desktop", "ryomanager.desktop", "ryostore.desktop",
 		"dev.ryoku.ryoport.desktop", "thunar.desktop",
 	}

@@ -7,7 +7,7 @@ import Ryoku.Ui.Singletons
 import "look"
 import "../../services/lib/markdown.js" as Md
 
-// One Quick Ask turn: what was asked, what Rashin is doing while it works, and
+// One Quick Ask turn: what was asked, what Hyakki is doing while it works, and
 // the answer as it streams (Markdown; images are cut to their alt text and only
 // web and mail links open). The things the answer itself offers (a command to
 // copy, a file to open) sit under it as plaques.
@@ -15,14 +15,14 @@ Item {
     id: root
 
     required property real s
-    required property RashinSession session
+    required property HyakkiSession session
     property real maximumHeight: 420 * s
 
     readonly property var sessionData: session.state
     readonly property string answerText: String(sessionData.answer || "")
     readonly property bool boxed: !Look.lithic
     readonly property real side: Math.round(18 * root.s)
-    // what the answer offers, as Rashin sent it: {kind: copy|cmd|color|file|dir|url, label, value}
+    // what the answer offers, as Hyakki sent it: {kind: copy|cmd|color|file|dir|url, label, value}
     readonly property var offers: sessionData.phase === "done" || sessionData.phase === "cancelled" ? (sessionData.actions || []) : []
     readonly property string workingLabel: {
         const tools = sessionData.tools || [];

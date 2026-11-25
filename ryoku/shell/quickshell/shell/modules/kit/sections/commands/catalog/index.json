@@ -19,7 +19,7 @@
         { "id": "ryoku-apps", "label": "Apps & extras" },
         { "id": "ryoku-plugins", "label": "Plugins & store" },
         { "id": "ryoku-security", "label": "Keyring & security" },
-        { "id": "ryoku-rashin", "label": "Rashin (AI)" },
+        { "id": "hyakki", "label": "Hyakki (AI)" },
         { "id": "ryoku-phone", "label": "Phone" },
         { "id": "ryoku-import", "label": "Import, rices & profiles" },
         { "id": "ryoku-internal", "label": "Internal (used by Ryoku itself)" }

@@ -13,7 +13,6 @@ fail() {
 
 mkdir -p \
 	"$fixture/release/packages/ryoku-desktop" \
-	"$fixture/release/packages/ryoku-rashin" \
 	"$fixture/system/packages" \
 	"$fixture/void/packages/srcpkgs/ryoku-desktop" \
 	"$fixture/void/packages/srcpkgs/split-built" \
@@ -31,9 +30,6 @@ printf 'pkgname=ryoku-desktop\n' > "$fixture/void/packages/srcpkgs/ryoku-desktop
 printf 'pkgname=split-built\n' > "$fixture/void/packages/srcpkgs/split-built/template"
 printf 'Name: ryoku-desktop\n' > "$fixture/fedora/packages/rpm/ryoku-desktop.spec"
 printf 'Name: split-built\n' > "$fixture/fedora/packages/rpm/split-built.spec"
-printf '%s\n' rashind rashin rashin-app rashind.socket rashind.service \
-	rashind-routines.service rashind-routines.timer dev.ryoku.rashin.desktop NOTICE \
-	> "$fixture/release/packages/ryoku-rashin/payload.sh"
 printf 'arch\tvoid\tlanes\tnotes\nbase-package\tbase-package\tsystem\t\nhardware-package\thardware-package\thardware:test\t\n' \
 	> "$fixture/void/packages/translations.tsv"
 printf 'arch\tfedora\tlanes\tnotes\nbase-package\tbase-package\tsystem\t\nhardware-package\thardware-package\thardware:test\t\n' \
@@ -64,9 +60,6 @@ run_failure 'a split PKGBUILD package without a build artifact passed'
 [[ $(grep -c '^  split-built$' "$fixture/output") -eq 1 ]] ||
 	fail 'the missing Fedora split package was not reported'
 printf 'Name: split-built\n' > "$fixture/fedora/packages/rpm/split-built.spec"
-printf '%s\n' rashind rashin rashin-app rashind.socket rashind.service \
-	rashind-routines.service rashind-routines.timer dev.ryoku.rashin.desktop NOTICE \
-	> "$fixture/release/packages/ryoku-rashin/payload.sh"
 run_success 'restoring the built split package did not restore parity'
 
 mkdir -p "$fixture/release/packages/new-arch-package"

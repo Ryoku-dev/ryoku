@@ -392,7 +392,7 @@ Column {
         elide: Text.ElideNone
     }
 
-    // the health check found trouble in this run and Rashin can look into it
+    // the health check found trouble in this run and Hyakki can look into it
     Row {
         width: view.width
         visible: view.run.canFix
@@ -413,7 +413,7 @@ Column {
             kind: "line"
             small: true
             glyph: "open_in_new"
-            text: I18n.tr("Fix with Rashin")
+            text: I18n.tr("Fix with Hyakki")
             busy: view.run.fixState === "opening"
             onClicked: view.run.fix()
         }

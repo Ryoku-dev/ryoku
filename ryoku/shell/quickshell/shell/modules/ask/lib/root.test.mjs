@@ -33,20 +33,20 @@ equal(["2+2", "12 * (3 - 1)", "15% of 80", "5 km to mi", "sqrt 16", "100 usd in 
 equal(["hello", "42", "3.14", "ubuntu 24.04", "example.com/2+2", "install python3"].map(R.looksLikeMath), [false, false, false, false, false, false], "words, bare numbers and links do not");
 
 const commands = [
-    { id: "ask", title: "Ask Rashin", keywords: ["question", "ai"] },
+    { id: "ask", title: "Ask Hyakki", keywords: ["question", "ai"] },
     { id: "web", title: "Search the web", keywords: ["internet", "find"] },
     { id: "downloads", title: "Downloads", keywords: ["torrent", "queue"] },
-    { id: "rashin", title: "Open Rashin", keywords: ["app"] }
+    { id: "hyakki", title: "Open Hyakki", keywords: ["app"] }
 ];
-equal(R.rank(commands, "").map(c => c.id), ["ask", "web", "downloads", "rashin"], "an empty query keeps the given order");
+equal(R.rank(commands, "").map(c => c.id), ["ask", "web", "downloads", "hyakki"], "an empty query keeps the given order");
 equal(R.rank(commands, "down").map(c => c.id), ["downloads"], "a title prefix matches");
-equal(R.rank(commands, "rashin").map(c => c.id), ["ask", "rashin"], "a word start matches, earlier command first on a tie");
-equal(R.rank(commands, "open rashin").map(c => c.id), ["rashin"], "a whole title wins");
+equal(R.rank(commands, "hyakki").map(c => c.id), ["ask", "hyakki"], "a word start matches, earlier command first on a tie");
+equal(R.rank(commands, "open hyakki").map(c => c.id), ["hyakki"], "a whole title wins");
 equal(R.rank(commands, "torrent").map(c => c.id), ["downloads"], "a keyword matches");
 equal(R.rank(commands, "web").map(c => c.id), ["web"], "a word inside the title matches");
 equal(R.rank(commands, "zzz"), [], "nothing matches nonsense");
 equal(R.matchScore("dl", "Downloads") > 0, true, "letters in order match loosely");
-equal(R.matchScore("d", "Open Rashin"), 0, "one loose letter is not a match");
+equal(R.matchScore("d", "Open Hyakki"), 0, "one loose letter is not a match");
 
 // the home list shows what is moving, then news: what settled and was not seen ten minutes ago
 const now = Date.parse("2026-11-22T12:00:00Z");
@@ -91,11 +91,11 @@ equal(R.quote("  a   long\nline  "), "a long line", "quoting flattens white spac
 equal(R.quote("abcdefghij", 6), "abcde\u2026", "a long quote is cut with an ellipsis");
 
 const labels = { downloads: "Downloads", asks: "Recent asks", goTo: "Go to", results: "Commands", link: "Link", calc: "Calculator", fallbacks: "Use text with" };
-const empty = R.sections({ query: "", commands, downloads: [{ id: "task:b" }], asks: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }], rashin: "ready", labels });
+const empty = R.sections({ query: "", commands, downloads: [{ id: "task:b" }], asks: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }], hyakki: "ready", labels });
 equal(empty.map(s => [s.id, s.rows.length]), [["downloads", 1], ["asks", 3], ["goto", 4]], "an empty line shows downloads, three recent asks and the commands");
-equal(R.sections({ query: "", commands, downloads: [], asks: [{ id: 1 }], rashin: "off", labels }).map(s => s.id), ["goto"], "without Rashin or downloads only the commands show");
+equal(R.sections({ query: "", commands, downloads: [], asks: [{ id: 1 }], hyakki: "off", labels }).map(s => s.id), ["goto"], "without Hyakki or downloads only the commands show");
 
-const typed = R.sections({ query: "down", commands, labels, rashin: "ready" });
+const typed = R.sections({ query: "down", commands, labels, hyakki: "ready" });
 equal(typed.map(s => s.id), ["results", "fallbacks"], "typing filters commands and closes with the fallbacks");
 equal(typed[1].rows.map(r => [r.target, r.text]), [["ask", "down"], ["web", "down"]], "the fallbacks carry the text");
 

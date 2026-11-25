@@ -119,7 +119,7 @@ Item {
         if (row.kind === "query" || row.kind === "suggestion")
             return { label: I18n.tr("Search") };
         if (row.kind === "fallback")
-            return { label: row.target === "ask" ? I18n.tr("Ask Rashin") : I18n.tr("Search in the browser") };
+            return { label: row.target === "ask" ? I18n.tr("Ask Hyakki") : I18n.tr("Search in the browser") };
         return { label: root.link(row).length > 0 ? I18n.tr("Open in the browser") : I18n.tr("Copy") };
     }
     readonly property var secondaryAction: {
@@ -135,7 +135,7 @@ Item {
         if (item) {
             out.push({ id: "detail", label: root.detailOpen ? I18n.tr("Hide details") : I18n.tr("Show details"), glyph: "side_navigation", hint: "Ctrl+I", section: "" });
             if (row.kind === "result" && String(item.url || "").length > 0)
-                out.push({ id: "ask", label: I18n.tr("Ask Rashin about this page"), glyph: "explore", hint: "Ctrl+Shift+A", section: "" });
+                out.push({ id: "ask", label: I18n.tr("Ask Hyakki about this page"), glyph: "explore", hint: "Ctrl+Shift+A", section: "" });
             if (Web.downloadable(item))
                 out.push({ id: "download", label: I18n.tr("Download"), glyph: "download", hint: "Ctrl+D", section: "" });
             const links = Web.altLinks(item);
@@ -229,7 +229,7 @@ Item {
             return {
                 id: entry.id, kind: "fallback", target: entry.target, last: last, size: "one",
                 glyph: ask ? "explore" : "open_in_browser",
-                title: ask ? I18n.tr("Ask Rashin about this") : I18n.tr("Search in the browser"),
+                title: ask ? I18n.tr("Ask Hyakki about this") : I18n.tr("Search in the browser"),
                 hint: ask ? "Tab" : ""
             };
         }

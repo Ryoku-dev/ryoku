@@ -134,8 +134,8 @@ seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail
 [[ -n $seed_intent ]] || fail "the delegated account seed was not narrated"
 [[ $seed_intent == *" rice=default "* ]] \
   || fail "the delegated account seed did not request the default rice: $seed_intent"
-[[ $seed_intent == *" rashin=0 "* ]] \
-  || fail "the delegated account seed did not leave Rashin off by default: $seed_intent"
+[[ $seed_intent == *" hyakki=0 "* ]] \
+  || fail "the delegated account seed did not leave Hyakki off by default: $seed_intent"
 grep -qF 'DRYRUN: set nautilus as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
   || fail "the empty file-manager choice did not default to nautilus"
 grep -qF 'ryotunes ryoport ryomanager nautilus nautilus-python' <<<"$out" \
@@ -190,11 +190,11 @@ out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
 grep -qF 'not one of the shipped login shells' <<<"$out" \
   || fail "the login-shell gate did not explain the allowed values"
 
-# File manager and optional Rashin decisions share the drop ledger with the
+# File manager and optional Hyakki decisions share the drop ledger with the
 # existing browser and login-shell choices.
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole \
-  RYOKU_FILE_MANAGER=dolphin RYOKU_RASHIN=0 RYOKU_HIDE_APPS=ryotunes.desktop \
+  RYOKU_FILE_MANAGER=dolphin RYOKU_HYAKKI=0 RYOKU_HIDE_APPS=ryotunes.desktop \
   bash "$root/installation/backend/ryoku-install" 2>&1)" \
   || fail "file-manager/app-choice dry run exited nonzero: $out"
 grep -qF 'DRYRUN: set dolphin as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
@@ -204,14 +204,14 @@ grep -qF 'ryomanager dolphin' <<<"$out" \
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
 [[ $seed_intent == *" hidden-apps=ryotunes.desktop "* ]] \
   || fail "the delegated account seed missed the hidden launcher id: $seed_intent"
-[[ $seed_intent == *" rashin=0 "* ]] \
-  || fail "RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
+[[ $seed_intent == *" hyakki=0 "* ]] \
+  || fail "RYOKU_HYAKKI=0 did not disable the delegated Hyakki marker: $seed_intent"
 ledger="${seed_intent##* provisioned-ledger=}"
 ledger=${ledger//,/ }
-for pkg in nautilus nautilus-python thunar ryoku-rashin; do
-  [[ " $ledger " == *" $pkg "* ]] || fail "dolphin/Rashin-off ledger is missing $pkg: $seed_intent"
+for pkg in nautilus nautilus-python thunar hyakki; do
+  [[ " $ledger " == *" $pkg "* ]] || fail "dolphin/Hyakki-off ledger is missing $pkg: $seed_intent"
 done
-[[ " $ledger " != *" dolphin "* ]] || fail "dolphin/Rashin-off ledger drops selected dolphin: $seed_intent"
+[[ " $ledger " != *" dolphin "* ]] || fail "dolphin/Hyakki-off ledger drops selected dolphin: $seed_intent"
 
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_FILE_MANAGER=pcmanfm \
@@ -223,7 +223,7 @@ out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   bash "$root/installation/backend/ryoku-install" 2>&1)" && fail "path-like hidden desktop id was accepted"
 grep -qF 'use plain *.desktop file names' <<<"$out" \
   || fail "the hidden-app gate did not explain the required desktop id form"
-for bad_env in RYOKU_RASHIN RYOKU_CACHYOS_LAYER; do
+for bad_env in RYOKU_HYAKKI RYOKU_CACHYOS_LAYER; do
   out="$(env RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
     RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole "$bad_env"=yes \
     bash "$root/installation/backend/ryoku-install" 2>&1)" && fail "$bad_env=yes was accepted"
@@ -328,14 +328,14 @@ grep -qxF '        | linux' <<<"$out" \
 grep -qF '        | /Arch Linux (fallback)' <<<"$out" \
   && fail "missing CachyOS component row still added the layer fallback entry"
 
-# Void applies the same file-manager, app, and Rashin contract and ignores the
+# Void applies the same file-manager, app, and Hyakki contract and ignores the
 # CachyOS-only switch.
 void_out=$tmp/void.out
 install_dryrun_run void "$void_out" \
   RYOKU_DISK_STRATEGY=whole RYOKU_FIRMWARE_MODE=uefi \
   RYOKU_COMPOSITOR=niri RYOKU_COMPOSITOR_CONFIG_DIR=niri \
   RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl RYOKU_FILE_MANAGER=thunar \
-  RYOKU_RASHIN=0 RYOKU_CACHYOS_LAYER=1 \
+  RYOKU_HYAKKI=0 RYOKU_CACHYOS_LAYER=1 \
   || fail "Void install-choice dry run exited nonzero: $(<"$void_out")"
 out=$(<"$void_out")
 grep -qF 'CachyOS layer is not available on Void' <<<"$out" \
@@ -345,27 +345,27 @@ grep -qF 'DRYRUN: set thunar as the default file manager (inode/directory + desk
 grep -qF 'ryotunes' <<<"$out" && grep -qF 'ryomanager' <<<"$out" && grep -qF 'Thunar' <<<"$out" \
   || fail "Void desktop transaction missed ryotunes, ryomanager, or Thunar"
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
-[[ $seed_intent == *" rashin=0 "* ]] \
-  || fail "Void RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
+[[ $seed_intent == *" hyakki=0 "* ]] \
+  || fail "Void RYOKU_HYAKKI=0 did not disable the delegated Hyakki marker: $seed_intent"
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")
-grep -qw 'ryoku-rashin' <<<"$transactions" \
-  && fail "Void installed ryoku-rashin with RYOKU_RASHIN=0"
+grep -qw 'hyakki' <<<"$transactions" \
+  && fail "Void installed hyakki with RYOKU_HYAKKI=0"
 ledger="${seed_intent##* provisioned-ledger=}"
-[[ " ${ledger//,/ } " == *" ryoku-rashin "* ]] || fail "Void Rashin-off ledger is missing ryoku-rashin: $seed_intent"
+[[ " ${ledger//,/ } " == *" hyakki "* ]] || fail "Void Hyakki-off ledger is missing hyakki: $seed_intent"
 
-# Void installs Rashin only when explicitly selected.
+# Void installs Hyakki only when explicitly selected.
 install_dryrun_run void "$void_out" \
   RYOKU_DISK_STRATEGY=whole RYOKU_FIRMWARE_MODE=uefi \
   RYOKU_COMPOSITOR=niri RYOKU_COMPOSITOR_CONFIG_DIR=niri \
-  RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl RYOKU_RASHIN=1 \
-  || fail "Void Rashin-on dry run exited nonzero: $(<"$void_out")"
+  RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl RYOKU_HYAKKI=1 \
+  || fail "Void Hyakki-on dry run exited nonzero: $(<"$void_out")"
 out=$(<"$void_out")
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")
-grep -qw 'ryoku-rashin' <<<"$transactions" \
-  || fail "Void did not install explicitly selected ryoku-rashin"
+grep -qw 'hyakki' <<<"$transactions" \
+  || fail "Void did not install explicitly selected hyakki"
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
-[[ $seed_intent == *" rice=default "* && $seed_intent == *" rashin=1 "* ]] \
-  || fail "Void did not delegate the selected Rashin first-login marker: $seed_intent"
+[[ $seed_intent == *" rice=default "* && $seed_intent == *" hyakki=1 "* ]] \
+  || fail "Void did not delegate the selected Hyakki first-login marker: $seed_intent"
 
 echo "install-dryrun-matrix: browser/shell/app-choice checks passed"
 echo "install-dryrun-matrix: all checks passed"

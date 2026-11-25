@@ -1,4 +1,4 @@
-// One Quick Ask conversation folded from Rashin's session events. Ask turns are
+// One Quick Ask conversation folded from Hyakki's session events. Ask turns are
 // read-only, so events only an agent turn sends (permissions, plans, models,
 // thoughts) pass through without a trace.
 

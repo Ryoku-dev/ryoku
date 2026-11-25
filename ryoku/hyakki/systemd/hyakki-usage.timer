@@ -1,0 +1,11 @@
+[Unit]
+Description=Hyakki provider usage collector schedule
+ConditionUser=!@system
+
+[Timer]
+OnBootSec=45sec
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

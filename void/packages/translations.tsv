@@ -227,7 +227,7 @@ ryoku-keysounds-niri	@repo	optional	Ryoku-owned package built from the checkout.
 ryoku-keysounds-profiles	@repo	optional	Ryoku-owned package built from the checkout.
 ryoku-oh-my-zsh	ryoku-oh-my-zsh	desktop	repo=ryoku
 ryoku-palette-bridge	@repo	desktop	Ryoku-owned package built from the checkout.
-ryoku-rashin	@repo	desktop	Ryoku-owned package built from the checkout.
+hyakki	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout.
 ryomanager	@repo	optional	Ryoku-owned package built from the checkout.
 ryoport	ryoport	optional	repo=ryoku
@@ -327,3 +327,9 @@ zsh	zsh	desktop
 zsh-autosuggestions	zsh-autosuggestions	desktop	
 zsh-history-substring-search	zsh-history-substring-search	desktop	
 zsh-syntax-highlighting	zsh-syntax-highlighting	desktop	
+libx11	libX11	desktop	
+libxcursor	libXcursor	desktop	
+libxfixes	libXfixes	desktop	
+libxkbcommon-x11	libxkbcommon-x11	desktop	
+hicolor-icon-theme	hicolor-icon-theme	desktop	
+whisper-cpp	-	optional	No Void package with the required whisper-server executable is nominated.

@@ -1,0 +1,1 @@
+{"kind":"guide","data":{"seq":3,"phase":"pointing","step":2,"kicker":"Step 2","text":"Click Save in the File menu.","plan":{"done":["Open the File menu."],"current":"Click Save in the File menu.","next":["Name the file."]},"actions":["next","stop","circle"],"target":7}}

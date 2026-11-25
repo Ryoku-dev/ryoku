@@ -11,7 +11,7 @@
 #      resolved from there first. Their compile deps and the plugin's
 #      reachability-metadata zip are not vendored yet, so these two builds are
 #      not fully offline and --offline is deliberately not asserted.
-#   2. ryoku-hub and ryoku-rashin ran a bare `go build`, which downloads modules
+#   2. ryoku-hub and Hyakki ran a bare `go build`, which downloads modules
 #      from proxy.golang.org. They build -mod=vendor from a committed vendor/.
 set -euo pipefail
 
@@ -61,12 +61,6 @@ for p in "${go_pkgs[@]}"; do
     || fail "$n: go build must pass -mod=vendor so it never reaches proxy.golang.org"
 done
 
-rashin_payload="$pkgs/ryoku-rashin/payload.sh"
-[[ -f $rashin_payload ]] || fail "ryoku-rashin payload is missing"
-[[ $(grep -cE 'CGO_ENABLED=[01] go build -mod=vendor' "$rashin_payload") -eq 3 ]] \
-  || fail "ryoku-rashin: rashind, rashin and rashin-app must each build with -mod=vendor"
-grep -qE 'CGO_ENABLED=1 go build -mod=vendor .* -tags nox11 ' "$rashin_payload" \
-  || fail "ryoku-rashin: rashin-app must build the nox11 Gio backend from vendor"
 
 # every Go module with dependencies must vendor them; a stdlib-only module needs
 # nothing, since `go build` then never consults a proxy.

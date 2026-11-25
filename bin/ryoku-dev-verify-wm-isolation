@@ -48,13 +48,15 @@ report() {
 #    (detect.go resolves an instance handle into a provider name, the provider
 #    itself runs hyprctl); ryoku/hyprland is the Hyprland payload (Lua modules
 #    and the leaf scripts that speak its IPC) delivered by ryoku-desktop-hyprland;
-#    tests/ and the launcher's qa/ harness stub or drive a live compositor to
-#    exercise it, the way a human tester would. The compositor-neutral helpers
-#    live in ryoku/shell/scripts and reach a compositor only through `ryoku wm`.
+#    tests/, the launcher's qa/ harness, and the private compositor test harness
+#    ryoku/hyakki/release/lab/oni/ stub or drive a live compositor to exercise it,
+#    the way a human tester would. The compositor-neutral helpers live in
+#    ryoku/shell/scripts and reach a compositor only through `ryoku wm`.
 report 'hyprctl / HYPRLAND_INSTANCE_SIGNATURE / .socket2.sock (route through wm.Client)' \
 	'hyprctl|HYPRLAND_INSTANCE_SIGNATURE|\.socket2\.sock' \
 	':(exclude)ryoku/wm/*' ':(exclude)ryoku/hyprland/*' \
-	':(exclude)tests/*' ':(exclude)*/qa/*'
+	':(exclude)tests/*' ':(exclude)*/qa/*' \
+	':(exclude)ryoku/hyakki/release/lab/oni/*'
 
 # 2. the compositor's own QML: the Ryoku.Wm.<name> facade replaces it everywhere
 #    but the provider's bridges. The import is required to touch the Hyprland
@@ -68,9 +70,12 @@ report 'import Quickshell.Hyprland (import Ryoku.Wm.Hyprland instead)' \
 #    retires, or the shell installer picking a foreign config format to parse) is
 #    allowed; only the bare name as the whole branched value is a leak. ryoku/hyprland
 #    is the Hyprland payload; ryoku-shell-installer reads foreign configs by name.
+#    The private compositor test harness ryoku/hyakki/release/lab/oni/ deliberately
+#    selects each compositor to exercise it, rather than gate production behaviour.
 report 'isHyprland / isNiri or a compositor name compared or switched on' \
 	'\b[iI]s(Hyprland|Niri)\b|[=!]=+[[:space:]]*"(hyprland|niri)"|"(hyprland|niri)"[[:space:]]*[=!]=+|[=!]=+[[:space:]]*(hyprland|niri)([[:space:]);]|$)|^[[:space:]]*"?(hyprland|niri)"?\)|\bcase[[:space:]]+"?(hyprland|niri)"?[[:space:]:)]' \
-	':(exclude)ryoku/hyprland/*' ':(exclude)ryoku-shell-installer/*'
+	':(exclude)ryoku/hyprland/*' ':(exclude)ryoku-shell-installer/*' \
+	':(exclude)ryoku/hyakki/release/lab/oni/*'
 
 # 4. a capability named after a compositor (the niriBackdropSupported mistake):
 #    capabilities describe behaviour, never a compositor. Allowed nowhere.

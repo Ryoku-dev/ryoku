@@ -165,7 +165,7 @@ func shippedBinds() map[string]niriBind {
 		// Shell
 		"shell.launcher":          {action: spawnArgs("ryoku-shell", "launcher")},
 		"shell.ask":               {action: spawnArgs("ryoku-shell", "ask")},
-		"shell.rashin":            {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.rashin", "rashin-app")},
+		"shell.hyakki":            {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.Hyakki", "hyakki-app")},
 		"shell.cheatsheet":        {action: spawnArgs("ryoku-shell", "cheatsheet")},
 		"shell.gamebar":           {action: spawnArgs("ryoku-shell", "gamebar"), ignoreInhibitor: true},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},
@@ -301,9 +301,6 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 
 	// Behaviours niri cannot perform: report each once, unless the user removed it.
 	for _, cb := range cat {
-		if cb.Kind == wm.BindDaemon {
-			continue
-		}
 		nb := defs[cb.ID]
 		if nb.action == "" && nb.reason != "" && !unbind[cb.Chord] {
 			report = append(report, wm.Unhonored{Key: fmt.Sprintf("desktop.keybinds (default %s)", cb.Chord), Reason: nb.reason})
@@ -314,9 +311,6 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 	// onto another default's chord wins and the static default is dropped.
 	claimDefaults := func(rebound bool) {
 		for _, cb := range cat {
-			if cb.Kind == wm.BindDaemon {
-				continue
-			}
 			nb := defs[cb.ID]
 			if nb.action == "" {
 				continue
@@ -427,29 +421,24 @@ func bindRows(s niriStore) []wm.BindRow {
 		if cb.Family {
 			eff, _ = wm.FamilyRebind(cb.Chord, s.KeybindRebinds)
 		}
-		if cb.Kind == wm.BindDaemon {
-			eff = cb.Chord
-		}
 		row := wm.BindRow{
-			ID:                cb.ID,
-			Category:          cb.Category,
-			Label:             label,
-			Hint:              hint,
-			Keys:              wm.DisplayKeys(eff),
-			Default:           cb.Chord,
-			Chord:             eff,
-			Kind:              cb.Kind,
-			Taps:              cb.Taps,
-			WhileHighlighting: cb.WhileHighlighting,
-			Rebindable:        rebindable(cb),
-			Locked:            cb.Locked,
-			Disabled:          cb.Kind != wm.BindDaemon && off[cb.Chord],
+			ID:         cb.ID,
+			Category:   cb.Category,
+			Label:      label,
+			Hint:       hint,
+			Keys:       wm.DisplayKeys(eff),
+			Default:    cb.Chord,
+			Chord:      eff,
+			Kind:       cb.Kind,
+			Rebindable: rebindable(cb),
+			Locked:     cb.Locked,
+			Disabled:   off[cb.Chord],
 		}
 		if row.Disabled {
 			row.Keys = nil
 			row.Chord = ""
 		}
-		if cb.Kind != wm.BindDaemon && nb.action == "" {
+		if nb.action == "" {
 			row.Unhonored = nb.reason
 		}
 		rows = append(rows, row)

@@ -1,0 +1,7 @@
+[Unit]
+# optional collectors run only when their matching tools or data are present
+Description=Hyakki provider usage collectors
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/hyakki service usage --once

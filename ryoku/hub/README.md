@@ -107,7 +107,7 @@ changing a page's look.
   overview; RyoStore installs), **Defaults**, **At sign-in** (commands run at
   login, after the base Ryoku autostart, and session environment variables),
   **Terminal** (login shell, prompt, and the fastfetch greeting), **Screen
-  capture**, **Voice typing**, **Rashin**, and **Desktop add-ons**, which manages installed shell
+  capture**, **Voice typing**, **Hyakki**, and **Desktop add-ons**, which manages installed shell
   plugins and bundle components: plugin enablement, placement, and settings
   stay live here; RyoStore owns plugin updates and removal and all browsing,
   while `ryostore-install` owns bundle component state and removal.
@@ -120,6 +120,45 @@ changing a page's look.
   units), **Backup & import**, and **About**.
 - **Updates**: the commits the checkout is behind on its channel, with an
   auto-check cadence.
+
+## Hyakki and Oni
+
+**Apps > Hyakki** (`ryoku-shell hub open hyakki`) owns only installing,
+turning on, turning off and removing Hyakki. Its remaining rows open the native
+app's settings: `hyakki open --tab settings --view oni`, `oni-screen`,
+`oni-writing`, `oni-voice`, `oni-privacy`, `features` or `providers`.
+The Hub never copies their controls or writes Hyakki's preferences.
+
+Alt+Space keeps Quick Ask, web search and downloads in the shell. Ask speaks
+the native `bar` protocol to `$XDG_RUNTIME_DIR/hyakki/oni.sock`, or the explicit
+`HYAKKI_SOCKET`; web search and downloads remain usable without Hyakki.
+Super+Alt+Space summons the native `hyakki-app` window with app id
+`dev.ryoku.Hyakki`. Native settings live in
+`$XDG_CONFIG_HOME/hyakki/hyakki.json`.
+
+Oni Vision uses its own native capabilities, disclosure and consent. Its
+`hyakki oni pick` command waits for one clicked spot, not a dragged box, and
+keeps the terminal open for the answer and any one-time consent. The Hub opens
+the native screen settings instead of launching that interactive command
+without a terminal. The shell no longer reads selected text or modifier-tap
+gestures for screen assistance. Screenshots, clipboard history and Ryoku's
+separate voice typing are unchanged.
+
+The backend runs the native backed-up migration before reading the enabled
+preference for lifecycle rollback. Systemd lifecycle is native-owned; runit's optional workers
+go through `ryoku-host svc --user`. Enabling Hyakki does not arm routines or
+enable Oni's capture, microphone or input capabilities.
+Doctor also retires the old shell gesture settings into a private
+`shell.json.before-oni-vision-*` backup, carries OCR languages to
+`clipboard.ocrLanguages` only when that key is absent, and preserves the
+clipboard's independent, default-off picture-reading preference.
+
+An update replaces a still-installed `ryoku-rashin` package with `hyakki` in
+the repository transaction. A removed package or leftover preferences do not
+opt the user back in. The updater refuses a target repository without the
+native replacement instead of reinstalling the retired runtime. Package
+replacement does not turn Hyakki on or grant Oni permissions; doctor invokes
+the canonical migration and then converges services to its preserved preference.
 
 ## The window manager store
 

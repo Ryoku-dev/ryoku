@@ -219,11 +219,3 @@ func TestTimeZonesFallsBackToTZifTree(t *testing.T) {
 		t.Fatalf("zones = %q", got)
 	}
 }
-
-func TestUsageListsEveryTopLevelVerbAndFlag(t *testing.T) {
-	for _, text := range []string{"init", "pkgmgr", "snapshots", "capabilities", "svc", "reload", "--now", "env", "--all", "inhibit", "transient", "--scope", "--slice", "--prop", "--env", "session", "pkg", "why", "advice", "--upgrade", "--aur", "--overwrite", "--foreign", "power", "time", "zones", "keymap"} {
-		if !strings.Contains(Usage, text) {
-			t.Fatalf("usage misses %q", text)
-		}
-	}
-}

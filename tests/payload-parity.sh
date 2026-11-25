@@ -8,7 +8,7 @@ trap 'rm -rf "$work"' EXIT
 packages=(
   ryoku
   ryoku-shell
-  ryoku-rashin
+  hyakki
   ryoku-palette-bridge
   ryoku-hub
   ryoku-desktop
@@ -46,10 +46,11 @@ prepare_prebuilt() {
       fake_binary "$dir/ryoget"
       fake_binary "$dir/ryoseek"
       ;;
-    ryoku-rashin)
-      fake_binary "$dir/rashind"
-      fake_binary "$dir/rashin"
-      fake_binary "$dir/rashin-app"
+    hyakki)
+      fake_binary "$dir/oni"
+      fake_binary "$dir/hyakki"
+      fake_binary "$dir/hyakki-app"
+      fake_binary "$dir/oni-surface"
       ;;
     ryoku-palette-bridge)
       fake_binary "$dir/ryoku-palette-bridge"
@@ -423,27 +424,31 @@ for pkg in "${packages[@]}"; do
       || fail "ryoku-desktop Void package must not ship the systemd D-Bus data path"
   fi
 
-  if [[ $pkg == ryoku-rashin ]]; then
+  if [[ $pkg == hyakki ]]; then
     for edition in arch void fedora fedora-spec; do
-      for binary in rashind rashin rashin-app; do
-        [[ -x $work/staged/$pkg-$edition/usr/bin/$binary ]] \
-          || fail "ryoku-rashin $edition package is missing $binary"
+      for binary in hyakki oni hyakki-app oni-surface; do
+        [[ -f $work/staged/$pkg-$edition/usr/bin/$binary && -x $work/staged/$pkg-$edition/usr/bin/$binary && ! -L $work/staged/$pkg-$edition/usr/bin/$binary ]] \
+          || fail "hyakki $edition package is missing $binary"
       done
-      [[ -f $work/staged/$pkg-$edition/usr/share/applications/dev.ryoku.rashin.desktop ]] \
-        || fail "ryoku-rashin $edition package is missing its desktop entry"
-      [[ -f $work/staged/$pkg-$edition/usr/share/icons/hicolor/scalable/apps/dev.ryoku.rashin.svg ]] \
-        || fail "ryoku-rashin $edition package is missing its icon"
+      [[ -f $work/staged/$pkg-$edition/usr/share/applications/dev.ryoku.Hyakki.desktop ]] \
+        || fail "hyakki $edition package is missing its desktop entry"
+      [[ -f $work/staged/$pkg-$edition/usr/share/icons/hicolor/scalable/apps/dev.ryoku.Hyakki.svg ]] \
+        || fail "hyakki $edition package is missing its icon"
     done
     for edition in arch fedora fedora-spec; do
-      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/rashind.socket ]] \
-        || fail "ryoku-rashin $edition package is missing rashind.socket"
-      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/rashind.service ]] \
-        || fail "ryoku-rashin $edition package is missing rashind.service"
+      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/oni.socket ]] \
+        || fail "hyakki $edition package is missing oni.socket"
+      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/oni.service ]] \
+        || fail "hyakki $edition package is missing oni.service"
     done
-    [[ ! -e $work/staged/$pkg-void/usr/lib/ryoku/runit/user/ryoku-rashin ]] \
-      || fail "ryoku-rashin Void package must not ship a Rashin runit service"
-    ! grep -qF 'cmake' "$root/release/packages/ryoku-rashin/payload.sh" \
-      || fail "ryoku-rashin payload still builds the retired CMake app"
+    for service in oni oni-routines hyakki-usage; do
+      [[ -f $work/staged/$pkg-void/usr/lib/ryoku/runit/user/$service/down ]] \
+        || fail "hyakki Void service is not dormant: $service"
+      for edition in arch void fedora fedora-spec; do
+        [[ -f $work/staged/$pkg-$edition/usr/share/hyakki/runit/$service/down ]] \
+          || fail "hyakki $edition standalone service is not dormant: $service"
+      done
+    done
   fi
 
   jobs=()

@@ -8,7 +8,7 @@ description: >
   rules, keybinds, monitors, gaps, borders, the bar, subshells, bar styles, the
   dock, bar widgets, plugins, themes, wallpaper, colours, night light, idle,
   lock screen, and user-facing ryoku commands (ryoku, ryoku-shell, ryoku-hub,
-  ryogami, rashin). Read the vault first; act through commands, not by editing
+  ryogami, hyakki). Read the vault first; act through commands, not by editing
   shipped files.
 ---
 
@@ -142,7 +142,7 @@ Prefer a command to a file edit; read a command's `--help` before running it.
 | `ryoku-shell` | The live shell: the active subshell or bar style (`barstyle`, `shells`), the dock, menus, popouts, and the `shell.json` settings store (the sole writer of `shell.json`). |
 | `ryoku-hub` | Ryoku Settings and the window-manager settings applied through the active provider. |
 | `ryogami` | Wallpapers and the colour palette (`ryogami wallpaper set|next|random`). |
-| `rashin` | Optional Ask, Agent sessions, free-model routing, and cited indexes. See `docs/rashin.md`. |
+| `hyakki` | Optional Ask, Agent sessions, cited indexes and Oni. The Hub manages lifecycle and links to native settings. See `docs/hyakki.md`. |
 
 ```bash
 ryoku --help                              # the ryoku CLI surface
@@ -153,15 +153,15 @@ ryoku-shell ipc call qsbar catalog        # QS Bar's widgets, only while QS Bar 
 ryogami wallpaper --help
 ```
 
-When Rashin is on, use its cited project index to find WHERE a setting is read:
+When Hyakki is on, use its cited project index to find WHERE a setting is read:
 
 ```bash
-rashin search "bar position setting"
-rashin find barShellStyle
-rashin references barShellStyle
+hyakki search "bar position setting"
+hyakki find barShellStyle
+hyakki references barShellStyle
 ```
 
-When Rashin is off or absent, start from the pre-indexed
+When Hyakki is off or absent, start from the pre-indexed
 `~/.local/share/ryoku/vault/ryoku-repo.md` source map. Never edit a generated
 vault map; edit the real path `desktop.md` names.
 

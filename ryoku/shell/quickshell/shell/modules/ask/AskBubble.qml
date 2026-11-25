@@ -10,7 +10,7 @@ import shell.services
 import "look"
 import "../../services/lib/markdown.js" as Md
 
-// A pinned Quick Ask answer: Rashin's seal on the desktop, dragged anywhere, its
+// A pinned Quick Ask answer: Hyakki's seal on the desktop, dragged anywhere, its
 // answer one tap away. Dragging it onto Remove unpins it.
 Scope {
     id: root

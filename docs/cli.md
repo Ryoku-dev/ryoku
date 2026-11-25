@@ -310,6 +310,12 @@ verbs include:
 
 - `capabilities` prints the detected package manager and init system plus
   snapshot, AUR, and local-user-management support as one JSON object.
+- `hyakki migrate` runs as the desktop session user, never root, before
+  retiring legacy activation. It refuses an active legacy GUI or workers and
+  an uninspectable supervisor, calls native `hyakki migrate` only after
+  quiescing legacy activation, and restores that activation if native
+  migration fails. It preserves the original opt-in. Doctor and the Hub use
+  this same coordinator; see [Hyakki](hyakki.md#migrating-an-existing-desktop).
 - `pkg why <name>` explains a catalogue package deliberately unavailable on
   Void or Fedora. A package that can be installed or an unknown name produces
   no output and returns the false-condition exit code.
@@ -333,11 +339,12 @@ verbs include:
   signed-in user, or the last Administrator, and refuses to demote the last
   Administrator. Btrfs homes are individual subvolumes with optional qgroup
   limits; other filesystems report storage limits as unsupported.
-- `users provision <name> [--rice <slug>] [--rashin] [--hide-app <id>]...
+- `users provision <name> [--rice <slug>] [--hyakki] [--hide-app <id>]...
   [--skip-welcome]` is the root-side account provisioner. It validates the
-  managed account, then uses `runuser` to enter that account. `--rashin` leaves
-  a first-login marker that runs `rashin on` once.
-- `users seed-self [--rice <slug>] [--rashin] [--hide-app <id>]...
+  managed account, then uses `runuser` to enter that account. `--hyakki` leaves
+  a first-login marker that runs `hyakki on --if-unset` once. An existing off
+  choice is preserved and consumes the marker; an error retains it for retry.
+- `users seed-self [--rice <slug>] [--hyakki] [--hide-app <id>]...
   [--skip-welcome]` is the account-side half. It copies the shipped desktop,
   application and session config with the account's ownership; root does not
   write those files into an existing home. `users add` calls `provision` after

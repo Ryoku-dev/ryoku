@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The `hyakki` package replaces `ryoku-rashin`.** Every edition delivers
+  the native CLI, Oni daemon, app and Oni surface from the same source,
+  with complete notices and dormant optional services. Existing installations
+  acquire the renamed app without reviving a user's removed choice.
 - **Removed the Wayfire desktop variant.** The package recipe, depthdeck bundle,
   build-host dependency and ISO package closure are gone; Hyprland and niri
   remain the shipped compositor variants.

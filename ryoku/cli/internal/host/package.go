@@ -228,6 +228,13 @@ func (a *App) pacman(args []string) int {
 			}
 			return commandExit(a.run(helper, installArgs...))
 		}
+		if !upgrade {
+			flags, err := a.PacmanHyakkiReplacementFlags(rest)
+			if err != nil {
+				return a.failf("%v", err)
+			}
+			installArgs = append(installArgs, flags...)
+		}
 		return commandExit(a.run("pacman", a.pacmanTransactionArgs(installArgs[0], installArgs[1:]...)...))
 	}
 	var command []string

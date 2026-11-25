@@ -59,7 +59,7 @@ if command -v eza >/dev/null 2>&1; then
 fi
 
 _ryoku_cfg=${XDG_CONFIG_HOME:-$HOME/.config}
-[[ -r $_ryoku_cfg/bash/rashin.bash ]] && . "$_ryoku_cfg/bash/rashin.bash"
+[[ -r $_ryoku_cfg/bash/hyakki.bash ]] && . "$_ryoku_cfg/bash/hyakki.bash"
 [[ -r $_ryoku_cfg/bash/user.bash ]] && . "$_ryoku_cfg/bash/user.bash"
 unset _ryoku_cfg
 

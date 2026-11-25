@@ -238,9 +238,9 @@ Item {
         run.now = Date.now();
         if (run.live && run.runStartedAt <= 0)
             run.runStartedAt = run.started > 0 ? run.started / 1000 : Date.now() / 1000;
-        // settled: offer Rashin's fixer when the health check left a fresh report
+        // settled: offer Hyakki's fixer when the health check left a fresh report
         if (run.settled && prev !== run.phase) {
-            rashinProbe.running = true;
+            hyakkiProbe.running = true;
             run.checkReportFresh();
         }
         // settled back to idle is finished: refresh so the list clears
@@ -417,22 +417,22 @@ Item {
     }
 
     // the update runs the health check near its end; when it found trouble in
-    // this run and Rashin is on, Rashin's agent can look into it
-    property bool rashinOn: false
+    // this run and Hyakki is on, Hyakki's agent can look into it
+    property bool hyakkiOn: false
     property bool reportFresh: false
-    readonly property bool canFix: run.settled && run.rashinOn && run.reportFresh
+    readonly property bool canFix: run.settled && run.hyakkiOn && run.reportFresh
 
-    // reads Rashin's switch without starting it; an absent binary reads as off
+    // reads Hyakki's switch without starting it; an absent binary reads as off
     Process {
-        id: rashinProbe
-        command: ["/bin/sh", "-c", "exec rashin status --json"]
+        id: hyakkiProbe
+        command: ["/bin/sh", "-c", "exec hyakki status --json"]
         stderr: StdioCollector {}
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    run.rashinOn = JSON.parse(this.text).enabled === true;
+                    run.hyakkiOn = JSON.parse(this.text).enabled === true;
                 } catch (e) {
-                    run.rashinOn = false;
+                    run.hyakkiOn = false;
                 }
             }
         }
@@ -469,7 +469,7 @@ Item {
     }
     Process {
         id: fixProc
-        command: ["/bin/sh", "-c", "exec rashin fix doctor"]
+        command: ["/bin/sh", "-c", "exec hyakki fix doctor"]
         environment: Spawn.env
         stdout: StdioCollector { id: fixOut }
         stderr: StdioCollector { id: fixErr }
@@ -478,15 +478,15 @@ Item {
             if (run.fixState !== "opening")
                 return;
             var out = fixOut.text.trim().split("\n").pop();
-            // 127 is no rashin at all, 126 one the shell found but could not run
+            // 127 is no hyakki at all, 126 one the shell found but could not run
             var gone = code === 127 || (code === 126 && /bad interpreter|No such file|cannot execute/.test(fixErr.text));
-            // a refusal is Rashin's own sentence, then where to go next (the plaque stays as the retry)
-            var why = run.said(String(fixErr.text).trim().split("\n").pop().replace(/^rashin: /, ""), "");
+            // a refusal is Hyakki's own sentence, then where to go next (the plaque stays as the retry)
+            var why = run.said(String(fixErr.text).trim().split("\n").pop().replace(/^hyakki: /, ""), "");
             run.fixState = code === 0 ? "opened" : "failed";
-            run.fixMsg = code === 0 ? (out || I18n.tr("Rashin opened in a terminal."))
-                : gone ? I18n.tr("Rashin is not installed, so it could not look. Turn Rashin on in Settings, then try again.")
-                : why !== "" ? why + " " + I18n.tr("Try again, or run rashin fix doctor in a terminal to see why.")
-                : I18n.tr("Rashin could not start. Run rashin fix doctor in a terminal to see why.");
+            run.fixMsg = code === 0 ? (out || I18n.tr("Hyakki opened in a terminal."))
+                : gone ? I18n.tr("Hyakki is not installed, so it could not look. Turn Hyakki on in Settings, then try again.")
+                : why !== "" ? why + " " + I18n.tr("Try again, or run hyakki fix doctor in a terminal to see why.")
+                : I18n.tr("Hyakki could not start. Run hyakki fix doctor in a terminal to see why.");
         }
     }
     Timer {
@@ -497,7 +497,7 @@ Item {
                 return;
             fixProc.running = false;
             run.fixState = "failed";
-            run.fixMsg = I18n.tr("Rashin did not answer in time. Try again, or run rashin fix doctor in a terminal.");
+            run.fixMsg = I18n.tr("Hyakki did not answer in time. Try again, or run hyakki fix doctor in a terminal.");
         }
     }
 }

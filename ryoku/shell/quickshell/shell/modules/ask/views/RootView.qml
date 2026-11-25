@@ -14,7 +14,7 @@ import "../../launcher/shared/providers/calc/calc.js" as Calc
 // The bar's first list. Empty, it shows what is moving and what finished or failed since
 // you last looked (downloads), what you asked today and where to go. Typed, it reads the
 // line: a link leads with Download, a sum with its result, commands filter, and two
-// fallbacks always close it (Ask Rashin, Search the web).
+// fallbacks always close it (Ask Hyakki, Search the web).
 Item {
     id: root
 
@@ -23,8 +23,8 @@ Item {
     property string query: ""
     property var args: ({})
     property real maximumHeight: 480 * s
-    property RashinClient rashin: null
-    property RashinSession session: null
+    property HyakkiClient hyakki: null
+    property HyakkiSession session: null
     property DownloadsClient downloads: null
 
     readonly property string title: ""
@@ -46,9 +46,9 @@ Item {
     // a string, so the progress ticks of a moving download leave the mark timer alone
     readonly property string unseenKey: root.unseenIds.join(",")
     property string markedFor: ""
-    readonly property string rashinState: root.rashin ? root.rashin.state : "off"
-    readonly property bool rashinReady: root.rashinState === "ready"
-    readonly property bool rashinMissing: root.rashinState === "off" || root.rashinState === "not-installed"
+    readonly property string hyakkiState: root.hyakki ? root.hyakki.state : "off"
+    readonly property bool hyakkiReady: root.hyakkiState === "ready"
+    readonly property bool hyakkiMissing: root.hyakkiState === "off" || root.hyakkiState === "not-installed"
     // several links in the field: the engine reads the text (links), and its
     // answer for exactly this text decides what the first row is
     readonly property bool manyMaybe: RootLogic.countLinks(root.text) >= 2
@@ -71,16 +71,16 @@ Item {
     readonly property var commands: {
         const list = [
             {
-                id: "ask", title: I18n.tr("Ask Rashin"), glyph: "explore", hint: "\\",
+                id: "ask", title: I18n.tr("Ask Hyakki"), glyph: "explore", hint: "\\",
                 keywords: [I18n.tr("question"), I18n.tr("answer"), I18n.tr("assistant")],
-                subtitle: root.rashinState === "off" ? I18n.tr("Rashin is off")
-                    : root.rashinState === "not-installed" ? I18n.tr("Rashin is not installed") : ""
+                subtitle: root.hyakkiState === "off" ? I18n.tr("Hyakki is off")
+                    : root.hyakkiState === "not-installed" ? I18n.tr("Hyakki is not installed") : ""
             },
             { id: "web", title: I18n.tr("Search the web"), glyph: "language", hint: "?", keywords: [I18n.tr("internet"), I18n.tr("find"), I18n.tr("look up")], subtitle: "" },
             { id: "downloads", title: I18n.tr("Downloads"), glyph: "download", hint: "/", keywords: [I18n.tr("torrent"), I18n.tr("video"), I18n.tr("queue"), I18n.tr("files")], subtitle: "" }
         ];
-        if (root.rashinState !== "not-installed")
-            list.push({ id: "rashin", title: I18n.tr("Open Rashin"), glyph: "open_in_new", hint: "", keywords: [I18n.tr("app"), I18n.tr("agents"), I18n.tr("chat")], subtitle: "" });
+        if (root.hyakkiState !== "not-installed")
+            list.push({ id: "hyakki", title: I18n.tr("Open Hyakki"), glyph: "open_in_new", hint: "", keywords: [I18n.tr("app"), I18n.tr("agents"), I18n.tr("chat")], subtitle: "" });
         return list;
     }
 
@@ -93,7 +93,7 @@ Item {
             calc: root.calcExpr.length > 0 ? { expr: root.calcExpr, result: root.calcResult } : null,
             downloads: root.homeTasks.map(root.taskRow),
             asks: root.session ? RootLogic.pickAsks(root.session.sessions, root.now, root.askWindow, root.session.forgetting).map(root.askRow) : [],
-            rashin: root.rashinState,
+            hyakki: root.hyakkiState,
             labels: {
                 downloads: I18n.tr("Downloads"), asks: I18n.tr("Recent asks"), goTo: I18n.tr("Go to"),
                 results: I18n.tr("Commands"), link: I18n.tr("Link"), links: I18n.tr("Links"), calc: I18n.tr("Calculator"),
@@ -109,7 +109,7 @@ Item {
         if (!row)
             return null;
         if (row.kind === "command")
-            return { label: row.command.id === "ask" && root.rashinMissing ? I18n.tr("Open Rashin settings") : row.title };
+            return { label: row.command.id === "ask" && root.hyakkiMissing ? I18n.tr("Open Hyakki settings") : row.title };
         if (row.kind === "link")
             return { label: I18n.tr("Download") };
         if (row.kind === "many")
@@ -121,7 +121,7 @@ Item {
         if (row.kind === "ask")
             return { label: I18n.tr("Open answer") };
         if (row.kind === "fallback")
-            return { label: row.target === "ask" ? (root.rashinMissing ? I18n.tr("Open Rashin settings") : I18n.tr("Ask Rashin")) : I18n.tr("Search the web") };
+            return { label: row.target === "ask" ? (root.hyakkiMissing ? I18n.tr("Open Hyakki settings") : I18n.tr("Ask Hyakki")) : I18n.tr("Search the web") };
         return null;
     }
     readonly property var secondaryAction: !root.current ? null
@@ -165,7 +165,7 @@ Item {
             if (root.homeSettled > 1)
                 out.push({ id: "news-dismiss", label: I18n.tr("Clear every finished download from this list"), glyph: "clear_all", hint: "Shift+Delete", section: I18n.tr("Remove") });
         } else if (row.kind === "ask") {
-            out.push({ id: "ask-rashin", label: I18n.tr("Open in Rashin"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
+            out.push({ id: "ask-hyakki", label: I18n.tr("Open in Hyakki"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
             out.push({ id: "ask-delete", label: I18n.tr("Delete this ask"), glyph: "delete", hint: "Delete", section: I18n.tr("Remove"), destructive: true });
         }
         if (root.session && root.session.forgetting.length > 0)
@@ -295,9 +295,9 @@ Item {
             return {
                 id: row.id, kind: "fallback", target: row.target, text: row.text, size: "one",
                 glyph: ask ? "explore" : "language",
-                title: ask ? I18n.tr("Ask Rashin \u201c%1\u201d").arg(RootLogic.quote(row.text, 44))
+                title: ask ? I18n.tr("Ask Hyakki \u201c%1\u201d").arg(RootLogic.quote(row.text, 44))
                     : I18n.tr("Search the web for \u201c%1\u201d").arg(RootLogic.quote(row.text, 44)),
-                subtitle: ask && root.rashinMissing ? (root.rashinState === "off" ? I18n.tr("Rashin is off") : I18n.tr("Rashin is not installed")) : "",
+                subtitle: ask && root.hyakkiMissing ? (root.hyakkiState === "off" ? I18n.tr("Hyakki is off") : I18n.tr("Hyakki is not installed")) : "",
                 hint: ask ? "Tab" : ""
             };
         }
@@ -309,8 +309,8 @@ Item {
         root.hud(I18n.tr("Copied"));
     }
 
-    function openRashinSettings() {
-        Bus.run("hub open rashin");
+    function openHyakkiSettings() {
+        Bus.run("hub open hyakki");
         root.closeRequested();
     }
 
@@ -413,10 +413,10 @@ Item {
             return;
         if (row.kind === "command") {
             const id = row.command.id;
-            if (id === "ask" && root.rashinMissing)
-                root.openRashinSettings();
-            else if (id === "rashin") {
-                Spawn.run(["rashin", "open"]);
+            if (id === "ask" && root.hyakkiMissing)
+                root.openHyakkiSettings();
+            else if (id === "hyakki") {
+                Spawn.run(["hyakki", "open"]);
                 root.closeRequested();
             } else {
                 root.pushRequested(id, ({}));
@@ -440,8 +440,8 @@ Item {
         } else if (row.kind === "ask") {
             root.pushRequested("ask", { session: row.session });
         } else if (row.kind === "fallback") {
-            if (row.target === "ask" && root.rashinMissing)
-                root.openRashinSettings();
+            if (row.target === "ask" && root.hyakkiMissing)
+                root.openHyakkiSettings();
             else if (row.target === "ask")
                 root.pushRequested("ask", { question: row.text });
             else
@@ -475,8 +475,8 @@ Item {
                 root.copy(row.many.batch.urls.join("\n"));
         } else if (id === "calc-copy-line") {
             root.copy(row.calc.expr + " = " + row.calc.result);
-        } else if (id === "ask-rashin") {
-            Spawn.run(["rashin", "open", "--session", row.session]);
+        } else if (id === "ask-hyakki") {
+            Spawn.run(["hyakki", "open", "--session", row.session]);
             root.closeRequested();
         } else if (id === "ask-delete" && root.session) {
             list.keepNear(row.id);
@@ -541,7 +541,7 @@ Item {
             return;
         if (root.downloads)
             root.downloads.open();
-        if (root.rashinReady && root.session)
+        if (root.hyakkiReady && root.session)
             root.session.list(20);
     }
 
@@ -555,7 +555,7 @@ Item {
         }
         root.refresh();
     }
-    onRashinReadyChanged: root.refresh()
+    onHyakkiReadyChanged: root.refresh()
     onUnseenKeyChanged: markDelay.restart()
     onTextChanged: {
         if (root.text.length === 0)

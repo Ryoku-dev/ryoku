@@ -137,7 +137,7 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	}
 }
 
-// Ask verbs land on the requested view of the Rashin bar.
+// Ask verbs land on the requested view of the Hyakki bar.
 func TestDispatchAskRoutes(t *testing.T) {
 	calls := make(chan string, 4)
 	stubShellIpc(t, calls)

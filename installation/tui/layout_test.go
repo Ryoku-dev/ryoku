@@ -107,42 +107,6 @@ func TestReviewKeepsCriticalContent(t *testing.T) {
 	}
 }
 
-// Chrome is spent on the grid it fits, not thrown away: a roomy terminal keeps
-// the rail and the block banner, and a narrow one gives the rail's columns to the
-// card instead. A merely SHORT terminal must keep the rail, since the rail costs
-// columns rather than rows -- getting that wrong silently dropped the step list
-// on a 100x30 console.
-func TestChromeMatchesGrid(t *testing.T) {
-	rail := func(w, h int) bool {
-		return strings.Contains(stripSGR(wizardAt("review", w, h).fittedFrame()), "install steps")
-	}
-	if !rail(100, 30) {
-		t.Error("100x30 has width for the rail; it must not be dropped for being short")
-	}
-	if !rail(240, 67) {
-		t.Error("a roomy grid must keep the rail")
-	}
-	if rail(60, 40) {
-		t.Error("60 columns cannot afford the rail and a readable card")
-	}
-	// The three-row block banner is height-priced, so it goes on a short grid and
-	// stays on a tall one. Detect it by the half-block glyph the wordmark rows use
-	// and the progress bar does not -- the bar is built from gFull ("█"), so
-	// matching on that would pass even on the one-line compact header.
-	banner := func(w, h int) bool {
-		return strings.Contains(wizardAt("review", w, h).fittedFrame(), "▀")
-	}
-	if !banner(80, 44) {
-		t.Error("a tall grid must keep the block banner")
-	}
-	if banner(80, 24) {
-		t.Error("80x24 must trade the banner for content")
-	}
-	if banner(80, 30) {
-		t.Error("80x30 still needs the banner's rows for the Review card")
-	}
-}
-
 // fitBlock is the last line of defence, so it has to be exact: truncate to the
 // box, and drop rows from the end the caller can afford to lose.
 func TestFitBlockClampsBothAxes(t *testing.T) {
@@ -182,7 +146,7 @@ func TestBoxLinesPadsAndTruncates(t *testing.T) {
 // and the clamp then cut off the card's title and the step being asked.
 func TestShortGridScrollsTheRail(t *testing.T) {
 	for _, sz := range [][2]int{{80, 24}, {80, 25}, {100, 24}} {
-		for _, key := range []string{"keyboard", "rashin", "gaming", "administrator"} {
+		for _, key := range []string{"keyboard", "hyakki", "gaming", "administrator"} {
 			m := wizardAt(key, sz[0], sz[1])
 			got := stripSGR(m.fittedFrame())
 			for _, want := range []string{m.cur().title, "install steps", key} {

@@ -66,6 +66,10 @@ pixman
 libdrm
 libinput
 libxkbcommon
+libxkbcommon-x11
+libx11
+libxcursor
+libxfixes
 wayland
 wayland-protocols
 ffmpeg

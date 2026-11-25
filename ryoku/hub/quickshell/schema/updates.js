@@ -64,4 +64,4 @@ var rows = [
       control: "action", actionText: "Show" }
 ];
 
-var related = ["about", "backup-import", "rashin"];
+var related = ["about", "backup-import", "hyakki"];

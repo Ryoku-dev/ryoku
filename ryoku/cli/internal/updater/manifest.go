@@ -196,8 +196,8 @@ func nameSet(lanes [][]string) map[string]bool {
 	set := map[string]bool{}
 	for _, lane := range lanes {
 		for _, n := range lane {
-			if ryokumanifest.IsOptIn(n) {
-				continue // a gated reconciler or the user owns it, not the manifest
+			if n == "ryoku-rashin" || ryokumanifest.IsOptIn(n) {
+				continue // neither optional installs nor retired names come from convergence
 			}
 			set[n] = true
 		}

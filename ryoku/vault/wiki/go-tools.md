@@ -8,7 +8,7 @@ shared behavior in Go. The command name tells you which part owns a job.
 | `ryoku` | `ryoku/cli/` | updates, rollback, ownership, doctor, plugins, and the `wm` front door |
 | `ryoku-shell` | `ryoku/shell/ipc/` | shell daemon, bar and dock stores, live shell actions |
 | `ryoku-wm-<name>` | `ryoku/wm/` | provider capabilities, state, actions, config generation, binds, and outputs |
-| `rashind`, `rashin`, and `rashin-app` | `ryoku/rashin/` | optional Ask, Agent, sessions, free-model routing, and indexes |
+| `hyakki`, `oni`, `hyakki-app`, and `oni-surface` | `ryoku/hyakki/` (internal Go module `ryoku-rashin`) | optional native Ask, Agents, sessions, source indexes and Oni |
 
 The user-facing `ryoku wm` command resolves the live provider. Shared callers do
 not launch a compositor command directly.
@@ -21,23 +21,23 @@ Start with each tool's usage:
 ryoku --help
 ryoku wm
 ryoku-shell
-rashin --help
+hyakki --help
 ```
 
-When Rashin is on, ask its cited index before opening broad files:
+When Hyakki is on, ask its cited index before opening broad files:
 
 ```bash
-rashin find <symbol>
-rashin def <symbol>
-rashin outline <path>
-rashin references <symbol>
-rashin search "how does this work?"
+hyakki find <symbol>
+hyakki def <symbol>
+hyakki outline <path>
+hyakki references <symbol>
+hyakki search "how does this work?"
 ```
 
 `find` locates a named function, type, setting, or component. `def` reads one
 definition. `outline` maps one file without dumping its bodies. `references`
 shows callers and uses. `search` answers a structural question. Use grep only
-after that for an exact literal or regular expression. Without Rashin, use the
+after that for an exact literal or regular expression. Without Hyakki, use the
 pre-indexed map in `~/.local/share/ryoku/vault/ryoku-repo.md`.
 
 ## Add a verb in a checkout
@@ -48,7 +48,7 @@ Those paths are update targets.
 
 A small command change follows this loop:
 
-1. Use `rashin find` when Rashin is on, or the shipped `ryoku-repo.md` map, to
+1. Use `hyakki find` when Hyakki is on, or the shipped `ryoku-repo.md` map, to
    locate the command dispatcher and the nearest existing verb.
 2. Read its definition and references. Match the existing argument, error, and
    output conventions.

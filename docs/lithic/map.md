@@ -143,21 +143,21 @@ reports a stale `symbols.go`); add a name to the list to use a new icon.
 
 ### Parts for other app shapes
 
-The Hub does not use these. Rashin, Ryotunes and Ryoport do, for window shapes
+The Hub does not use these. Hyakki, Ryotunes and Ryoport do, for window shapes
 the Hub does not have.
 
 | Component | What it is for | Spec | QML type | Web class | Go name in `kit` | Terminal render function | Used by |
 |---|---|---|---|---|---|---|---|
-| Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | Rashin |
+| Notch | Mark one state or pending change at a corner. | [Notch](components.md#notch) | `Notch` | `l-notch` | `kit.Notch` | `term.RenderNotch` | Hyakki |
 | Blade | Draw a bar with a 45 degree leading edge. | [Blade](components.md#blade) | `Blade` | `l-blade` | `kit.Blade` | `term.RenderBlade` | Ryotunes |
-| Tabs | Switch among a few views of one resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | Rashin, Ryotunes |
-| Filters | Narrow a list with exclusive chips and live counts. | [Filters](components.md#filters) | `Filters` | `l-filters` | `kit.Filters` | `term.RenderFilters` | Rashin, Ryotunes |
-| GroupHeader | Name and count a group of rows. | [GroupHeader](components.md#groupheader) | `GroupHeader` | `l-group-header` | `kit.GroupHeader` | `term.RenderGroupHeader` | Rashin, Ryotunes |
-| Skeleton | Hold a list's shape while it loads. | [Skeleton](components.md#skeleton) | `Skeleton` | `l-skeleton` | `kit.Skeleton` | `-` | Rashin, Ryotunes |
+| Tabs | Switch among a few views of one resource. | [Tabs](components.md#tabs) | `Tabs` | `l-tabs` | `kit.Tabs` | `term.RenderTabs` | Hyakki, Ryotunes |
+| Filters | Narrow a list with exclusive chips and live counts. | [Filters](components.md#filters) | `Filters` | `l-filters` | `kit.Filters` | `term.RenderFilters` | Hyakki, Ryotunes |
+| GroupHeader | Name and count a group of rows. | [GroupHeader](components.md#groupheader) | `GroupHeader` | `l-group-header` | `kit.GroupHeader` | `term.RenderGroupHeader` | Hyakki, Ryotunes |
+| Skeleton | Hold a list's shape while it loads. | [Skeleton](components.md#skeleton) | `Skeleton` | `l-skeleton` | `kit.Skeleton` | `-` | Hyakki, Ryotunes |
 | Tooltip | Name an unlabelled control under the pointer. | [Tooltip](components.md#tooltip) | `Tooltip` | `l-tooltip` | `kit.Tooltip` | `-` | Ryoport |
-| SectionIndex | Follow and navigate a settings page's sections beside the column. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | Rashin, Ryotunes |
-| Aside | Preview what a draft will make or write. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | Rashin |
-| DraftColumns | Keep a draft form and its aside together. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | Rashin |
+| SectionIndex | Follow and navigate a settings page's sections beside the column. | [SectionIndex](components.md#sectionindex) | `SectionIndex` | `l-section-index` | `kit.SectionIndex` | `-` | Hyakki, Ryotunes |
+| Aside | Preview what a draft will make or write. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `Aside` | `l-aside` | `kit.Aside` | `term.RenderAside` | Hyakki |
+| DraftColumns | Keep a draft form and its aside together. | [Aside and DraftColumns](components.md#aside-and-draftcolumns) | `DraftColumns` | `l-draft-columns` | `kit.DraftColumns` | `term.RenderDraftColumns` | Hyakki |
 | AppFrame | Arrange a list and detail window. | [The list and detail frame](components.md#the-list-and-detail-frame) | `AppFrame` | `l-app-frame` | `kit.AppFrame` | `-` | Ryoport |
 | Rail | Navigate a list and detail window's destinations. | [The list and detail frame](components.md#the-list-and-detail-frame) | `Rail` | `l-rail` | `kit.Rail` | `-` | Ryoport |
 | NewPlaque | Open the New menu from the rail. | [The list and detail frame](components.md#the-list-and-detail-frame) | `NewPlaque` | `l-new-plaque` | `kit.NewPlaque` | `-` | Ryoport |
@@ -207,4 +207,4 @@ the Hub draws as `components/RyokuMark.qml`.
 | A collection | The binder: a cut-16 panel over a shade, a header with its actions, a grid ordered by what matters. | [Binder](components.md#binder) | [Binder](media/hub-binder-dark.png) |
 | A list and detail window | Ryoport's shape: rail, list pane, work pane. | [The list and detail window](layout.md#the-list-and-detail-window) | - |
 | A player window | Ryotunes's shape: top bar, sidebar, content, side panel, player bar. | [The player window](layout.md#the-player-window) | - |
-| A conversation window | Rashin's shape: sidebar, one reading column and its composer. | [The conversation window](layout.md#the-conversation-window) | - |
+| A conversation window | Hyakki's shape: sidebar, one reading column and its composer. | [The conversation window](layout.md#the-conversation-window) | - |

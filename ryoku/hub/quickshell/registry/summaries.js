@@ -47,7 +47,7 @@ var still = {
     "terminal": "Login shell, prompt and greeting",
     "screen-capture": "Recording and screenshots",
     "voice-typing": "Type with your voice",
-    "rashin": "The system assistant and Theia screen reader",
+    "hyakki": "Optional answers, agents and native Oni Vision",
     "add-ons": "Installed add-ons and RyoStore",
     "users": "People, passwords and account profiles",
     "sign-in": "Keyring, fingerprint and security keys",
@@ -228,10 +228,10 @@ function pageSummary(id, ctx) {
         return ctx.value({ store: "dictation", key: "enabled" }) === true
             ? ctx.tr("On, %1").replace("%1", ctx.tr(String(ctx.value({ store: "dictation", key: "modelLabel" }) || "")))
             : ctx.tr("Off");
-    case "rashin":
-        var rashinStates = { absent: "Not installed", off: "Off", idle: "On", running: "On and running" };
-        var rs = rashinStates[ctx.value({ store: "rashin", key: "state" })];
-        return rs ? ctx.tr("%1 · Theia screen reader").replace("%1", ctx.tr(rs)) : ctx.tr(still[id]);
+    case "hyakki":
+        var hyakkiStates = { absent: "Not installed", off: "Off", idle: "On", running: "On and running" };
+        var rs = hyakkiStates[ctx.value({ store: "hyakki", key: "state" })];
+        return rs ? ctx.tr("%1 · Oni Vision").replace("%1", ctx.tr(rs)) : ctx.tr(still[id]);
     case "add-ons":
         var plugins = ctx.config("plugins.json");
         if (!plugins || typeof plugins !== "object")

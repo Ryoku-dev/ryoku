@@ -39,9 +39,9 @@ type clipReadJob struct {
 // idle priority and one thread, so reading a picture never competes with the desktop
 var runClipRead = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "nice", append([]string{"-n", "19", name}, args...)...)
-	sightPrepareCommand(cmd)
+	prepareClipRead(cmd)
 	cmd.Env = append(os.Environ(), "OMP_THREAD_LIMIT=1")
-	var out sightOutput
+	var out clipReadOutput
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if ctx.Err() != nil {
@@ -216,13 +216,13 @@ func (s *clipState) readLanguages() string {
 	defer cancel()
 	var installed []string
 	if raw, err := runClipRead(ctx, "tesseract", "--list-langs"); err == nil {
-		installed = parseSightLanguages(string(raw))
+		installed = parseClipReadLanguages(string(raw))
 	}
 	var requested []string
 	if s.readLangs != nil {
 		requested = s.readLangs()
 	}
-	return strings.Join(sightLanguageIntersection(requested, installed), "+")
+	return strings.Join(clipReadLanguageIntersection(requested, installed), "+")
 }
 
 func (s *clipState) readPicture(job clipReadJob, languages string) string {
@@ -253,7 +253,7 @@ func (s *clipState) readPicture(job clipReadJob, languages string) string {
 	return truncateBytesRunes([]byte(strings.Join(lines, "\n")), clipReadMaxText)
 }
 
-// small type reads far better at twice the size, as Theia's OCR found
+// Small type reads far better at twice the size.
 func (s *clipState) enlarge(ctx context.Context, job clipReadJob) (string, bool) {
 	if s.cacheDir == "" {
 		return "", false
@@ -283,13 +283,13 @@ func clipReadCodes(ctx context.Context, path string) string {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return ""
 	}
-	codes, err := decodeSightCodes(raw)
+	codes, err := decodeClipReadCodes(raw)
 	if err != nil {
 		return ""
 	}
 	texts := make([]string, 0, len(codes))
 	for _, code := range codes {
-		if t := strings.TrimSpace(code.Text); t != "" {
+		if t := strings.TrimSpace(code); t != "" {
 			texts = append(texts, t)
 		}
 	}

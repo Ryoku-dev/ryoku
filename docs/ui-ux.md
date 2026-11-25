@@ -291,11 +291,10 @@ library's `Confirm`). Info buttons open a `stone4` popover cut 8. The Hub has no
 tooltips; the tree's peek is its hover explanation. Escape closes the topmost
 thing only.
 
-**Apps shaped around a list of resources.** Rashin uses the Hub's selected
+**Apps shaped around a list of resources.** Hyakki uses the Hub's selected
 row wash for its current destination and tablets, `ToneMark` for state on
 a plane, Flake beside a state word, tabs between views and a skeleton
-while loading (`ryoku/rashin/internal/app/look`, `internal/app/chat`).
-Its 十 seal identifies Rashin without using Ryoku's logo as app chrome.
+while loading (`ryoku/hyakki/internal/app/look`, `internal/app/chat`).
 It follows the desktop's four styles and palette live.
 
 ## Motion
@@ -404,8 +403,8 @@ Art is content: it may curve, glow or shade, and the chrome around it stays cut.
   `ryoku/assets/brand/logo-mark-v2.png` and `wordmark-v2.png`, drawn in QML by
   `components/RyokuMark.qml`. The older brand files beside them
   (`logo-mark.png`, `logo-mark.svg`, `logo.svg`) and the Lithic library's
-  `BrandMark` are not the logo. Rashin wears a sibling seal, the same tile
-  carrying 十 (`ryoku/assets/brand/rashin-mark.svg`).
+  `BrandMark` are not the logo. Hyakki's app identity and Oni's character
+  assets belong to the native app; they are not Ryoku shell chrome.
 
 ## Each surface
 
@@ -455,7 +454,7 @@ below are what each surface becomes.
   take their platform's control centre: Android's shade, GNOME's quick
   settings, the Windows action centre. Pages push in place and Escape pops them
   first ([sidebars.md](sidebars.md)).
-- **Rashin bar** (`Alt+Space`). One field, one ranked list and a footer that
+- **Quick Ask bar** (`Alt+Space`). One field, one ranked list and a footer that
   names the primary action and `Actions Ctrl K`, drawn in the design in use:
   Lithic cuts the plane and rules it with hairlines, Material rounds a tonal pill
   field and tonal rows, Adwaita sets results as boxed lists, Fluent layers planes
@@ -464,7 +463,7 @@ below are what each surface becomes.
   draw their live piece maps in lapis while moving, jade when landed, amber when
   paused and jasper when failed. Nothing breathes or glows while idle
   ([sidebars.md](sidebars.md)).
-- **Clipboard** (`Super+V`). The Rashin bar's sibling, on the same line: one
+- **Clipboard** (`Super+V`). The Quick Ask bar's sibling, on the same line: one
   field with Recent and Starred tabs at its end, the list on the left, the
   selected item read closer on the right, and a foot that names what Enter does
   and `Actions Ctrl K`. Rows are drawn for what they hold (a thumbnail, a colour
@@ -527,7 +526,7 @@ below are what each surface becomes.
   tab is part of the page's own outline, not a marker beside it. One field on
   top filters the open section, Ctrl+F searches all of Kit with the results
   grouped by section, and the foot names what Enter and Ctrl+Enter do beside
-  Actions (Ctrl+K), as the Rashin bar does. Shortcuts are set as keycaps. The
+  Actions (Ctrl+K), as the Quick Ask bar does. Shortcuts are set as keycaps. The
   desktop dims behind it.
 - **Desktop widgets and the Stage Editor.** A widget plate is a cut plane, or no
   plane with `Ink.legible` ink over the wallpaper. Stage Editor chrome (toolbar,
@@ -539,7 +538,7 @@ below are what each surface becomes.
   this language: the clock and date set as Home sets its clock, the name in the
   `name` role, one password field cut 7, the error as a `jasper` sentence, the
   desktop's style and colours, and no loop at rest.
-- **Apps.** Rashin (`ryoku/rashin/cmd/rashin-app`) and Ryotunes draw with the
+- **Apps.** Hyakki (`ryoku/hyakki/cmd/hyakki-app`) and Ryotunes draw with the
   Lithic Go library (`docs/lithic/library/go`); Ryotunes keeps its music-first
   layout and may tint from the album art. RyoStore, Welcome, ryoshot, ryopin and
   the Ryogami picker take the Hub's sheet, plaques and type, and so does

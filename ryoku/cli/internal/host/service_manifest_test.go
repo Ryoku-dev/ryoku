@@ -171,11 +171,11 @@ func TestSystemdManifestBootEnabledButInactiveNeedsNoAction(t *testing.T) {
 func TestSystemdManifestExistingUserBaselinePreservesChoices(t *testing.T) {
 	fixture := newSystemdManifestFixture(t, strings.Join([]string{
 		"idle\tuser\tsession\tidle.service\t-\tpreserve",
-		"rashin\tuser\tsession\trashin.service\t-\tpreserve",
+		"optional\tuser\tsession\toptional.service\t-\tpreserve",
 	}, "\n")+"\n", map[string]string{"WAYLAND_DISPLAY": "wayland-1"})
 	touchFixture(t, filepath.Join(fixture.state, "ryoku", "welcome-seen"))
 	touchFixture(t, filepath.Join(fixture.userUnits, "idle.service"))
-	touchFixture(t, filepath.Join(fixture.userUnits, "rashin.service"))
+	touchFixture(t, filepath.Join(fixture.userUnits, "optional.service"))
 	if code := fixture.app.Service([]string{"reconcile", "--user", "--check"}); code != ExitFalse {
 		t.Fatalf("baseline check exit = %d", code)
 	}
@@ -189,7 +189,7 @@ func TestSystemdManifestExistingUserBaselinePreservesChoices(t *testing.T) {
 	if len(fixture.runner.commands) != 0 {
 		t.Fatalf("existing user's services were re-enabled: %q", manifestCommandLines(fixture.runner))
 	}
-	for _, id := range []string{"idle", "rashin"} {
+	for _, id := range []string{"idle", "optional"} {
 		if !fileExists(filepath.Join(fixture.state, "ryoku", "service-manifest", id+"-enabled")) {
 			t.Fatalf("baseline marker for %s was not written", id)
 		}

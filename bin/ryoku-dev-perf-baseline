@@ -64,7 +64,7 @@ BASE_GROUPS = [
 # Root-owned services the base system ships; everything else outside the user's
 # own processes is the machine's business, not the desktop's.
 SYSTEM_UNITS = ("limine-snapper-sync.service",)
-OPTIN_GROUPS = ["dictation", "phone", "rashind", "rashin-app", "rashin-agent", "hub"]
+OPTIN_GROUPS = ["dictation", "phone", "oni", "hyakki-app", "oni-surface", "hyakki-agent", "hub"]
 PLATFORM = {
     "pipewire", "wireplumber", "pipewire-pulse", "xdg-desktop-portal",
     "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk", "xdg-document-portal",
@@ -189,7 +189,7 @@ def classify(procs):
             seen += 1
         return False
 
-    rashind = {pid for pid, p in procs.items() if p["comm"] == "rashind"}
+    oni = {pid for pid, p in procs.items() if p["comm"] == "oni"}
     # a lab or a session without systemd runs these outside their units
     daemons = {pid for pid, p in procs.items() if p["comm"] == "ryoku-shell" and " daemon" in p["cmd"] + " "}
     ryogamis = {pid for pid, p in procs.items() if p["comm"] == "ryogami" and p["cmd"].split(" ")[1:2] == ["daemon"]}
@@ -204,12 +204,14 @@ def classify(procs):
             g = "visualizer-capture"
         elif "/modules/phone/" in cmd or comm in ("adb", "kdeconnectd", "scrcpy") or unit.startswith("app-org.kde.kdeconnect"):
             g = "phone"
-        elif pid not in rashind and under(pid, rashind):
-            g = "rashin-agent"
-        elif pid in rashind or unit == "rashind.service":
-            g = "rashind"
-        elif comm == "rashin-app" or cmd.split(" ")[0].endswith("/rashin-app"):
-            g = "rashin-app"
+        elif comm == "oni-surface":
+            g = "oni-surface"
+        elif pid not in oni and under(pid, oni):
+            g = "hyakki-agent"
+        elif pid in oni or unit == "oni.service":
+            g = "oni"
+        elif comm == "hyakki-app" or cmd.split(" ")[0].endswith("/hyakki-app"):
+            g = "hyakki-app"
         elif unit == "ryoku-shell.service" or under(pid, daemons):
             if comm in ("qs", "quickshell"):
                 g = "hub" if " -c hub" in cmd else "shell-ui" if " -c shell" in cmd or cmd.endswith("shell") else "shell-helpers"

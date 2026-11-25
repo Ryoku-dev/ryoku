@@ -52,15 +52,15 @@ Desktop daemons run as systemd user services. They belong to your login, so use
 ```bash
 systemctl --user status ryoku-shell
 systemctl --user list-units
-systemctl --user status rashind.socket
+systemctl --user status oni.socket
 journalctl --user -u ryoku-shell -e
-journalctl --user -u rashind.service --since today
+journalctl --user -u oni.service --since today
 ```
 
 `status` tells you whether a service is active and shows its newest log lines.
 `journalctl --user -u ... -e` opens the journal at the end. Restart only after
 you understand the error. The vault's `logs.md` gives the exact command for
-each desktop subsystem without requiring Rashin.
+each desktop subsystem without requiring Hyakki.
 
 ## Where config and state live
 

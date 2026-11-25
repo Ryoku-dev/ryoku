@@ -83,10 +83,10 @@ func refreshDBArgs(force bool) []string {
 
 // ryokuInstallArgs installs exactly the set, from our repo.
 //
-// `-S <targets>`, never `-Su`: a sysupgrade is the user's lane. Explicit
-// targets also move a package DOWN, which is what a channel move and a
-// rollback onto a frozen release need (`-Su` only ever moves up); the set
-// itself excludes older serves on an ordinary update (installedRyokuSet).
+// Explicit targets also move a package DOWN, which a channel move and rollback
+// need; the set excludes older serves on an ordinary update. The one legacy
+// Hyakki rename additionally runs libalpm's replacement pass with every
+// non-transaction package ignored, never a distribution-wide upgrade.
 // `--needed` leaves a package already at the repo's version alone, so a run
 // with nothing to do is a no-op instead of a reinstall.
 //

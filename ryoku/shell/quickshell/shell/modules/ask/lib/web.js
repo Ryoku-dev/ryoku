@@ -147,7 +147,7 @@ function progress(sources, states, scope, engines) {
 //                first row lands, so the list never empties in between
 //   Definition   the dictionary's card (one sense in All)
 //   Web          the merged lane; when every engine failed or is paused, two
-//                ways on take its place (ask Rashin, search in the browser)
+//                ways on take its place (ask Hyakki, search in the browser)
 //   the rest     by the rank the daemon gave them in All (ties keep its order),
 //                the first `cap` rows each; inside a scope every row, in its order
 // input: {sources, states, scope, cap, query, typing, flying, available, suggestions}

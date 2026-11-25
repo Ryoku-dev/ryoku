@@ -33,7 +33,7 @@ AbstractBackgroundWidget {
     readonly property string action1Key: options.action1 ?? "ai_chat"
     readonly property string action2Key: options.action2 ?? "music_rec"
     readonly property string action3Key: options.action3 ?? "search"
-    readonly property string aiLogo: options.aiLogo ?? "rashin"
+    readonly property string aiLogo: options.aiLogo ?? "hyakki"
     readonly property string outerLeftIcon: options.outerLeftIcon ?? "spark"
     readonly property bool useMaterialSymbolForOuterLeftIcon: options.useMaterialSymbolForOuterLeftIcon ?? false
     readonly property string outerLeftIconSource: {
@@ -57,11 +57,11 @@ AbstractBackgroundWidget {
     }
     implicitHeight: 60 * root.contentScale
 
-    readonly property string activeAiLogo: root.aiLogo === "auto" ? "rashin" : root.aiLogo
+    readonly property string activeAiLogo: root.aiLogo === "auto" ? "hyakki" : root.aiLogo
 
     function getAiIconAsset() {
         const logo = root.activeAiLogo;
-        if (logo === "rashin") return "";
+        if (logo === "hyakki") return "";
         if (logo === "google") return "";
         if (logo === "openai") return "ai-openai-symbolic.svg";
         if (logo === "claude") return "bootstrap_claude.svg";

@@ -561,7 +561,42 @@ func releaseLine(checkout bool) string {
 // filesystem" conflict paths so a failed run can clear unowned strays and
 // retry. The argv, and why it is not a sysupgrade, live in ryokuset.go.
 func runRyokuUpgrade(set []string) ([]string, error) {
-	return runUpgradeCollecting("Ryoku package upgrade", ryokuInstallArgs(set))
+	if updatePackageManager() == host.DNF {
+		app := repositoryHost()
+		if _, err := app.PackageVersion("ryoku-rashin"); err == nil {
+			version, err := app.RepoTransactionVersion("hyakki")
+			if err != nil {
+				return nil, err
+			}
+			target := "hyakki-" + version
+			scheduled := false
+			for _, name := range set {
+				if name == target {
+					scheduled = true
+					break
+				}
+			}
+			if !scheduled {
+				return nil, fmt.Errorf("installed ryoku-rashin has no Hyakki replacement in the update transaction")
+			}
+			// Distro-sync does not acquire an uninstalled name. Let the native
+			// RPM's Obsoletes/Conflicts replace the old opt-in before syncing
+			// the installed set; never erase it in a separate transaction.
+			args := []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", host.DNFCommand(), "install", "-y", target}
+			if conflicts, err := runUpgradeCollecting("Hyakki package replacement", args); err != nil {
+				return conflicts, err
+			}
+		}
+	}
+	args := ryokuInstallArgs(set)
+	if updatePackageManager() == host.Pacman {
+		flags, err := repositoryHost().PacmanHyakkiReplacementFlags(set)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, flags...)
+	}
+	return runUpgradeCollecting("Ryoku package upgrade", args)
 }
 
 // runSystemLane is `ryoku update --system`: the user's lane, opted into. It is

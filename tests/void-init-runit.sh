@@ -26,6 +26,8 @@ HOST_BUILD=$(mktemp -d)
 HARNESS_PATH=$(mktemp)
 trap 'rm -rf "$HOST_BUILD"; rm -f "$HARNESS_PATH"' EXIT
 (cd "$ROOT/ryoku/cli" && CGO_ENABLED=0 go build -o "$HOST_BUILD/ryoku-host" ./cmd/ryoku-host)
+(cd "$ROOT/ryoku/hyakki" && GOWORK=off GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOENV=off \
+	CGO_ENABLED=0 go build -mod=vendor -buildvcs=false -o "$HOST_BUILD/hyakki" ./cmd/hyakki)
 
 # The in-container harness: one POSIX sh script (Void's /bin/sh is dash), the
 # repo bind-mounted read-only at /repo. One runsvdir for the whole suite;
@@ -71,8 +73,10 @@ for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	mkstub "$b"
 done
-cp /repo/ryoku/rashin/usage/ryoku-ai-usage "$WORK/bin/ryoku-ai-usage"
-chmod +x "$WORK/bin/ryoku-ai-usage"
+cp /repo/ryoku/hyakki/usage/hyakki-usage "$WORK/bin/hyakki-usage"
+cp /hyakki "$WORK/bin/hyakki"
+chmod +x "$WORK/bin/hyakki"
+chmod +x "$WORK/bin/hyakki-usage"
 
 # argument-aware stubs: a binary that is both a pre-start hook and the daemon
 # must exit for the hook and stay up for the daemon.
@@ -139,14 +143,13 @@ done
 # matching collectors without a package-path override.
 mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.local/share/opencode/storage"
 printf '{}\n' >"$HOME/.claude/.credentials.json"
-"$WORK/bin/ryoku-ai-usage"
+"$WORK/bin/hyakki-usage"
 for collector in claude-usage codex-usage opencode-usage; do
 	[ "$(grep -c "^$collector" "$LOG")" -eq 1 ] || fail "data-only guard skipped $collector"
 done
 : >"$LOG"
 
-# the ai-usage loop must not actually sleep 45s/300s in the test
-export RYOKU_AI_USAGE_INITIAL=0 RYOKU_AI_USAGE_PERIOD=1
+# Hyakki's native worker keeps the production 45-second/five-minute schedule.
 cat > "$WORK/snapper-cleanup" <<'EOF'
 #!/bin/sh
 echo "snapper-cleanup" >> "$LOG"
@@ -166,7 +169,9 @@ install_svc /repo/void/init/user/ryoku-shell ryoku-shell
 install_svc /repo/void/init/user/ryoku-bootstrap ryoku-bootstrap
 install_svc /repo/void/init/user/ryoku-idle ryoku-idle park
 install_svc /repo/void/init/user/ryoku-eq ryoku-eq
-install_svc /repo/void/init/user/ryoku-ai-usage ryoku-ai-usage
+install_svc /repo/void/init/user/hyakki-usage hyakki-usage park
+install_svc /repo/void/init/user/oni-routines oni-routines park
+install_svc /repo/void/init/user/oni oni park
 install_svc /repo/void/init/user/ryoku-bluetooth-reset ryoku-bluetooth-reset
 install_svc /repo/void/init/system/ryoku-var-state ryoku-var-state
 install_svc /repo/void/init/system/ryoku-network-kill-guard ryoku-network-kill-guard
@@ -224,10 +229,12 @@ wait_count_ge() { # pattern n [timeout-quarters]
 	return 1
 }
 
-#### Rashin has no runit service and must not start with the session roster.
-[ ! -e "$WORK/svc/rashind" ] || fail "rashind was added to the runit roster"
-[ "$(count 'rashind')" -eq 0 ] || fail "rashind started at session start"
-pass "Rashin stays at zero processes until a client starts it"
+#### Optional native services are delivered but remain down until requested.
+for service in oni oni-routines hyakki-usage; do
+	wait_stat "$service" down || fail "$service started without an explicit request"
+done
+[ "$(count 'claude-usage')" -eq 0 ] || fail "usage collection started without a request"
+pass "Oni and its workers stay dormant at session start"
 
 #### 1. failed-wait parking: eq (missing config file) and bluetooth-reset
 ####    (no session D-Bus) park instead of crash-looping.
@@ -287,13 +294,23 @@ sleep 3
 pass "Restart=on-failure parks on clean exit and stays parked"
 
 
-#### 7. timer translations fire their work on schedule.
-wait_count_ge 'claude-usage' 1 || fail "ai-usage loop never ran claude-usage"
-wait_count_ge 'snapper-cleanup' 1 || fail "snapper-cleanup loop never ran"
+#### 7. The real native usage worker runs its collectors on the shipped schedule.
+mkdir -p "$HOME/.config/hyakki"
+printf '{"enabled":true}\n' >"$HOME/.config/hyakki/hyakki.json"
+sv up "$WORK/svc/hyakki-usage"
+wait_count_ge 'claude-usage' 1 240 || fail "native usage worker did not collect after its initial delay"
+wait_count_ge 'codex-usage' 2 1500 || fail "native usage worker did not repeat on its five-minute period"
+sv up "$WORK/svc/oni-routines"
+wait_stat oni-routines run || fail "requested routine worker did not start"
+printf '{"enabled":false}\n' >"$HOME/.config/hyakki/hyakki.json.new"
+mv "$HOME/.config/hyakki/hyakki.json.new" "$HOME/.config/hyakki/hyakki.json"
+wait_stat hyakki-usage down || fail "native usage worker did not park when Hyakki was turned off"
+wait_stat oni-routines down || fail "native routine worker did not park when Hyakki was turned off"
+before_usage=$(count 'claude-usage')
 sleep 3
-[ "$(count 'codex-usage')" -ge 2 ] || fail "ai-usage loop did not repeat on its period"
-[ "$(count 'snapper-cleanup')" -ge 2 ] || fail "snapper-cleanup loop did not repeat on its period"
-pass "timer translations loop on their schedules"
+[ "$(count 'claude-usage')" -eq "$before_usage" ] || fail "collector survived Hyakki being turned off"
+wait_count_ge 'snapper-cleanup' 2 || fail "snapper-cleanup loop did not repeat"
+pass "native optional workers honor the production schedule and stop on activation changes"
 
 #### 8. wait-for predicates (env, file, !-inverse).
 . /repo/void/init/lib/wait-for
@@ -620,4 +637,5 @@ docker run --rm \
 	-v "$ROOT:/repo:ro" \
 	-v "$HARNESS_PATH:/harness.sh:ro" \
 	-v "$HOST_BUILD/ryoku-host:/ryoku-host:ro" \
+	-v "$HOST_BUILD/hyakki:/hyakki:ro" \
 	"$IMAGE" sh /harness.sh

@@ -47,7 +47,7 @@ var rows = [
       keywords: ["terminal", "files", "browser", "editor", "notes", "yazi", "ryotunes", "super enter", "launch", "keybinds"] },
     { id: "desktop", section: "desktop", label: "Desktop shortcuts", control: "chord",
       detail: "The launcher, lock screen, wallpaper, clipboard and capture",
-      keywords: ["shell", "app launcher", "lock the screen", "quick settings", "wallpaper picker", "clipboard", "screenshot", "capture", "pick a colour", "voice typing", "visualiser", "kit", "cheatsheet", "rashin", "ryoport", "stage editor", "ryoku settings", "keybinds"] },
+      keywords: ["shell", "app launcher", "lock the screen", "quick settings", "wallpaper picker", "clipboard", "screenshot", "capture", "pick a colour", "voice typing", "visualiser", "kit", "cheatsheet", "hyakki", "ryoport", "stage editor", "ryoku settings", "keybinds"] },
     { id: "media", section: "media", label: "Media keys", control: "chord",
       detail: "Volume, mute and playback keys",
       keywords: ["volume up", "volume down", "mute", "microphone", "play", "pause", "next track", "previous track", "xf86"] },

@@ -12,9 +12,10 @@
 /ryoku/wm/niri/ryoku-wm-niri
 /ryoku/wm/niri/niri
 /ryoku/hub/backend/ryoku-hub
-/ryoku/rashin/rashin
-/ryoku/rashin/rashind
-/ryoku/rashin/rashin-app
+/ryoku/hyakki/hyakki
+/ryoku/hyakki/oni
+/ryoku/hyakki/hyakki-app
+/ryoku/hyakki/oni-surface
 /ryoku/cli/ryoku
 /ryoku/cli/ryoku-cli
 /ryoku/cli/ryoku-host

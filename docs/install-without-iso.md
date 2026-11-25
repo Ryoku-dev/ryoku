@@ -82,9 +82,13 @@ curl -fsSL https://raw.githubusercontent.com/Ryoku-dev/ryoku/main/ryoku-shell-in
 ```
 
 Review the plan in the terminal UI. Void offers niri only. Choose the browser,
-login shell, file manager, optional apps and whether to install Rashin. Rashin
+login shell, file manager, optional apps and whether to install Hyakki. Hyakki
 defaults to No and stays off until you turn it on. The run can be resumed if it
 is interrupted.
+
+For unattended options, the shell installer's flag is `--hyakki` and the
+environment setting is `RYOKU_HYAKKI` (default `0`). Native app usage, optional
+Oni controls and existing-data migration are in [Hyakki](hyakki.md).
 
 Ryoku is niri-only on Void because Ryoku's Hyprland build needs GCC 15 while
 Void currently ships GCC 14.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Re-render Rashin's provider logos from lobehub/lobe-icons at a
-# pinned commit into ryoku/rashin/internal/app/look/logos/masks: one alpha mask
+# Re-render Hyakki's provider logos from lobehub/lobe-icons at a
+# pinned commit into ryoku/hyakki/internal/app/look/logos/masks: one alpha mask
 # per mark that logos/list.txt names, from the mono SVGs, plus the upstream
 # LICENSE beside them. Lithic paints roles, never brand colours, so only the
 # coverage is kept and the app tints it. The marks are rasterized here because
@@ -11,7 +11,7 @@
 #   ryoku-dev-sync-provider-logos   rebuild the masks (needs git, tar, rsvg-convert, magick, network)
 #
 # To move the pin, change the commit below, run this, look at the marks in the
-# app, and update the provider logos entry in ryoku/rashin/NOTICE and the root
+# app, and update the provider logos entry in ryoku/hyakki/NOTICE and the root
 # NOTICE.
 set -euo pipefail
 
@@ -20,7 +20,7 @@ commit=ea434b96e75813517b377825e01c0df61dee8836
 size=96
 
 repo=$(git rev-parse --show-toplevel)
-dest=$repo/ryoku/rashin/internal/app/look/logos
+dest=$repo/ryoku/hyakki/internal/app/look/logos
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 

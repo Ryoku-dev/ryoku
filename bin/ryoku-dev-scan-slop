@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scan added comment lines for low-value filler (chat residue, self-narration).
 # same rule the pre-commit hook enforces. comment markers: # -- // *.
-# vendored content (ryoku/lockscreen/qylock, Rashin's skill sets, any vendor/)
-# is exempt.
+# Vendored content and the generated upstream xdg-shell protocol documentation
+# are not authored commentary; integrity and license checks still cover them.
 #
 #   ryoku-dev-scan-slop --range <base> <head>   scan added lines in base..head
 #   ryoku-dev-scan-slop --staged                scan staged additions
@@ -19,10 +19,10 @@ case "$mode" in
     base=${2:-}
     head=${3:?usage: ryoku-dev-scan-slop --range <base> <head>}
     [[ -n $base ]] || base=$empty_tree
-    diff=$(git diff --diff-filter=ACM -U0 "$base" "$head" -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/rashin/internal/skills/sets' ':(glob,exclude)**/vendor/**')
+    diff=$(git diff --diff-filter=ACM -U0 "$base" "$head" -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/hyakki/internal/skills/sets' ':(glob,exclude)**/vendor/**' ':(exclude)ryoku/hyakki/internal/oni/surface/proto_xdg_shell.h')
     ;;
   --staged)
-    diff=$(git diff --cached --diff-filter=ACM -U0 -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/rashin/internal/skills/sets' ':(glob,exclude)**/vendor/**')
+    diff=$(git diff --cached --diff-filter=ACM -U0 -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/hyakki/internal/skills/sets' ':(glob,exclude)**/vendor/**' ':(exclude)ryoku/hyakki/internal/oni/surface/proto_xdg_shell.h')
     ;;
   *)
     echo "usage: ryoku-dev-scan-slop --range <base> <head> | --staged" >&2

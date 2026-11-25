@@ -1,4 +1,4 @@
-// ryoget is Ryoku's download engine: an on-demand daemon behind the Rashin
+// ryoget is Ryoku's download engine: an on-demand daemon behind the Hyakki
 // bar's Downloads view and its command line. Web search lives in ryoseek.
 package main
 

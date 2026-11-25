@@ -251,8 +251,8 @@ for an explicit channel downgrade; DNF targets the exact EVR served by the
 selected repository.
 
 After the desktop is back, the update refreshes the Ryoku vault
-(`ryoku vault refresh`, see [vault.md](vault.md)) whether Rashin is installed
-or not. Rashin needs no refresh step of its own: its index refreshes by content
+(`ryoku vault refresh`, see [vault.md](vault.md)) whether Hyakki is installed
+or not. Hyakki needs no refresh step of its own: its index refreshes by content
 hash before the next query, so the vault and config changes reach it the next
 time someone asks. The refresh is best effort and never fails the desktop
 update.

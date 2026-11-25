@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixture test for ryoku/rashin/usage/opencode-usage: the AI usage pill must see
+# Fixture test for ryoku/hyakki/usage/opencode-usage: the AI usage pill must see
 # OpenCode's local session store across every storage layout, including the 2.x
 # session_message table that replaced the pre-2.x one (#365). Builds throwaway
 # sqlite/file fixtures in temp dirs, points the collector at them through
@@ -7,7 +7,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-collector="$here/../ryoku/rashin/usage/opencode-usage"
+collector="$here/../ryoku/hyakki/usage/opencode-usage"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "opencode-usage: python3 not found, skipping" >&2

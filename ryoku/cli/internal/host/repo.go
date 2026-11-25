@@ -715,17 +715,28 @@ func (a *App) RepoInstalledSet(allowDowngrade bool, excluded map[string]bool) ([
 	if err != nil {
 		return nil, 0, err
 	}
+	// Only a still-installed opt-in authorizes its renamed replacement. A removed
+	// app or leftover user data must never cause an optional package to reappear.
+	_, legacyHyakkiInstalled := a.installedVersion(manager, "ryoku-rashin")
+	hyakkiServed := false
 	var targets []string
 	skipped := 0
 	for _, pkg := range packages {
-		if excluded[pkg.Name] {
+		if pkg.Name == "hyakki" {
+			hyakkiServed = true
+		}
+		if excluded[pkg.Name] || pkg.Name == "ryoku-rashin" {
 			continue
 		}
 		installed, ok := a.installedVersion(manager, pkg.Name)
-		if !ok {
+		if !ok && !(pkg.Name == "hyakki" && legacyHyakkiInstalled) {
 			continue
 		}
-		compared := a.CompareVersions(manager, installed, pkg.Version)
+		// The old module and the native app use unrelated release version streams.
+		compared := 0
+		if ok {
+			compared = a.CompareVersions(manager, installed, pkg.Version)
+		}
 		if manager == DNF {
 			if !allowDowngrade {
 				if compared > 0 {
@@ -745,6 +756,9 @@ func (a *App) RepoInstalledSet(allowDowngrade bool, excluded map[string]bool) ([
 			target = ryokuRepoName + "/" + target
 		}
 		targets = append(targets, target)
+	}
+	if legacyHyakkiInstalled && !hyakkiServed && !excluded["hyakki"] {
+		return nil, 0, fmt.Errorf("the repository cannot replace installed ryoku-rashin: hyakki is not served")
 	}
 	sort.Strings(targets)
 	return targets, skipped, nil

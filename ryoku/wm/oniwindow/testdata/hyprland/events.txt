@@ -1,0 +1,5 @@
+activelayout>>at-translated-set-2-keyboard,English (US)
+submap>>
+screencast>>0,0
+bell>>
+configreloaded>>

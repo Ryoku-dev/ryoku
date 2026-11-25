@@ -49,7 +49,7 @@ entry_row() {
   fi
 
   printf '## Layout\n\n| Path | Files | Purpose |\n|---|---|---|\n'
-  layout_row ryoku 'desktop, apps, shell, settings, Rashin and the vault'
+  layout_row ryoku 'desktop, apps, shell, settings, Hyakki and the vault'
   layout_row system 'boot, hardware policy, package sets and services'
   layout_row installation 'installer and ISO'
   layout_row release 'packages, repositories and signing'
@@ -66,7 +66,7 @@ entry_row() {
   entry_row 'Shell UI' 'ryoku/shell/quickshell/' 'ryoku/shell/quickshell'
   entry_row 'Ryoku Settings' 'ryoku/hub/' 'ryoku/hub'
   entry_row 'User CLI and vault' 'ryoku/cli/' 'ryoku/cli'
-  entry_row 'Rashin' 'ryoku/rashin/' 'ryoku/rashin'
+  entry_row 'Hyakki and Oni' 'ryoku/hyakki/' 'ryoku/hyakki'
   entry_row 'Installer' 'installation/' 'installation'
   entry_row 'Packages' 'release/packages/' 'release/packages'
 } >"$out"

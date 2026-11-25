@@ -1,0 +1,1 @@
+{"kind":"consent","data":{"id":"c-1","feature":"vision.inspect","class":"disclosure","destination":"hosted","route":"openrouter/some-model","question":"This picture of Release notes goes to openrouter/some-model. Send it?","expiresMs":120000}}

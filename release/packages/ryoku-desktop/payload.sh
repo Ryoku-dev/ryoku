@@ -33,6 +33,7 @@ install_runit_payload() {
   for src in "$init_root/user"/*; do
     [[ -d $src ]] || continue
     name=${src##*/}
+    case "$name" in oni|oni-routines|hyakki-usage) continue ;; esac
     for destination in \
       "$pkgdir/usr/lib/ryoku/runit/user/$name" \
       "$pkgdir/etc/skel/.config/service/$name"; do
@@ -210,7 +211,7 @@ EOF
 
   # per-app configs
   install -Dm644 "$_repo/ryoku/apps/fish/config.fish"       "$cfg/fish/config.fish"
-  install -Dm644 "$_repo/ryoku/apps/fish/conf.d/rashin.fish" "$cfg/fish/conf.d/rashin.fish"
+  install -Dm644 "$_repo/ryoku/apps/fish/conf.d/hyakki.fish" "$cfg/fish/conf.d/hyakki.fish"
   install -Dm644 "$_repo/ryoku/apps/fish/conf.d/desktop-display.fish" \
     "$cfg/fish/conf.d/desktop-display.fish"
   install -Dm644 "$_repo/ryoku/apps/xfce4/helpers.rc" "$cfg/xfce4/helpers.rc"
@@ -221,9 +222,9 @@ EOF
   install -Dm644 "$_repo/ryoku/apps/terminal-shell/desktop-display.sh" \
     "$cfg/ryoku-terminal/desktop-display.sh"
   install -Dm644 "$_repo/ryoku/apps/bash/ryoku.bash"        "$cfg/bash/ryoku.bash"
-  install -Dm644 "$_repo/ryoku/apps/bash/rashin.bash"       "$cfg/bash/rashin.bash"
+  install -Dm644 "$_repo/ryoku/apps/bash/hyakki.bash"       "$cfg/bash/hyakki.bash"
   install -Dm644 "$_repo/ryoku/apps/zsh/ryoku.zsh"          "$cfg/zsh/ryoku.zsh"
-  install -Dm644 "$_repo/ryoku/apps/zsh/rashin.zsh"         "$cfg/zsh/rashin.zsh"
+  install -Dm644 "$_repo/ryoku/apps/zsh/hyakki.zsh"         "$cfg/zsh/hyakki.zsh"
   install -Dm644 "$_repo/ryoku/hub/backend/zshrc"              "$pkgdir/usr/share/ryoku/zsh/zshrc"
   # GTK toolkit baseline for the xsettings-less Wayland session (see the header
   # of each file); materialized and pruned by `ryoku materialize` like qt6ct.conf.

@@ -105,19 +105,19 @@ The Go command surfaces live in these checkout paths:
 | `ryoku` | `ryoku/cli/` |
 | `ryoku-shell` | `ryoku/shell/ipc/` |
 | `ryoku-wm-<name>` and the shared provider contract | `ryoku/wm/` |
-| `rashind`, `rashin`, and `rashin-app` | `ryoku/rashin/` |
+| `hyakki`, `oni`, `hyakki-app`, and `oni-surface` | `ryoku/hyakki/` (internal Go module `ryoku-rashin`) |
 
-When Rashin is on, ask its cited index before opening files:
+When Hyakki is on, ask its cited index before opening files:
 
 ```bash
-rashin search "how does this work?"
-rashin find <symbol>
-rashin def <symbol>
-rashin outline <path>
-rashin references <symbol>
+hyakki search "how does this work?"
+hyakki find <symbol>
+hyakki def <symbol>
+hyakki outline <path>
+hyakki references <symbol>
 ```
 
-Without Rashin, start from the shipped
+Without Hyakki, start from the shipped
 `~/.local/share/ryoku/vault/ryoku-repo.md` map. Grep is for an exact literal or
 regular expression after the location is known.
 

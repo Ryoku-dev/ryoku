@@ -10,15 +10,15 @@ import "../views"
 import "../lib/keys.js" as Chords
 import "../lib/root.js" as RootLogic
 
-// The Rashin bar's body: one field, a stack of views under it, a foot that says
+// The Hyakki bar's body: one field, a stack of views under it, a foot that says
 // what Enter does, and the Action Panel. It owns the keyboard and the stack; a
 // view only answers the contract (bar-spec section 7).
 FocusScope {
     id: root
 
     required property real s
-    required property RashinClient rashin
-    required property RashinSession session
+    required property HyakkiClient hyakki
+    required property HyakkiSession session
     required property SearchClient search
     required property DownloadsClient downloads
     property bool active: false
@@ -313,7 +313,7 @@ FocusScope {
             maximumHeight: root.stageBudget
             sourceComponent: RootView {
                 s: root.s
-                rashin: root.rashin
+                hyakki: root.hyakki
                 session: root.session
                 downloads: root.downloads
             }
@@ -332,7 +332,7 @@ FocusScope {
             maximumHeight: root.stageBudget
             sourceComponent: AskView {
                 s: root.s
-                rashin: root.rashin
+                hyakki: root.hyakki
                 session: root.session
                 onPinRequested: (question, answer) => root.bubblePinned(question, answer)
             }

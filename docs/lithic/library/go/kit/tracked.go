@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strings"
 	"sync"
+	"weak"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -90,7 +91,8 @@ func (run *trackedRun) paint(gtx layout.Context, at image.Point, ink color.NRGBA
 }
 
 type trackedKey struct {
-	shaper   *text.Shaper
+	// Cached outlines must not own retired shapers and their loaded font maps.
+	shaper   weak.Pointer[text.Shaper]
 	face     font.Font
 	size     fixed.Int26_6
 	tracking fixed.Int26_6
@@ -111,7 +113,7 @@ var trackedCache struct {
 // trackedLine returns the run for value, shaping and recording it on first use.
 func trackedLine(gtx layout.Context, th *theme.Theme, style theme.TextStyle, tracking float32, value string, caps bool) *trackedRun {
 	key := trackedKey{
-		shaper: th.Shaper, face: style.Face, size: fixed.I(gtx.Sp(style.Size)),
+		shaper: weak.Make(th.Shaper), face: style.Face, size: fixed.I(gtx.Sp(style.Size)),
 		tracking: fixed.Int26_6(tracking*gtx.Metric.PxPerSp*64 + sign(tracking)*0.5), caps: caps, value: value,
 	}
 	trackedCache.Lock()
@@ -122,7 +124,7 @@ func trackedLine(gtx layout.Context, th *theme.Theme, style theme.TextStyle, tra
 	if trackedCache.runs == nil || len(trackedCache.runs) >= trackedCacheLimit {
 		trackedCache.runs = make(map[trackedKey]*trackedRun)
 	}
-	run := shapeTracked(gtx, key)
+	run := shapeTracked(gtx, th.Shaper, key)
 	trackedCache.runs[key] = run
 	return run
 }
@@ -137,7 +139,7 @@ func sign(v float32) float32 {
 // shapeTracked shapes key.value on one line and moves each cluster right by the tracking
 // times the clusters before it. A run flowing toward the origin (right to left) is left
 // untracked: spaced capitals are a Latin and kana convention.
-func shapeTracked(gtx layout.Context, key trackedKey) *trackedRun {
+func shapeTracked(gtx layout.Context, shaper *text.Shaper, key trackedKey) *trackedRun {
 	value := key.value
 	if key.caps {
 		value = strings.ToUpper(value)
@@ -146,7 +148,6 @@ func shapeTracked(gtx layout.Context, key trackedKey) *trackedRun {
 	if value == "" {
 		return run
 	}
-	shaper := key.shaper
 	shaper.LayoutString(text.Parameters{
 		Font: key.face, PxPerEm: key.size, MaxLines: 1, MaxWidth: 1 << 24, Locale: gtx.Locale,
 	}, value)

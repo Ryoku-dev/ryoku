@@ -364,25 +364,25 @@ func TestBusCallLanesStayOrderedWithoutBlockingNamespace(t *testing.T) {
 		order = append(order, value)
 		mu.Unlock()
 	}
-	d.registerCall("sight.ocr", func(json.RawMessage) (any, error) {
+	d.registerCall("windows.memory", func(json.RawMessage) (any, error) {
 		<-release
 		note("ocr")
 		return nil, nil
 	})
-	d.registerCall("sight.ocrBoxes", func(json.RawMessage) (any, error) {
+	d.registerCall("windows.inspect", func(json.RawMessage) (any, error) {
 		note("boxes")
 		return nil, nil
 	})
-	d.registerCall("sight.close", func(json.RawMessage) (any, error) { return nil, nil })
-	d.setCallLane("sight.ocr", "ocr")
-	d.setCallLane("sight.ocrBoxes", "ocr")
+	d.registerCall("windows.close", func(json.RawMessage) (any, error) { return nil, nil })
+	d.setCallLane("windows.memory", "ocr")
+	d.setCallLane("windows.inspect", "ocr")
 	c := shellHello(t, d,
-		map[string]any{"op": "call", "id": 1, "method": "sight.ocr"},
-		map[string]any{"op": "call", "id": 2, "method": "sight.ocrBoxes"},
-		map[string]any{"op": "call", "id": 3, "method": "sight.close"},
+		map[string]any{"op": "call", "id": 1, "method": "windows.memory"},
+		map[string]any{"op": "call", "id": 2, "method": "windows.inspect"},
+		map[string]any{"op": "call", "id": 3, "method": "windows.close"},
 	)
 	if reply := c.next(); string(reply.ID) != "3" || !reply.OK {
-		t.Fatalf("plain sight call blocked behind OCR: %+v", reply)
+		t.Fatalf("plain window call blocked behind OCR: %+v", reply)
 	}
 	mu.Lock()
 	early := append([]string(nil), order...)

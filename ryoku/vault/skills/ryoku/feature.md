@@ -72,16 +72,16 @@ Author it under `~/Documents/ryoku-plugins/<id>/` (R1). Never write into
 ### 5. Learn the host's own patterns first
 
 Before inventing a settings row or poll timer, see how the shipped widgets and
-installed plugins do it. When Rashin is on, use its cited project index:
+installed plugins do it. When Hyakki is on, use its cited project index:
 
 ```bash
-rashin search "poll interval bar widget"
-rashin find <name>
-rashin def <name>
-rashin references <name>
+hyakki search "poll interval bar widget"
+hyakki find <name>
+hyakki def <name>
+hyakki references <name>
 ```
 
-Without Rashin, start from
+Without Hyakki, start from
 `~/.local/share/ryoku/vault/ryoku-repo.md` and the paths in `desktop.md`.
 Structural answers come from the index or map first; grep is for exact strings.
 

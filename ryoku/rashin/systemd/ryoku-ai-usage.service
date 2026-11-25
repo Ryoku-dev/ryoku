@@ -1,9 +1,0 @@
-[Unit]
-# Refreshes only the usage caches whose matching CLI is installed; the timer
-# calls one guard so absent optional tools never launch their collectors.
-# Driven by ryoku-ai-usage.timer, never enabled on its own.
-Description=Ryoku AI usage collectors
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/ryoku-ai-usage

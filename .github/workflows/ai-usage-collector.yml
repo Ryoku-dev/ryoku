@@ -1,7 +1,7 @@
 name: AI usage collector
 
 # Shell AI usage surfaces read caches written by
-# ryoku/rashin/usage/opencode-usage, which walks OpenCode's local session
+# ryoku/hyakki/usage/opencode-usage, which walks OpenCode's local session
 # store. That store has changed shape twice (file-per-message JSON, then a
 # sqlite message table, then the 2.x session_message table), and each move
 # silently emptied the card because the collector kept reading the retired
@@ -11,7 +11,7 @@ name: AI usage collector
 on:
   pull_request:
     paths:
-      - 'ryoku/rashin/usage/opencode-usage'
+      - 'ryoku/hyakki/usage/opencode-usage'
       - 'tests/opencode-usage.sh'
       - '.github/workflows/ai-usage-collector.yml'
   push:
@@ -19,7 +19,7 @@ on:
       - main
       - unstable-dev
     paths:
-      - 'ryoku/rashin/usage/opencode-usage'
+      - 'ryoku/hyakki/usage/opencode-usage'
       - 'tests/opencode-usage.sh'
       - '.github/workflows/ai-usage-collector.yml'
   workflow_dispatch:

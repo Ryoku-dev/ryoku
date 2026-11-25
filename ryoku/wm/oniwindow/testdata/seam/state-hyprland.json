@@ -1,0 +1,15 @@
+{
+  "focusedOutput": "DP-1",
+  "outputs": [
+    {"name": "eDP-1", "width": 1920, "height": 1200, "scale": 1.5, "activeWorkspace": "1", "make": "BOE", "model": "0x0BCA", "physicalWidth": 310, "x": 0, "y": 0},
+    {"name": "DP-1", "width": 2560, "height": 1440, "scale": 1, "focused": true, "activeWorkspace": "2", "make": "Dell Inc.", "model": "DELL U2720Q", "physicalWidth": 600, "x": 1920, "y": 0}
+  ],
+  "workspaces": [
+    {"id": "1", "name": "1", "output": "eDP-1", "index": 1, "active": true, "windows": 1, "layout": "dwindle"},
+    {"id": "2", "name": "2", "output": "DP-1", "index": 2, "active": true, "windows": 1, "fullscreen": true, "layout": "dwindle"}
+  ],
+  "windows": [
+    {"id": "0x5a1e2b4f0a10", "appId": "kitty", "title": "nero@hyakki: ~", "workspace": "2", "output": "DP-1", "pid": 5120, "focusOrder": 0, "x": 1920, "y": 0, "width": 2560, "height": 1440},
+    {"id": "0x5a1e2b3c4d50", "appId": "org.gnome.TextEditor", "title": "notes.md - Text Editor", "workspace": "1", "output": "eDP-1", "pid": 4211, "focusOrder": 1, "x": 12, "y": 52, "width": 944, "height": 1136}
+  ]
+}

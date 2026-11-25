@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+set -eu
+exec 2>&1
+# shellcheck disable=SC1091
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+umask 077
+: "${XDG_RUNTIME_DIR:?run Oni inside a user login session with XDG_RUNTIME_DIR set}"
+STATE=${XDG_STATE_HOME:-"$HOME/.local/state"}/hyakki
+mkdir -p "$STATE"
+exec "$BIN/oni" >>"$STATE/oni.log" 2>&1

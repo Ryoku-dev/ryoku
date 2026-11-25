@@ -9,7 +9,7 @@ smallest reversible fix through the tool that owns the thing.
 
 The vault's `logs.md` gives the exact journal, Quickshell, update, doctor, and
 crash commands for this machine. Read it first, then run the narrow command for
-the affected subsystem. It remains available when Rashin is off.
+the affected subsystem. It remains available when Hyakki is off.
 
 What to look at, and why:
 
@@ -85,7 +85,7 @@ package, deleting data, resetting a config they may have tuned).
 
 ## How a Fix with AI session arrives
 
-When a user chooses Fix with AI on a doctor finding, Rashin opens an Agent
+When a user chooses Fix with AI on a doctor finding, Hyakki opens an Agent
 session with the problem and doctor report as context. Gather evidence from
 `logs.md`, diagnose, propose, and act only with the user's permission. Record
 what you found and did in `journal/YYYY-MM-DD.md`.

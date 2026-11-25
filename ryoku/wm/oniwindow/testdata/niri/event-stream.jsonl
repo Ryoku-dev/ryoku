@@ -1,0 +1,12 @@
+{"WorkspacesChanged":{"workspaces":[{"id":3,"idx":1,"name":null,"output":"eDP-1","is_urgent":false,"is_active":true,"is_focused":true,"active_window_id":17},{"id":7,"idx":2,"name":null,"output":"eDP-1","is_urgent":false,"is_active":false,"is_focused":false,"active_window_id":null},{"id":4,"idx":1,"name":"term","output":"DP-1","is_urgent":false,"is_active":true,"is_focused":false,"active_window_id":21}]}}
+{"WindowsChanged":{"windows":[{"id":12,"title":"notes.md - Text Editor","app_id":"org.gnome.TextEditor","pid":4211,"workspace_id":3,"is_focused":false,"is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":[1,1],"tile_size":[944.0,1152.0],"window_size":[940,1148],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[2.0,2.0]},"focus_timestamp":{"secs":1763800010,"nanos":120000000}},{"id":17,"title":"Calculator","app_id":"org.gnome.Calculator","pid":4377,"workspace_id":3,"is_focused":true,"is_floating":true,"is_urgent":false,"layout":{"pos_in_scrolling_layout":null,"tile_size":[364.0,624.0],"window_size":[360,620],"tile_pos_in_workspace_view":[1180.0,210.0],"window_offset_in_tile":[2.0,2.0]},"focus_timestamp":{"secs":1763800042,"nanos":500000000}},{"id":21,"title":"nero@hyakki: ~","app_id":"kitty","pid":5120,"workspace_id":4,"is_focused":false,"is_floating":false,"is_urgent":false,"layout":{"pos_in_scrolling_layout":[1,1],"tile_size":[1264.0,1392.0],"window_size":[1260,1388],"tile_pos_in_workspace_view":null,"window_offset_in_tile":[2.0,2.0]},"focus_timestamp":{"secs":1763800001,"nanos":0}}]}}
+{"KeyboardLayoutsChanged":{"keyboard_layouts":{"names":["English (US)"],"current_idx":0}}}
+{"OverviewOpenedOrClosed":{"is_open":false}}
+{"ConfigLoaded":{"failed":false}}
+{"WindowLayoutsChanged":{"changes":[[17,{"pos_in_scrolling_layout":null,"tile_size":[364.0,624.0],"window_size":[360,620],"tile_pos_in_workspace_view":[1240.0,260.0],"window_offset_in_tile":[2.0,2.0]}]]}}
+{"WindowLayoutsChanged":{"changes":[[17,{"pos_in_scrolling_layout":null,"tile_size":[404.0,624.0],"window_size":[400,620],"tile_pos_in_workspace_view":[1240.0,260.0],"window_offset_in_tile":[2.0,2.0]}]]}}
+{"WindowFocusChanged":{"id":12}}
+{"WindowFocusTimestampChanged":{"id":12,"focus_timestamp":{"secs":1763800050,"nanos":0}}}
+{"WorkspaceActivated":{"id":7,"focused":true}}
+{"WorkspaceActivated":{"id":3,"focused":true}}
+{"WindowClosed":{"id":17}}

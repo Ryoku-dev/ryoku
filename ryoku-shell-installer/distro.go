@@ -68,6 +68,9 @@ var debianLinux = &distro{
 		"qt6-base-dev", "qt6-base-private-dev", "qt6-declarative-dev", "qt6-multimedia-dev",
 		"qt6-shadertools-dev", "qt6-svg-dev", "qt6-5compat-dev", "qt6-wayland-dev",
 		"hyprland-dev", "libhyprutils-dev", "libgtk-3-dev", "libwebkit2gtk-4.1-dev",
+		"python3", "libwayland-dev", "libxkbcommon-dev", "libxkbcommon-x11-dev",
+		"libegl1-mesa-dev", "libgl1-mesa-dev", "libvulkan-dev",
+		"libx11-dev", "libx11-xcb-dev", "libxcursor-dev", "libxfixes-dev",
 	},
 	rename: map[string]string{
 		"base":                    "",

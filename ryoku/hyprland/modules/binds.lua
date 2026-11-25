@@ -127,8 +127,8 @@ hl.bind(K(mod .. " + J"),         hl.dsp.exec_cmd("ryotunes"))                  
 
 -- Shell surfaces and tools
 hl.bind(K(mod .. " + Space"),     hl.dsp.global("ryoku:launcher"))                 -- open the app launcher
-hl.bind(K("ALT + Space"),         hl.dsp.global("ryoku:ask"))                      -- ask Rashin
-hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon --app-id dev.ryoku.rashin rashin-app")) -- Rashin app; a second press focuses it
+hl.bind(K("ALT + Space"),         hl.dsp.global("ryoku:ask"))
+hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon --app-id dev.ryoku.Hyakki hyakki-app"))
 hl.bind(K(mod .. " + K"),         hl.dsp.exec_cmd("ryoku-shell cheatsheet"))          -- Kit, or the bar style's own cheatsheet
 hl.bind(K(mod .. " + SHIFT + G"), hl.dsp.global("ryoku:gamebar"), { dont_inhibit = true }) -- Game Bar: capture, performance and tasks over a fullscreen game
 hl.bind(K(mod .. " + L"),         hl.dsp.exec_cmd("ryoku-shell lock"))             -- lock the screen

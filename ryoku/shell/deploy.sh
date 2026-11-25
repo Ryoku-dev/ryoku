@@ -742,69 +742,72 @@ if [ -d /run/systemd/system ]; then
   systemctl --user daemon-reload 2>/dev/null || true
 fi
 
-# Build beside the destination so a failed build keeps the working copy.
-piece rashin "Rashin, the optional AI system"
-rashin_module="$here/../rashin"
-rashin_version=${RYOKU_PKGVER:-dev}
-rashin_build_install() {
-  local name=$1 tmp="$bindir/.$1.new.$$"
-  local -a flags=(-mod=vendor -trimpath -ldflags "-s -w -X main.version=$rashin_version")
-  rm -f "$tmp"
-  if [[ $name == rashin-app ]]; then
-    CGO_ENABLED=1 build_go "$rashin_module" "$tmp" "./cmd/$name" \
-      "${flags[@]}" -tags nox11 || { rm -f "$tmp"; return 1; }
-  else
-    CGO_ENABLED=0 build_go "$rashin_module" "$tmp" "./cmd/$name" \
-      "${flags[@]}" || { rm -f "$tmp"; return 1; }
-  fi
-  chmod 755 "$tmp"
-  mv -f "$tmp" "$bindir/$name"
-}
-
-if [ -d /run/systemd/system ]; then
-  systemctl --user disable --now ryoku-rashin.service ryoku-prowl.service >/dev/null 2>&1 || true
-  if command -v sudo >/dev/null 2>&1; then
-    sudo systemctl --global disable \
-      ryoku-rashin.service ryoku-prowl.service ryoku-ai-usage.timer \
-      >/dev/null 2>&1 || true
-  fi
-fi
-rm -f "$cfg/systemd/user/ryoku-rashin.service" "$cfg/systemd/user/ryoku-prowl.service"
-rm -f "$bindir/ryoku-rashin"
-if [[ -L $bindir/rashin && $(readlink "$bindir/rashin") == ryoku-rashin ]]; then
-  rm -f "$bindir/rashin"
-fi
-rm -f "$datadir/applications/rashin-app.desktop" "$datadir/icons/hicolor/scalable/apps/rashin-app.svg"
-for binary in rashind rashin rashin-app; do
-  rashin_build_install "$binary"
-done
-piece_end
-say "installed $bindir/rashind, $bindir/rashin and $bindir/rashin-app"
-
-install -Dm644 "$repo_root/release/packages/ryoku-rashin/dev.ryoku.rashin.desktop" \
-  "$datadir/applications/dev.ryoku.rashin.desktop"
-install -Dm644 "$here/../assets/brand/rashin-mark.svg" \
-  "$datadir/icons/hicolor/scalable/apps/dev.ryoku.rashin.svg"
-
-if [ -d /run/systemd/system ]; then
-  mkdir -p "$cfg/systemd/user"
-  install -Dm644 "$rashin_module/systemd/rashind.socket" \
-    "$cfg/systemd/user/rashind.socket"
-  unit_tmp="$cfg/systemd/user/.rashind.service.new.$$"
-  sed "s|/usr/bin/rashind|$bindir/rashind|g" \
-    "$rashin_module/systemd/rashind.service" > "$unit_tmp"
-  chmod 644 "$unit_tmp"
-  mv -f "$unit_tmp" "$cfg/systemd/user/rashind.service"
-  systemctl --user daemon-reload 2>/dev/null || true
-fi
-"$bindir/rashin" migrate \
-  || say "rashin migrate failed: run $bindir/rashin migrate to retry"
 piece cli "the ryoku command"
 build_go "$here/../cli" ryoku
 build_go "$here/../cli" ryoku-host ./cmd/ryoku-host
 piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 install -m755 "$here/../cli/ryoku-host" "$bindir/ryoku-host"
+  dev_bin_dropin() {
+    local unit="$cfg/systemd/user/$1" dir="$cfg/systemd/user/$1.d"
+    shift
+    mkdir -p "$dir"
+    {
+      printf '[Service]\n'
+      grep -oE '^Exec[A-Za-z]+=' "$unit" | sort -u
+      grep -E '^Exec[A-Za-z]+=' "$unit" | sed 's|/usr/bin/|%h/.local/bin/|'
+      printf '%s\n' "$@"
+    } >"$dir/ryoku-dev-bin.conf"
+  }
+# Stage the complete sibling set before replacing any trusted executable.
+piece hyakki "Hyakki and Oni, the optional AI system"
+hyakki_module="$here/../hyakki"
+hyakki_version=${RYOKU_PKGVER:-dev}
+hyakki_build_install() (
+  set -e
+  export GOWORK=off GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOENV=off GOFLAGS=
+  unset GOOS GOARCH
+  local work binary cgo
+  local -a flags=(-mod=vendor -buildvcs=false -trimpath -ldflags "-s -w -X main.version=$hyakki_version")
+  work=$(mktemp -d "$bindir/.hyakki-build.XXXXXX")
+  trap 'rm -rf "$work"' EXIT
+  python3 "$hyakki_module/release/native.py" check-source
+  for binary in hyakki oni hyakki-app oni-surface; do
+    cgo=0
+    [[ $binary == hyakki-app || $binary == oni-surface ]] && cgo=1
+    CGO_ENABLED=$cgo build_go "$hyakki_module" "$work/$binary" "./cmd/$binary" "${flags[@]}"
+  done
+  python3 "$hyakki_module/release/native.py" notices
+  HYAKKI_BUILD_DIR="$work" DESTDIR="$work/stage" "$hyakki_module/release/install.sh"
+  for binary in "$work/stage/usr/bin/"*; do
+    mv -f "$binary" "$bindir/${binary##*/}"
+  done
+  PATH="$bindir:$PATH" "$bindir/ryoku-host" hyakki migrate --retire-dev-binaries "$bindir"
+  mkdir -p "$datadir/applications" "$datadir/metainfo" "$datadir/icons/hicolor/scalable/apps" \
+    "$datadir/licenses/hyakki" "$datadir/doc/hyakki" "$datadir/hyakki/runit"
+  cp -a "$work/stage/usr/share/applications/." "$datadir/applications/"
+  cp -a "$work/stage/usr/share/metainfo/." "$datadir/metainfo/"
+  cp -a "$work/stage/usr/share/icons/hicolor/scalable/apps/." "$datadir/icons/hicolor/scalable/apps/"
+  cp -a "$work/stage/usr/share/licenses/hyakki/." "$datadir/licenses/hyakki/"
+  cp -a "$work/stage/usr/share/doc/hyakki/." "$datadir/doc/hyakki/"
+  cp -a "$work/stage/usr/share/hyakki/runit/." "$datadir/hyakki/runit/"
+  if [ -d /run/systemd/system ]; then
+    mkdir -p "$cfg/systemd/user"
+    for binary in ryoku-rashin.service ryoku-prowl.service rashind.socket rashind.service \
+      ryoku-ai-usage.service ryoku-ai-usage.timer rashind-routines.service rashind-routines.timer; do
+      if [[ ! -L $cfg/systemd/user/$binary || $(readlink -- "$cfg/systemd/user/$binary") != /dev/null ]]; then
+        rm -f "$cfg/systemd/user/$binary"
+      fi
+    done
+    cp -a "$work/stage/usr/lib/systemd/user/." "$cfg/systemd/user/"
+    dev_bin_dropin oni.service
+    dev_bin_dropin hyakki-usage.service
+    dev_bin_dropin oni-routines.service
+  fi
+)
+hyakki_build_install
+piece_end
+say "installed $bindir/hyakki, $bindir/oni, $bindir/hyakki-app and $bindir/oni-surface"
 # every system helper the package ships to /usr/bin, by the same globs, so a new
 # hardware helper reaches a checkout the moment it lands.
 for s in "$here/../../system/hardware"/*/ryoku-*; do
@@ -818,14 +821,7 @@ done
 # above no longer matches it, so install it by name.
 install -m755 "$here/../../system/extras/ryostore-install" "$bindir/ryostore-install"
 install -m755 "$here/quickshell/plugins/ryoku-plugins-place" "$bindir/ryoku-plugins-place"
-# AI-usage collectors refresh the caches consumed by optional shell items. The
-# package ships them to /usr/bin; the dev loop puts current copies on PATH.
-for s in "$here/../rashin/usage"/ryoku-ai-usage \
-  "$here/../rashin/usage"/claude-usage "$here/../rashin/usage"/codex-usage \
-  "$here/../rashin/usage"/opencode-usage; do
-  install -m755 "$s" "$bindir/${s##*/}"
-done
-say "installed the AI-usage guard and collectors to $bindir"
+# The native payload above owns the optional usage dispatcher and collectors.
 "$bindir/ryoku" vault refresh \
   || say "vault refresh failed: run $bindir/ryoku vault refresh to retry"
 say "installed Ryoku CLI and hardware helpers"
@@ -1535,35 +1531,20 @@ mkdir -p "$cfg/wireplumber"; cp -a "$here/../apps/wireplumber/." "$cfg/wireplumb
 mkdir -p "$cfg/environment.d"; cp -a "$here/environment.d/." "$cfg/environment.d/"
 if [ -d /run/systemd/system ]; then
   mkdir -p "$cfg/systemd/user"; cp -a "$here/systemd/user/." "$cfg/systemd/user/"
-  # the AI usage and routines wake units ship with ryoku-rashin, which the dev
-  # loop always builds
-  cp -a "$here/../rashin/systemd/ryoku-ai-usage.service" \
-    "$here/../rashin/systemd/ryoku-ai-usage.timer" \
-    "$here/../rashin/systemd/rashind-routines.service" \
-    "$here/../rashin/systemd/rashind-routines.timer" "$cfg/systemd/user/"
+  cp -a "$hyakki_module/systemd/." "$cfg/systemd/user/"
   # The dev deploy runs these units' binaries from ~/.local/bin; the package ships
   # /usr/bin. The unit stays byte-for-byte as shipped and a drop-in repoints its
   # Exec lines: an edited copy reads as a hand edit to `ryoku materialize`, which
   # forks it into user_edits, and that fork outlives the ~/.local/bin build it
   # names once the box is back on packages, so the shell never starts again.
-  dev_bin_dropin() {
-    local unit="$cfg/systemd/user/$1" dir="$cfg/systemd/user/$1.d"
-    shift
-    mkdir -p "$dir"
-    {
-      printf '[Service]\n'
-      grep -oE '^Exec[A-Za-z]+=' "$unit" | sort -u
-      grep -E '^Exec[A-Za-z]+=' "$unit" | sed 's|/usr/bin/|%h/.local/bin/|'
-      printf '%s\n' "$@"
-    } >"$dir/ryoku-dev-bin.conf"
-  }
   dev_bin_dropin ryoku-shell.service
   dev_bin_dropin ryoku-idle.service
   dev_bin_dropin ryoku-clamshell.service
   dev_bin_dropin ryoku-profile-scope.service
   dev_bin_dropin ryoku-profile-session.service
-  dev_bin_dropin ryoku-ai-usage.service
-  dev_bin_dropin rashind-routines.service
+  dev_bin_dropin oni.service
+  dev_bin_dropin hyakki-usage.service
+  dev_bin_dropin oni-routines.service
   dev_bin_dropin ryoku-bt-agent.service
   # Ryogami resolves the staged picker from XDG_DATA_HOME when it starts.
   dev_bin_dropin ryogami.service
@@ -1583,10 +1564,9 @@ else
   # picker entry from the session's XDG data home on every start.
   rm -f "$runit_env_root/RYOGAMI_SHELL_QML"
 fi
-rashin_config="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/rashin.json"
-if [[ -f $rashin_config ]] && jq -e '.enabled == true' "$rashin_config" >/dev/null 2>&1; then
-  "$bindir/rashin" on \
-    || say "rashin on failed: run $bindir/rashin on to retry"
+hyakki_config="${XDG_CONFIG_HOME:-$HOME/.config}/hyakki/hyakki.json"
+if [[ -f $hyakki_config ]] && jq -e '.enabled == true' "$hyakki_config" >/dev/null 2>&1; then
+  "$bindir/hyakki" on
 fi
 # pip (PEP 668 --user): Ryoku-owned, so a dev box tracks it the way the package
 # materializes it for an installed one.

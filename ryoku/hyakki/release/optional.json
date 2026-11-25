@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "chromium",
+      "kind": "program",
+      "programs": ["chromium"],
+      "features": ["oni.hands"],
+      "license": "BSD-3-Clause",
+      "why": "the browser Hands drives in its own profile; any Chromium-family browser on PATH also works",
+      "packages": {"arch": ["chromium"], "fedora": ["chromium"], "void": ["chromium"], "nix": ["chromium"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "weston",
+      "kind": "program",
+      "programs": ["weston"],
+      "features": ["oni.hands"],
+      "license": "MIT",
+      "why": "the headless parent of the separate desktop Hands runs apps on",
+      "packages": {"arch": ["weston"], "fedora": ["weston"], "void": ["weston"], "nix": ["weston"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "niri",
+      "kind": "program",
+      "programs": ["niri"],
+      "features": ["oni.hands", "oni.reflex"],
+      "license": "GPL-3.0-or-later",
+      "why": "the separate desktop Hands runs apps on, and the maximize quick command",
+      "packages": {"arch": ["niri"], "fedora": ["niri"], "void": ["niri"], "nix": ["niri"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "grim",
+      "kind": "program",
+      "programs": ["grim"],
+      "features": ["oni.reflex", "oni.hands"],
+      "license": "MIT",
+      "why": "screenshots when Ryoku's capture tool is absent, and Hands looking at its separate desktop",
+      "packages": {"arch": ["grim"], "fedora": ["grim"], "void": ["grim"], "nix": ["grim"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "wtype",
+      "kind": "program",
+      "programs": ["wtype"],
+      "features": ["oni.voice", "oni.rewrite", "oni.hands"],
+      "license": "MIT",
+      "why": "types dictation, rewrites and Hands keys into the focused window",
+      "packages": {"arch": ["wtype"], "fedora": ["wtype"], "void": ["wtype"], "nix": ["wtype"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "wl-clipboard",
+      "kind": "program",
+      "programs": ["wl-paste"],
+      "features": ["oni.rewrite"],
+      "license": "GPL-3.0-or-later",
+      "why": "reads the highlighted text for a rewrite in place, and a pasted picture in the app",
+      "packages": {"arch": ["wl-clipboard"], "fedora": ["wl-clipboard"], "void": ["wl-clipboard"], "nix": ["wl-clipboard"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "tesseract",
+      "kind": "program",
+      "programs": ["tesseract", "tesseract-ocr"],
+      "features": ["oni.guide"],
+      "license": "Apache-2.0",
+      "why": "reads words on screen for guides, kept walkthroughs and select-and-ask",
+      "packages": {"arch": ["tesseract", "tesseract-data-eng"], "fedora": ["tesseract", "tesseract-langpack-eng"], "void": ["tesseract-ocr", "tesseract-ocr-eng"], "nix": ["tesseract"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "espeak-ng",
+      "kind": "program",
+      "programs": ["espeak-ng"],
+      "features": ["oni.voice"],
+      "license": "GPL-3.0-or-later",
+      "why": "Oni's system voice",
+      "packages": {"arch": ["espeak-ng"], "fedora": ["espeak-ng"], "void": ["espeak-ng"], "nix": ["espeak-ng"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "pipewire",
+      "kind": "program",
+      "programs": ["pw-cat"],
+      "features": ["oni.voice"],
+      "license": "MIT",
+      "why": "hears the microphone and plays Oni's voice and sounds",
+      "packages": {"arch": ["pipewire"], "fedora": ["pipewire-utils"], "void": ["pipewire"], "nix": ["pipewire"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "pulseaudio-utils",
+      "kind": "program",
+      "programs": ["parec", "paplay", "pactl"],
+      "features": ["oni.voice", "oni.reflex"],
+      "license": "LGPL-2.1-or-later",
+      "why": "the microphone list, the volume quick commands and the PulseAudio capture and playback fallback",
+      "packages": {"arch": ["libpulse"], "fedora": ["pulseaudio-utils"], "void": ["pulseaudio-utils"], "nix": ["pulseaudio"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "whisper-cpp",
+      "kind": "program",
+      "programs": ["whisper-server"],
+      "features": ["oni.voice"],
+      "license": "MIT",
+      "why": "decodes speech with the downloaded Whisper model",
+      "packages": {"arch": ["whisper-cpp"], "fedora": [], "void": [], "nix": ["whisper-cpp"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "ryoku-dictation",
+      "kind": "program",
+      "programs": ["ryoku-dictate"],
+      "features": ["oni.voice"],
+      "license": "GPL-3.0-or-later",
+      "why": "decodes speech with the default Parakeet model; packaged only in Ryoku's repository",
+      "packages": {"arch": [], "fedora": [], "void": [], "nix": []},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "sherpa-onnx",
+      "kind": "program",
+      "programs": ["sherpa-onnx-offline-tts"],
+      "features": ["oni.voice"],
+      "license": "Apache-2.0",
+      "why": "renders the optional Kokoro voice pack",
+      "packages": {"arch": [], "fedora": [], "void": [], "nix": ["sherpa-onnx"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "uv",
+      "kind": "program",
+      "programs": ["uv"],
+      "features": ["memory"],
+      "license": "MIT OR Apache-2.0",
+      "why": "sets up Hindsight, the optional memory engine, when asked",
+      "packages": {"arch": ["uv"], "fedora": ["uv"], "void": ["uv"], "nix": ["uv"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    },
+    {
+      "id": "llama-cpp",
+      "kind": "program",
+      "programs": ["llama-server"],
+      "features": ["providers.local"],
+      "license": "MIT",
+      "why": "runs downloaded models on this computer; without it Hyakki can fetch llama.cpp when asked",
+      "packages": {"arch": ["llama-cpp"], "fedora": ["llama-cpp"], "void": [], "nix": ["llama-cpp"]},
+      "removable_by_hyakki": false,
+      "default": "off"
+    }
+  ]
+}

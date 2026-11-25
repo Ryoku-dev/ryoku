@@ -11,7 +11,7 @@ import "../look"
 import "../lib/format.js" as Format
 import "../lib/root.js" as RootLogic
 
-// Quick Ask: one question, one read-only answer from Rashin, streamed in place.
+// Quick Ask: one question, one read-only answer from Hyakki, streamed in place.
 // With nothing asked it lists the recent asks. args: {question} asks at once,
 // {session} opens a past answer, {context: {title, url}} asks about a page.
 Item {
@@ -22,12 +22,12 @@ Item {
     property string query: ""
     property var args: ({})
     property real maximumHeight: 480 * s
-    property RashinClient rashin: null
-    property RashinSession session: null
+    property HyakkiClient hyakki: null
+    property HyakkiSession session: null
 
     readonly property string title: I18n.tr("Ask")
     readonly property string placeholder: root.context ? I18n.tr("Ask about this page")
-        : root.showingAnswer ? I18n.tr("Ask something else") : I18n.tr("Ask Rashin about this machine or anything else")
+        : root.showingAnswer ? I18n.tr("Ask something else") : I18n.tr("Ask Hyakki about this machine or anything else")
     readonly property real preferredWidth: 0
     readonly property bool yieldsKeyboard: attachDialog.visible
     readonly property string status: {
@@ -44,7 +44,7 @@ Item {
     readonly property bool fieldEmpty: root.text.length === 0
     readonly property var pastAsks: root.session ? RootLogic.pickAsks(root.session.sessions, Date.now(), 0, root.session.forgetting) : []
 
-    readonly property string clientState: root.rashin ? root.rashin.state : "off"
+    readonly property string clientState: root.hyakki ? root.hyakki.state : "off"
     readonly property bool ready: root.clientState === "ready"
     readonly property bool missing: root.clientState === "off" || root.clientState === "not-installed"
     readonly property var turn: root.session ? root.session.state : ({ phase: "idle" })
@@ -71,16 +71,16 @@ Item {
 
     readonly property var primaryAction: {
         if (root.missing)
-            return { label: I18n.tr("Open Rashin settings") };
+            return { label: I18n.tr("Open Hyakki settings") };
         if (!root.ready)
             return null;
         if (root.text.length > 0 || (root.context && !root.showingAnswer))
-            return { label: root.context && root.text.length === 0 ? I18n.tr("Summarise this page") : I18n.tr("Ask Rashin") };
+            return { label: root.context && root.text.length === 0 ? I18n.tr("Summarise this page") : I18n.tr("Ask Hyakki") };
         if (root.showingAnswer) {
             if (root.busy)
                 return null;
             if (root.turn.needsAgent === true)
-                return { label: I18n.tr("Open in Rashin") };
+                return { label: I18n.tr("Open in Hyakki") };
             return answer.answerText.length > 0 ? { label: I18n.tr("Copy answer") } : null;
         }
         return recent.current ? { label: I18n.tr("Open answer") } : null;
@@ -100,13 +100,13 @@ Item {
                 out.push({ id: "pin", label: I18n.tr("Pin bubble"), glyph: "keep", hint: "Ctrl+P", section: "" });
             }
             if (root.session && root.session.id.length > 0 && (!handOver || root.busy))
-                out.push({ id: "open", label: I18n.tr("Open in Rashin"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
+                out.push({ id: "open", label: I18n.tr("Open in Hyakki"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
             const offers = answer.offers;
             for (var i = 0; i < offers.length; i++)
                 out.push({ id: "offer:" + i, label: answer.offerLabel(offers[i]), glyph: answer.offerGlyph(offers[i]), hint: "", section: I18n.tr("From the answer") });
             out.push({ id: "history", label: I18n.tr("Recent asks"), glyph: "history", hint: "Ctrl+H", section: I18n.tr("Ask") });
         } else if (recent.current && recent.visible) {
-            out.push({ id: "open-row", label: I18n.tr("Open in Rashin"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
+            out.push({ id: "open-row", label: I18n.tr("Open in Hyakki"), glyph: "open_in_new", hint: "Ctrl+O", section: "" });
             out.push({ id: "delete-row", label: I18n.tr("Delete this ask"), glyph: "delete", hint: root.fieldEmpty ? "Delete" : "", section: I18n.tr("Remove"), destructive: true });
         }
         if (root.session && root.session.forgetting.length > 0)
@@ -191,7 +191,7 @@ Item {
     }
 
     function openSettings() {
-        Bus.run("hub open rashin");
+        Bus.run("hub open hyakki");
         root.closeRequested();
     }
 
@@ -248,12 +248,12 @@ Item {
             root.pinRequested(String(root.turn.question || ""), answer.answerText);
             root.hud(I18n.tr("Pinned to the desktop"));
         } else if (id === "open") {
-            Spawn.run(["rashin", "open", "--session", root.session.id]);
+            Spawn.run(["hyakki", "open", "--session", root.session.id]);
             root.closeRequested();
         } else if (id === "open-row") {
             if (!recent.current)
                 return;
-            Spawn.run(["rashin", "open", "--session", recent.current.session]);
+            Spawn.run(["hyakki", "open", "--session", recent.current.session]);
             root.closeRequested();
         } else if (id === "delete-row") {
             if (!recent.current)
@@ -371,7 +371,7 @@ Item {
             }
         }
 
-        // Rashin is not there to ask
+        // Hyakki is not there to ask
         Item {
             width: parent.width
             visible: !root.ready
@@ -387,10 +387,10 @@ Item {
 
                 Text {
                     width: parent.width
-                    text: root.clientState === "off" ? I18n.tr("Rashin is off")
-                        : root.clientState === "not-installed" ? I18n.tr("Rashin is not installed")
-                        : root.clientState === "error" ? I18n.tr("Rashin did not start")
-                        : I18n.tr("Connecting to Rashin")
+                    text: root.clientState === "off" ? I18n.tr("Hyakki is off")
+                        : root.clientState === "not-installed" ? I18n.tr("Hyakki is not installed")
+                        : root.clientState === "error" ? I18n.tr("Hyakki did not start")
+                        : I18n.tr("Connecting to Hyakki")
                     color: root.clientState === "error" ? Lithic.jasper : Lithic.fg
                     font.family: Look.sans
                     font.pixelSize: Math.round(15 * root.s)
@@ -400,8 +400,8 @@ Item {
                 Text {
                     width: parent.width
                     visible: text.length > 0
-                    text: root.missing ? I18n.tr("Quick Ask needs it. Turn Rashin on in Settings, under Apps. Web search and downloads work without it.")
-                        : root.clientState === "error" ? String(root.rashin ? (root.rashin.errorText || I18n.tr("Rashin could not start. See %1").arg(root.rashin.logPath)) : "")
+                    text: root.missing ? I18n.tr("Quick Ask needs it. Turn Hyakki on in Settings, under Apps. Web search and downloads work without it.")
+                        : root.clientState === "error" ? String(root.hyakki ? (root.hyakki.errorText || I18n.tr("Hyakki could not start. See %1").arg(root.hyakki.logPath)) : "")
                         : ""
                     color: Lithic.fg2
                     font.family: Look.sans
@@ -443,7 +443,7 @@ Item {
                 width: parent.width - x * 2
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.context ? I18n.tr("Press Enter for a summary, or type what you want to know about this page.")
-                    : I18n.tr("Type a question and press Enter. Rashin reads this machine to answer; it changes nothing.")
+                    : I18n.tr("Type a question and press Enter. Hyakki reads this machine to answer; it changes nothing.")
                 color: Lithic.fg2
                 font.family: Look.sans
                 font.pixelSize: Math.round(13 * root.s)

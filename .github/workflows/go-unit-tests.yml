@@ -22,7 +22,7 @@ on:
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
-      - 'ryoku/rashin/**'
+      - 'ryoku/hyakki/**'
       - '.github/workflows/go-unit-tests.yml'
   push:
     branches:
@@ -37,7 +37,7 @@ on:
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
-      - 'ryoku/rashin/**'
+      - 'ryoku/hyakki/**'
       - '.github/workflows/go-unit-tests.yml'
   workflow_dispatch:
 
@@ -118,7 +118,7 @@ jobs:
         with:
           go-version-file: ryoku/wm/go.mod
 
-      # ryoku/wm is vendored into the CLI, shell IPC, hub, rashin and ryogami
+      # ryoku/wm is vendored into the CLI, shell IPC, hub, Hyakki and ryogami
       # daemons, so a break here compiles nowhere and blocks the wm provider
       # binaries (ryoku-wm-hyprland / ryoku-wm-niri) the desktop ships.
       - name: Build, vet, and test
@@ -221,8 +221,8 @@ jobs:
           go vet ./...
           go test ./...
 
-  rashin:
-    name: Rashin module
+  hyakki:
+    name: Hyakki module
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -237,11 +237,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: ryoku/rashin/go.mod
+          go-version-file: ryoku/hyakki/go.mod
 
       - name: Build, vet, and test
         shell: bash
-        working-directory: ryoku/rashin
+        working-directory: ryoku/hyakki
         run: |
           env -u WAYLAND_DISPLAY go build -tags nox11 ./...
           env -u WAYLAND_DISPLAY go vet -tags nox11 ./...

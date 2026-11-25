@@ -30,7 +30,7 @@ Item {
     readonly property var recent: bridge ? bridge.session.sessions : []
     readonly property string working: {
         if (!bridge || bridge.status === "connecting")
-            return I18n.tr("Connecting to Rashin");
+            return I18n.tr("Connecting to Hyakki");
         const tools = sessionState.tools || [];
         return tools.length > 0 ? String(tools[tools.length - 1].title || I18n.tr("Working")) : I18n.tr("Thinking");
     }
@@ -44,11 +44,11 @@ Item {
         if (!bridge)
             return "";
         if (bridge.status === "off")
-            return I18n.tr("Rashin is off. Turn Rashin on in Ryoku Settings > Apps > Rashin.");
+            return I18n.tr("Hyakki is off. Turn Hyakki on in Ryoku Settings > Apps > Hyakki.");
         if (bridge.status === "not-installed")
-            return I18n.tr("Rashin is not installed. Turn Rashin on in Ryoku Settings > Apps > Rashin.");
+            return I18n.tr("Hyakki is not installed. Turn Hyakki on in Ryoku Settings > Apps > Hyakki.");
         if (bridge.status === "error")
-            return bridge.client.errorText || I18n.tr("Rashin could not start. See %1").arg(bridge.client.logPath);
+            return bridge.client.errorText || I18n.tr("Hyakki could not start. See %1").arg(bridge.client.logPath);
         return String(sessionState.error || bridge.errorText || "");
     }
     readonly property bool fromHistory: bridge ? bridge.fromHistory : false
@@ -62,12 +62,12 @@ Item {
             return [];
         const result = [];
         if (needsAgent)
-            result.push({ kind: "open", value: "", label: I18n.tr("Open in Rashin") });
+            result.push({ kind: "open", value: "", label: I18n.tr("Open in Hyakki") });
         result.push({ kind: "copy", value: answerText, label: I18n.tr("Copy") });
         for (var i = 0; i < answerActions.length; i++)
             result.push(answerActions[i]);
         if (!needsAgent)
-            result.push({ kind: "open", value: "", label: I18n.tr("Open in Rashin") });
+            result.push({ kind: "open", value: "", label: I18n.tr("Open in Hyakki") });
         return result;
     }
 
@@ -190,7 +190,7 @@ Item {
         else if (kind === "dir" || kind === "url")
             Spawn.runApp(["xdg-open", value], { label: kind });
         else if (kind === "open" && answerId.length > 0)
-            Spawn.run(["rashin", "open", "--session", answerId]);
+            Spawn.run(["hyakki", "open", "--session", answerId]);
         finished();
     }
 
@@ -212,7 +212,7 @@ Item {
 
         Text {
             width: parent.width
-            text: root.resumeMode ? I18n.tr("Rashin: recent asks") : I18n.tr("Rashin")
+            text: root.resumeMode ? I18n.tr("Hyakki: recent asks") : I18n.tr("Hyakki")
             color: Theme.faint
             font.family: Theme.mono
             font.pixelSize: Metrics.fontEyebrow * root.s
@@ -223,7 +223,7 @@ Item {
             width: parent.width
             visible: root.phase === "idle" && !root.resumeMode
             text: root.question.trim().length === 0
-                ? I18n.tr("Ask Rashin anything. Enter sends; \\resume recalls recent asks.")
+                ? I18n.tr("Ask Hyakki anything. Enter sends; \\resume recalls recent asks.")
                 : I18n.tr("Enter to ask: %1").arg(root.question.trim())
             color: Theme.subtle
             font.family: Theme.font

@@ -16,7 +16,7 @@ Item {
     property string context: ""
     // a view's own item for the left of the foot, in place of the context line
     property Component contextItem: null
-    // a surface's own mark in place of Rashin's
+    // a surface's own mark in place of Hyakki's
     property string glyph: ""
     property var primary: null
     property bool hasActions: false
@@ -123,7 +123,7 @@ Item {
                 width: Math.round(14 * root.s)
                 height: width
                 visible: root.glyph.length === 0 && status === Image.Ready
-                source: root.glyph.length === 0 ? ShellServices.Icons.path("dev.ryoku.rashin", true) : ""
+                source: root.glyph.length === 0 ? ShellServices.Icons.path("dev.ryoku.Hyakki", true) : ""
                 sourceSize: Qt.size(width * 2, height * 2)
                 opacity: 0.86
             }
@@ -140,7 +140,7 @@ Item {
                 width: Math.min(implicitWidth, leftSide.width - 24 * root.s)
                 visible: root.contextItem === null
                 s: root.s
-                text: root.context.length > 0 ? root.context : root.glyph.length > 0 ? "" : I18n.tr("Rashin")
+                text: root.context.length > 0 ? root.context : root.glyph.length > 0 ? "" : I18n.tr("Hyakki")
                 font.features: ({ "tnum": 1 })
             }
             Loader {

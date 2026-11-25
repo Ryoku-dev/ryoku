@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Hyakki
+Comment=Local-first agent harness
+Exec=hyakki-app
+TryExec=hyakki-app
+Icon=dev.ryoku.Hyakki
+Terminal=false
+Categories=Development;Utility;
+Keywords=AI;agents;models;teams;local;
+StartupNotify=true
+StartupWMClass=dev.ryoku.Hyakki

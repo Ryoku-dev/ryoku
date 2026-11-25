@@ -109,7 +109,7 @@ var builtinWindowRules = []builtinRule{
 	// Ryoku Settings opens floating at its designed size, centred, so it reads as
 	// a panel over the desktop rather than a tiled window filling the workspace.
 	{class: "", title: "^Ryoku Settings$", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 800; }"}},
-	{class: "^dev\\.ryoku\\.rashin$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
+	{class: "^dev\\.ryoku\\.Hyakki$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
 	{class: "", title: "^ryoku-phone-.*$", props: []string{"open-floating true", "default-column-width { fixed 520; }", "default-window-height { fixed 860; }"}},
 	{class: "^dev\\.ryoku\\.ryoport$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
 	// ryoport's GUI console clients (RDP, VNC): FreeRDP is asked to carry the

@@ -6,7 +6,7 @@ import (
 )
 
 // The package's tests run against a box that has every optional program, so a
-// runner without Rashin cannot change what the fixtures expect, and an apply
+// runner without Hyakki cannot change what the fixtures expect, and an apply
 // publishes the greeter's numlock into a private folder instead of the real
 // /var/lib/ryoku.
 func TestMain(m *testing.M) {

@@ -220,7 +220,7 @@ func (l residueLayout) planDevUnits(twin func(string) bool) []unitHeal {
 	live, _ := os.ReadDir(l.userUnits())
 	for _, e := range live {
 		p := filepath.Join(l.userUnits(), e.Name())
-		legacyUnit := e.Name() == legacyRashinUnit || e.Name() == legacyProwlUnit
+		legacyUnit := e.Name() == legacyAppUnit || e.Name() == legacyProwlUnit
 		if planned[p] || !e.Type().IsRegular() || (!legacyUnit && !l.execsDevBin(p, twin)) {
 			continue
 		}

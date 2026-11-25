@@ -182,7 +182,7 @@ function dismissed(now) {
     return new Date(now - GRACE - 60 * 1000);
 }
 
-// pickAsks: conversations with a turn, never archived or temporary, newest first as Rashin lists
+// pickAsks: conversations with a turn, never archived or temporary, newest first as Hyakki lists
 // them; windowMs keeps only those with a message that recent (0 keeps every one)
 function pickAsks(sessions, now, windowMs, hidden) {
     var out = [];
@@ -261,7 +261,7 @@ function batch(result) {
 //   query, commands (already translated), link (detectLink result or null),
 //   many (several links in the field: {state: "reading"|"ready"|"failed", ...}
 //   or null; it takes the place of link), calc ({expr, result} or null),
-//   downloads (rows), asks (rows), rashin ("ready" | "off" | "not-installed" |
+//   downloads (rows), asks (rows), hyakki ("ready" | "off" | "not-installed" |
 //   "error" | "connecting"), labels ({downloads, asks, goTo, results, link,
 //   links, calc, fallbacks}).
 // Every section is {id, title, rows}; a row carries {id, kind, ...}.
@@ -272,7 +272,7 @@ function sections(input) {
     if (query.length === 0) {
         if ((input.downloads || []).length > 0)
             out.push({ id: "downloads", title: labels.downloads || "", rows: input.downloads });
-        if (input.rashin === "ready" && (input.asks || []).length > 0)
+        if (input.hyakki === "ready" && (input.asks || []).length > 0)
             out.push({ id: "asks", title: labels.asks || "", rows: input.asks.slice(0, 3) });
         out.push({ id: "goto", title: labels.goTo || "", rows: (input.commands || []).map(function(command) {
             return { id: "cmd:" + command.id, kind: "command", command: command };

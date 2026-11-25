@@ -1341,6 +1341,9 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 	if segs[0] == "sidebars" {
 		return fmt.Errorf("sidebars settings are retired")
 	}
+	if segs[0] == "sight" {
+		return fmt.Errorf("screen gesture settings are retired; use Hyakki's native Oni settings")
+	}
 	if len(value) == 0 {
 		return fmt.Errorf("missing value")
 	}

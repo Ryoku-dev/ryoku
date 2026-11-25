@@ -1,0 +1,494 @@
+package shell
+
+import (
+	"fmt"
+	"image"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"gioui.org/f32"
+	"gioui.org/io/event"
+	"gioui.org/io/input"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/op/clip"
+	"gioui.org/unit"
+
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+
+	"ryoku-rashin/internal/app/desktop"
+	"ryoku-rashin/internal/app/env"
+	"ryoku-rashin/internal/app/look"
+	"ryoku-rashin/internal/app/state"
+	"ryoku-rashin/internal/protocol"
+)
+
+// stage is the whole app against the demo daemon with a real input router and
+// no window: a test points, presses and types the way a person does, and
+// finds controls by the name a screen reader would say.
+type stage struct {
+	t       *testing.T
+	runtime *runtime
+	shell   *uiShell
+	router  input.Router
+	ops     op.Ops
+	size    image.Point
+	now     time.Time
+	dirty   atomic.Bool
+
+	// programs the app asked the desktop to start; none is started
+	launched []string
+	// whether each of those was to arrive in front of a floating Hyakki
+	fronted []bool
+	// the same programs word by word, for a test that runs what a terminal is handed
+	argv [][]string
+	// chooser answers the system file chooser; the machine has none while it is nil
+	chooser func(desktop.ChooseRequest) []string
+	// moving is a stage with motion on: flakes over a working session never stop, so it cannot wait for stillness
+	moving bool
+	// surface replaces window content for isolated production-control checks.
+	surface layout.Widget
+}
+
+func newStage(t *testing.T, size image.Point, demoOptions ...Options) *stage {
+	t.Helper()
+	anim.SetReduce(true)
+	t.Cleanup(func() { anim.SetReduce(false) })
+	return openStage(t, size, false, demoOptions...)
+}
+
+// newMovingStage is the app with its motion on. A frame is 16 ms, so a page
+// arrives over several of them, and what a page asks for in its first frame
+// has to survive until it is fully there.
+func newMovingStage(t *testing.T, size image.Point) *stage {
+	t.Helper()
+	anim.SetReduce(false)
+	return openStage(t, size, true)
+}
+
+func openStage(t *testing.T, size image.Point, moving bool, demoOptions ...Options) *stage {
+	t.Helper()
+	root := t.TempDir()
+	for name, directory := range map[string]string{
+		"HOME": "home", "XDG_CONFIG_HOME": "config", "XDG_STATE_HOME": "state", "XDG_CACHE_HOME": "cache", "XDG_RUNTIME_DIR": "run",
+	} {
+		t.Setenv(name, filepath.Join(root, directory))
+	}
+	options := Options{Demo: true}
+	if len(demoOptions) > 0 {
+		options = demoOptions[0]
+		options.Demo = true
+	}
+	// the stage's own desktop asks for the reduced motion a still stage runs in, as the theme takes it from the desktop; LITHIC_DESIGN still picks the design
+	if !moving {
+		config := filepath.Join(root, "config", "ryoku")
+		if err := os.MkdirAll(config, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(config, "shell.json"), []byte(`{"theme":{"motion":{"reduce":true}}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := startRuntime(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	s := &stage{t: t, runtime: r, size: size, now: storyboardEpoch, moving: moving}
+	s.shell = newShell(r, Options{Preferences: state.AppPreferences{}.Normalize()})
+	s.shell.desktop = env.Desktop{
+		Launch: func(request desktop.LaunchRequest, done func(error)) {
+			s.launched = append(s.launched, strings.Join(append([]string{request.Name}, request.Args...), " "))
+			s.fronted = append(s.fronted, request.Front != (image.Point{}))
+			s.argv = append(s.argv, append([]string{request.Name}, request.Args...))
+			if done != nil {
+				done(nil)
+			}
+		},
+		Choose: func(request desktop.ChooseRequest, done func([]string, error)) {
+			if s.chooser == nil {
+				done(nil, desktop.ErrNoChooser)
+				return
+			}
+			done(s.chooser(request), nil)
+		},
+	}
+	t.Cleanup(r.hub.Add(func() { s.dirty.Store(true) }))
+	deadline := time.Now().Add(5 * time.Second)
+	for r.store.Snapshot().Connection != state.Ready {
+		if time.Now().After(deadline) {
+			t.Fatal("the demo daemon never answered")
+		}
+		s.frame()
+		time.Sleep(2 * time.Millisecond)
+	}
+	s.settle()
+	return s
+}
+
+func (s *stage) frame() {
+	// A new frame consumes the previous request, as the window loop does.
+	s.router.WakeupTime()
+	s.ops.Reset()
+	gtx := layout.Context{
+		Ops: &s.ops, Now: s.now, Source: s.router.Source(), Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1},
+		Constraints: layout.Exact(s.size),
+	}
+	s.shell.posts.Drain()
+	if s.surface != nil {
+		s.surface(gtx)
+	} else {
+		s.shell.Frame(gtx)
+	}
+	s.router.Frame(&s.ops)
+	s.now = s.now.Add(16 * time.Millisecond)
+}
+
+// settle draws until the daemon's answers stop arriving and nothing asks for another frame
+func (s *stage) settle() {
+	s.t.Helper()
+	if s.moving {
+		// three quarters of a second of frames, longer than any one motion, with time for the daemon to answer
+		for range 45 {
+			time.Sleep(time.Millisecond)
+			s.frame()
+		}
+		return
+	}
+	// Instrumented font layout is not daemon waiting time. Bound polling
+	// attempts rather than charging render time to the quiet-frame check.
+	for quiet, attempts := 0, 0; quiet < 6; attempts++ {
+		if attempts == 1800 {
+			s.t.Fatal("the app never came to rest")
+		}
+		time.Sleep(3 * time.Millisecond)
+		// a wake that is still ahead is a caret waiting to blink, not work left to do
+		at, wake := s.router.WakeupTime()
+		if !s.dirty.Swap(false) && (!wake || at.After(s.now)) {
+			quiet++
+			continue
+		}
+		quiet = 0
+		s.frame()
+	}
+	s.frame()
+}
+
+func (s *stage) open(route string) {
+	s.t.Helper()
+	s.shell.openStoryboardRoute(route)
+	s.frame()
+	s.settle()
+}
+
+// every event carries the stage's time, which is what tells a second press
+// on the same spot from a new one
+func (s *stage) queue(events ...pointer.Event) {
+	for _, event := range events {
+		event.Source, event.PointerID, event.Time = pointer.Mouse, 1, s.now.Sub(storyboardEpoch)
+		s.router.Queue(event)
+		s.frame()
+	}
+}
+
+// a press and its release land in their own frames, as they do from a hand,
+// and a hand takes a moment to get there
+func (s *stage) clickAt(at image.Point) {
+	s.t.Helper()
+	s.now = s.now.Add(300 * time.Millisecond)
+	position := f32.Pt(float32(at.X), float32(at.Y))
+	s.queue(
+		pointer.Event{Kind: pointer.Move, Position: position},
+		pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: position},
+		pointer.Event{Kind: pointer.Release, Position: position},
+	)
+	s.settle()
+}
+
+// drag presses at from and lets go at to, with the pointer seen on the way
+func (s *stage) drag(from, to image.Point) {
+	s.t.Helper()
+	s.now = s.now.Add(300 * time.Millisecond)
+	start, end := f32.Pt(float32(from.X), float32(from.Y)), f32.Pt(float32(to.X), float32(to.Y))
+	s.queue(
+		pointer.Event{Kind: pointer.Move, Position: start},
+		pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: start},
+		pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: start.Add(end).Mul(.5)},
+		pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: end},
+		pointer.Event{Kind: pointer.Release, Position: end},
+	)
+	s.settle()
+}
+
+func (s *stage) press(name key.Name, modifiers key.Modifiers) {
+	s.t.Helper()
+	s.router.Queue(key.Event{Name: name, Modifiers: modifiers, State: key.Press})
+	s.frame()
+	s.settle()
+}
+
+func (s *stage) typeText(text string) {
+	s.t.Helper()
+	s.router.Queue(key.EditEvent{Text: text})
+	s.frame()
+	s.settle()
+}
+
+// typeOver replaces the first runes of the focused field, as typing over a selection does
+func (s *stage) typeOver(runes int, text string) {
+	s.t.Helper()
+	s.router.Queue(key.EditEvent{Range: key.Range{End: runes}, Text: text})
+	s.frame()
+	s.settle()
+}
+
+// await draws until the daemon's answer has made something true
+func (s *stage) await(what string, ready func() bool) {
+	s.t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !ready() {
+		if time.Now().After(deadline) {
+			s.t.Fatalf("never happened: %s", what)
+		}
+		time.Sleep(2 * time.Millisecond)
+		s.frame()
+	}
+	s.settle()
+}
+
+func (s *stage) nodes() []input.SemanticNode { return s.router.AppendSemantics(nil) }
+
+// named finds the control a screen reader would call name. Text labels the
+// area it is drawn in as well, so of several matches the smallest is the control.
+func (s *stage) named(name string) (input.SemanticNode, bool) {
+	var found input.SemanticNode
+	ok := false
+	for _, node := range s.nodes() {
+		if node.Desc.Label != name && node.Desc.Description != name {
+			continue
+		}
+		size, best := node.Desc.Bounds.Size(), found.Desc.Bounds.Size()
+		if !ok || size.X*size.Y < best.X*best.Y {
+			found, ok = node, true
+		}
+	}
+	return found, ok
+}
+
+func (s *stage) click(name string) {
+	s.t.Helper()
+	if s.shell.router.Current().Tab == protocol.TabSettings {
+		s.settingsRevealTarget(name, true)
+		at, ok := s.settingsPoint(name, true)
+		if !ok {
+			s.t.Fatalf("Settings control %q has no reachable pointer point", name)
+		}
+		s.clickAt(at)
+		return
+	}
+	node, ok := s.named(name)
+	if !ok {
+		s.t.Fatalf("nothing on screen is called %q; there is: %s", name, strings.Join(s.names(), ", "))
+	}
+	at := centre(node.Desc.Bounds)
+	if !at.In(image.Rectangle{Max: s.size}) {
+		s.t.Fatalf("%q is drawn at %v, outside the window", name, node.Desc.Bounds)
+	}
+	s.clickAt(at)
+}
+
+func (s *stage) names() []string {
+	var names []string
+	for _, node := range s.nodes() {
+		if name := nodeName(node); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func (s *stage) clipboard() string {
+	_, content, _ := s.router.WriteClipboard()
+	return string(content)
+}
+
+func centre(bounds image.Rectangle) image.Point {
+	return image.Pt((bounds.Min.X+bounds.Max.X)/2, (bounds.Min.Y+bounds.Max.Y)/2)
+}
+
+func nodeName(node input.SemanticNode) string {
+	if node.Desc.Label != "" {
+		return node.Desc.Label
+	}
+	return node.Desc.Description
+}
+
+func TestLongMenusOnTheAppStageScrollAndKeepTheirCurrentItemVisible(t *testing.T) {
+	for _, kind := range []string{"kit picker", "app select"} {
+		t.Run(kind, func(t *testing.T) {
+			stage := newStage(t, image.Pt(960, 600))
+			stage.open("ask/new")
+			options := make([]string, 400)
+			for index := range options {
+				options[index] = fmt.Sprintf("Choice %03d", index)
+			}
+			selected := 350
+			var picker kit.Picker
+			var selection look.Select
+			var overlays look.Overlays
+			var pageScrollTag int
+			var pageScroll float32
+			stage.surface = func(gtx layout.Context) layout.Dimensions {
+				stage.shell.Frame(gtx)
+				for {
+					value, ok := gtx.Event(pointer.Filter{Target: &pageScrollTag, Kinds: pointer.Scroll, ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20}})
+					if !ok {
+						break
+					}
+					pageScroll += value.(pointer.Event).Scroll.Y
+				}
+				area := clip.Rect(image.Rectangle{Max: stage.size}).Push(gtx.Ops)
+				event.Op(gtx.Ops, &pageScrollTag)
+				area.Pop()
+				th := stage.shell.environment().Theme
+				origin := image.Pt(300, 260)
+				local := gtx
+				local.Constraints = layout.Constraints{Min: image.Pt(240, 0), Max: image.Pt(240, stage.size.Y-origin.Y)}
+				offset := op.Offset(origin).Push(gtx.Ops)
+				if kind == "kit picker" {
+					picker.Viewport = image.Rectangle{Max: stage.size}.Sub(origin)
+					picker.Layout(local, th.Theme, "Long choices", options, selected)
+					if index, ok := picker.Changed(local); ok {
+						selected = index
+					}
+				} else {
+					selection.Label = "Long choices"
+					selection.Layout(local, th, &overlays, options, selected)
+					if index, ok := selection.Changed(); ok {
+						selected = index
+					}
+				}
+				offset.Pop()
+				if kind == "app select" {
+					overlays.Layout(gtx, th)
+				}
+				return layout.Dimensions{Size: stage.size}
+			}
+			stage.frame()
+			stage.settle()
+			anchor, ok := stage.named("Long choices: Choice 350")
+			if !ok {
+				t.Fatal("the long-menu opener was not mounted")
+			}
+			stage.click("Long choices: Choice 350")
+			window := image.Rect(8, 8, stage.size.X-8, stage.size.Y-8)
+			assertVisible := func(index int) input.SemanticNode {
+				t.Helper()
+				var node input.SemanticNode
+				ok := false
+				for _, candidate := range stage.nodes() {
+					if candidate.Desc.Class == semantic.Button && candidate.Desc.Label == options[index] {
+						node, ok = candidate, true
+						break
+					}
+				}
+				if !ok || node.Desc.Bounds.Empty() || !node.Desc.Bounds.In(window) {
+					t.Fatalf("choice %d is not fully inside the window: shown=%v bounds=%v selected=%d kitOpen=%v; on screen: %v", index, ok, node.Desc.Bounds, selected, picker.Open(), stage.names())
+				}
+				if node.Desc.Bounds.Overlaps(anchor.Desc.Bounds) {
+					t.Fatalf("choice %d overlaps its opener: row=%v opener=%v", index, node.Desc.Bounds, anchor.Desc.Bounds)
+				}
+				return node
+			}
+			current := assertVisible(350)
+			labels := func() string {
+				var visible []string
+				seen := make(map[string]bool)
+				for _, node := range stage.nodes() {
+					name := nodeName(node)
+					if node.Desc.Class == semantic.Button && strings.HasPrefix(name, "Choice ") && !seen[name] {
+						seen[name] = true
+						visible = append(visible, name)
+					}
+				}
+				if len(visible) > 14 {
+					t.Fatalf("the 400-option menu laid out %d labels, want only the visible rows", len(visible))
+				}
+				return strings.Join(visible, "|")
+			}
+			before := labels()
+			at := centre(current.Desc.Bounds)
+			stage.queue(pointer.Event{Kind: pointer.Scroll, Position: f32.Pt(float32(at.X), float32(at.Y)), Scroll: f32.Pt(0, 240)})
+			stage.settle()
+			if after := labels(); after == before {
+				t.Fatal("wheel input did not move the long menu")
+			}
+			stage.press(key.NameEnd, 0)
+			assertVisible(399)
+			stage.press(key.NameHome, 0)
+			first := assertVisible(0)
+			at = centre(first.Desc.Bounds)
+			stage.queue(pointer.Event{Kind: pointer.Scroll, Position: f32.Pt(float32(at.X), float32(at.Y)), Scroll: f32.Pt(0, -240)})
+			stage.settle()
+			if pageScroll != 0 {
+				t.Fatalf("the menu chained %v pixels of wheel input into the page", pageScroll)
+			}
+			assertVisible(0)
+			stage.press(key.NamePageDown, 0)
+			stage.press(key.NameEnter, 0)
+			if selected <= 0 || selected >= 20 {
+				t.Fatalf("Page Down, Enter picked %d instead of a choice one viewport below", selected)
+			}
+			if picker.Open() || selection.Opened(&overlays) {
+				t.Fatal("choosing a row left its overlay open")
+			}
+		})
+	}
+}
+
+func TestSettingsSectionPickerKeepsItsLastSectionInsideTheWindow(t *testing.T) {
+	stage := newStage(t, image.Pt(960, 600))
+	stage.open("settings/keys")
+	var anchor image.Rectangle
+	stage.await("the section picker shows Keyboard", func() bool {
+		for _, node := range stage.nodes() {
+			if node.Desc.Class == semantic.Button && node.Desc.Label == "Keyboard" {
+				anchor = node.Desc.Bounds
+				return true
+			}
+		}
+		return false
+	})
+	stage.clickAt(centre(anchor))
+	window := image.Rect(8, 8, stage.size.X-8, stage.size.Y-8)
+	assertRow := func(label string) {
+		t.Helper()
+		for _, node := range stage.nodes() {
+			if node.Desc.Class != semantic.Button || node.Desc.Label != label || node.Desc.Bounds == anchor {
+				continue
+			}
+			if node.Desc.Bounds.Empty() || !node.Desc.Bounds.In(window) || node.Desc.Bounds.Overlaps(anchor) {
+				t.Fatalf("section %q is not contained clear of its opener: row=%v anchor=%v", label, node.Desc.Bounds, anchor)
+			}
+			return
+		}
+		t.Fatalf("section %q is not visible in the open menu", label)
+	}
+	assertRow("Keyboard")
+	stage.press(key.NameHome, 0)
+	assertRow("Hyakki")
+	stage.press(key.NameEnd, 0)
+	assertRow("Keyboard")
+	stage.press(key.NameEnter, 0)
+	if _, open := stage.shell.environment().Overlays.Top(); open {
+		t.Fatal("choosing the section left its menu open")
+	}
+}

@@ -17,7 +17,7 @@ var testUtilities = []string{
 	"sh", "bash", "env", "cat", "cp", "mv", "rm", "mkdir", "chmod", "ln", "touch",
 	"dirname", "basename", "awk", "sed", "grep", "sleep", "setsid", "true", "false",
 	"printf", "echo", "head", "tail", "tr", "cut", "sort", "wc", "date", "readlink",
-	"realpath", "stat", "sha256sum", "flock", "nice",
+	"realpath", "stat", "sha256sum", "flock", "nice", "pgrep", "seq",
 }
 
 // liveOptIns are the switches that ask for a test against the real session. They

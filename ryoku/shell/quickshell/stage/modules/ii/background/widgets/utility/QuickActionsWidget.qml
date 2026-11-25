@@ -139,7 +139,7 @@ AbstractBackgroundWidget {
                         }
 
                         StyledText {
-                            text: Translation.tr("Rashin")
+                            text: Translation.tr("Hyakki")
                             font.pixelSize: Appearance.font.pixelSize.large
                             font.weight: Font.Medium
                             color: root.onAccentColor

@@ -125,9 +125,9 @@ weight 400, taken from the official SVGs at commit 10ecc147. They are modified
 versions: the path data is converted to IconVG and the shapes are otherwise
 unchanged. They are released under the Apache License 2.0, which ships
 unchanged beside them with a NOTICE; that license is compatible with Ryoku's
-GPL-3 distribution. The Rashin app draws them, and the ryoku-rashin package
+GPL-3 distribution. The Hyakki app draws them, and the hyakki package
 installs that license as
-/usr/share/licenses/ryoku-rashin/LICENSE.material-symbols.
+/usr/share/licenses/hyakki/LICENSE.material-symbols.
 
 The Lithic type (docs/lithic/library/go/fonts/) is Geologica by Monokrom,
 Sindre Bremnes and Frode Helland (https://github.com/googlefonts/geologica)
@@ -139,9 +139,9 @@ and Bold and Martian Mono at its normal width in Regular and Bold, and renamed
 to one family each; the glyphs are otherwise unchanged. They are released
 under the SIL Open Font License 1.1, which ships unchanged beside them and
 allows bundling the fonts with software under any license, so it is
-compatible with Ryoku's GPL-3 distribution. The Rashin app and the compiled
-Lithic QML module embed them. The ryoku-rashin package installs those licenses
-as /usr/share/licenses/ryoku-rashin/LICENSE.geologica and LICENSE.martian-mono,
+compatible with Ryoku's GPL-3 distribution. The Hyakki app and the compiled
+Lithic QML module embed them. The hyakki package installs those licenses
+as /usr/share/licenses/hyakki/LICENSE.geologica and LICENSE.martian-mono,
 and the ryoku-desktop package, which ships the Lithic module, installs them as
 /usr/share/licenses/ryoku-desktop/LICENSE.geologica and LICENSE.martian-mono.
 
@@ -161,32 +161,32 @@ illogical-impulse overlay (https://github.com/end-4/dots-hyprland) without
 copying its code. ii-p3drovfx is released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/, internal/ask/fence.go
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/, internal/ask/fence.go
 and the memory tools in internal/brief/memorytools.go) are adapted from Hermes
 Agent by Nous Research (https://github.com/NousResearch/hermes-agent) at commit
 fe664929: the threat patterns memory is scanned for, the fence around recalled
 memory and its streaming scrubber, the trivial-prompt gate, the secret
 scrubber's token shape, the learner's grounding rule and the remember and
 past-conversation search wording. It is a modified version: the patterns are
-rewritten for RE2 with Rashin's paths and ids, the fence uses Rashin's tags,
+rewritten for RE2 with Hyakki's paths and ids, the fence uses its stable tags,
 and the prompts are worded for one-line facts. It is released under the MIT
-License, whose text ryoku/rashin/NOTICE carries with the copyright line and the
-ryoku-rashin package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that
+License, whose text ryoku/hyakki/NOTICE.upstream carries with the copyright line
+and hyakki installs as /usr/share/licenses/hyakki/NOTICE.upstream; that
 license is compatible with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory and ranking (ryoku/rashin/internal/memory/,
+Parts of Hyakki's memory and ranking (ryoku/hyakki/internal/memory/,
 internal/rank/rerank.go and internal/brief/memorytools.go) are adapted from
 OpenClaw by the OpenClaw Foundation (https://github.com/openclaw/openclaw) at
 commit 3978ab10: the recall-intent patterns, the transcript filters, the checks
 on the learner's operations, the untrusted-notes sentence and caps in recall,
 maximal marginal relevance reranking and parts of the memory tool descriptions.
-It is a modified version: ported to Go with RE2 patterns, using Rashin's fence
-and markers, and reranking over Rashin's tokens. It is released under the MIT
-License, whose text ryoku/rashin/NOTICE carries with the copyright line and the
-ryoku-rashin package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that
+It is a modified version: ported to Go with RE2 patterns, using Hyakki's fence
+and markers, and reranking over its tokens. It is released under the MIT
+License, whose text ryoku/hyakki/NOTICE.upstream carries with the copyright line
+and hyakki installs as /usr/share/licenses/hyakki/NOTICE.upstream; that
 license is compatible with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory and ranking (ryoku/rashin/internal/memory/,
+Parts of Hyakki's memory and ranking (ryoku/hyakki/internal/memory/,
 internal/rank/rerank.go and internal/brief/memorytools.go) are adapted from
 Hindsight by Vectorize AI (https://github.com/vectorize-io/hindsight) at commit
 7cec128b: the recency boost, the budget for recalled facts, the merge-or-keep
@@ -195,62 +195,62 @@ reading rules in the prompts and parts of the remember and forget tool
 descriptions. It is a modified version: budgets count characters, the
 merge-or-keep rule is checked in Go rather than by a model, and the prompts are
 worded for one-line facts. It is released under the MIT License, whose text
-ryoku/rashin/NOTICE carries with the copyright line and the ryoku-rashin
-package installs as /usr/share/licenses/ryoku-rashin/NOTICE; that license is
+ryoku/hyakki/NOTICE.upstream carries with the copyright line and the hyakki
+package installs as /usr/share/licenses/hyakki/NOTICE.upstream; that license is
 compatible with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/) are adapted from
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/) are adapted from
 nanobot by Xubin Ren and the nanobot contributors
 (https://github.com/HKUDS/nanobot) at commit 9f7ae6fb: how the card shares its
 room between old and new facts, the patterns that strip a model's reasoning
 blocks and the archive and dream consolidation wording in the learner's
 prompts. It is a modified version: the card counts characters and works on
 lines, the patterns are rewritten for RE2, and the working-state handoff is
-left out. It is released under the MIT License, whose text ryoku/rashin/NOTICE
-carries with the copyright line and the ryoku-rashin package installs as
-/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+left out. It is released under the MIT License, whose text
+ryoku/hyakki/NOTICE.upstream carries with the copyright line and hyakki installs
+as /usr/share/licenses/hyakki/NOTICE.upstream; that license is compatible with
 Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/ and
 internal/brief/memorytools.go) are adapted from PicoClaw by the PicoClaw
 contributors (https://github.com/sipeed/picoclaw) at commit bbf6893c, which
 builds on nanobot: the recent-span syntax for past-conversation search, the
 shorter prompt the learner retries with after a reply that is not valid JSON
 and the note that summaries are approximate. It is a modified version: the
 pattern is compiled once and the learner has two rungs with no raw fallback. It
-is released under the MIT License, whose text ryoku/rashin/NOTICE carries with
-the copyright line and the ryoku-rashin package installs as
-/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+is released under the MIT License, whose text ryoku/hyakki/NOTICE.upstream
+carries with the copyright line and the hyakki package installs as
+/usr/share/licenses/hyakki/NOTICE.upstream; that license is compatible with
 Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/ and
 internal/brief/memorytools.go) are adapted from Engram by Alan Buscaglia
 (https://github.com/Gentleman-Programming/engram) at commit a5d4fa7b: the
 <private> scrubber, the normalisation that finds duplicate facts, the result
 counts, forget by id and bookkeeping rules in the memory tool descriptions and
 the rule that a failed read is not evidence of absence. It is a modified
 version: whitespace and word-end punctuation are handled differently and the
-wording is Rashin's own; Rashin does not use the Engram name or branding. It is
-released under the MIT License, whose text ryoku/rashin/NOTICE carries with the
-copyright line and the ryoku-rashin package installs as
-/usr/share/licenses/ryoku-rashin/NOTICE; that license is compatible with
+wording is Hyakki's own; it does not use the Engram name or branding. It is
+released under the MIT License, whose text ryoku/hyakki/NOTICE.upstream carries
+with the copyright line and the hyakki package installs as
+/usr/share/licenses/hyakki/NOTICE.upstream; that license is compatible with
 Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/ and
 internal/brief/memorytools.go) are adapted from OpenAI Codex by OpenAI
 (https://github.com/openai/codex) at commit b75ec48a: the phase 1 and phase 2
 memory templates in the learner's prompts, the phase 1 output schema, how a
 conversation is selected and stripped of what the harness injected, the shape
 of the card, the ad hoc note wording of the remember tool and the rule that
-memory is history, not proof. It is a modified version: the output is Rashin's
+memory is history, not proof. It is a modified version: the output is Hyakki's
 JSON fact operations, the personal scope is a profile rather than task history
 and consolidation is a single call. It is released under the Apache License
-2.0; ryoku/rashin/NOTICE carries Codex's NOTICE ("OpenAI Codex / Copyright 2025
-OpenAI"), and the ryoku-rashin package installs the license as
-/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+2.0; ryoku/hyakki/NOTICE.upstream carries Codex's NOTICE ("OpenAI Codex /
+Copyright 2025 OpenAI"), and hyakki installs the license as
+/usr/share/licenses/hyakki/LICENSE.apache-2.0. That license is compatible
 with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/ and
 internal/brief/memorytools.go) are adapted from mem0 by Taranjeet Singh and the
 mem0ai/mem0 contributors (https://github.com/mem0ai/mem0) at commit f1791daa:
 the learner's extraction, update and import prompts, the facts-list answer and
@@ -260,92 +260,92 @@ tool descriptions. It is a modified version: each fact carries its scope and
 sensitivity, a delete becomes a supersede, and the chat-platform filters are
 left out. The forget wording comes from mem0's Hermes plugin, which also
 carries Nous Research's MIT notice. It is released under the Apache License
-2.0; ryoku/rashin/NOTICE carries the copyright line, and the ryoku-rashin
+2.0; ryoku/hyakki/NOTICE.upstream carries the copyright line, and the hyakki
 package installs the license as
-/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+/usr/share/licenses/hyakki/LICENSE.apache-2.0. That license is compatible
 with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/ and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/ and
 internal/brief/memorytools.go) are adapted from Letta by the Letta authors
 (https://github.com/letta-ai/letta) at commit 56ba9c25, the last commit with
 the server's source: the read-only memory block and its metadata line in
 recall, the consolidation principles in the learner's card prompt and the
 self-contained-fact and five-result rules in the memory tool descriptions. It
 is a modified version: one read-only block holds the card about the user, the
-metadata counts facts and conversations only, and the wording is Rashin's own.
-It is released under the Apache License 2.0; ryoku/rashin/NOTICE carries the
-copyright line, and the ryoku-rashin package installs the license as
-/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+metadata counts facts and conversations only, and the wording is Hyakki's own.
+It is released under the Apache License 2.0; ryoku/hyakki/NOTICE.upstream
+carries the copyright line, and the hyakki package installs the license as
+/usr/share/licenses/hyakki/LICENSE.apache-2.0. That license is compatible
 with Ryoku's GPL-3 distribution.
 
-Parts of Rashin's memory (ryoku/rashin/internal/memory/prompts.go and
+Parts of Hyakki's memory (ryoku/hyakki/internal/memory/prompts.go and
 internal/brief/memorytools.go) are adapted from Letta Code by the Letta authors
 (https://github.com/letta-ai/letta-code) at commit 417a8b7b: the reflection and
 core-memory maintenance wording in the learner's prompts and the Memory tool's
 rule to open the matching memory rather than work from assumptions. It is a
 modified version: there are no files, git or procedures, a stale fact is
 superseded rather than archived, and the examples are new. It is released under
-the Apache License 2.0; ryoku/rashin/NOTICE carries the copyright line, and the
-ryoku-rashin package installs the license as
-/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+the Apache License 2.0; ryoku/hyakki/NOTICE.upstream carries the copyright line,
+and the hyakki package installs the license as
+/usr/share/licenses/hyakki/LICENSE.apache-2.0. That license is compatible
 with Ryoku's GPL-3 distribution.
 
-Rashin's built-in Superpowers skill set
-(ryoku/rashin/internal/skills/sets/superpowers) is the Superpowers skills by
+Hyakki's built-in Superpowers skill set
+(ryoku/hyakki/internal/skills/sets/superpowers) is the Superpowers skills by
 Jesse Vincent (https://github.com/obra/superpowers) at commit 22f0b463: every
 skill except diagnosing-superpowers, which debugs the Claude Code plugin
 itself, shipped unmodified. It is released under the MIT License, whose text
-ryoku/rashin/NOTICE carries with the copyright line and the ryoku-rashin
-package installs as /usr/share/licenses/ryoku-rashin/LICENSE.superpowers; that
+ryoku/hyakki/NOTICE.upstream carries with the copyright line and the hyakki
+package includes in /usr/share/licenses/hyakki/THIRD_PARTY_NOTICES; that
 license is compatible with Ryoku's GPL-3 distribution.
 
-Rashin's built-in OpenSpec skill set
-(ryoku/rashin/internal/skills/sets/openspec) is the twelve openspec-* skills by
+Hyakki's built-in OpenSpec skill set
+(ryoku/hyakki/internal/skills/sets/openspec) is the twelve openspec-* skills by
 the OpenSpec contributors (https://github.com/Fission-AI/OpenSpec) at commit
 d12c2817, shipped unmodified; they run the openspec command, which Ryoku does
-not ship. It is released under the MIT License, whose text ryoku/rashin/NOTICE
-carries with the copyright line and the ryoku-rashin package installs as
-/usr/share/licenses/ryoku-rashin/LICENSE.openspec; that license is compatible
-with Ryoku's GPL-3 distribution.
+not ship. It is released under the MIT License, whose text
+ryoku/hyakki/NOTICE.upstream carries with the copyright line and hyakki
+includes in /usr/share/licenses/hyakki/THIRD_PARTY_NOTICES; that license is
+compatible with Ryoku's GPL-3 distribution.
 
-Rashin's built-in Spec Kit skill set (ryoku/rashin/internal/skills/sets/speckit)
+Hyakki's built-in Spec Kit skill set (ryoku/hyakki/internal/skills/sets/speckit)
 is the speckit-* skills and the .specify/ scripts and templates that Spec Kit by
 GitHub (https://github.com/github/spec-kit) renders with its own specify init
 at commit 979b0a3c, shipped unmodified without the CLI's install records. It is
-released under the MIT License, whose text ryoku/rashin/NOTICE carries with the
-copyright line and the ryoku-rashin package installs as
-/usr/share/licenses/ryoku-rashin/LICENSE.speckit; that license is compatible
+released under the MIT License, whose text ryoku/hyakki/NOTICE.upstream carries
+with the copyright line and the hyakki package includes in
+/usr/share/licenses/hyakki/THIRD_PARTY_NOTICES; that license is compatible
 with Ryoku's GPL-3 distribution.
 
-Rashin's built-in Elephant and Goldfish skill set
-(ryoku/rashin/internal/skills/sets/egm) is the seven egm-* skills of the
+Hyakki's built-in Elephant and Goldfish skill set
+(ryoku/hyakki/internal/skills/sets/egm) is the seven egm-* skills of the
 Elephant-Goldfish Model by Google
 (https://github.com/google/elephant-goldfish-model) at commit 84145300, with
 the reviewer agents and document standards they name and the Codex and Claude
 notes they link to, shipped unmodified without their tests. It is released
-under the Apache License 2.0; ryoku/rashin/NOTICE carries the copyright line
-("Copyright 2026 Google LLC"), and the ryoku-rashin package installs the
-license as /usr/share/licenses/ryoku-rashin/LICENSE.egm and
-/usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. That license is compatible
+under the Apache License 2.0; ryoku/hyakki/NOTICE.upstream carries the copyright
+line ("Copyright 2026 Google LLC"), and the hyakki package includes the license
+in /usr/share/licenses/hyakki/THIRD_PARTY_NOTICES and
+/usr/share/licenses/hyakki/LICENSE.apache-2.0. That license is compatible
 with Ryoku's GPL-3 distribution.
 
-The provider and harness logos in the Rashin app
-(ryoku/rashin/internal/app/look/logos) are the mono marks of lobe-icons by
+The provider and harness logos in the Hyakki app
+(ryoku/hyakki/internal/app/look/logos) are the mono marks of lobe-icons by
 LobeHub (https://github.com/lobehub/lobe-icons) at commit ea434b96, rendered by
 bin/ryoku-dev-sync-provider-logos. It is a modified version: each mark is
 rasterized to a coverage mask and drawn in the app's own ink, never in the
 brand's colours. The marks belong to their owners and are shown only to name
 each provider. It is released under the MIT License, whose text
-ryoku/rashin/NOTICE carries with the copyright line ("Copyright (c) 2023
+ryoku/hyakki/NOTICE.upstream carries with the copyright line ("Copyright (c) 2023
 LobeHub"); that license is compatible with Ryoku's GPL-3 distribution.
 
-Parts of the instructions a Rashin dream's manager is briefed with
-(ryoku/rashin/internal/teams/dream_brief.go) and of its tool texts
-(ryoku/rashin/cmd/rashin/mcp_team.go) are adapted from Paperclip
+Parts of the instructions a Hyakki dream's manager is briefed with
+(ryoku/hyakki/internal/teams/dream_brief.go) and of its tool texts
+(ryoku/hyakki/cmd/hyakki/mcp_team.go) are adapted from Paperclip
 (https://github.com/paperclipai/paperclip) at commit 4e519bd4286e: its
 heartbeat procedure, hiring guide and plans-to-tasks skill. It is a modified
 version, rewritten for a dream's manager. It is released under the MIT
-License, whose text ryoku/rashin/NOTICE carries with the copyright line
+License, whose text ryoku/hyakki/NOTICE.upstream carries with the copyright line
 ("Copyright (c) 2025 Paperclip AI"); that license is compatible with Ryoku's
 GPL-3 distribution.
 
@@ -375,7 +375,7 @@ domain). They were graded to grey, cropped and scaled down, and Settings
 draws them as an ordered dither. Each credit shows under its plate, with the
 file pages in ryoku/hub/quickshell/registry/plates.js.
 
-Parts of Theia's writing checks (ryoku/rashin/internal/writing/) are adapted
+Parts of Hyakki's writing checks (ryoku/hyakki/internal/writing/) are adapted
 from seven projects. Selected English clarity terms come from write-good by
 Brian Ford (https://github.com/btford/write-good) and its dependencies
 weasel-words by Brian Ford (https://github.com/btford/weasel-words) and
@@ -389,19 +389,20 @@ from proselint's garner list by Jordan Suchow, Michael Pacer and Lara A. Ross
 (https://github.com/amperser/proselint). They are modified versions: the terms
 are curated and rewritten as Go data, and the matchers, syllable estimate and
 machine-writing signals are Ryoku's own. All but proselint are released under
-the MIT License and proselint under the BSD 3-Clause License; ryoku/rashin/NOTICE
-carries each text with its copyright lines and the ryoku-rashin package
-installs it as /usr/share/licenses/ryoku-rashin/NOTICE. Those licenses are
+the MIT License and proselint under the BSD 3-Clause License;
+ryoku/hyakki/NOTICE.upstream carries each text with its copyright lines and the
+hyakki package installs it as
+/usr/share/licenses/hyakki/NOTICE.upstream. Those licenses are
 compatible with Ryoku's GPL-3 distribution.
 
-The built-in English checker in ryoku/rashin/internal/grammar/ is a Go port of
+The built-in English checker in ryoku/hyakki/internal/grammar/ is a Go port of
 Harper 3.2.0 by Automattic and the Harper contributors
 (https://github.com/Automattic/harper), pinned at commit
 ea9ab1b8f95be99a5d4040c53be92a6c2ad7f7f3. It is a modified version: Harper's
-Rust grammar engine is rewritten in Go and runs inside Rashin, without the
+Rust grammar engine is rewritten in Go and runs inside Hyakki, without the
 Harper CLI or a separate process. Copyright 2024 Automattic Inc. Harper is
-released under Apache-2.0; the license is in ryoku/rashin/LICENSE.apache-2.0
-and installed as /usr/share/licenses/ryoku-rashin/LICENSE.apache-2.0. This
+released under Apache-2.0; the license is in ryoku/hyakki/LICENSE.apache-2.0
+and installed as /usr/share/licenses/hyakki/LICENSE.apache-2.0. This
 license is compatible with Ryoku's GPL-3 distribution.
 
 The dictionary data bundled from that Harper commit are
@@ -414,18 +415,19 @@ blob b41fd203e6daf76934db99dec6572a230516368a matches LibreOffice's en/en_US.dic
 Its word lists carry the SCOWL, VarCon, WordNet and Ispell notices, not only
 Harper's Apache license. The full supporting notice from
 https://raw.githubusercontent.com/LibreOffice/dictionaries/master/en/README_en_US.txt
-is reproduced in ryoku/rashin/NOTICE and installed as
-/usr/share/licenses/ryoku-rashin/NOTICE.
+is reproduced in ryoku/hyakki/NOTICE.upstream and installed as
+/usr/share/licenses/hyakki/NOTICE.upstream.
 
-The word identity hash in ryoku/rashin/internal/grammar/dict/word_id.go is a Go
+The word identity hash in ryoku/hyakki/internal/grammar/dict/word_id.go is a Go
 adaptation of foldhash 0.2.0 by Orson Peters (https://github.com/orlp/foldhash),
 using its numeric sponge and constants to preserve Harper's dictionary ids.
 It is a modified version, not the original Rust implementation. Copyright
 (c) 2024 Orson Peters. The Zlib license notice is reproduced in
-ryoku/rashin/NOTICE and installed as /usr/share/licenses/ryoku-rashin/NOTICE;
+ryoku/hyakki/NOTICE.upstream and installed as
+/usr/share/licenses/hyakki/NOTICE.upstream;
 the license is compatible with Ryoku's GPL-3 distribution.
 
-Theia runs these programs as separate tools and ships none of their code.
+Hyakki runs these programs as separate tools and ships none of their code.
 eSpeak NG (https://github.com/espeak-ng/espeak-ng, GPL-3.0-or-later), by the
 eSpeak NG authors, reads answers aloud. Piper
 (https://github.com/rhasspy/piper, MIT), by Michael Hansen, is an optional

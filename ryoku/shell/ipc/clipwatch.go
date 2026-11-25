@@ -69,12 +69,11 @@ type clipOffer struct {
 }
 
 type clipWatcher struct {
-	mu             sync.Mutex
-	primaryID      uint32
-	conn           *net.UnixConn
-	ingest         func(string, []byte)
-	offers         map[uint32]*clipOffer
-	primaryChanged func()
+	mu        sync.Mutex
+	primaryID uint32
+	conn      *net.UnixConn
+	ingest    func(string, []byte)
+	offers    map[uint32]*clipOffer
 }
 
 func (s *clipState) watch() {
@@ -84,7 +83,7 @@ func (s *clipState) watch() {
 	for {
 		conn, err := dialWayland()
 		if err == nil {
-			err = runClipWatchSession(conn, s.ingest, &s.primary)
+			err = runClipWatchSession(conn, s.ingest)
 			_ = conn.Close()
 		}
 		if errors.Is(err, errClipWatchNoControl) {
@@ -111,12 +110,8 @@ func dialWayland() (*net.UnixConn, error) {
 	return net.DialUnix("unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
 }
 
-func runClipWatchSession(conn *net.UnixConn, ingest func(string, []byte), primary ...*primarySelectionState) error {
+func runClipWatchSession(conn *net.UnixConn, ingest func(string, []byte)) error {
 	watcher := &clipWatcher{conn: conn, ingest: ingest, offers: make(map[uint32]*clipOffer)}
-	if len(primary) != 0 {
-		primary[0].set(watcher)
-		defer primary[0].set(nil)
-	}
 	if err := watcher.send(wlDisplayID, wlDisplayGetRegistryRequest, wlUint(wlRegistryID), -1); err != nil {
 		return err
 	}
@@ -256,9 +251,6 @@ func (w *clipWatcher) handleDeviceEvent(msg wlMessage) error {
 			}
 		}
 		w.primaryID = id
-		if w.primaryChanged != nil {
-			w.primaryChanged()
-		}
 	}
 	return nil
 }

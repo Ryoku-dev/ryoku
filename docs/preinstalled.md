@@ -51,7 +51,7 @@ QML running against a stale plugin.
 | `ryoku-shell` | The Quickshell desktop: bar, pill, launcher, overview, wallpaper, visualizer, ryoshot capture, and the lock screen |
 | `ryoku-hub` | Ryoku Settings, the control center (Appearance, Desktop, Windows, Devices, Connections, Apps, Accounts, System, and Updates) |
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
-| `ryoku-rashin` | Optional native Ask, Agents, Teams and Dreams engine, project and system Index, Lithic app and bar client. It prefers local models, but downloads no weights or llama.cpp runtime until asked. It is removable and uses zero resources while off or absent |
+| `hyakki` | Optional native Ask, Agents, Teams and Dreams engine, project and system Index, Gio app and Oni desktop surface. Models and optional runtimes are installed on request. It replaces and conflicts with `ryoku-rashin`; see [Hyakki](hyakki.md) |
 | `ryoku-blobs` | The shared `Ryoku.Blobs`, `Ryoku.Spatial3D`, `Ryoku.Bus` and `Ryoku.Text` QML plugins |
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
@@ -211,7 +211,7 @@ Everything behind the pill's Super+D, Super+U, and voice tools.
 | `zbar` | QR-code scanning |
 | `gpu-screen-recorder` | GPU-only screen capture and encode, replay-capable, on every compositor |
 | `hyprsunset` (Hyprland), `wlsunset` (niri) | The night-light color-temperature toggle: each variant ships its compositor's gamma backend |
-| `wtype` | Types Rashin's screen-control text into the focused app |
+| `wtype` | Types text for optional Hyakki dictation, rewrites and Hands input |
 | `libqalculate` | The launcher's calculator backend |
 | `songrec` | The launcher's Recognize Music |
 
@@ -235,7 +235,7 @@ Every Ryoku machine is dev-ready the moment it boots.
 | `mangohud` | The FPS and frametime overlay |
 | `qemu-desktop`, `edk2-ovmf`, `virglrenderer` | The base VM stack: QEMU, UEFI firmware, and host-GL acceleration |
 
-The installer has one Gaming question after Rashin and before Apps & tools. It
+The installer has one Gaming question after Hyakki and before Apps & tools. It
 defaults to No and follows the edition:
 
 - **Arch, Gaming with CachyOS:** requires a network and x86-64-v3 CPU. It adds
