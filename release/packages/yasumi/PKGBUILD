@@ -1,0 +1,33 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Yasumi: timed full-screen break overlay that captures input, for Wayland
+# (Hyprland). Upstream is legen07/yasumi (Qt 6 + QML, qmake). Repackaged here
+# from the tagged source tarball and signed by the release key in [ryoku].
+pkgname=yasumi
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Timed full-screen break overlay with input capture for Wayland (Hyprland)"
+arch=('x86_64')
+url="https://github.com/legen07/yasumi"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'wayland')
+makedepends=('qt6-base' 'qt6-declarative' 'qt6-wayland')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/legen07/yasumi/archive/v$pkgver.tar.gz")
+sha256sums=('e25463ee8f4a01e7c790c94e3dcc4af951d4dc6d7a7da3fa49d378167d52cda3')
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver"
+    # The upstream tree currently carries committed build/ objects. Never let
+    # make reuse them: start from an empty build directory every time.
+    rm -rf build
+    mkdir build
+    cd build
+    qmake6 ../yasumi.pro
+    make -j"$(nproc)"
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver/build"
+    # qmake stages under INSTALL_ROOT, not DESTDIR.
+    make install INSTALL_ROOT="$pkgdir"
+}

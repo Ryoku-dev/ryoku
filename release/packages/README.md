@@ -44,6 +44,7 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
   and installs the helper scripts (`ryoku-cmd-*`, the hardware `ryoku-*`,
   `ryoku-fastfetch`) to `/usr/bin` and the GPU udev rule to
   `/usr/lib/udev/rules.d`.
+- `yasumi` -- timed full-screen break overlay with input capture, for Wayland (Hyprland). Upstream Qt 6 + QML app (legen07/yasumi), built from the tagged source tarball.
 
 ## Build-from-checkout model
 

@@ -32,6 +32,7 @@
   `ryoku-desktop` keeps DKMS but leaves headers to the installed kernels. The
   CachyOS installer replaces both stock kernel packages, and doctor installs
   each installed Arch or CachyOS kernel's matching header package.
+- **Yasumi: timed full-screen break overlay with input capture.** The Qt 6 + QML app upstream (legen07/yasumi) is repackaged from its v1.0.0 tag tarball into the [ryoku] repository, built and published as `yasumi`.
 
 ### Added
 - **The shell installs its equalizer backend automatically.** `ryoku-shell`
