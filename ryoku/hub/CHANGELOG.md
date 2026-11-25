@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Added
+- **Keybinds opens a conflict view, and the search reads a chord.** The
+  conflict count in the action bar is now the way in: clicking it narrows the
+  legend to every shortcut holding a clashing chord, so both sides of a clash
+  read together instead of one row saying it conflicts with nothing visible,
+  and each row names what it is bound to beside it. The lens shows as a chip in
+  the search field, not as a category in the rail, and a search inside it
+  stays within the conflicts. The search field also accepts a chord the way
+  someone writes one, so "ctrl+l", "CTRL + L" and "Control+l" land on the same
+  shortcut, and typing "super" lists the Super family
+  (`quickshell/pages/KeybindsPage.qml`, `quickshell/Combos.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
@@ -43,6 +53,18 @@
   reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
 
 ### Fixed
+- **A custom shortcut no longer reports shadowing a Ryoku shortcut it does not
+  use.** The legend carries the user's custom rows as well as the shipped ones,
+  and the conflict check walked that copy, so every custom row shadowed itself
+  and was labelled as a clash with a shipped bind, naming itself in the note.
+  The rules now live in one place, with a custom row counted once
+  (`quickshell/Combos.js`, `quickshell/pages/KeybindsPage.qml`).
+- **A shortcut imported from another config with its own modifier words now
+  counts as conflicting when it lands on a Ryoku shortcut.** An imported bind
+  keeps the spelling its config wrote ("MOD + Q", "SUPER_L + ALT_L + Left"),
+  and only the import engine folded those words, so two binds on the same
+  physical keys read as different keys to the page
+  (`quickshell/Combos.js` `normKeys`).
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.
