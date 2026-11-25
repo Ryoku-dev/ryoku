@@ -67,10 +67,10 @@ Scope {
     }
 
     function scaleForScreen(screen) {
-        // The physical panel height, not the logical rectangle: Quickshell's
-        // height is logical, so dividing it by 1080 alone shrinks the launcher
-        // as the display scale rises (the compositor scales it back up, apps
-        // included, and the card ends up tiny next to everything else).
+        // The factor is the logical height over 1080, because the compositor
+        // scales the surface back up; the font scale and the interface scale
+        // still multiply in afterwards, so the launcher card matches the desktop
+        // it opens over.
         return Screens.monitorScale(screen, 1.2)
             * Math.max(0.8, Math.min(1.4, Config.fontScale))
             * Ui.Tokens.uiScaleFor(screen && screen.name ? String(screen.name) : "");
