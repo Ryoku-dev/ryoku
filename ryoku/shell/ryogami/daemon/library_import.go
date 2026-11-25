@@ -61,6 +61,9 @@ func (d *daemon) importToLibrary(src string) (string, error) {
 			return dest, nil
 		case errors.Is(err, os.ErrNotExist):
 			err = copyNew(src, dest)
+			if errors.Is(err, errNameClaimed) {
+				continue
+			}
 			if errors.Is(err, os.ErrExist) {
 				// Another import claimed the name first: weigh it like any
 				// existing file, reusing it if identical, else the next name.
@@ -77,7 +80,14 @@ func (d *daemon) importToLibrary(src string) (string, error) {
 	}
 }
 
-var linkFile = os.Link
+var (
+	linkFile   = os.Link
+	renameFile = os.Rename
+)
+
+// errNameClaimed means another import, or one that died, holds the name's
+// claim file: the caller moves on to the next name instead of waiting on it.
+var errNameClaimed = errors.New("name claimed by another import")
 
 const compareChunk = 64 << 10
 
@@ -212,20 +222,26 @@ func copyNew(src, dest string) error {
 	if err == nil || errors.Is(err, os.ErrExist) {
 		return err
 	}
-	// FAT, exFAT and some FUSE mounts have no hard links. Claim the name with
-	// an exclusive empty placeholder, then rename the finished copy over our
-	// own placeholder: a taken name is still refused, and the picture is only
-	// ever visible complete.
-	claim, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	// FAT, exFAT and some FUSE mounts have no hard links. Hold the name with an
+	// exclusive hidden claim file, which the library walk ignores, and rename
+	// the finished copy onto it only while the name is still free: the picture
+	// is never visible empty or partial, and a taken name is refused.
+	claimPath := filepath.Join(filepath.Dir(dest), ".import-claim-"+filepath.Base(dest))
+	claim, err := os.OpenFile(claimPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return errNameClaimed
+	}
 	if err != nil {
 		return err
 	}
 	claim.Close()
-	if err := os.Rename(tmp.Name(), dest); err != nil {
-		os.Remove(dest)
+	defer os.Remove(claimPath)
+	if _, err := os.Lstat(dest); err == nil {
+		return os.ErrExist
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return nil
+	return renameFile(tmp.Name(), dest)
 }
 
 // copyInto copies src into w and closes w.

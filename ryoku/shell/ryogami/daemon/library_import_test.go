@@ -186,6 +186,59 @@ func TestImportTakesTheNextNameWhenOneIsClaimedMidImport(t *testing.T) {
 	}
 }
 
+func swapRename(t *testing.T, fn func(from, to string) error) {
+	t.Helper()
+	orig := renameFile
+	renameFile = fn
+	t.Cleanup(func() { renameFile = orig })
+}
+
+func noHardLinks(t *testing.T) {
+	swapLink(t, func(tmp, dest string) error {
+		return &os.LinkError{Op: "link", Old: tmp, New: dest, Err: syscall.EPERM}
+	})
+}
+
+func TestImportWithoutHardLinksNeverExposesAnEmptyDestination(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, src, "mine")
+	noHardLinks(t)
+	swapRename(t, func(from, to string) error {
+		if _, err := os.Lstat(to); err == nil {
+			t.Errorf("%s exists, empty, before the finished copy is renamed onto it", to)
+		}
+		return os.Rename(from, to)
+	})
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo.jpg"); got != want || readBody(t, got) != "mine" {
+		t.Fatalf("imported to %q, want %q holding the source", got, want)
+	}
+	if left, _ := filepath.Glob(filepath.Join(wall, ".import-*")); len(left) != 0 {
+		t.Fatalf("claim or temp files left behind: %v", left)
+	}
+}
+
+func TestImportWithoutHardLinksSkipsAStaleClaim(t *testing.T) {
+	d, wall, _ := daemonWithDirs(t)
+	src := filepath.Join(t.TempDir(), "photo.jpg")
+	writeMedia(t, src, "mine")
+	noHardLinks(t)
+	writeMedia(t, filepath.Join(wall, ".import-claim-photo.jpg"), "")
+
+	got, err := d.importToLibrary(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(wall, "photo-1.jpg"); got != want {
+		t.Fatalf("imported to %q, want %q past the claimed name", got, want)
+	}
+}
+
 func TestImportWithoutHardLinksNeverOverwrites(t *testing.T) {
 	d, wall, _ := daemonWithDirs(t)
 	src := filepath.Join(t.TempDir(), "photo.jpg")
@@ -304,6 +357,16 @@ func TestDolphinMenuOffersOnlyTypesTheLibraryShows(t *testing.T) {
 				t.Errorf("the menu offers %s but import refuses .%s", m, e)
 			}
 		}
+	}
+}
+
+func TestDolphinMenuStaysOutOfPlasmaSessions(t *testing.T) {
+	dir := filepath.Join("..", "..", "..", "apps", "dolphin")
+	if !strings.Contains(readBody(t, filepath.Join(dir, "ryoku-set-wallpaper.desktop")), "\nNotShowIn=KDE;") {
+		t.Error("the menu must not show in a Plasma session, where Plasma's own action works")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "kservicemenurc")); err == nil {
+		t.Error("a shipped kservicemenurc hides Plasma's action for every session on the machine")
 	}
 }
 

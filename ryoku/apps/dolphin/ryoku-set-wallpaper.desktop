@@ -2,6 +2,7 @@
 Type=Service
 MimeType=image/jpeg;image/png;image/webp;image/gif;image/bmp;image/avif;image/tiff;
 Actions=setRyokuWallpaper;
+NotShowIn=KDE;
 X-KDE-Priority=TopLevel
 
 [Desktop Action setRyokuWallpaper]

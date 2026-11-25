@@ -371,9 +371,6 @@ user chmod -R u+w "$QYLOCK_DIR/themes/clockwork/orbital"'
     install -Dm644 \
       ryoku/apps/dolphin/ryoku-set-wallpaper.desktop \
       "$out/share/kio/servicemenus/ryoku-set-wallpaper.desktop"
-    install -Dm644 \
-      ryoku/apps/dolphin/kservicemenurc \
-      "$out/etc/xdg/kservicemenurc"
 
     # ── Browser integration ────────────────────────────────────
 
