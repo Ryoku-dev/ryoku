@@ -243,6 +243,23 @@ assert(at["steam-native-launched"] < at["unreal-engine"], "the editor rule must 
 assert(at["unreal-engine"] < at["unreal-game"] and at["unreal-engine"] < at["unreal-play-in-editor"],
     "the game window rules must follow the editor rule")
 
+-- Parsec, always opaque and untorn, by process.
+local parsec_rule = rules["parsec"]
+assert(parsec_rule and parsec_rule.match.tag == "parsec", "no rule carries the parsec tag")
+for _, prop in ipairs({ "no_blur", "no_shadow", "opaque", "idle_inhibit" }) do
+    assert(parsec_rule[prop] == rules["steam-native"][prop], "parsec rule differs on " .. prop)
+end
+assert(parsec_rule.immediate == false, "Parsec must not tear, even when Steam launched it")
+assert(at["steam-native-launched"] < at["parsec"], "the parsec rule must follow the steam-game rule")
+proc(1296, "systemd", 1, 2, "/usr/lib/systemd/systemd --user")
+proc(700, "parsecd", 1296, 100, "/usr/bin/parsecd")
+proc(701, "parsecd-helper", 1, 101, "/usr/bin/parsecd-helper")
+proc(702, "sh", 700, 102)
+proc(703, "kitty", 702, 103)
+expect(open(700, "parsec"), "+parsec", "Parsec under the user's systemd")
+expect(open(701, "parsec-lookalike"), "", "a program whose name only starts with parsecd")
+expect(open(703, "kitty-from-parsec"), "", "a terminal Parsec started through a shell")
+
 -- Browsers are tagged only; the opt-in rule comes from the provider.
 proc(600, "firefox", 1, 80, "/usr/lib/firefox/firefox")
 proc(601, "chrome", 1, 81, "/opt/google/chrome/chrome --app=https://example.org")

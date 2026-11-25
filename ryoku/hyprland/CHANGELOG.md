@@ -9,6 +9,11 @@
   shadow, with idle inhibited while fullscreen. Only its game windows tear: a
   UE process run with `-game` and the Play In Editor window; the editor UI
   never does (`modules/window_rules.lua`, `modules/process_tag.lua`).
+- **Parsec gets the editor's treatment.** Parsec windows (class `parsecd`,
+  under XWayland) are tagged `parsec` by process and drawn opaque, without
+  blur or shadow, with idle inhibited while fullscreen and no tearing, so a
+  remote desktop never turns see-through or dims mid-session
+  (`modules/window_rules.lua`).
 - **Opt-in: browsers drawn like the Unreal editor.** Browser windows are
   tagged `browser` by process; Ryoku Settings > Window Manager > Look > Keep
   browsers fully opaque (`wm.hyprland.opaque.browsers`, off by default) adds

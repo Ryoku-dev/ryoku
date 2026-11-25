@@ -324,6 +324,14 @@ process_tag.add("unreal-game", function(pid)
     return process_tag.cmdline(pid):find("\0-game\0", 1, true) ~= nil and unreal(pid)
 end)
 
+-- Parsec (class parsecd, under XWayland) shows another machine's screen: a
+-- see-through remote desktop is hard to read, and a stream that dims or
+-- locks mid-session is broken. It gets the editor's untorn props, tagged by
+-- process like the editor; immediate = false also wins over steam-game when
+-- Parsec was added to Steam.
+steam_native_untorn_rule("parsec", { tag = "parsec" })
+process_tag.add("parsec", process_tag.runs({ "^parsecd$" }))
+
 -- Browsers are tagged only. Whether they get the untorn steam-native props
 -- (opaque, no blur or shadow, awake through fullscreen video) is the user's
 -- call (Ryoku Settings > Window Manager > Look), since a see-through page is
