@@ -24,7 +24,10 @@ QtObject {
         if (name === "" || (root._held[name] === true) === held)
             return;
         const next = Object.assign({}, root._held);
-        next[name] = held === true;
+        if (held === true)
+            next[name] = true;
+        else
+            delete next[name];
         root._held = next;
     }
 
