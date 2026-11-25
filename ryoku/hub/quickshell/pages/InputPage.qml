@@ -765,6 +765,14 @@ Item {
             && JSON.stringify(pg.hv("desktop.input.kbOptions")) === JSON.stringify(pg.cv("desktop.input.kbOptions"));
     }
 
+    // The gesture list belongs to a provider whose defaults carry it. Wayfire
+    // still writes the swipe toggle and the finger count, and must keep those
+    // rows when this list is absent.
+    readonly property bool gestureListOn: {
+        var input = pg.hub && pg.hub.hyprDefaults && pg.hub.hyprDefaults.desktop
+            && pg.hub.hyprDefaults.desktop.input;
+        return !!(input && input.gestures !== undefined) && Settings.modelsKey("desktop.input.gestures");
+    }
     readonly property bool swipeOn: {
         if (pg.hv("desktop.input.workspaceSwipe") === true)
             return true;
@@ -1568,10 +1576,24 @@ Item {
                     label: I18n.tr("Scroll speed")
                     desc: I18n.tr("Multiplier on two-finger scroll.")
                 }
+                Setting {
+                    path: "desktop.input.workspaceSwipe"
+                    ctl: "sw"
+                    gate: !pg.gestureListOn
+                    label: I18n.tr("Swipe between workspaces")
+                    desc: I18n.tr("A horizontal swipe slides to the next workspace.")
+                }
+                Setting {
+                    path: "desktop.input.swipeFingers"
+                    ctl: "seg"; asInt: true; gate: !pg.gestureListOn && pg.swipeOn
+                    opts: [{ "key": 3, "label": "3" }, { "key": 4, "label": "4" }]
+                    label: I18n.tr("Swipe fingers")
+                    desc: I18n.tr("How many fingers count as a workspace swipe.")
+                }
                 Loader {
                     id: gestureEditor
                     width: parent.width
-                    visible: Settings.modelsKey("desktop.input.gestures")
+                    visible: pg.gestureListOn
                     source: visible ? "GestureEditor.qml" : ""
                     onLoaded: {
                         if (!item)

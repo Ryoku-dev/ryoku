@@ -809,21 +809,37 @@ func genGesture(o Overrides) string {
 }
 
 // genGestureLive is the preview form. Hyprland keeps registered gestures until
-// reload and rejects a second one on the same fingers and direction, so a mode
-// change would leave the old gesture running. Unset that trigger first. Unset
-// errors when nothing is registered; pcall ignores that. Live cursor zoom omits
-// zoom_level, which Hyprland ignores and which a later mode would otherwise
-// keep as a multiply factor.
+// reload, so a row that was removed, turned off, or pointed at a new trigger
+// would keep running. The preview clears every trigger this writer can
+// register, then adds the draft. Unset errors when nothing is registered;
+// pcall ignores that. Live cursor zoom omits zoom_level, which Hyprland ignores
+// and which a later mode would otherwise keep as a multiply factor.
 func genGestureLive(o Overrides) string {
 	return writeGestures(o, true)
 }
 
+// gestureTriggers are the finger counts and directions this writer can register.
+// Live preview unsets every one of them before adding the draft, because a row
+// that was removed, disabled, or given a new finger count is no longer in the
+// list and would otherwise keep running until reload.
+var gestureTriggers = struct {
+	fingers    []int
+	directions []string
+}{
+	fingers:    []int{3, 4},
+	directions: []string{"swipe", "left", "right", "up", "down", "horizontal", "vertical", "pinch", "pinchin", "pinchout"},
+}
+
 func writeGestures(o Overrides, live bool) string {
 	var b strings.Builder
-	for _, g := range gestureRows(o) {
-		if live {
-			fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", gestureFingers(g), g.Direction)
+	if live {
+		for _, n := range gestureTriggers.fingers {
+			for _, dir := range gestureTriggers.directions {
+				fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", n, dir)
+			}
 		}
+	}
+	for _, g := range gestureRows(o) {
 		b.WriteString(gestureLine(g))
 	}
 	return b.String()

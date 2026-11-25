@@ -10,7 +10,9 @@
   keeps that left/right workspace swipe until the list is edited. Up and down
   are not added as a workspace swipe. A later row on the same fingers and axis
   is marked as already used. A 3-finger and a 4-finger row can share a
-  direction, and the editor says so (`pages/GestureEditor.qml`,
+  direction, and the editor says so. A compositor that does not model the
+  list, such as Wayfire, keeps the swipe toggle and the finger count
+  (`pages/GestureEditor.qml`, `pages/gesture/GestureNote.qml`,
   `pages/InputPage.qml`, `schema/InputPage.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a

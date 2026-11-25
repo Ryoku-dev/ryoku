@@ -293,6 +293,28 @@ var rows = [
     {
         "tab": "",
         "group": "TOUCHPAD",
+        "key": "desktop.input.workspaceSwipe",
+        "label": "Swipe between workspaces",
+        "desc": "A horizontal swipe slides to the next workspace.",
+        "ctl": "sw",
+        "src": "desktop.json"
+    },
+    {
+        "tab": "",
+        "group": "TOUCHPAD",
+        "key": "desktop.input.swipeFingers",
+        "label": "Swipe fingers",
+        "desc": "How many fingers count as a workspace swipe.",
+        "ctl": "seg",
+        "src": "desktop.json",
+        "opts": [
+            "3",
+            "4"
+        ]
+    },
+    {
+        "tab": "",
+        "group": "TOUCHPAD",
         "key": "desktop.input.gestures",
         "label": "Touchpad gestures",
         "desc": "A 3-finger swipe left or right switches workspace. Any other finger count and direction can close, float, fullscreen, zoom, or open a special workspace.",

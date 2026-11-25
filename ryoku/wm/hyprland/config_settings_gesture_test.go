@@ -109,10 +109,44 @@ func TestGenGestureLiveReplacesRegisteredGesture(t *testing.T) {
 		{Enabled: true, Fingers: 3, Direction: "pinch", Action: "cursor_zoom", Mode: "toggle", ZoomLevel: "1.5"},
 	}
 	got := genGestureLive(o)
-	if !strings.Contains(got, `pcall(function() hl.gesture({ fingers = 3, direction = "pinch", action = "unset" }) end)`) {
-		t.Errorf("preview did not unset the previous pinch:\n%s", got)
+	cleared := strings.Index(got, `pcall(function() hl.gesture({ fingers = 3, direction = "pinch", action = "unset" }) end)`)
+	added := strings.Index(got, `action = "cursor_zoom", zoom_level = "1.5", mode = "toggle"`)
+	if cleared < 0 || added < 0 || cleared > added {
+		t.Fatalf("preview must clear the pinch before adding the replacement:\n%s", got)
 	}
-	if !strings.Contains(got, `action = "cursor_zoom", zoom_level = "1.5", mode = "toggle"`) {
-		t.Errorf("preview did not add the replacement:\n%s", got)
+}
+
+func TestGenGestureLiveClearsDisabledAndRetargetedRows(t *testing.T) {
+	o := defaultOverrides()
+	o.Input.Gestures = []Gesture{
+		{Enabled: false, Fingers: 3, Direction: "down", Action: "close"},
+		{Enabled: true, Fingers: 4, Direction: "up", Action: "fullscreen", Mode: "maximize"},
+	}
+	got := genGestureLive(o)
+	for _, want := range []string{
+		`fingers = 3, direction = "down", action = "unset"`,
+		`fingers = 3, direction = "up", action = "unset"`,
+		`fingers = 4, direction = "down", action = "unset"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("preview left a previous trigger registered, missing %s\n%s", want, got)
+		}
+	}
+	if !strings.Contains(got, `fingers = 4, direction = "up", action = "fullscreen", mode = "maximize"`) {
+		t.Errorf("preview did not add the remaining gesture:\n%s", got)
+	}
+	saved := genGesture(o)
+	if strings.Contains(saved, "unset") || strings.Contains(saved, `action = "close"`) {
+		t.Errorf("saved config must only add the enabled row:\n%s", saved)
+	}
+}
+
+func TestGenGestureLiveClearsWhenNothingIsConfigured(t *testing.T) {
+	got := genGestureLive(defaultOverrides())
+	if !strings.Contains(got, `fingers = 3, direction = "horizontal", action = "unset"`) {
+		t.Fatalf("an empty draft must clear a swipe that was already registered:\n%s", got)
+	}
+	if strings.Contains(got, `action = "workspace"`) || strings.Contains(got, `action = "close"`) {
+		t.Fatalf("an empty draft must not add a gesture:\n%s", got)
 	}
 }

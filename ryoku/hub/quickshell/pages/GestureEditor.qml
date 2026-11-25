@@ -1,6 +1,7 @@
 import QtQuick
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "gesture"
 
 // The touchpad gesture list on Input. Each row is one trigger and one action.
 // The list on screen is the stored list, with one exception: a store that still
@@ -210,29 +211,13 @@ Item {
         root.persist(next);
     }
 
-    component Wrapped: Item {
-        id: noteBox
-        property string text: ""
-        width: root.width
-        implicitHeight: note.implicitHeight
-        visible: text.length > 0
-        Text {
-            id: note
-            width: noteBox.width
-            wrapMode: Text.WordWrap
-            text: noteBox.text
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: 11
-        }
-    }
-
     Column {
         id: column
         width: root.width
         spacing: Tokens.s3
 
-        Wrapped {
+        GestureNote {
+            noteWidth: root.width
             text: I18n.tr("A 3-finger swipe left or right switches workspace. Any other finger count and direction can close, float, fullscreen, zoom, or open a special workspace.")
         }
 
@@ -372,9 +357,9 @@ Item {
                     Column {
                         id: notes
                         width: parent.width
-                        Wrapped { text: root.conflictHint(modelData) }
-                        Wrapped { text: root.zoomHint(modelData) }
-                        Wrapped { text: root.slotError(modelData, index) }
+                        GestureNote { noteWidth: root.width; text: root.conflictHint(modelData) }
+                        GestureNote { noteWidth: root.width; text: root.zoomHint(modelData) }
+                        GestureNote { noteWidth: root.width; text: root.slotError(modelData, index) }
                     }
                 }
                 SettingRow {
