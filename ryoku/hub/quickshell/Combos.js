@@ -7,8 +7,23 @@
 // keeps. The engine owns the authoritative norm on the wire; the UI uses these
 // only to compare and to record, never to invent a key.
 
-// normalise a combo for compare: case, spacing and modifier order collapse, so
-// "SUPER + Q", "super+q" and "Q + Super" are one key.
+// the spelling every modifier collapses to when a chord is compared. It mirrors
+// normToken in ryoku/hub/backend/import.go exactly, because an imported bind
+// keeps the spelling its own config wrote: "MOD + Q" and "SUPER_L + Q" land in
+// the store as written, and only a fold that matches the engine's keeps the page
+// from calling a clash that the import scan already reported.
+var modifierAliases = {
+    "super": "super", "mod": "super", "mainmod": "super", "win": "super", "meta": "super",
+    "logo": "super", "super_l": "super", "super_r": "super",
+    "ctrl": "ctrl", "control": "ctrl", "ctrl_l": "ctrl", "ctrl_r": "ctrl",
+    "control_l": "ctrl", "control_r": "ctrl",
+    "alt": "alt", "alt_l": "alt", "alt_r": "alt", "mod1": "alt",
+    "shift": "shift", "shift_l": "shift", "shift_r": "shift"
+};
+
+// normalise a combo for compare: case, spacing, modifier spelling and modifier
+// order collapse, so "SUPER + Q", "super+q", "Q + Super" and an imported
+// "MOD + Q" are one key.
 function normKeys(s) {
     if (!s)
         return "";
@@ -17,7 +32,7 @@ function normKeys(s) {
     for (var i = 0; i < parts.length; i++) {
         var t = parts[i].trim().toLowerCase();
         if (t.length)
-            out.push(t);
+            out.push(modifierAliases[t] || t);
     }
     out.sort();
     return out.join("+");

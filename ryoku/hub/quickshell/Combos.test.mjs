@@ -187,6 +187,26 @@ test("a switched-off shipped bind does not shadow a custom row", () => {
     assert.ok(!moved[normKeys("SUPER + Q")]);
 });
 
+test("a chord another config spelled with its own modifier words still clashes", () => {
+    // an imported bind keeps the spelling its config wrote, so the fold here has
+    // to be the one the import engine folds on (normToken in import.go) or the
+    // page calls a clash the scan already reported.
+    const target = normKeys("SUPER + Q");
+    for (const written of ["MOD + Q", "MAINMOD + Q", "WIN + Q", "META + Q",
+                           "LOGO + Q", "SUPER_L + Q", "Q + SUPER"])
+        assert.equal(normKeys(written), target, written + " is Super + Q");
+    assert.equal(normKeys("MOD1 + H"), normKeys("ALT + H"));
+    assert.equal(normKeys("SHIFT_L + W"), normKeys("SHIFT + W"));
+    assert.equal(normKeys("CONTROL_R + T"), normKeys("CTRL + T"));
+    assert.notEqual(normKeys("MOD + space"), normKeys("SUPER + q"), "a key is never folded");
+
+    const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
+    const shipped = shippedKeys(cats, {});
+    for (const written of ["MOD + Q", "WIN + Q", "SUPER_L + Q"])
+        assert.equal(rowConflict([{ keys: written }], 0, shipped), "shipped", written + " shadows it");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "MOD + Q" }], [])[target], 2, "and counts as two holders");
+});
+
 test("effectiveCounts counts a custom row once and sees real clashes only", () => {
     const cats = [
         { name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] },
@@ -214,6 +234,12 @@ test("conflictKeys sees rebinds, families and switched-off binds", () => {
 });
 
 test("chord search folds case, spacing, order and modifier aliases", () => {
+    assert.equal(chordMatches("super+q", "SUPER + Q"), true);
+    assert.equal(chordMatches("WIN + Q", "SUPER + Q"), true);
+    assert.equal(chordMatches("super+3", "SUPER + 3"), true, "a family member answers its own chord");
+    assert.equal(chordMatches("super+kp_3", "SUPER + KP_3"), true, "the number pad folds to the digit");
+    assert.equal(chordMatches("super+ctrl+3", "SUPER + CTRL + 3"), true);
+    assert.equal(chordMatches("super+ctrl+3", "SUPER + 3"), false, "a different modifier is a different chord");
     assert.equal(chordMatches("ctrl+l", "CTRL + L"), true);
     assert.equal(chordMatches("CTRL+L", "CTRL + L"), true);
     assert.equal(chordMatches("CONTROL + l", "CTRL + L"), true);
@@ -226,6 +252,13 @@ test("chord search folds case, spacing, order and modifier aliases", () => {
     assert.equal(chordMatches("super+page up", "SUPER + Prior"), true);
     assert.equal(chordMatches("super+num 3", "SUPER + KP_3"), true);
     assert.equal(chordMatches("super+,", "SUPER + comma"), true);
+});
+
+test("two custom rows on one chord clash with each other", () => {
+    const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
+    const keys = conflictKeys(cats, {}, [{ keys: "SUPER + Z" }, { keys: "super + z" }], []);
+    assert.ok(keys[normKeys("SUPER + Z")], "a duplicate clash has two custom sides and no shipped one");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "SUPER + Z" }, { keys: "SUPER + Z" }], [])[normKeys("SUPER + Z")], 2);
 });
 
 test("isChordQuery leaves ordinary text to the fuzzy scorer", () => {

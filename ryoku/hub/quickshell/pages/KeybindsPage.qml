@@ -657,7 +657,10 @@ Item {
         return names.length ? I18n.tr("Also bound to: %1").arg(names.join(", ")) : "";
     }
     // the status text is the way in: switch to the legend, drop any category or
-    // query, and toggle the filter that narrows All to the clashing rows.
+    // query, and toggle the filter that narrows All to the clashing rows. Only
+    // a lens already open on this tab toggles off: clicking the count from the
+    // Custom tab is someone coming to look, so it opens the lens rather than
+    // closing one they cannot see.
     function toggleConflictFilter() {
         if (!pg.hubReady || pg.conflictCount <= 0)
             return;
