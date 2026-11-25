@@ -52,6 +52,10 @@ Item {
     // "shortcuts" = the searchable legend (default), "apps" = the app-role
     // launchers, "custom" = the user-bind editor. Transient, not persisted.
     property string tab: "shortcuts"
+    // true while the legend is narrowed to the rows involved in a clash. It is
+    // a lens over All, not a category: the chip in the search field owns it and
+    // picking a rail category or clearing the chip drops it.
+    property bool conflictFilter: false
 
     // the shipped legend, parsed live by the backend from the neutral catalogue
     // and the active provider. Owned here (a self-contained page fetches its own
@@ -299,7 +303,7 @@ Item {
     // so both pages classify a clash the same way; these thin readers feed it
     // this page's live legend, custom rows and rebinds.
     function normKeys(s) { return Combos.normKeys(s); }
-    readonly property var shippedKeys: Combos.shippedKeys(pg.categories, pg.rebinds)
+    readonly property var shippedKeys: Combos.shippedKeys(pg.categories, pg.rebinds, pg.disabledBinds)
     function customCount(norm) { return Combos.customCount(pg.customRows, norm); }
     function rowConflict(i) { return Combos.rowConflict(pg.customRows, i, pg.shippedKeys); }
     readonly property int conflictCount: {
@@ -310,6 +314,8 @@ Item {
         for (var c = 0; c < pg.categories.length; c++) {
             var binds = pg.categories[c].binds || [];
             for (var b = 0; b < binds.length; b++) {
+                if ((binds[b].kind || "") === "custom")
+                    continue;
                 var combo = binds[b].combo || "";
                 if (pg.isRebound(combo) && pg.comboConflict(combo))
                     n++;
@@ -474,13 +480,19 @@ Item {
     // page so a captured chord reads into the store's token the same way.
     function chordFrom(event) { return Combos.chordFrom(event); }
     // the shipped bind a normalised chord shadows, by description, for the
-    // custom editor's conflict note. "" when nothing shipped matches.
+    // custom editor's conflict note. The effective chord is compared, so a
+    // draft rebind and a family member both name the row they shadow. "" when
+    // nothing shipped matches.
     function shippedDescFor(norm) {
         for (var c = 0; c < pg.categories.length; c++) {
             var binds = pg.categories[c].binds || [];
             for (var b = 0; b < binds.length; b++) {
-                if (pg.normKeys((binds[b].keys || []).join(" + ")) === norm)
-                    return binds[b].desc || I18n.tr("a shipped shortcut");
+                if ((binds[b].kind || "") === "custom")
+                    continue;
+                var chords = Combos.expandFamily(pg.bindCombo(binds[b]));
+                for (var i = 0; i < chords.length; i++)
+                    if (pg.normKeys(chords[i]) === norm)
+                        return binds[b].desc || I18n.tr("a shipped shortcut");
             }
         }
         return "";
@@ -552,30 +564,12 @@ Item {
     }
 
     // norm -> how many shipped (effective) + custom binds hold it; >1 is a clash.
-    readonly property var effectiveCounts: {
-        var m = {};
-        for (var c = 0; c < pg.categories.length; c++) {
-            var binds = pg.categories[c].binds || [];
-            for (var b = 0; b < binds.length; b++) {
-                if (pg.isDisabled(binds[b].combo || ""))
-                    continue;
-                // a family stands for ten chords, so expand it before counting:
-                // that is how a rebound family clashes with another effective chord.
-                var chords = Combos.expandFamily(pg.effectiveCombo(binds[b].combo || ""));
-                for (var e = 0; e < chords.length; e++) {
-                    var n = pg.normKeys(chords[e]);
-                    if (n.length)
-                        m[n] = (m[n] || 0) + 1;
-                }
-            }
-        }
-        for (var i = 0; i < pg.customRows.length; i++) {
-            var cn = pg.normKeys(pg.customRows[i].keys);
-            if (cn.length)
-                m[cn] = (m[cn] || 0) + 1;
-        }
-        return m;
-    }
+    // The rules live in Combos so the legend, the Import page and this filter all
+    // count the same way; a custom row is counted once, from customRows.
+    readonly property var effectiveCounts: Combos.effectiveCounts(pg.categories, pg.rebinds, pg.customRows, pg.disabledBinds)
+    // every chord held by more than one shortcut. It names both sides of a clash,
+    // not only the flagged row, so the filter can show what conflicts with what.
+    readonly property var conflictNorms: Combos.conflictKeys(pg.categories, pg.rebinds, pg.customRows, pg.disabledBinds)
     // a family compares its ten expanded chords against the other effective
     // chords; a plain chord expands to itself, so both go through one path.
     function comboConflict(defCombo) {
@@ -588,6 +582,90 @@ Item {
                 return true;
         }
         return false;
+    }
+
+    // the chord a legend row fires on: a custom row keeps its own keys (rebinds
+    // are keyed on shipped defaults), and a switched-off row holds none.
+    function bindCombo(bind) {
+        if ((bind.kind || "") === "custom")
+            return bind.combo || "";
+        if (pg.isDisabled(bind.combo || ""))
+            return "";
+        return pg.effectiveCombo(bind.combo || "");
+    }
+    function bindInConflict(bind) {
+        var chords = Combos.expandFamily(pg.bindCombo(bind));
+        for (var i = 0; i < chords.length; i++) {
+            var n = pg.normKeys(chords[i]);
+            if (n.length && pg.conflictNorms[n])
+                return true;
+        }
+        return false;
+    }
+    // the legend narrowed to every row that holds a clashing chord, both sides
+    // included. It reads the live draft, so resolving a clash empties the view.
+    readonly property var conflictCats: {
+        if (!pg.conflictFilter)
+            return [];
+        var out = [];
+        for (var c = 0; c < pg.categories.length; c++) {
+            var binds = pg.categories[c].binds || [];
+            var keep = [];
+            for (var b = 0; b < binds.length; b++)
+                if (pg.bindInConflict(binds[b]))
+                    keep.push(binds[b]);
+            if (keep.length)
+                out.push({ name: pg.categories[c].name, binds: keep });
+        }
+        return out;
+    }
+    // the other shortcuts sharing this row's chord, for the filter's note. ""
+    // outside the filter, so the normal legend keeps its density.
+    function conflictNoteFor(bind) {
+        if (!pg.conflictFilter)
+            return "";
+        var mine = {};
+        var own = Combos.expandFamily(pg.bindCombo(bind));
+        for (var i = 0; i < own.length; i++) {
+            var n = pg.normKeys(own[i]);
+            if (n.length)
+                mine[n] = true;
+        }
+        var names = [];
+        for (var c = 0; c < pg.categories.length; c++) {
+            var binds = pg.categories[c].binds || [];
+            for (var b = 0; b < binds.length; b++) {
+                var other = binds[b];
+                if (other === bind || (other.id && other.id === bind.id))
+                    continue;
+                var chords = Combos.expandFamily(pg.bindCombo(other));
+                var hit = false;
+                for (var j = 0; j < chords.length; j++)
+                    if (mine[pg.normKeys(chords[j])]) {
+                        hit = true;
+                        break;
+                    }
+                if (!hit)
+                    continue;
+                var label = other.desc || other.label || "";
+                if (label)
+                    label = I18n.tr(label);
+                if (label && names.indexOf(label) < 0)
+                    names.push(label);
+            }
+        }
+        return names.length ? I18n.tr("Also bound to: %1").arg(names.join(", ")) : "";
+    }
+    // the status text is the way in: switch to the legend, drop any category or
+    // query, and toggle the filter that narrows All to the clashing rows.
+    function toggleConflictFilter() {
+        if (!pg.hubReady || pg.conflictCount <= 0)
+            return;
+        var on = pg.tab === "shortcuts" && pg.conflictFilter;
+        pg.tab = "shortcuts";
+        pg.clearSearch();
+        pg.selectedCat = "";
+        pg.conflictFilter = !on;
     }
 
     // ── display tokens for a raw combo, matching the legend keycaps ──────────
@@ -679,10 +757,18 @@ Item {
     }
     // fuzzy score for a bind against the query, over one haystack of its label,
     // hint, category and chord tokens (a family adds its digit range, so "num 3"
-    // and "workspace 3" reach the number-pad family). >= 0 is a match; -1 none.
+    // and "workspace 3" reach the number-pad family). A chord-shaped query is
+    // compared against the effective chord first, aliases folded, so "ctrl+l",
+    // "CTRL + L" and "Control+l" all land on Ctrl + L. >= 0 is a match; -1 none.
     function bindScore(bind, q) {
         if (!q)
             return 0;
+        if (Combos.isChordQuery(q)) {
+            var chords = Combos.expandFamily(pg.bindCombo(bind));
+            for (var c = 0; c < chords.length; c++)
+                if (Combos.chordMatches(q, chords[c]))
+                    return 1;
+        }
         var keyStr = (bind.keys ? bind.keys.join(" ") : "");
         var fam = pg.familyExpand(bind);
         if (fam.length)
@@ -708,6 +794,14 @@ Item {
             total += pg.catCount(pg.categories[i]);
         return total;
     }
+    // rows actually in the list. The conflict lens narrows the search, so the
+    // field's match count cannot use the rail's All count.
+    readonly property int shownCount: {
+        var total = 0;
+        for (var i = 0; i < pg.shownCats.length; i++)
+            total += (pg.shownCats[i].binds || []).length;
+        return total;
+    }
     // the rail model: All, then every category with its count.
     readonly property var railModel: {
         var out = [{ name: "", label: I18n.tr("All"), count: pg.allCount }];
@@ -717,14 +811,16 @@ Item {
         }
         return out;
     }
-    // what the content column shows: filtered categories while searching, else
-    // the selected category (All -> every category).
+    // what the content column shows: the conflict lens or the selected category,
+    // narrowed by the query when searching. The conflict lens spans every
+    // category, so a search inside it still only finds clashing rows.
     readonly property var shownCats: {
+        var base = pg.conflictFilter ? pg.conflictCats : pg.categories;
         if (pg.searching) {
             var q = pg.query.trim();
             var out = [];
-            for (var i = 0; i < pg.categories.length; i++) {
-                var c = pg.categories[i];
+            for (var i = 0; i < base.length; i++) {
+                var c = base[i];
                 var binds = c.binds || [];
                 var keep = [];
                 for (var b = 0; b < binds.length; b++)
@@ -735,6 +831,8 @@ Item {
             }
             return out;
         }
+        if (pg.conflictFilter)
+            return pg.conflictCats;
         if (pg.selectedCat === "")
             return pg.categories;
         for (var j = 0; j < pg.categories.length; j++)
@@ -908,7 +1006,7 @@ Item {
             id: searchInput
             anchors.left: searchGlyph.right
             anchors.leftMargin: Tokens.s3
-            anchors.right: matchCount.left
+            anchors.right: conflictChip.visible ? conflictChip.left : matchCount.left
             anchors.rightMargin: Tokens.s3
             anchors.verticalCenter: parent.verticalCenter
             clip: true
@@ -927,6 +1025,43 @@ Item {
             color: Tokens.inkFaint
             font: searchInput.font
         }
+        // the conflict lens lives in the field, not as a rail category: a chip
+        // says what is narrowing the list and clears it on a click.
+        Rectangle {
+            id: conflictChip
+            visible: pg.conflictFilter
+            anchors.right: pg.searching ? matchCount.left : parent.right
+            anchors.rightMargin: pg.searching ? Tokens.s3 : Tokens.s4
+            anchors.verticalCenter: parent.verticalCenter
+            height: 24
+            width: chipRow.implicitWidth + Tokens.s3 * 2
+            radius: Tokens.radius
+            color: "transparent"
+            border.width: Tokens.border
+            border.color: Tokens.lineStrong
+
+            Row {
+                id: chipRow
+                anchors.centerIn: parent
+                spacing: Tokens.s2
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: pg.conflictCount === 1
+                        ? I18n.tr("%1 conflicting shortcut").arg(pg.conflictCount)
+                        : I18n.tr("%1 conflicting shortcuts").arg(pg.conflictCount)
+                    color: Tokens.ink
+                    font.family: Tokens.ui; font.pixelSize: Tokens.fTiny
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "\u00d7"
+                    color: Tokens.inkDim
+                    font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                }
+            }
+            HoverHandler { id: chipHov; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: pg.conflictFilter = false }
+        }
         // match count at the field's right edge, shown while searching.
         Text {
             id: matchCount
@@ -934,7 +1069,7 @@ Item {
             anchors.rightMargin: Tokens.s4
             anchors.verticalCenter: parent.verticalCenter
             visible: pg.searching
-            text: pg.allCount === 1 ? I18n.tr("%1 match").arg(pg.allCount) : I18n.tr("%1 matches").arg(pg.allCount)
+            text: pg.shownCount === 1 ? I18n.tr("%1 match").arg(pg.shownCount) : I18n.tr("%1 matches").arg(pg.shownCount)
             color: Tokens.inkFaint; font.family: Tokens.mono; font.pixelSize: Tokens.fTiny
         }
     }
@@ -1435,6 +1570,13 @@ Item {
             id: shroot
             readonly property int railW: 200
 
+            // switching the lens rebuilds the list; start it from the top rather
+            // than leaving the scroll where the unfiltered legend was.
+            Connections {
+                target: pg
+                function onConflictFilterChanged() { contentFlick.contentY = 0; }
+            }
+
             // ── category rail: All + every category, with counts ──
             Flickable {
                 id: railFlick
@@ -1498,6 +1640,7 @@ Item {
                                 onTapped: {
                                     pg.clearSearch();
                                     pg.selectedCat = railItem.modelData.name;
+                                    pg.conflictFilter = false;
                                 }
                             }
                         }
@@ -1567,12 +1710,15 @@ Item {
                                         required property var modelData
                                         required property int index
                                         readonly property string combo: rowItem.modelData.combo || ""
-                                        readonly property bool reboundRow: pg.isRebound(rowItem.combo)
+                                        readonly property bool customRow: (rowItem.modelData.kind || "") === "custom"
+                                        // a custom row is keyed on its own chord, not on a shipped
+                                        // default: a rebind or a switch-off for a shipped chord
+                                        // must never move or hide it.
+                                        readonly property bool reboundRow: !rowItem.customRow && pg.isRebound(rowItem.combo)
                                         readonly property bool rebindableRow: rowItem.modelData.rebindable === true
                                         readonly property string unhon: rowItem.modelData.unhonored || ""
-                                        readonly property bool customRow: (rowItem.modelData.kind || "") === "custom"
                                         readonly property bool clashRow: rowItem.reboundRow && pg.comboConflict(rowItem.combo)
-                                        readonly property bool offRow: pg.isDisabled(rowItem.combo)
+                                        readonly property bool offRow: !rowItem.customRow && pg.isDisabled(rowItem.combo)
                                         // Switched off holds no chord, so the row shows none: printing
                                         // the shipped one would read as a shortcut that does nothing.
                                         readonly property var effKeys: rowItem.offRow ? []
@@ -1585,9 +1731,12 @@ Item {
                                         readonly property bool dedicated: !rowItem.rebindableRow && !rowItem.customRow && rowItem.unhon.length === 0
                                         // 45% ink on an unhonoured row's own text; the caps mute too.
                                         readonly property color rowInk: rowItem.unhon.length ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.45) : Tokens.ink
+                                        // in the conflict lens, name the other shortcut holding
+                                        // this chord so a pair reads as a pair, not two rows.
+                                        readonly property string conflictNote: pg.conflictNoteFor(rowItem.modelData)
 
                                         width: card.width
-                                        height: 44
+                                        height: 44 + (rowItem.conflictNote.length > 0 ? 16 : 0)
 
                                         function beginEdit() {
                                             if (!rowItem.editable)
@@ -1640,6 +1789,14 @@ Item {
                                                 text: I18n.tr(rowItem.modelData.hint || "")
                                                 color: Tokens.inkMuted
                                                 font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                                                elide: Text.ElideRight
+                                            }
+                                            Text {
+                                                visible: rowItem.conflictNote.length > 0
+                                                width: parent.width
+                                                text: rowItem.conflictNote
+                                                color: Tokens.inkMuted
+                                                font.family: Tokens.ui; font.pixelSize: Tokens.fTiny
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -1765,7 +1922,9 @@ Item {
             Text {
                 anchors.centerIn: contentFlick
                 visible: pg.shownCats.length === 0 && (pg.searching || pg.categories.length > 0)
-                text: pg.searching ? I18n.tr("No shortcuts match \u201c%1\u201d").arg(pg.query.trim()) : I18n.tr("No shortcuts here.")
+                text: pg.conflictFilter && pg.conflictCount === 0
+                    ? I18n.tr("No conflicts left.")
+                    : (pg.searching ? I18n.tr("No shortcuts match \u201c%1\u201d").arg(pg.query.trim()) : I18n.tr("No shortcuts here."))
                 color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
             }
         }
@@ -2110,9 +2269,22 @@ Item {
         }
 
         Row {
+            id: statusRow
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             spacing: Tokens.s3
+
+            // the conflict count is the way into the clashes: a plain row until
+            // there is one, then a pointer and a tap that opens the filter.
+            HoverHandler {
+                id: statusHov
+                enabled: pg.conflictCount > 0
+                cursorShape: Qt.PointingHandCursor
+            }
+            TapHandler {
+                enabled: pg.conflictCount > 0
+                onTapped: pg.toggleConflictFilter()
+            }
 
             Rectangle {
                 id: dot
@@ -2139,6 +2311,7 @@ Item {
                 color: (pg.conflictCount > 0 || pg.dirtyCount > 0) ? Tokens.ink : Tokens.inkMuted
                 font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                 font.weight: Font.Medium
+                font.underline: pg.conflictCount > 0 && statusHov.hovered
             }
         }
 
