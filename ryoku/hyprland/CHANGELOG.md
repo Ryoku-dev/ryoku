@@ -3,6 +3,14 @@
 ## Unreleased
 
 ### Added
+- **Touchpad gesture config writer.** `genGesture()` emits one `hl.gesture(...)`
+  line per configured gesture. A store that still has only the old workspace-swipe
+  toggle, and an empty gesture list, keeps that one left/right swipe. Up and down
+  are not added. A later row on the same fingers and axis is left out, because
+  Hyprland would reject it and stop reading the rest of the config. A live preview
+  unsets that fingers and direction before adding the new line, and live cursor
+  zoom omits `zoom_level` (`../wm/hyprland/config_settings.go`,
+  `../wm/hyprland/config_store.go`).
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
   layout of one output's workspaces and remembers it. While the display link is
   off it re-applies at login and follows new workspaces and displays through

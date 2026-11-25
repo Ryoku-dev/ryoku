@@ -765,7 +765,18 @@ Item {
             && JSON.stringify(pg.hv("desktop.input.kbOptions")) === JSON.stringify(pg.cv("desktop.input.kbOptions"));
     }
 
-    readonly property bool swipeOn: pg.hv("desktop.input.workspaceSwipe") === true
+    readonly property bool swipeOn: {
+        if (pg.hv("desktop.input.workspaceSwipe") === true)
+            return true;
+        var g = pg.hv("desktop.input.gestures");
+        if (!Array.isArray(g))
+            return false;
+        for (var i = 0; i < g.length; i++) {
+            if (g[i] && g[i].enabled && g[i].action === "workspace")
+                return true;
+        }
+        return false;
+    }
 
     // ── the catalogue overlay (filtered pick over the runtime xkb lists) ─────
     property var catList: null            // [{ code, name }] while open, else null
@@ -1557,18 +1568,19 @@ Item {
                     label: I18n.tr("Scroll speed")
                     desc: I18n.tr("Multiplier on two-finger scroll.")
                 }
-                Setting {
-                    path: "desktop.input.workspaceSwipe"
-                    ctl: "sw"
-                    label: I18n.tr("Swipe between workspaces")
-                    desc: I18n.tr("A horizontal swipe slides to the next workspace.")
-                }
-                Setting {
-                    path: "desktop.input.swipeFingers"
-                    ctl: "seg"; asInt: true; gate: pg.swipeOn
-                    opts: [{ "key": 3, "label": "3" }, { "key": 4, "label": "4" }]
-                    label: I18n.tr("Swipe fingers")
-                    desc: I18n.tr("How many fingers count as a workspace swipe.")
+                Loader {
+                    id: gestureEditor
+                    width: parent.width
+                    visible: Settings.modelsKey("desktop.input.gestures")
+                    source: visible ? "GestureEditor.qml" : ""
+                    onLoaded: {
+                        if (!item)
+                            return;
+                        item.width = Qt.binding(() => gestureEditor.width);
+                        item.hub = Qt.binding(() => pg.hub);
+                    }
+                    implicitHeight: item ? item.implicitHeight : 0
+                    height: implicitHeight
                 }
                 Setting {
                     path: "desktop.input.swipeInvert"

@@ -123,6 +123,22 @@ type Input struct {
 	SwipeInvert        bool    `json:"swipeInvert"`
 	SwipeCreateNew     bool    `json:"swipeCreateNew"`
 	SwipeDistance      int     `json:"swipeDistance"`
+	// Gestures binds each (fingers, direction) trigger to one hl.gesture action.
+	// An empty list keeps the older workspace-swipe toggle. The key is always
+	// present so another compositor can hide the editor.
+	Gestures []Gesture `json:"gestures"`
+}
+
+// Gesture is one touchpad gesture. Enabled false, or a blank direction or
+// action, keeps the slot in the list and emits nothing.
+type Gesture struct {
+	Enabled       bool   `json:"enabled"`
+	Fingers       int    `json:"fingers"`
+	Direction     string `json:"direction"`
+	Action        string `json:"action"`
+	WorkspaceName string `json:"workspaceName"`
+	ZoomLevel     string `json:"zoomLevel"`
+	Mode          string `json:"mode"`
 }
 
 // Cursor: theme + size + the cursor-section niceties.
@@ -410,6 +426,7 @@ func defaultOverrides() Overrides {
 			RepeatRate:         25, RepeatDelay: 600,
 			WorkspaceSwipe: false, SwipeFingers: 3,
 			SwipeInvert: true, SwipeCreateNew: true, SwipeDistance: 300,
+			Gestures: []Gesture{},
 		},
 		Cursor:         Cursor{Theme: "Bibata-Modern-Ice", Size: 24, InactiveTimeout: 0, HideOnKeyPress: false},
 		Windows:        Windows{TameMaximizeOnOpen: true},

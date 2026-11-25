@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **Touchpad gestures beyond the workspace swipe.** Input > Touchpad lists
+  every gesture that is on. Each row picks fingers, a direction, and an action:
+  switch workspace, special workspace, move, resize, close, float, fullscreen,
+  cursor zoom, or scroll-drag. A store that still has only the old swipe toggle
+  keeps that left/right workspace swipe until the list is edited. Up and down
+  are not added as a workspace swipe. A later row on the same fingers and axis
+  is marked as already used. A 3-finger and a 4-finger row can share a
+  direction, and the editor says so (`pages/GestureEditor.qml`,
+  `pages/InputPage.qml`, `schema/InputPage.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed

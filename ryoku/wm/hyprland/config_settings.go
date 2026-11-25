@@ -799,16 +799,140 @@ func genLayoutWorkspaceAnimation(o Overrides) string {
 	return genAnimItem(item)
 }
 
-// genGesture: the workspace-swipe touchpad gesture when enabled.
+// genGesture writes one hl.gesture line per enabled row. A list, even one
+// whose rows are all off, replaces the old workspace-swipe toggle. An empty
+// list still emits that toggle, so a store saved before the list keeps its swipe.
+// Hyprland keeps the first gesture on a finger count and axis and rejects a
+// later one, which aborts the rest of the config, so those later rows are skipped.
 func genGesture(o Overrides) string {
+	return writeGestures(o, false)
+}
+
+// genGestureLive is the preview form. Hyprland keeps registered gestures until
+// reload and rejects a second one on the same fingers and direction, so a mode
+// change would leave the old gesture running. Unset that trigger first. Unset
+// errors when nothing is registered; pcall ignores that. Live cursor zoom omits
+// zoom_level, which Hyprland ignores and which a later mode would otherwise
+// keep as a multiply factor.
+func genGestureLive(o Overrides) string {
+	return writeGestures(o, true)
+}
+
+func writeGestures(o Overrides, live bool) string {
+	var b strings.Builder
+	for _, g := range gestureRows(o) {
+		if live {
+			fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", gestureFingers(g), g.Direction)
+		}
+		b.WriteString(gestureLine(g))
+	}
+	return b.String()
+}
+
+// gestureRows is the list Hyprland will accept. A configured list wins, including
+// when every row is off. Otherwise the old toggle is one horizontal workspace swipe.
+func gestureRows(o Overrides) []Gesture {
+	if len(o.Input.Gestures) > 0 {
+		return gesturesToEmit(o.Input.Gestures)
+	}
 	if !o.Input.WorkspaceSwipe {
-		return ""
+		return nil
 	}
 	n := o.Input.SwipeFingers
 	if n < 3 {
 		n = 3
 	}
-	return fmt.Sprintf("hl.gesture({ fingers = %d, direction = \"horizontal\", action = \"workspace\" })\n", n)
+	return []Gesture{{
+		Enabled: true, Fingers: n, Direction: "horizontal", Action: "workspace",
+	}}
+}
+
+func gesturesToEmit(gs []Gesture) []Gesture {
+	var out []Gesture
+	for _, g := range gs {
+		if !g.Enabled || g.Direction == "" || g.Action == "" {
+			continue
+		}
+		drop := false
+		for _, prev := range out {
+			if gestureOvershadows(prev, g) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+func gestureOvershadows(prev, next Gesture) bool {
+	if gestureFingers(prev) != gestureFingers(next) {
+		return false
+	}
+	if prev.Direction == next.Direction {
+		return true
+	}
+	switch prev.Direction {
+	case "swipe":
+		return gestureAxis(next.Direction) != "pinch"
+	case "horizontal":
+		return next.Direction == "left" || next.Direction == "right"
+	case "vertical":
+		return next.Direction == "up" || next.Direction == "down"
+	case "pinch":
+		return next.Direction == "pinchin" || next.Direction == "pinchout"
+	default:
+		return false
+	}
+}
+
+func gestureFingers(g Gesture) int {
+	if g.Fingers < 3 {
+		return 3
+	}
+	return g.Fingers
+}
+
+func gestureAxis(direction string) string {
+	switch direction {
+	case "left", "right", "horizontal":
+		return "horizontal"
+	case "up", "down", "vertical":
+		return "vertical"
+	case "pinch", "pinchin", "pinchout":
+		return "pinch"
+	case "swipe":
+		return "swipe"
+	default:
+		return direction
+	}
+}
+
+func gestureLine(g Gesture) string {
+	if !g.Enabled || g.Direction == "" || g.Action == "" {
+		return ""
+	}
+	var extra string
+	switch g.Action {
+	case "special":
+		if g.WorkspaceName != "" {
+			extra = fmt.Sprintf(", workspace_name = %q", g.WorkspaceName)
+		}
+	case "cursor_zoom":
+		if g.Mode != "live" && g.ZoomLevel != "" {
+			extra += fmt.Sprintf(", zoom_level = %q", g.ZoomLevel)
+		}
+		if g.Mode != "" {
+			extra += fmt.Sprintf(", mode = %q", g.Mode)
+		}
+	case "float", "fullscreen":
+		if g.Mode != "" {
+			extra = fmt.Sprintf(", mode = %q", g.Mode)
+		}
+	}
+	return fmt.Sprintf("hl.gesture({ fingers = %d, direction = %q, action = %q%s })\n", gestureFingers(g), g.Direction, g.Action, extra)
 }
 
 // wobbleCurve = an easeOutBack overshoot so a dragged float trails and settles.
@@ -904,6 +1028,6 @@ func genAnimatedBorder(o Overrides, follow, full bool) string {
 func liveLua(o Overrides) string {
 	follow := borderFollowsPalette(o)
 	return fullConfigLua(o, follow) + genMotion(o, true) + genAnimatedBorder(o, follow, true) +
-		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGesture(o) + genPluginConfig(o) +
+		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGestureLive(o) + genPluginConfig(o) +
 		fmt.Sprintf("hl.exec_cmd(%s)\n", luaStr(fmt.Sprintf("hyprctl setcursor %s %d", o.Cursor.Theme, o.Cursor.Size)))
 }

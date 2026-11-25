@@ -200,8 +200,8 @@ var inputEmitted = map[string]bool{
 
 func inputReason(leaf string) string {
 	switch leaf {
-	case "workspaceSwipe", "swipeFingers", "swipeInvert", "swipeCreateNew", "swipeDistance":
-		return "niri's touchpad workspace gesture is built in and takes no finger count, distance, inversion or create-new."
+	case "workspaceSwipe", "swipeFingers", "swipeInvert", "swipeCreateNew", "swipeDistance", "gestures":
+		return "niri's touchpad workspace gesture is built in and takes no finger count, distance, inversion or per-gesture action."
 	}
 	return "niri has no matching input control."
 }
