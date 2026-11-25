@@ -61,7 +61,8 @@
   this session was counted and then absent: a clash with a shipped shortcut
   showed one side of the pair, and two custom shortcuts on one chord showed
   nothing. The Custom side of the lens is now rebuilt from the store, labelled
-  and keycapped the way the saved legend labels it
+  and keycapped the way the saved legend labels it and keeping the provider's
+  own "not on" reason for a bind it has seen
   (`quickshell/pages/KeybindsPage.qml`).
 - **A compositor's own fixed shortcuts are counted again.** The legend marks
   them with the same kind it marks a user's shortcut -- Wayfire titles its

@@ -613,18 +613,33 @@ Item {
     // one side, and two new custom binds on one chord would show nothing at all.
     readonly property var legendCats: {
         var out = [];
+        var saved = {};
         for (var c = 0; c < pg.categories.length; c++) {
             var binds = pg.categories[c].binds || [];
             var keep = [];
-            for (var b = 0; b < binds.length; b++)
-                if (!Combos.isUserCopy(binds[b]))
+            for (var b = 0; b < binds.length; b++) {
+                if (!Combos.isUserCopy(binds[b])) {
                     keep.push(binds[b]);
+                    continue;
+                }
+                saved[binds[b].id] = binds[b];
+            }
             if (keep.length)
                 out.push({ name: pg.categories[c].name, binds: keep });
         }
         var custom = [];
-        for (var i = 0; i < pg.customRows.length; i++)
-            custom.push(pg.customRowAsBind(pg.customRows[i], i));
+        for (var i = 0; i < pg.customRows.length; i++) {
+            var row = pg.customRowAsBind(pg.customRows[i], i);
+            // the provider's reason for a bind it has seen, carried across: the
+            // lens is the legend's view, so a row the provider cannot express
+            // keeps the "not on" tag it earns there. The chord has to be the one
+            // the provider saw: a bind added or re-chorded this session has no
+            // reason yet, and the provider decides on save.
+            var was = saved[row.id];
+            if (was && was.unhonored && pg.normKeys(was.combo) === pg.normKeys(row.combo))
+                row.unhonored = was.unhonored;
+            custom.push(row);
+        }
         if (custom.length)
             out.push({ name: I18n.tr("Custom"), binds: custom });
         return out;
