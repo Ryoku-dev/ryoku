@@ -32,6 +32,11 @@
   `ryoku-desktop` keeps DKMS but leaves headers to the installed kernels. The
   CachyOS installer replaces both stock kernel packages, and doctor installs
   each installed Arch or CachyOS kernel's matching header package.
+- **Screen sharing works again with a headless output.** The share picker
+  aborted the portal with it whenever a headless output was also enabled, such
+  as the VNC screen, so every Discord, Teams and browser share failed. The Arch
+  package now carries the physical-size fix at its pinned upstream commit until
+  upstream releases one.
 
 ### Added
 - **The shell installs its equalizer backend automatically.** `ryoku-shell`
