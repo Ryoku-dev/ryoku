@@ -1,12 +1,26 @@
 package doctor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"ryoku-cli/internal/sys"
 	"strings"
 	"testing"
 )
+
+// writeRyoportManagedFile creates the file ryossh writes when a host is added.
+// Doctor must only repair the include when this managed file exists.
+func writeRyoportManagedFile(t *testing.T) {
+	t.Helper()
+	managed := filepath.Join(sys.Home(), ".ssh", "config.d", "ryoport")
+	if err := os.MkdirAll(filepath.Dir(managed), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(managed, []byte("Host port-1\n  HostName 100.1.2.4\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestEnsureSSHInclude(t *testing.T) {
 	tests := []struct {
@@ -75,6 +89,7 @@ func TestReconcileSSHInclude(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 
 	if got := reconcileSSHInclude(true); got.status != recOK {
 		t.Fatalf("missing config: got %+v, want recOK", got)
@@ -143,6 +158,7 @@ func TestReconcileSSHIncludeConcurrentEditAborts(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 	original := "Host laptop\n  HostName 100.1.2.3\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
@@ -178,6 +194,7 @@ func TestReconcileSSHIncludeLateEditAborts(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 	original := "Host laptop\n  HostName 100.1.2.3\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
@@ -212,6 +229,7 @@ func TestReconcileSSHIncludeBackupTempSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 	original := "Host laptop\n  HostName 100.1.2.3\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
@@ -245,6 +263,7 @@ func TestReconcileSSHIncludeTempSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 	original := "Host laptop\n  HostName 100.1.2.3\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
@@ -282,6 +301,7 @@ func TestReconcileSSHIncludePreservesMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(sshDir, "config")
+	writeRyoportManagedFile(t)
 	if err := os.WriteFile(path, []byte("Host laptop\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
@@ -314,6 +334,7 @@ func TestReconcileSSHIncludeSymlink(t *testing.T) {
 				t.Fatal(err)
 			}
 			path := filepath.Join(sshDir, "config")
+			writeRyoportManagedFile(t)
 			if tt.createTarget {
 				if err := os.WriteFile(filepath.Join(sshDir, "real-config"), []byte("Host laptop\n"), 0o600); err != nil {
 					t.Fatal(err)
@@ -338,6 +359,73 @@ func TestReconcileSSHIncludeSymlink(t *testing.T) {
 			}
 			if info.Mode()&os.ModeSymlink == 0 {
 				t.Fatal("doctor replaced the symlink")
+			}
+		})
+	}
+}
+
+// TestReconcileSSHIncludeManagedFileGate pins the boundary from PR #947: a
+// hand-written config from someone who never used ryossh stays untouched.
+func TestReconcileSSHIncludeManagedFileGate(t *testing.T) {
+	const handWritten = "Host laptop\n  HostName 100.1.2.3\n"
+	const withInclude = handWritten + "Host *\n  Include config.d/*\n"
+	for _, tt := range []struct {
+		name         string
+		managed      bool
+		emptyConfigD bool
+		config       string // empty means there is no ~/.ssh/config
+		checkOnly    bool
+		want         recStatus
+		wantConfig   string
+		wantBackup   bool
+	}{
+		{name: "no managed file, no include, check", config: handWritten, checkOnly: true, want: recOK, wantConfig: handWritten},
+		{name: "no managed file, no include, fix", config: handWritten, want: recOK, wantConfig: handWritten},
+		{name: "no managed file, no config", checkOnly: true, want: recOK},
+		{name: "config.d without managed file", emptyConfigD: true, config: handWritten, want: recOK, wantConfig: handWritten},
+		{name: "managed file, no include, check", managed: true, config: handWritten, checkOnly: true, want: recWouldFix, wantConfig: handWritten},
+		{name: "managed file, no include, fix", managed: true, config: handWritten, want: recFixed, wantConfig: withInclude, wantBackup: true},
+		{name: "managed file, include present", managed: true, config: withInclude, checkOnly: true, want: recOK, wantConfig: withInclude},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+			sshDir := filepath.Join(sys.Home(), ".ssh")
+			if err := os.MkdirAll(sshDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			switch {
+			case tt.managed:
+				writeRyoportManagedFile(t)
+			case tt.emptyConfigD:
+				if err := os.MkdirAll(filepath.Join(sshDir, "config.d"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			path := filepath.Join(sshDir, "config")
+			if tt.config != "" {
+				if err := os.WriteFile(path, []byte(tt.config), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if got := reconcileSSHInclude(tt.checkOnly); got.status != tt.want {
+				t.Fatalf("status = %s, want %s (%+v)", got.status.label(), tt.want.label(), got)
+			}
+			if tt.config == "" {
+				if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("doctor created ~/.ssh/config: %v", err)
+				}
+			} else if raw, err := os.ReadFile(path); err != nil || string(raw) != tt.wantConfig {
+				t.Fatalf("config = %q, want %q (%v)", raw, tt.wantConfig, err)
+			}
+			_, backupErr := os.Lstat(path + ".ryoku-bak")
+			if tt.wantBackup && backupErr != nil {
+				t.Fatalf("backup missing: %v", backupErr)
+			}
+			if !tt.wantBackup && !errors.Is(backupErr, os.ErrNotExist) {
+				t.Fatalf("doctor created a backup: %v", backupErr)
 			}
 		})
 	}

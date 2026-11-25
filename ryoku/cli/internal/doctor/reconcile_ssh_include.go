@@ -21,7 +21,16 @@ var (
 // reconcileSSHInclude restores the one line that keeps GUI-added hosts visible.
 // ryossh writes it when a host is added, but nothing checks it afterwards; once
 // a config rewrite drops it, every managed host disappears from `ryossh list`.
+// The repaired include only matters when ryossh manages a host, so a machine
+// that never used ryossh keeps its hand-written config untouched.
 func reconcileSSHInclude(checkOnly bool) recResult {
+	managed := filepath.Join(sys.Home(), ".ssh", "config.d", "ryoport")
+	if _, err := os.Stat(managed); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return okRes(i18n.T("no ~/.ssh/config.d/ryoport; no ryossh hosts to restore"))
+		}
+		return warnRes(i18n.T("cannot stat ~/.ssh/config.d/ryoport: %v"), err)
+	}
 	path := filepath.Join(sys.Home(), ".ssh", "config")
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
