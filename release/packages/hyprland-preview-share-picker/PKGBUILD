@@ -1,7 +1,15 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Hyprland omits `physical_size` for an output it reports as 0mm, such as
+# HEADLESS-1 under a VNC session. The pinned commit unwrapped the missing
+# field while it built output geometry, which aborted the picker and every
+# screen share through the portal with it (SIGABRT on the
+# UninitializedField("physical_width") panic). Upstream has no fix yet, so
+# this build carries `headless-output-physical-size.patch` against the same
+# pin and drops it once an upstream release sorts above 0.3.0.
 pkgname=hyprland-preview-share-picker
 pkgver=0.3.0
-pkgrel=1
+pkgrel=2
 _commit=7e11349d3f6ecae75b42be73d6a258503656cc8f
 pkgdesc="Preview-based screen-share source picker for Hyprland"
 arch=('x86_64')
@@ -13,11 +21,13 @@ options=('!lto')
 source=(
   "$pkgname::git+$url.git#commit=$_commit"
   'hyprland-protocols::git+https://github.com/hyprwm/hyprland-protocols.git'
+  'headless-output-physical-size.patch'
 )
-sha256sums=('SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' '0acb5ddf9102143e651e985676615e5854a99d4d0b6cc0730ba86fd661bc9ce5')
 
 prepare() {
   cd "$pkgname"
+  patch -Np1 -i "$srcdir/headless-output-physical-size.patch"
   git config submodule.lib/hyprland-protocols.url "$srcdir/hyprland-protocols"
   git -c protocol.file.allow=always submodule update
   export RUSTUP_TOOLCHAIN=stable
@@ -30,6 +40,15 @@ build() {
   export CARGO_TARGET_DIR=target
   cargo build --frozen --release
   ./target/release/hyprland-preview-share-picker schema > schema.json
+}
+
+check() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  # The headless-output coverage lives in the library crate; the picker binary
+  # needs the GTK toolchain only the build host carries.
+  cargo test --frozen --locked -p hyprland-preview-share-picker-lib
 }
 
 package() {

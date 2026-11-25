@@ -1,0 +1,135 @@
+Subject: picker: a head without physical size no longer aborts
+
+Hyprland omits physical_size for an output it reports as 0mm, such as
+HEADLESS-1 under a VNC session. The picker's head builder then missed
+physical_width, and OutputManager::build_outputs unwrapped the missing
+field, aborting the portal with it.
+
+Cover both a physical output with millimeter dimensions and a headless
+output that never reports one.
+---
+ lib/src/output.rs | 96 +++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 93 insertions(+), 3 deletions(-)
+
+diff --git a/lib/src/output.rs b/lib/src/output.rs
+index 0ddde5f..0cf744a 100644
+--- a/lib/src/output.rs
++++ b/lib/src/output.rs
+@@ -29,9 +29,13 @@ pub struct Output {
+     pub x: i32,
+     /// Position on the y-axis in global compositor space.
+     pub y: i32,
+-    /// Width of the output in millimeters.
++    /// Width of the output in millimeters, zero when the compositor never
++    /// reported a physical size.
++    #[builder(default)]
+     pub physical_width: i32,
+-    /// Height of the output in millimeters.
++    /// Height of the output in millimeters, zero when the compositor never
++    /// reported a physical size.
++    #[builder(default)]
+     pub physical_height: i32,
+     /// Width of the output in pixels.
+     pub width: i32,
+@@ -223,7 +227,16 @@ impl OutputManager {
+             output.height(*height);
+             output.wl_output(wl_output.clone());
+ 
+-            self.outputs.push(output.build().expect("all fields should be populated"));
++            // Hyprland omits `physical_size` for an output it reports as 0mm,
++            // such as a headless VNC output, so an incomplete head is no reason
++            // to abort the picker and take the portal with it.
++            match output.build() {
++                Ok(output) => self.outputs.push(output),
++                Err(err) => {
++                    log::error!("skipping output {name} because its head data is incomplete: {err}");
++                    return false;
++                }
++            }
+ 
+             false
+         });
+@@ -413,3 +426,80 @@ delegate_noop!(OutputManager: ignore WlShm);
+ delegate_noop!(OutputManager: ignore WlShmPool);
+ delegate_noop!(OutputManager: ignore WlBuffer);
+ delegate_noop!(OutputManager: ignore ZwlrScreencopyManagerV1);
++
++#[cfg(test)]
++mod tests {
++    use std::os::unix::net::UnixStream;
++
++    use wayland_client::protocol::wl_registry::WlRegistry;
++    use wayland_client::{Proxy, QueueHandle};
++
++    use super::*;
++
++    struct Probe;
++
++    impl Dispatch<WlOutput, ()> for Probe {
++        fn event(_: &mut Self, _: &WlOutput, _: <WlOutput as Proxy>::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
++    }
++
++    impl Dispatch<WlRegistry, ()> for Probe {
++        fn event(
++            _: &mut Self,
++            _: &WlRegistry,
++            _: <WlRegistry as Proxy>::Event,
++            _: &(),
++            _: &Connection,
++            _: &QueueHandle<Self>,
++        ) {
++        }
++    }
++
++    /// A `wl_output` proxy whose compositor never answers: the tests only need a live object to build an `Output` with.
++    fn wl_output() -> WlOutput {
++        let (ours, _theirs) = UnixStream::pair().expect("a socket pair should be available");
++        let connection = Connection::from_socket(ours).expect("a connection should attach to its socket");
++        let queue: EventQueue<Probe> = connection.new_event_queue();
++        let handle = queue.handle();
++        let registry = connection.display().get_registry(&handle, ());
++        registry.bind(1, 1, &handle, ())
++    }
++
++    /// Build a head builder the way a compositor describes an output, where `physical` is `None` when the
++    /// compositor never sends `physical_size`.
++    fn head(name: &str, physical: Option<(i32, i32)>) -> OutputBuilder {
++        let mut builder = OutputBuilder::default();
++        builder
++            .name(name.to_owned())
++            .description("test output".to_owned())
++            .scale(1.0)
++            .x(0)
++            .y(0)
++            .width(1920)
++            .height(1080)
++            .transform(Transform::Normal)
++            .wl_output(wl_output());
++        if let Some((width, height)) = physical {
++            builder.physical_width(width).physical_height(height);
++        }
++        builder
++    }
++
++    #[test]
++    fn a_physical_output_keeps_its_reported_millimeter_dimensions() {
++        let output = head("HDMI-A-1", Some((600, 340))).build().expect("a head that reports a physical size builds");
++
++        assert_eq!((output.physical_width, output.physical_height), (600, 340));
++        assert_eq!(output.transformed_dimensions(), (1920, 1080));
++    }
++
++    #[test]
++    fn a_headless_output_builds_when_physical_size_is_never_sent() {
++        // Hyprland omits `physical_size` for an output it reports as 0mm, such as HEADLESS-1 under a VNC session.
++        // The picker must still list that output at its configured mode instead of aborting.
++        let output = head("HEADLESS-1", None).build().expect("a head without a physical size builds");
++
++        assert_eq!((output.physical_width, output.physical_height), (0, 0));
++        assert_eq!(output.name, "HEADLESS-1");
++        assert_eq!(output.transformed_dimensions(), (1920, 1080));
++    }
++}
+-- 
+2.56.1
+
