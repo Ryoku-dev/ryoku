@@ -236,6 +236,47 @@ func TestAutoHDROffByDefaultAndUserOverlayCanEnable(t *testing.T) {
 // catch-all suppress_event rule. This is the whole of the Hyprland side, so it
 // is pinned by the exact line and by its presence in the full config when the
 // setting is on and its absence when off.
+// Browsers stay translucent unless the user opts in: some find a see-through
+// page hard to read, others chose the translucent desktop for that look.
+func TestOpaqueBrowsersOptIn(t *testing.T) {
+	if defaultOverrides().Opaque.Browsers {
+		t.Fatal("opaque browsers must default off")
+	}
+	if !bytes.Contains(schemaRows, []byte(`"wm.hyprland.opaque.browsers"`)) {
+		t.Fatal("schema missing the opaque browsers control")
+	}
+	if got := genOpaqueBrowsers(defaultOverrides()); got != "" {
+		t.Fatalf("off must emit nothing, got %q", got)
+	}
+	if strings.Contains(genLua(defaultOverrides(), false), "ryoku-opaque-browsers") {
+		t.Fatal("the default config must not pin browser opacity")
+	}
+
+	dir := t.TempDir()
+	store := filepath.Join(dir, "desktop.json")
+	if err := os.WriteFile(store, []byte(`{"wm":{"hyprland":{"opaque":{"browsers":true}}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	on := loadStore(store)
+	want := `hl.window_rule({ name = "ryoku-opaque-browsers", match = { tag = "browser" }, no_blur = true, no_shadow = true, opaque = true, idle_inhibit = "fullscreen", immediate = false })` + "\n"
+	if got := genOpaqueBrowsers(on); got != want {
+		t.Fatalf("rule on:\n got %q\nwant %q", got, want)
+	}
+	if !strings.Contains(genLua(on, false), "ryoku-opaque-browsers") {
+		t.Fatal("the full config must carry the browser rule when the setting is on")
+	}
+	if !strings.Contains(genOpaqueBrowsers(on), "immediate = false") {
+		t.Fatal("browsers must never tear, even when Steam started them")
+	}
+	ns, err := splitStore(on)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ns.WM.Hyprland["opaque"]; !ok {
+		t.Fatal("opaque must persist under wm.hyprland, not desktop")
+	}
+}
+
 func TestGenTameMaximizeOnOpen(t *testing.T) {
 	on := defaultOverrides() // TameMaximizeOnOpen defaults on
 	want := `hl.window_rule({ name = "ryoku-tame-maximize-on-open", match = { class = ".*" }, suppress_event = "maximize" })` + "\n"

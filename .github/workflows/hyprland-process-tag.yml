@@ -1,0 +1,34 @@
+name: Hyprland process tags
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/hyprland/modules/process_tag.lua'
+      - 'ryoku/hyprland/modules/window_rules.lua'
+      - 'tests/hyprland-process-tag.lua'
+      - '.github/workflows/hyprland-process-tag.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'ryoku/hyprland/modules/process_tag.lua'
+      - 'ryoku/hyprland/modules/window_rules.lua'
+      - 'tests/hyprland-process-tag.lua'
+      - '.github/workflows/hyprland-process-tag.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Process tag regression
+        run: |
+          luac5.4 -p ryoku/hyprland/modules/process_tag.lua ryoku/hyprland/modules/window_rules.lua tests/hyprland-process-tag.lua
+          lua5.4 tests/hyprland-process-tag.lua

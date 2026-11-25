@@ -71,6 +71,9 @@ func genLua(o Overrides, follow bool) string {
 	if tm := genTameMaximizeOnOpen(o); tm != "" {
 		b.WriteString(tm)
 	}
+	if ob := genOpaqueBrowsers(o); ob != "" {
+		b.WriteString(ob)
+	}
 	for i, r := range o.WindowRules {
 		if rl := genWindowRule(i, r); rl != "" {
 			b.WriteString(rl)
@@ -493,6 +496,21 @@ func genTameMaximizeOnOpen(o Overrides) string {
 	}
 	return fmt.Sprintf("hl.window_rule({ name = %s, match = { class = %s }, suppress_event = %s })\n",
 		luaStr("ryoku-tame-maximize-on-open"), luaStr(".*"), luaStr("maximize"))
+}
+
+// genOpaqueBrowsers gives every window window_rules.lua tagged "browser" the
+// steam-native props without tearing, the same set the Unreal editor gets:
+// opaque, no blur or shadow, and idle inhibited while fullscreen so a video
+// never dims or locks. Tearing would show in scrolling and video, so
+// immediate = false, set and not left out: a browser Steam started also
+// carries steam-game, and settings.lua loads after that rule. Emitted before
+// the user's own rules so a per-app rule can still win.
+func genOpaqueBrowsers(o Overrides) string {
+	if !o.Opaque.Browsers {
+		return ""
+	}
+	return fmt.Sprintf("hl.window_rule({ name = %s, match = { tag = %s }, no_blur = true, no_shadow = true, opaque = true, idle_inhibit = %s, immediate = false })\n",
+		luaStr("ryoku-opaque-browsers"), luaStr("browser"), luaStr("fullscreen"))
 }
 
 func genWindowRule(i int, r WindowRule) string {

@@ -2,8 +2,9 @@
 """Ryoku i18n sync: keep the per-language catalogs current from English.
 
 A developer only ever writes English, wrapped at the point it is displayed:
-`I18n.tr("...")` in QML, a Hub schema label/desc/group, `i18n.T("...")` in Go,
-`t "..."` in the installer's shell. This tool does the rest:
+`I18n.tr("...")` in QML, a Hub or compositor schema label/desc/group,
+`i18n.T("...")` in Go, `t "..."` in the installer's shell. This tool does the
+rest:
 
   langs    print the language codes this repo ships (one per line), so CI and
            the shell runtime read the same table this file does.
@@ -48,6 +49,7 @@ overrides/<lang>.json always wins, so a human fix is never overwritten.
 """
 
 import concurrent.futures
+import glob
 import json
 import os
 import random
@@ -116,6 +118,15 @@ WM_BIND_FILES = ("binds.go", "config_binds.go", "legend.go")
 BIND_FIELD = re.compile(r'\b(?:Category|Label|Hint|reason):\s*"((?:\\.|[^"\\])*)"')
 UNHONORED_MAP = re.compile(r'Unhonored = map\[string\]string\{(.*?)\n\}', re.S)
 MAP_VALUE = re.compile(r'"[^"\n]*":\s*"((?:\\.|[^"\\])*)"')
+# each compositor's own settings rows (ryoku/wm/<wm>/schema*.json), which the
+# provider prints and the Hub renders like its own schema, through I18n.tr.
+WM_SCHEMA_FIELDS = ("tab", "group", "label", "desc", "actionLabel")
+# a modifier option (Super, Super + Alt) is a key engraving, never a word.
+KEYCAPS = {"Super", "Shift", "Alt", "Ctrl", "Mod", "Meta", "Hyper"}
+
+
+def _keycaps(s):
+    return all(part.strip() in KEYCAPS for part in s.split("+"))
 
 
 
@@ -188,6 +199,26 @@ def _copy(s):
         return False
     return any(c.isalpha() and ord(c) < 0x80 for c in s)
 
+
+
+def wm_schema_strings(rows):
+    """The displayed copy of a provider's schema rows: tab, group, label,
+    desc and action label, each option as the control shows it (its optLabels
+    entry, else the value itself) unless it is a modifier key, and the same
+    for a list row's fields."""
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict):
+            continue
+        out += [r[f] for f in WM_SCHEMA_FIELDS if isinstance(r.get(f), str)]
+        shown = r.get("optLabels") if isinstance(r.get("optLabels"), dict) else {}
+        for v in r.get("opts") or []:
+            if isinstance(v, str):
+                label = shown.get(v, v)
+                if isinstance(label, str) and not _keycaps(label):
+                    out.append(label)
+        out += wm_schema_strings(r.get("fields"))
+    return out
 
 
 def extract_keys():
@@ -277,6 +308,11 @@ def extract_keys():
                     s = _unescape(body).strip()
                     if _copy(s):
                         keys.add(s)
+    for path in sorted(glob.glob(os.path.join(WM_ROOT, "*", "schema*.json"))):
+        for body in wm_schema_strings(load_json(path)):
+            s = body.strip()
+            if s and not _noise(s) and not _brand(s):
+                keys.add(s)
     for root, dirs, files in os.walk(WM_ROOT):
         dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
         for f in files:

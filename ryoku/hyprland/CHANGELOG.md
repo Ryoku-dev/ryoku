@@ -3,6 +3,24 @@
 ## Unreleased
 
 ### Added
+- **Unreal Engine gets the steam-native treatment.** The editor, its pop-ups
+  and the crash reporter are tagged `unreal-engine` by process (the window
+  class of a UE pop-up is often empty) and drawn opaque, without blur or
+  shadow, with idle inhibited while fullscreen. Only its game windows tear: a
+  UE process run with `-game` and the Play In Editor window; the editor UI
+  never does (`modules/window_rules.lua`, `modules/process_tag.lua`).
+- **Parsec gets the editor's treatment.** Parsec windows (class `parsecd`,
+  under XWayland) are tagged `parsec` by process and drawn opaque, without
+  blur or shadow, with idle inhibited while fullscreen and no tearing, so a
+  remote desktop never turns see-through or dims mid-session
+  (`modules/window_rules.lua`).
+- **Opt-in: browsers drawn like the Unreal editor.** Browser windows are
+  tagged `browser` by process; Ryoku Settings > Window Manager > Look > Keep
+  browsers fully opaque (`wm.hyprland.opaque.browsers`, off by default) adds
+  the rule: opaque, no blur or shadow, awake through fullscreen video, never
+  tearing. Off by default because the translucent desktop is a look some
+  users chose, while others find a see-through page hard to read
+  (`ryoku/wm/hyprland/`).
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
   layout of one output's workspaces and remembers it. While the display link is
   off it re-applies at login and follows new workspaces and displays through
@@ -33,6 +51,14 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Every game Steam launches is treated as a game, whatever its window
+  class.** The steam-native props (opaque, no blur or shadow, tearing, idle
+  inhibit while fullscreen) matched only `steam_app_<id>`, so a native game
+  that keeps its engine's class turned translucent as soon as it lost focus.
+  A window whose process descends from Steam's reaper now gets the
+  `steam-game` tag and the same props; the client and terminals are left out.
+  The process walk lives in `modules/process_tag.lua`, a shared tagger other
+  rules can reuse (`modules/window_rules.lua`).
 - **Unplugging the external monitor no longer leaves an invalid layout.** A
   panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
   Hyprland reports for a disabled output, and the hotplug fallback woke it with

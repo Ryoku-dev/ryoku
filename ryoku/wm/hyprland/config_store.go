@@ -145,6 +145,15 @@ type Windows struct {
 	TameMaximizeOnOpen bool `json:"tameMaximizeOnOpen"`
 }
 
+// Opaque keeps one kind of window fully opaque, focused or not, whatever the
+// desktop's opacity. Browsers is opt-in: a see-through page is harder to read
+// for some, while others chose the translucent desktop for exactly that look.
+// The shipped window_rules.lua tags browser windows by process either way; this
+// only adds the rule.
+type Opaque struct {
+	Browsers bool `json:"browsers"`
+}
+
 // SettingsWindow is the provider-owned size of the Hub window. Full keeps the
 // shipped work-area fit; custom scales that same area and stays centred.
 type SettingsWindow struct {
@@ -344,6 +353,7 @@ type Overrides struct {
 	Input          Input             `json:"input"`
 	Cursor         Cursor            `json:"cursor"`
 	Windows        Windows           `json:"windows"`
+	Opaque         Opaque            `json:"opaque"`
 	SettingsWindow SettingsWindow    `json:"settingsWindow"`
 	Env            []EnvVar          `json:"env"`
 	WindowRules    []WindowRule      `json:"windowRules"`
@@ -413,6 +423,7 @@ func defaultOverrides() Overrides {
 		},
 		Cursor:         Cursor{Theme: "Bibata-Modern-Ice", Size: 24, InactiveTimeout: 0, HideOnKeyPress: false},
 		Windows:        Windows{TameMaximizeOnOpen: true},
+		Opaque:         Opaque{Browsers: false},
 		SettingsWindow: SettingsWindow{Mode: "full", Width: 0.5, Height: 0.5},
 		Env:            []EnvVar{},
 		WindowRules:    []WindowRule{},
@@ -447,6 +458,7 @@ var wmHyprlandFields = map[string]bool{
 	"layerRules":     true,
 	"plugins":        true,
 	"settingsWindow": true,
+	"opaque":         true,
 }
 
 // neutralStore is desktop.json on disk: { "desktop": {...}, "wm": { "hyprland":

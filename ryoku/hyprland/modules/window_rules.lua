@@ -255,9 +255,7 @@ hl.window_rule({
 -- Strip that chrome and force them opaque so they read like a native fullscreen
 -- app, and inhibit idle while fullscreen so controller-only play never dims or
 -- locks (hypridle has no fullscreen exception). steamwebhelper stays untouched.
-hl.window_rule({
-    name         = "steam-native",
-    match        = { class = "^(steam|steam_app_.*|gamescope)$" },
+local steam_native = {
     no_blur      = true,
     no_shadow    = true,
     opaque       = true,
@@ -267,7 +265,82 @@ hl.window_rule({
     -- hit when the Steam overlay composites on top. Pairs with
     -- general.allow_tearing; Game Mode already forces this path at runtime.
     immediate    = true,
+}
+local function steam_native_rule(name, match)
+    local rule = { name = name, match = match }
+    for k, v in pairs(steam_native) do rule[k] = v end
+    hl.window_rule(rule)
+end
+steam_native_rule("steam-native", { class = "^(steam|steam_app_.*|gamescope)$" })
+
+-- Plenty of games never map as steam_app_<id>: a native Linux build keeps its
+-- engine's class. Every game Steam starts runs under its reaper
+-- (`reaper SteamLaunch AppId=<id> -- ...`), however many wrappers sit between
+-- it and the window (steam-launch-wrapper, sh, pressure-vessel, bwrap, proton,
+-- wine), so the ancestry names them all. The
+-- client and steamwebhelper never pass a reaper: the walk ends at steam. A
+-- terminal started from a game is not a game either.
+local not_a_game = {
+    steam = true, systemd = true,
+    kitty = true, foot = true, alacritty = true, ghostty = true, ["wezterm-gui"] = true,
+}
+local process_tag = require("modules.process_tag")
+steam_native_rule("steam-native-launched", { tag = "steam-game" })
+process_tag.add("steam-game", function(pid)
+    return process_tag.walk(pid, function(p, comm)
+        if comm == "reaper" and process_tag.cmdline(p):find("SteamLaunch", 1, true) then
+            return true
+        end
+        if not_a_game[comm] then return false end
+    end)
+end)
+
+-- Unreal Engine: the editor, its pop-ups (menus, toasts, asset pickers, most of
+-- them with an empty or per-build class) and the crash reporter. The inactive
+-- opacity made the editor see-through whenever a pop-up took focus, and it is
+-- a tool you watch while you work in another window. It gets the steam-native
+-- props except tearing: Hyprland tears only a fullscreen window, and a
+-- fullscreened editor UI that tears looks broken. Its game windows tear like
+-- any game: a process run with -game, and the Play In Editor window.
+-- immediate = false, not left out: an editor Steam launched also carries the
+-- steam-game tag, and this later rule has to win over its tearing. The game
+-- window rules below come later still.
+local function steam_native_untorn_rule(name, match)
+    local rule = { name = name, match = match }
+    for k, v in pairs(steam_native) do rule[k] = v end
+    rule.immediate = false
+    hl.window_rule(rule)
+end
+steam_native_untorn_rule("unreal-engine", { tag = "unreal-engine" })
+hl.window_rule({ name = "unreal-game", match = { tag = "unreal-game" }, immediate = true })
+hl.window_rule({
+    name      = "unreal-play-in-editor",
+    match     = { tag = "unreal-engine", title = "^.* Preview \\[NetMode: .*$" },
+    immediate = true,
 })
+local unreal = process_tag.runs({ "^Unreal", "^UE[45]", "^CrashReportClie", "/Engine/Binaries/" })
+process_tag.add("unreal-engine", unreal)
+process_tag.add("unreal-game", function(pid)
+    return process_tag.cmdline(pid):find("\0-game\0", 1, true) ~= nil and unreal(pid)
+end)
+
+-- Parsec (class parsecd, under XWayland) shows another machine's screen: a
+-- see-through remote desktop is hard to read, and a stream that dims or
+-- locks mid-session is broken. It gets the editor's untorn props, tagged by
+-- process like the editor; immediate = false also wins over steam-game when
+-- Parsec was added to Steam.
+steam_native_untorn_rule("parsec", { tag = "parsec" })
+process_tag.add("parsec", process_tag.runs({ "^parsecd$" }))
+
+-- Browsers are tagged only. Whether they get the untorn steam-native props
+-- (opaque, no blur or shadow, awake through fullscreen video) is the user's
+-- call (Ryoku Settings > Window Manager > Look), since a see-through page is
+-- hard to read for some while others like the look; the provider writes that
+-- rule. Never tearing: it would show in scrolling and video.
+process_tag.add("browser", process_tag.runs({
+    "^firefox", "^chrome$", "^chromium", "^google%-chrome", "^brave", "^vivaldi", "^opera", "^msedge",
+    "^zen$", "^zen%-bin$", "^librewolf", "^floorp", "^waterfox", "^mullvadbrowser", "^thorium",
+}))
 
 -- Ryotunes, the music app ([ryoku] package, ryoku-dev/ryotunes). Float it like
 -- the other music players (Spotify above); the app sizes and centres its own
