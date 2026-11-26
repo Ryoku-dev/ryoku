@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
@@ -55,12 +56,35 @@ Item {
             touchModel.clear()
             var d = null
             try { d = JSON.parse(root._touchBuf) } catch (e) { d = null }
+            root.summary = root._summarize(d && d.config ? d.config : "")
             var t = (d && d.touches) ? d.touches : []
             for (var i = 0; i < t.length; ++i)
                 if (t[i].provided === true)
                     touchModel.append({ touchLabel: String(t[i].label || "") })
         }
     }
+
+    // What the look is, read from the rice itself: its style, colours, contrast and prompt.
+    property var summary: []
+    function _summarize(text) {
+        var r = null
+        try { r = JSON.parse(text) } catch (e) { return [] }
+        var out = [], look = (r && r.look) || {}
+        var theme = (look.shell && look.shell.theme) || {}
+        var styles = { lithic: I18n.tr("Lithic style"), material: I18n.tr("Material style"),
+                       adwaita: I18n.tr("Adwaita style"), fluent: I18n.tr("Fluent style") }
+        out.push(styles[theme.design] || styles.lithic)
+        if (theme.colours === "ryoku") out.push(I18n.tr("Ryoku colours"))
+        else if (r.color && r.color.mode === "fixed") out.push(I18n.tr("Fixed palette"))
+        else out.push(I18n.tr("Wallpaper colours"))
+        if (theme.contrast === "high") out.push(I18n.tr("High contrast"))
+        if (look.starship && look.starship.layout) out.push(I18n.tr("Prompt: %1").arg(look.starship.layout))
+        if (look.shell && look.shell.barStyle) out.push(I18n.tr("Bar: %1").arg(look.shell.barStyle))
+        return out
+    }
+    readonly property string compatText: root.compat === "ok" ? I18n.tr("Made for this Ryoku")
+        : root.compat === "older" ? I18n.tr("Made with an older Ryoku")
+        : root.compat === "newer" ? I18n.tr("Made with a newer Ryoku") : ""
 
     function _run(args) { Quickshell.execDetached(args) }
 
@@ -74,6 +98,11 @@ Item {
         if (root.slug === "") return
         root._run(["ryoku-hub", "rice", "fork", root.slug])
         if (root.state) root.state.toast(I18n.tr("Forked rice"), "success")
+    }
+    function undoRice() {
+        root._run(["ryoku-hub", "rice", "restore", "previous"])
+        if (root.state) root.state.toast(I18n.tr("Undoing the last rice"), "info")
+        root.close()
     }
     function restoreRice() {
         root._run(["ryoku-hub", "rice", "restore"])
@@ -93,17 +122,18 @@ Item {
         onDismissed: root.close()
     }
 
-    Rectangle {
+    CutRect {
         id: card
         anchors.centerIn: parent
         width: Math.min(parent.width - 100 * Theme.scale, 880 * Theme.scale)
-        height: Math.min(parent.height - 100 * Theme.scale, 500 * Theme.scale)
+        height: Math.min(parent.height - 100 * Theme.scale, 600 * Theme.scale)
         opacity: root.reveal
         transform: Translate { y: (1 - root.reveal) * 12 * Theme.scale }
 
-        color: Theme.withAlpha(Theme.surface, 0.99)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.58)
+        cut: LithicTokens.cut.large * Theme.scale
+        fill: Lithic.stone4
+        strokeWidth: 1
+        strokeColor: Lithic.vein
 
         MouseArea { anchors.fill: parent }
 
@@ -133,12 +163,12 @@ Item {
             anchors.margins: 22 * Theme.scale
             spacing: 22 * Theme.scale
 
-            Rectangle {
+            CutRect {
                 id: preview
                 width: (parent.width - parent.spacing) * 0.42
                 height: parent.height
                 clip: true
-                color: Theme.withAlpha(Theme.surfaceContainer, 0.9)
+                fill: Theme.withAlpha(Theme.surfaceContainer, 0.9)
 
                 Image {
                     anchors.fill: parent
@@ -159,11 +189,11 @@ Item {
                     color: Theme.withAlpha(Theme.surfaceText, 0.22)
                     renderType: Text.NativeRendering
                 }
-                Rectangle {
+                CutRect {
                     anchors.fill: parent
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Theme.withAlpha(Theme.outline, 0.4)
+                    fill: "transparent"
+                    strokeWidth: 1
+                    strokeColor: Theme.withAlpha(Theme.outline, 0.4)
                 }
             }
 
@@ -200,7 +230,16 @@ Item {
                     Flow {
                         width: parent.width
                         spacing: 6 * Theme.scale
-                        RiceChip { visible: root.compat !== ""; label: root.compat.toUpperCase(); strong: true }
+                        Repeater {
+                            model: root.summary
+                            delegate: RiceChip {
+                                required property var modelData
+                                label: String(modelData)
+                                tint: Lithic.sel
+                                strong: true
+                            }
+                        }
+                        RiceChip { visible: root.compatText !== ""; label: root.compatText }
                         RiceChip { visible: root.createdWith !== ""; label: "v" + root.createdWith }
                         RiceChip { visible: root.live; label: I18n.tr("LIVE"); tint: Theme.surfaceText; strong: true }
                         RiceChip { visible: root.active; label: I18n.tr("ACTIVE"); tint: Theme.surfaceText; strong: true }
@@ -259,8 +298,14 @@ Item {
                         FixedButton {
                             mode: "action"
                             label: I18n.tr("Apply")
-                            active: true
+                            gold: true
                             onTriggered: root.applyRice()
+                        }
+                        FixedButton {
+                            visible: root.active
+                            mode: "action"
+                            label: I18n.tr("Undo")
+                            onTriggered: root.undoRice()
                         }
                         FixedButton {
                             mode: "action"
@@ -269,7 +314,7 @@ Item {
                         }
                         FixedButton {
                             mode: "action"
-                            label: I18n.tr("Restore")
+                            label: I18n.tr("Restore original")
                             onTriggered: root.restoreRice()
                         }
                         FolioDestructiveAction {

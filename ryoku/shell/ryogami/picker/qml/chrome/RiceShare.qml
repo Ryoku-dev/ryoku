@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic as Lc
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
@@ -87,6 +88,9 @@ Item {
             carryModel.clear()
             if (!d) return
             function add(label) { carryModel.append({ carry: label }) }
+            var styles = { lithic: I18n.tr("Lithic style"), material: I18n.tr("Material style"),
+                           adwaita: I18n.tr("Adwaita style"), fluent: I18n.tr("Fluent style") }
+            add(styles[d.style] || styles.lithic)
             if (d.wallpaper) add(d.live ? I18n.tr("Live wallpaper") : I18n.tr("Wallpaper"))
             add(d.fixed ? I18n.tr("Locked colours") : I18n.tr("Colours"))
             if (d.themeApps) add(I18n.tr("App colours"))
@@ -101,6 +105,7 @@ Item {
             if (d.decors > 0) add(I18n.tr("%1 decors").arg(d.decors))
             if (d.lock) add(I18n.tr("Lock screen"))
             if (d.fastfetch) add(I18n.tr("Fastfetch"))
+            if (d.prompt) add(I18n.tr("Terminal prompt"))
             var layers = d.layers || []
             if (layers.indexOf("input") >= 0) add(I18n.tr("Input"))
             if (layers.indexOf("brand") >= 0) add(I18n.tr("Brand mark"))
@@ -239,7 +244,7 @@ Item {
         onDismissed: root.close()
     }
 
-    Rectangle {
+    Lc.CutRect {
         id: card
         anchors.centerIn: parent
         readonly property bool compact: root.shownMode === "save"
@@ -250,9 +255,10 @@ Item {
         opacity: root.reveal
         transform: Translate { y: (1 - root.reveal) * 12 * Theme.scale }
 
-        color: Theme.withAlpha(Theme.surface, 0.99)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.58)
+        cut: Lc.LithicTokens.cut.large * Theme.scale
+        fill: Lc.Lithic.stone4
+        strokeWidth: 1
+        strokeColor: Lc.Lithic.vein
 
         MouseArea { anchors.fill: parent }
 

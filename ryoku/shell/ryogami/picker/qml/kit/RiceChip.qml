@@ -1,6 +1,7 @@
 import QtQuick
+import Lithic
 
-Rectangle {
+CutRect {
     id: chip
 
     property string label: ""
@@ -8,10 +9,11 @@ Rectangle {
     property bool strong: false
 
     implicitWidth: chipText.implicitWidth + 16 * Theme.scale
-    height: 20 * Theme.scale
-    color: chip.strong ? Theme.withAlpha(chip.tint, 0.16) : "transparent"
-    border.width: 1
-    border.color: Theme.withAlpha(chip.tint, chip.strong ? 0.55 : 0.3)
+    height: 22 * Theme.scale
+    cut: 3 * Theme.scale
+    fill: chip.strong ? Theme.withAlpha(chip.tint, 0.16) : "transparent"
+    strokeWidth: 1
+    strokeColor: Theme.withAlpha(chip.tint, chip.strong ? 0.55 : 0.3)
 
     Text {
         id: chipText

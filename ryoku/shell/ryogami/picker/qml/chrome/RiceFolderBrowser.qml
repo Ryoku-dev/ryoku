@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Qt.labs.folderlistmodel
 import Quickshell
 import Ryoku.Ui.Singletons
@@ -99,12 +100,12 @@ Item {
             }
         }
 
-        Rectangle {
+        CutRect {
             width: parent.width
             height: 32 * Theme.scale
-            color: Theme.withAlpha(Theme.surfaceContainer, 0.7)
-            border.width: 1
-            border.color: Theme.withAlpha(Theme.outline, 0.32)
+            fill: Theme.withAlpha(Theme.surfaceContainer, 0.7)
+            strokeWidth: 1
+            strokeColor: Theme.withAlpha(Theme.outline, 0.32)
 
             FixedButton {
                 id: upBtn
@@ -184,23 +185,23 @@ Item {
                 }
             }
 
-            Rectangle {
+            CutRect {
                 id: face
                 anchors.fill: parent
                 anchors.margins: 4 * Theme.scale
                 clip: true
-                color: tile.chosen ? Theme.withAlpha(Theme.surfaceText, 0.1)
+                fill: tile.chosen ? Theme.withAlpha(Theme.surfaceText, 0.1)
                      : tileMouse.containsMouse ? Theme.withAlpha(Theme.surfaceVariant, 0.7)
                      : Theme.withAlpha(Theme.surfaceContainer, 0.6)
-                border.width: tile.chosen ? 2 : 1
-                border.color: tile.chosen ? Theme.surfaceText
+                strokeWidth: tile.chosen ? 2 : 1
+                strokeColor: tile.chosen ? Theme.surfaceText
                             : tileMouse.containsMouse ? Theme.withAlpha(Theme.outline, 0.75)
                             : Theme.withAlpha(Theme.outline, tile.isRice ? 0.5 : 0.25)
-                Behavior on color { ColorAnimation { duration: Theme.fast } }
+                Behavior on fill { ColorAnimation { duration: Theme.fast } }
 
                 Image {
                     anchors.fill: parent
-                    anchors.margins: face.border.width
+                    anchors.margins: face.strokeWidth
                     visible: tile.thumb !== "" && status === Image.Ready
                     source: tile.thumb !== "" ? Library.fileUrl(tile.thumb) : ""
                     fillMode: Image.PreserveAspectCrop
@@ -213,7 +214,7 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.margins: face.border.width
+                    anchors.margins: face.strokeWidth
                     height: parent.height * 0.55
                     gradient: Gradient {
                         GradientStop { position: 0; color: "transparent" }
@@ -233,14 +234,14 @@ Item {
                     renderType: Text.NativeRendering
                 }
 
-                Rectangle {
+                CutRect {
                     visible: tile.isRice
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.margins: 7 * Theme.scale
                     width: badge.implicitWidth + 10 * Theme.scale
                     height: badge.implicitHeight + 4 * Theme.scale
-                    color: Theme.withAlpha(Theme.surfaceText, 0.92)
+                    fill: Theme.withAlpha(Theme.surfaceText, 0.92)
                     Text {
                         id: badge
                         anchors.centerIn: parent

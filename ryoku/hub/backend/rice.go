@@ -719,6 +719,10 @@ func captureRice(name string, layers []string) (Rice, error) {
 			"profile": extractStore(profileConfigPath(), nil),
 		},
 	}
+	if isFile(starshipStatePath()) {
+		st := readStarshipState()
+		r.Look["starship"] = map[string]any{"layout": st.Layout, "palette": st.Palette}
+	}
 	if len(layers) == 1 && layers[0] == "all" {
 		layers = append(append([]string{}, riceHyprLayers...), riceExtraLayers...)
 	}
@@ -959,7 +963,7 @@ func readPalette(path string) map[string]string {
 var backupStores = []string{
 	"desktop.json", "shell.json", "launcher.json", "theme.json", "ryogami.json",
 	"widgets.json", "visualizer.json", "decor.json", "brand.json", "profile.json",
-	"plugins.json", "stage.json", "matugen.json",
+	"plugins.json", "stage.json", "matugen.json", "starship.json",
 }
 
 // absentMarker lists the files a snapshot found missing, so a restore removes what an apply created
@@ -1083,6 +1087,11 @@ func restoreRice(slot string) error {
 	if b, err := os.ReadFile(filepath.Join(dir, "lock.slug")); err == nil {
 		if slug := strings.TrimSpace(string(b)); slug != "" {
 			_ = setLockSkinIn(qylockThemesDir(), qylockThemePref(), slug)
+		}
+	}
+	if isFile(starshipStatePath()) {
+		if err := applyStarship(readStarshipState(), false); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	_, _ = desktopClient().Apply(desktopStorePath())
@@ -1350,6 +1359,16 @@ func layRice(r Rice, dir string, layers []string) error {
 			return fmt.Errorf("apply matugen look: %w", err)
 		}
 	}
+	// A prompt layout the recipient lacks leaves their prompt as it was.
+	if sp := r.Look["starship"]; len(sp) > 0 {
+		layout, _ := sp["layout"].(string)
+		palette, _ := sp["palette"].(string)
+		if layout != "" {
+			if err := applyStarship(starshipState{Layout: layout, Palette: palette}, true); err != nil {
+				fmt.Fprintf(os.Stderr, "ryoku-hub: rice apply: prompt left as it was: %v\n", err)
+			}
+		}
+	}
 	// a rice built after the toggle carries its app-theming choice; apply it so
 	// a shared full-system look reaches (or spares) the recipient's apps the same
 	// way it did the author's. an older rice (nil) leaves the recipient's setting.
@@ -1597,8 +1616,8 @@ func homeRel(p string) string {
 func riceTouches(r Rice, dir string) []riceTouch {
 	cfg := ryokuConfigDir()
 	touches := []riceTouch{
-		{homeRel(filepath.Join(cfg, "hypr.json")), "config", "window", "Windows: decoration and motion", len(r.Look["hypr"]) > 0},
-		{homeRel(filepath.Join(cfg, "shell.json")), "config", "widgets", "Shell: every bar style and its widgets", len(r.Look["shell"]) > 0},
+		{homeRel(desktopStorePath()), "config", "window", "Windows: decoration and motion", len(r.Look["hypr"]) > 0},
+		{homeRel(filepath.Join(cfg, "shell.json")), "config", "widgets", "Shell: style, colours, bar styles and widgets", len(r.Look["shell"]) > 0},
 		{homeRel(filepath.Join(cfg, "theme.json")), "config", "palette", "Colours: palette master", r.Color.Mode != "" || len(r.Look["theme"]) > 0},
 		{homeRel(filepath.Join(cfg, "launcher.json")), "config", "rocket", "Launcher: hero and card", len(r.Look["launcher"]) > 0 || r.Assets.Hero != ""},
 		{homeRel(filepath.Join(cfg, "widgets.json")), "config", "widgets", "Desktop widgets: look and placement", true},
@@ -1609,7 +1628,8 @@ func riceTouches(r Rice, dir string) []riceTouch {
 		{homeRel(filepath.Join(cfg, "decor.json")), "config", "image", "Desktop decors (pictures bundled)", len(r.Look["decor"]) > 0},
 		{homeRel(filepath.Join(cfg, "profile.json")), "config", "image", "Profile plate: hero decor", len(r.Look["profile"]) > 0},
 		{homeRel(filepath.Join(cfg, "ryogami.json")), "config", "wallpaper", "Wallpaper surface: transitions and modes", len(r.Look["ryogami"]) > 0},
-		{homeRel(filepath.Join(hyprConfigDir(), "settings.lua")), "output", "refresh", "Hyprland settings (regenerated)", true},
+		{homeRel(starshipStatePath()), "config", "terminal", "Terminal prompt: layout and colours", len(r.Look["starship"]) > 0},
+		{homeRel(desktopStorePath()), "output", "refresh", "Window manager settings (regenerated)", true},
 	}
 	if r.Color.Mode == "fixed" {
 		touches = append(touches,
@@ -1913,7 +1933,15 @@ func preflightData() map[string]any {
 		}
 	}
 	wall := currentWallpaper()
+	style := "lithic"
+	if th, ok := readJSONMap(shellStorePath())["theme"].(map[string]any); ok {
+		if d, ok := th["design"].(string); ok && d != "" {
+			style = d
+		}
+	}
 	return map[string]any{
+		"style":      style,
+		"prompt":     isFile(starshipStatePath()),
 		"wallpaper":  wall != "" && isFile(wall),
 		"live":       isVideo(wall),
 		"decors":     decors,

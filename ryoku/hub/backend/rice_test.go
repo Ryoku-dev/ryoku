@@ -570,8 +570,8 @@ func TestRiceTouchesAndExport(t *testing.T) {
 		}
 		return nil
 	}
-	if h := find("hypr.json"); h == nil || !h.Provided {
-		t.Fatalf("hypr.json not reported as provided: %+v", h)
+	if h := find("desktop.json"); h == nil || !h.Provided {
+		t.Fatalf("desktop.json not reported as provided: %+v", h)
 	}
 	if l := find("launcher.json"); l == nil || l.Provided {
 		t.Fatalf("launcher.json should be present but not provided: %+v", l)
