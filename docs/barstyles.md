@@ -139,9 +139,6 @@ usage, Phone and VPN are available in the Layout editor but stay out of the
 default layout.
 When shown, AI usage marks a pace trend beside the five-hour total and lists
 five-hour and weekly pace details in its tooltip when reset times are available.
-The Codex card shows the 5-hour and weekly limits as two bars when OpenCode
-reports them through its ChatGPT login; the Codex CLI remains the fallback.
-The Codex chip shows both percentages and their reset countdowns.
 
 Its settings use the `orpheus` namespace in `shell.json`:
 
@@ -840,6 +837,10 @@ over the same `Ryoku.Ui` form kit the rest of Ryoku Settings uses.
 | Widgets | 部品 | every widget as a row: on/off, density, colour and its own settings |
 | Dock | 台 | the app dock: enabled, edge, autohide, magnify, labels, frost, pinned apps |
 | Community | 有志 | installed third-party bar widgets and adding from git or Ryostore |
+
+In QS Bar, the Codex card shows the 5-hour and weekly limits as two bars when
+OpenCode reports them, and the Codex chip shows both percentages and their reset
+countdowns; the Codex CLI remains the fallback.
 
 Open it from the bar logo, or from a terminal or a keybind with `ryoku-shell bar
 settings [route]`. Picker style lives on the Bar route; desktop widgets are

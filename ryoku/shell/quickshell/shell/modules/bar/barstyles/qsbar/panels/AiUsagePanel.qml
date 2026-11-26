@@ -81,49 +81,6 @@ PanelWindow {
         onClicked: root.aiUsageVisible = false
     }
 
-    // ── one limit window, drawn as a labeled meter ─────────────────────
-    component LimitBar: Column {
-        id: limitBar
-        property string label: ""
-        property int pct: 0
-        property int resetTs: 0
-        property bool behind: false
-
-        width: parent ? parent.width : 0
-        spacing: 4
-
-        Item {
-            width: parent.width
-            height: 14
-            UiText {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr(limitBar.label)
-                color: aiPanel.root.sumiHi
-                font.family: aiPanel.root.mono; font.pixelSize: 11
-            }
-            UiText {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("%1% used").arg(limitBar.pct)
-                      + (limitBar.resetTs > 0 ? " · " + aiPanel.root.aiFmtReset(limitBar.resetTs) : "")
-                color: aiPanel.root.sumi
-                font.family: aiPanel.root.mono; font.pixelSize: 11
-            }
-        }
-
-        Rectangle {
-            width: parent.width; height: 6; radius: 3
-            color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
-            Rectangle {
-                width: parent.width * Math.max(0, Math.min(100, limitBar.pct)) / 100
-                height: parent.height; radius: parent.radius
-                color: limitBar.behind ? aiPanel.root.sealRaw : aiPanel.root.seal
-                Behavior on width { NumberAnimation { duration: 300 } }
-            }
-        }
-    }
-
     // ── one provider card ──────────────────────────────────────────────
     component ProviderCard: Column {
         id: pcard
@@ -202,7 +159,8 @@ PanelWindow {
         // weekly meter, or one labeled meter per reported window
         Rectangle {
             visible: pcard.has && pcard.bars.length === 0
-            width: parent.width; height: 6; radius: 3
+            width: parent.width; height: 6
+            radius: Math.min(Tokens.radius, height / 2)
             color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
             Rectangle {
                 width: parent.width * Math.max(0, Math.min(100, pcard.pct)) / 100
@@ -216,6 +174,7 @@ PanelWindow {
             model: pcard.bars
             delegate: LimitBar {
                 required property var modelData
+                root: aiPanel.root
                 width: pcard.width
                 label: String(modelData.label || "window")
                 pct: parseInt(modelData.pct) || 0
