@@ -1917,7 +1917,7 @@ func hardwareLanes(f *facts) []string {
 }
 
 // selectedInstallPackages names chosen packages the edition's package sets do
-// not carry: the file manager, Ryoku apps, Hyakki, and offline gaming bundles.
+// not carry: the file manager, Ryoku apps, and offline gaming bundles.
 // Arch's network-only CachyOS bundle has its own guarded install step.
 func selectedInstallPackages(p *plan) []string {
 	var packages []string
@@ -1931,7 +1931,6 @@ func selectedInstallPackages(p *plan) []string {
 		}
 		if component.Group == "ryoku-apps" || component.ID == "radio" ||
 			component.Group == devToolchainGroup ||
-			component.Step == installerplan.ComponentHyakki ||
 			(component.Step == installerplan.StepGaming && !component.NeedsNetwork) {
 			packages = append(packages, component.Packages...)
 		}
@@ -3245,29 +3244,6 @@ func (e *engine) reconcileHiddenDesktopEntries() error {
 	return nil
 }
 
-func (e *engine) syncHyakkiMarker() error {
-	path := filepath.Join(e.f.homeDir, ".local/state/ryoku/hyakki-on-pending")
-	want := e.p.componentOn("hyakki")
-	if e.dry {
-		action := i18n.T("remove")
-		if want {
-			action = i18n.T("write")
-		}
-		e.say(i18n.Tf("DRYRUN: %s %s", action, path))
-		return nil
-	}
-	if !want {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte("pending\n"), 0o644)
-}
-
 func (e *engine) writeDefaultRiceMarker() error {
 	if !e.freshAccount {
 		return nil
@@ -3294,9 +3270,6 @@ func stepPreferences(e *engine) error {
 		return err
 	}
 	if err := e.setDefaultFileManager(); err != nil {
-		return err
-	}
-	if err := e.syncHyakkiMarker(); err != nil {
 		return err
 	}
 	return e.writeDefaultRiceMarker()

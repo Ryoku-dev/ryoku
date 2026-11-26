@@ -19,7 +19,7 @@ Start with [Linux basics](linux-basics.md) if Arch, services, or config paths ar
 new. Take the [desktop tour](desktop.md) next. Read [Hyprland in
 Lua](hyprland-lua.md) or [niri in KDL](niri-kdl.md) for the compositor reported
 by `ryoku wm status`. Continue with [Quickshell and
-QML](quickshell-qml.md), [Go tools](go-tools.md), or [Hyakki](hyakki.md) when you
+QML](quickshell-qml.md) or [Go tools](go-tools.md) when you
 want to build or use those parts.
 
 The one rule is simple: configure through Ryoku Settings or the owning command first.

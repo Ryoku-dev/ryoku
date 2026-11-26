@@ -65,10 +65,6 @@ Item {
     readonly property bool gridMode: activeMode === "all"
     readonly property bool help: activeMode === "help"
     readonly property bool bodyOpen: activeMode !== "rest"
-    readonly property bool askMode: activeMode === "special"
-        && query.length > 0 && query.charAt(0) === "\\"
-    readonly property string askQuestion: askMode
-        ? query.slice(1).replace(/^\s+/, "") : ""
     readonly property var drawer: drawerLoader.item || emptyDrawer
     onBodyOpenChanged: {
         if (!bodyOpen && drawerLoader.active)
@@ -83,22 +79,13 @@ Item {
         readonly property real opacity: 0
         readonly property real actionShelfHeight: 0
         readonly property string activeCategory: ""
-        readonly property bool askBusy: false
-        readonly property bool askResumeMode: false
-        readonly property bool askAnswerCurrent: false
-        readonly property int askChipCount: 0
         readonly property string actionVisibleRange: ""
         readonly property real resultDeckOpacity: 0
         property bool suppressResultDeckAnimation: false
         function resetCategory() {}
-        function resetAsk() {}
         function snapAnimations() {}
         function hideResultDeckImmediately() {}
         function revealRank(rank) {}
-        function moveAsk(delta) {}
-        function activateAsk() {}
-        function runAsk() {}
-        function cancelAsk() {}
         function cycleCategory(delta) {}
     }
 
@@ -111,14 +98,14 @@ Item {
             return LauncherState.routeForMode("file", query);
         if (activeMode === "recent")
             return LauncherState.routeForMode("recent", query);
-        if (activeMode === "special" && !askMode)
+        if (activeMode === "special")
             return Dispatcher.route(query);
         return { providerId: null, provider: null, prefix: "", query: query };
     }
     readonly property string routeProviderId: String(
         activeRoute.providerId || activeRoute.provider || "")
     readonly property string resultRouteKey: {
-        if (!shown || !bodyOpen || help || askMode)
+        if (!shown || !bodyOpen || help)
             return "";
         if (activeMode === "federated")
             return "federated";
@@ -142,7 +129,6 @@ Item {
         if (activeMode === "file") return "FILE";
         if (activeMode === "recent") return "REC";
         if (activeMode === "help") return "HELP";
-        if (askMode) return "HYAKKI";
         var prefix = String(activeRoute.prefix || "");
         if (prefix === "/file") return "FILE";
         if (prefix === "/folder") return "FOLDER";
@@ -181,7 +167,7 @@ Item {
     readonly property bool busyForActiveProvider: {
         void Dispatcher.busyRevision;
         var busy = Dispatcher.busyProviders;
-        if (!bodyOpen || help || askMode)
+        if (!bodyOpen || help)
             return false;
         if (routeProviderId.length > 0)
             return Boolean(busy[routeProviderId]);
@@ -275,7 +261,6 @@ Item {
         suppressQueryRouting = false;
         closeShelf();
         drawer.resetCategory();
-        drawer.resetAsk();
         actionError = "";
         resetSelection();
     }
@@ -307,7 +292,7 @@ Item {
     }
 
     function evaluateCurrentResults() {
-        if (!shown || resting || help || askMode)
+        if (!shown || resting || help)
             return [];
         if (activeMode === "federated")
             return Dispatcher.resultsFor(null, query, "", Metrics.maxResults);
@@ -466,11 +451,6 @@ Item {
     }
 
     function moveSelection(delta) {
-        if (askMode) {
-            if (drawer.askChipCount > 0 || drawer.askResumeMode)
-                drawer.moveAsk(delta);
-            return;
-        }
         if (results.length === 0)
             return;
         interactionRegion = "results";
@@ -480,11 +460,6 @@ Item {
     }
 
     function moveSelectionByKey(keyName) {
-        if (askMode) {
-            if (keyName === "Up") drawer.moveAsk(-1);
-            else if (keyName === "Down") drawer.moveAsk(1);
-            return;
-        }
         if (results.length === 0)
             return;
         interactionRegion = "results";
@@ -515,7 +490,6 @@ Item {
         query = "";
         suppressQueryRouting = false;
         actionError = "";
-        drawer.resetAsk();
         resetSelection();
         Qt.callLater(hero.focusField);
     }
@@ -527,15 +501,9 @@ Item {
             typedFocusSettler.restart();
         closeShelf();
         actionError = "";
-        var next;
-        if (query.length > 0 && query.charAt(0) === "\\")
-            next = { mode: "special", query: query };
-        else
-            next = LauncherState.resolveTypedPrefix(
-                activeMode, query, Dispatcher.prefixes);
+        var next = LauncherState.resolveTypedPrefix(
+            activeMode, query, Dispatcher.prefixes);
         activeMode = next.mode;
-        if (!(query.length > 0 && query.charAt(0) === "\\"))
-            drawer.resetAsk();
         resetSelection();
     }
 
@@ -614,13 +582,6 @@ Item {
     }
 
     function activateCurrent() {
-        if (askMode) {
-            if (drawer.askResumeMode || drawer.askBusy || drawer.askAnswerCurrent)
-                drawer.activateAsk();
-            else
-                drawer.runAsk();
-            return;
-        }
         if (LauncherState.activationTarget(interactionRegion,
                 windowRail && windowRail.hasWindows) === "window"
                 && windowRail && windowRail.hasWindows
@@ -659,8 +620,6 @@ Item {
             return;
         }
         if (bodyOpen) {
-            if (askMode && drawer.askBusy)
-                drawer.cancelAsk();
             returnToRest();
             return;
         }
@@ -835,7 +794,6 @@ Item {
             resting: resting,
             gridMode: gridMode,
             help: help,
-            askMode: askMode,
             answerMode: answerMode,
             actionMode: actionMode,
             modeLabel: modeLabel,
@@ -1069,7 +1027,6 @@ Item {
                 packedLayout: root.packedActionLayout
                 focusedActionId: root.focusedActionId
                 helpMode: root.help
-                askMode: root.askMode
                 answerMode: root.answerMode
                 actionBrowse: root.actionBrowse
                 searching: root.searching
@@ -1077,14 +1034,12 @@ Item {
                 errorText: root.actionError
                 windowCount: windowRail ? windowRail.windowCount : 0
                 windowFocusActive: root.interactionRegion === "windows"
-                askQuestion: root.askQuestion
                 answer: providerSet.web ? providerSet.web.answer : ({ available: false })
                 onLeadActivated: root.activateCurrent()
                 onResultSelected: (resultKey, rank) => root.selectResult(resultKey, rank)
                 onActionFocusRequested: actionId => root.focusedActionId = actionId
                 onActionExecuteRequested: actionId => root.executeAction(
                     root.currentSecondaryAction(actionId))
-                onAskFinished: root.requestClose()
             }
         }
     }

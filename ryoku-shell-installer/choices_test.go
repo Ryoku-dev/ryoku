@@ -159,9 +159,9 @@ func TestChoiceValidationAndEnvironmentDefaults(t *testing.T) {
 	if err := validateLoginShell(os.Getenv("RYOKU_LOGIN_SHELL")); err == nil {
 		t.Fatal("invalid shell from the environment must be rejected")
 	}
-	t.Setenv("RYOKU_HYAKKI", "0")
-	if got, err := envToggle("RYOKU_HYAKKI", true); err != nil || got {
-		t.Fatalf("Hyakki env toggle = %v, %v", got, err)
+	t.Setenv("RYOKU_GAMING", "0")
+	if got, err := envToggle("RYOKU_GAMING", true); err != nil || got {
+		t.Fatalf("gaming env toggle = %v, %v", got, err)
 	}
 	t.Setenv("RYOKU_CACHYOS_LAYER", "yes")
 	if _, err := envToggle("RYOKU_CACHYOS_LAYER", false); err == nil {
@@ -185,7 +185,7 @@ func TestEditionFlagsRejectUnavailableZen(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateEditionFlags(planOverrides{browser: "zen", shell: "fish", hyakki: true}, plan)
+			err = validateEditionFlags(planOverrides{browser: "zen", shell: "fish"}, plan)
 			if err == nil {
 				t.Fatal("--browser zen was accepted")
 			}
@@ -365,7 +365,7 @@ func TestComponentsOfferedPerEdition(t *testing.T) {
 			for _, item := range items {
 				byLabel[item.label] = item
 			}
-			for _, label := range []string{"Ryotunes", "Ryoport", "RyoManager", "Hyakki"} {
+			for _, label := range []string{"Ryotunes", "Ryoport", "RyoManager"} {
 				if _, ok := byLabel[label]; !ok {
 					t.Errorf("%s row is missing", label)
 				}
@@ -387,9 +387,6 @@ func TestComponentsOfferedPerEdition(t *testing.T) {
 					t.Fatal("gaming must default off")
 				}
 			}
-			if byLabel["Hyakki"].locked {
-				t.Errorf("Hyakki is locked on %s", name)
-			}
 		})
 	}
 }
@@ -401,9 +398,8 @@ func TestDropsDeselectedComponentsAndLosingFileManagers(t *testing.T) {
 	p.setComponent("ryotunes", false)
 	p.setComponent("ryoport", false)
 	p.setComponent("ryomanager", false)
-	p.setComponent("hyakki", false)
 	drops := packageSet(choiceDropPackages(p))
-	for _, pkg := range []string{"nautilus", "nautilus-python", "thunar", "ryotunes", "ryoport", "ryomanager", "hyakki"} {
+	for _, pkg := range []string{"nautilus", "nautilus-python", "thunar", "ryotunes", "ryoport", "ryomanager"} {
 		if !drops[pkg] {
 			t.Errorf("missing drop %s", pkg)
 		}
@@ -428,26 +424,26 @@ func TestPlanOverridesValidateAndApplyComponents(t *testing.T) {
 	edition := sourceEditionChoices("Arch")
 	overrides := planOverrides{
 		browser: "firefox", shell: "fish", fileManager: "dolphin",
-		hyakki: false, cachyosLayer: true, without: []string{"ryotunes", "ryoport"},
+		cachyosLayer: true, without: []string{"ryotunes", "ryoport"},
 	}
 	if err := validateEditionFlags(overrides, edition); err != nil {
 		t.Fatal(err)
 	}
 	p := defaultPlanForEdition(&facts{}, edition)
 	applyPlanOverrides(p, overrides)
-	if p.fileManager != "dolphin" || p.componentOn("hyakki") || p.componentOn("ryotunes") ||
+	if p.fileManager != "dolphin" || p.componentOn("ryotunes") ||
 		p.componentOn("ryoport") || !p.componentOn("cachyos-layer") {
 		t.Fatalf("overrides were not applied: file manager=%s components=%v", p.fileManager, p.componentSelections())
 	}
 
 	if err := validateEditionFlags(planOverrides{
-		browser: "firefox", hyakki: true, without: []string{"not-a-component"},
+		browser: "firefox", without: []string{"not-a-component"},
 	}, edition); err == nil {
 		t.Fatal("unknown component was accepted")
 	}
 
 	cachyos := sourceEditionChoices("CachyOS")
-	gaming := planOverrides{browser: "firefox", hyakki: true, gaming: true}
+	gaming := planOverrides{browser: "firefox", gaming: true}
 	if err := validateEditionFlags(gaming, cachyos); err != nil {
 		t.Fatal(err)
 	}
@@ -473,14 +469,14 @@ func TestPlanOverridesValidateAndApplyComponents(t *testing.T) {
 	if !voidPlan.componentOn("void-gaming") {
 		t.Fatal("--gaming did not select the Void gaming component")
 	}
-	if err := validateEditionFlags(planOverrides{browser: "firefox", hyakki: true, gaming: true}, edition); err == nil {
+	if err := validateEditionFlags(planOverrides{browser: "firefox", gaming: true}, edition); err == nil {
 		t.Fatal("--gaming was accepted on Arch instead of --cachyos-layer")
 	}
 	for name, target := range map[string]editionCompositorPlan{
 		"CachyOS": cachyos,
 		"Void":    voidEdition,
 	} {
-		if err := validateEditionFlags(planOverrides{browser: "firefox", hyakki: true, cachyosLayer: true}, target); err == nil {
+		if err := validateEditionFlags(planOverrides{browser: "firefox", cachyosLayer: true}, target); err == nil {
 			t.Errorf("--cachyos-layer was accepted on %s", name)
 		}
 	}
@@ -492,7 +488,7 @@ func TestPlanOverridesValidateAndApplyComponents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateEditionFlags(planOverrides{browser: "firefox", hyakki: true, cachyosLayer: true}, fedoraEdition); err == nil {
+	if err := validateEditionFlags(planOverrides{browser: "firefox", cachyosLayer: true}, fedoraEdition); err == nil {
 		t.Fatal("--cachyos-layer was accepted on Fedora")
 	}
 	if err := validateEditionFlags(gaming, fedoraEdition); err == nil {

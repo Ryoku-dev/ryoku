@@ -157,37 +157,6 @@ Singleton {
         ShellSettings.patch("controls." + key, value);
     }
 
-    readonly property var askBubble: {
-        const ask = adapter.ask && typeof adapter.ask === "object" ? adapter.ask : ({});
-        const bubble = ask.bubble && typeof ask.bubble === "object" ? ask.bubble : ({});
-        const x = Number(bubble.x);
-        const y = Number(bubble.y);
-        return {
-            enabled: bubble.enabled === true,
-            x: Math.max(0, Math.min(1, isFinite(x) ? x : 0.94)),
-            y: Math.max(0, Math.min(1, isFinite(y) ? y : 0.68)),
-            screen: String(bubble.screen || "")
-        };
-    }
-
-    function patchAskBubble(key, value) {
-        if (["enabled", "x", "y", "screen"].indexOf(key) < 0)
-            return;
-        let clean = value;
-        if (key === "x" || key === "y") {
-            const number = Number(value);
-            clean = Math.max(0, Math.min(1, isFinite(number) ? number : root.askBubble[key]));
-        } else if (key === "enabled") {
-            clean = value === true;
-        } else {
-            clean = String(value || "");
-        }
-        const next = Object.assign({}, root.askBubble);
-        next[key] = clean;
-        adapter.ask = { bubble: next };
-        ShellSettings.patch("ask.bubble." + key, clean);
-    }
-
     // typography: a scale that grows or shrinks the whole shell (the bar text
     // and the surfaces around it), keeping the readout legible without overflow.
     property alias fontScale:  adapter.fontScale
@@ -477,14 +446,6 @@ Singleton {
                 "pollMinutes": 10,
                 "clockApps": [],
                 "ignorePackages": []
-            }
-        })
-        property var ask: ({
-            "bubble": {
-                "enabled": false,
-                "x": 0.94,
-                "y": 0.68,
-                "screen": ""
             }
         })
         property var gamebar: ({

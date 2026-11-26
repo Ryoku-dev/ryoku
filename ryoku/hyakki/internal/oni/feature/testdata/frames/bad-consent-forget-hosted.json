@@ -1,1 +1,0 @@
-{"kind":"consent","data":{"id":"forget-1","feature":"memory.forget","class":"per-action","destination":"hosted","route":"openrouter/model","question":"Forget it?","expiresMs":120000}}

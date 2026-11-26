@@ -1,4 +1,0 @@
-{"atMs":1000,"frame":{"kind":"perch","data":{"seq":1,"attached":true,"window":"lab-app","app":"dev.ryoku.Hyakki","corner":"top-right","output":"HEADLESS-2","box":{"x":100,"y":100,"w":1280,"h":800}}}}
-{"atMs":2500,"frame":{"kind":"strand.target","data":{"seq":1,"x":0.3,"y":0.3,"w":0.35,"h":0.35}}}
-{"atMs":9000,"frame":{"kind":"strand.retract","data":{"seq":1}}}
-{"atMs":12000,"frame":{"kind":"perch","data":{"seq":2,"attached":false}}}

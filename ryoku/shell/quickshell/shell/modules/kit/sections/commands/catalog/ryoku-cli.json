@@ -2162,9 +2162,9 @@
     {
       "id": "ryoku.ryoku-shell.ask",
       "group": "ryoku-shell",
-      "title": "Open the Hyakki bar",
+      "title": "Open the search and downloads bar",
       "command": "ryoku-shell ask",
-      "description": "Opens the Alt+Space bar to ask Hyakki, search the web and start downloads. Pressing it again closes the bar.",
+      "description": "Opens the Alt+Space bar to search the web, do quick sums and start downloads. Pressing it again closes the bar.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2175,9 +2175,9 @@
     {
       "id": "ryoku.ryoku-shell.ask-web",
       "group": "ryoku-shell",
-      "title": "Search the web in the Hyakki bar",
+      "title": "Search the web in the Alt+Space bar",
       "command": "ryoku-shell ask web",
-      "description": "Opens the Hyakki bar on its web search, which gathers results from several sources in place.",
+      "description": "Opens the Alt+Space bar on its web search, which gathers results from several sources in place.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2188,9 +2188,9 @@
     {
       "id": "ryoku.ryoku-shell.ask-downloads",
       "group": "ryoku-shell",
-      "title": "Open downloads in the Hyakki bar",
+      "title": "Open downloads in the Alt+Space bar",
       "command": "ryoku-shell ask downloads",
-      "description": "Opens the Hyakki bar on its download manager: paste a link, watch progress and manage the queue.",
+      "description": "Opens the Alt+Space bar on its download manager: paste a link, watch progress and manage the queue.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2632,19 +2632,6 @@
       "title": "Open Settings: Voice typing",
       "command": "ryoku-shell hub open voice-typing",
       "description": "Opens Ryoku Settings on Voice typing, under Apps.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.hub.open.hyakki",
-      "group": "ryoku-shell",
-      "title": "Open Settings: Hyakki",
-      "command": "ryoku-shell hub open hyakki",
-      "description": "Opens Ryoku Settings on Hyakki, under Apps.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -5391,54 +5378,6 @@
       "danger": true
     },
     {
-      "id": "ryoku.ryoku-hub.hyakki.status",
-      "group": "hyakki",
-      "title": "Check Hyakki installation",
-      "command": "ryoku-hub hyakki status",
-      "description": "Reports whether Hyakki is installed and removable on this edition.",
-      "tool": "ryoku-hub",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-hub.hyakki.on",
-      "group": "hyakki",
-      "title": "Install and enable Hyakki",
-      "command": "ryoku-hub hyakki on",
-      "description": "Installs Hyakki when needed and starts it with the desktop.",
-      "tool": "ryoku-hub",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "privileged": true
-    },
-    {
-      "id": "ryoku.ryoku-hub.hyakki.off",
-      "group": "hyakki",
-      "title": "Disable and remove Hyakki",
-      "command": "ryoku-hub hyakki off",
-      "description": "Stops Hyakki and removes its package where the edition permits.",
-      "tool": "ryoku-hub",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "privileged": true,
-      "danger": true
-    },
-    {
       "id": "ryoku.ryoku-hub.phone.status",
       "group": "ryoku-phone",
       "title": "Check phone integration",
@@ -6215,277 +6154,6 @@
       "description": "Routes desktop palette-template operations through the shared Matugen backend.",
       "tool": "ryoku-hub",
       "level": "internal"
-    },
-    {
-      "id": "ryoku.hyakki.ask",
-      "group": "hyakki",
-      "title": "Ask Hyakki in the terminal",
-      "command": "hyakki ask <question>",
-      "description": "Asks a read-only question about this machine or starts a plain chat.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.term.buffer",
-      "group": "hyakki",
-      "title": "Put a proposed command on the prompt",
-      "command": "hyakki ask --buffer -- <question>",
-      "description": "Prints only proposed commands so a shell hook can place them on the prompt for review.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.continue",
-      "group": "hyakki",
-      "title": "Continue the last terminal ask",
-      "command": "hyakki ask -c <question>",
-      "description": "Continues the most recent terminal Ask session.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.last",
-      "group": "hyakki",
-      "title": "Show the last terminal answer",
-      "command": "hyakki ask --last",
-      "description": "Prints the most recent terminal answer again.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.status",
-      "group": "hyakki",
-      "title": "Check Hyakki status",
-      "command": "hyakki status",
-      "description": "Reports whether Hyakki is enabled and running without starting it.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.status.json",
-      "group": "hyakki",
-      "title": "Read Hyakki status as JSON",
-      "command": "hyakki status --json",
-      "description": "Prints Hyakki status and session counts as JSON without starting it.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.enable",
-      "group": "hyakki",
-      "title": "Turn Hyakki on",
-      "command": "hyakki on",
-      "description": "Enables Hyakki's socket and usage collector.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.disable",
-      "group": "hyakki",
-      "title": "Turn Hyakki off",
-      "command": "hyakki off",
-      "description": "Stops Hyakki and returns it to zero resource use.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.ensure",
-      "group": "ryoku-internal",
-      "title": "Start Hyakki when enabled",
-      "command": "hyakki ensure",
-      "description": "Starts the daemon only when Hyakki is enabled and waits for it to answer.",
-      "tool": "hyakki",
-      "level": "internal"
-    },
-    {
-      "id": "ryoku.hyakki.migrate",
-      "group": "ryoku-internal",
-      "title": "Migrate an older Hyakki install",
-      "command": "hyakki migrate",
-      "description": "Idempotently imports supported old settings and history and removes retired state.",
-      "tool": "hyakki",
-      "level": "internal"
-    },
-    {
-      "id": "ryoku.hyakki.call",
-      "group": "hyakki",
-      "title": "Call a Hyakki protocol method",
-      "command": "hyakki call <method> [json]",
-      "description": "Calls any daemon protocol method with optional JSON parameters.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.events",
-      "group": "hyakki",
-      "title": "Watch Hyakki events",
-      "command": "hyakki events",
-      "description": "Streams daemon events for inspection.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.open",
-      "group": "hyakki",
-      "title": "Open a session in the Hyakki app",
-      "command": "hyakki open --session <id>",
-      "description": "Raises the app and opens the selected session.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.index.add",
-      "group": "hyakki",
-      "title": "Add a project index",
-      "command": "hyakki index add <path>",
-      "description": "Registers a project directory for text and semantic search.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.index.remove",
-      "group": "hyakki",
-      "title": "Remove a project index",
-      "command": "hyakki index remove <id>",
-      "description": "Removes a project from the Hyakki index registry.",
-      "tool": "hyakki",
-      "level": "advanced",
-      "danger": true
-    },
-    {
-      "id": "ryoku.hyakki.index.list",
-      "group": "hyakki",
-      "title": "List Hyakki indexes",
-      "command": "hyakki index list",
-      "description": "Lists registered project and system indexes.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.index",
-      "group": "hyakki",
-      "title": "Refresh a Hyakki index",
-      "command": "hyakki index refresh [id]",
-      "description": "Refreshes one index or every registered index.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.index.status",
-      "group": "hyakki",
-      "title": "Show index status",
-      "command": "hyakki index status [id]",
-      "description": "Shows index progress, file counts and freshness.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.search",
-      "group": "hyakki",
-      "title": "Search indexed code",
-      "command": "hyakki search <question>",
-      "description": "Searches the current project by meaning.",
-      "tool": "hyakki",
-      "level": "basic"
-    },
-    {
-      "id": "ryoku.hyakki.find",
-      "group": "hyakki",
-      "title": "Find a symbol",
-      "command": "hyakki find <name>",
-      "description": "Finds an indexed symbol by name.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.def",
-      "group": "hyakki",
-      "title": "Read a symbol definition",
-      "command": "hyakki def <name-or-id>",
-      "description": "Prints the indexed definition of one symbol.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.outline",
-      "group": "hyakki",
-      "title": "Outline a source file",
-      "command": "hyakki outline <path>",
-      "description": "Lists the symbols in one indexed file.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.references",
-      "group": "hyakki",
-      "title": "Find symbol references",
-      "command": "hyakki references <name-or-id>",
-      "description": "Lists indexed references to a symbol.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.peek",
-      "group": "hyakki",
-      "title": "Read a source range",
-      "command": "hyakki peek <file:start-end>",
-      "description": "Prints a bounded range from an indexed source file.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.overview",
-      "group": "hyakki",
-      "title": "Map a project",
-      "command": "hyakki overview",
-      "description": "Summarises the current indexed project.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.impact",
-      "group": "hyakki",
-      "title": "Show change impact",
-      "command": "hyakki impact <path>",
-      "description": "Shows indexed dependants of a file.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.wip",
-      "group": "hyakki",
-      "title": "Inspect project work in progress",
-      "command": "hyakki wip",
-      "description": "Summarises current project changes and their impact.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.changed",
-      "group": "hyakki",
-      "title": "Inspect changed files",
-      "command": "hyakki changed",
-      "description": "Maps changed files to the indexed code they affect.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki.fix.doctor",
-      "group": "hyakki",
-      "title": "Ask an agent to fix doctor findings",
-      "command": "hyakki fix doctor",
-      "description": "Opens an Agent session with the current Ryoku doctor findings.",
-      "tool": "hyakki",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.hyakki-app.open",
-      "group": "hyakki",
-      "title": "Open the Hyakki app",
-      "command": "hyakki-app",
-      "description": "Opens the native Hyakki workspace without losing daemon-owned sessions.",
-      "tool": "hyakki-app",
-      "level": "basic"
     },
     {
       "id": "ryoku.ryoku-wm-hyprland.caps",

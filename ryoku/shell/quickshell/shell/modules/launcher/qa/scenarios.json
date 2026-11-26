@@ -1121,34 +1121,6 @@
       ]
     },
     {
-      "id": "ask-mode-ui",
-      "name": "Backslash enters Hyakki ask mode",
-      "covers": "ask mode routing + panel",
-      "steps": [
-        "show",
-        "type \\what is ryoku",
-        "sleep 0.8"
-      ],
-      "asserts": [
-        ".askMode == true"
-      ],
-      "screenshot": true
-    },
-    {
-      "id": "ask-resume-list",
-      "name": "Bare backslash shows the ask panel in resume/recall state",
-      "covers": "ask resume list",
-      "steps": [
-        "show",
-        "type \\",
-        "sleep 0.8"
-      ],
-      "asserts": [
-        ".askMode == true"
-      ],
-      "screenshot": true
-    },
-    {
       "id": "hero-rest",
       "name": "Rest is the full image hero with no result drawer",
       "covers": "250px HeroShutter rest face",

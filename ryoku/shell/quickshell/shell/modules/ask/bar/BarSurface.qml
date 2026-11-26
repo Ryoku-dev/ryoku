@@ -10,15 +10,13 @@ import "../views"
 import "../lib/keys.js" as Chords
 import "../lib/root.js" as RootLogic
 
-// The Hyakki bar's body: one field, a stack of views under it, a foot that says
+// The Alt+Space bar's body: one field, a stack of views under it, a foot that says
 // what Enter does, and the Action Panel. It owns the keyboard and the stack; a
 // view only answers the contract (bar-spec section 7).
 FocusScope {
     id: root
 
     required property real s
-    required property HyakkiClient hyakki
-    required property HyakkiSession session
     required property SearchClient search
     required property DownloadsClient downloads
     property bool active: false
@@ -33,7 +31,7 @@ FocusScope {
     property var stack: [{ view: "root", args: ({}), query: "" }]
     property int direction: 1
     readonly property string topView: root.stack[root.stack.length - 1].view
-    readonly property ViewSlot slot: root.topView === "ask" ? askSlot : root.topView === "web" ? webSlot : rootSlot
+    readonly property ViewSlot slot: root.topView === "web" ? webSlot : rootSlot
     readonly property var view: root.slot.view
     readonly property string outward: root.topView === "web" ? "web" : "ask"
 
@@ -63,7 +61,6 @@ FocusScope {
 
     signal requestClose()
     signal modeRequested(string mode)
-    signal bubblePinned(string question, string answer)
 
     implicitWidth: root.presentedWidth
     implicitHeight: root.presentedHeight
@@ -112,7 +109,7 @@ FocusScope {
             ShellState.openKitDownloads(root.screenName, handoff);
             return;
         }
-        if (["ask", "web"].indexOf(name) < 0)
+        if (name !== "web")
             return;
         panel.open = false;
         var next = root.stack.slice();
@@ -148,12 +145,6 @@ FocusScope {
             ? [{ view: "root", args: ({}), query: "" }]
             : [{ view: "root", args: ({}), query: "" }, { view: target, args: ({}), query: "" }];
         field.text = "";
-    }
-
-    function quickAsk() {
-        if (root.topView === "ask")
-            return;
-        root.push("ask", { question: field.text.trim() }, "");
     }
 
     function escapeLadder() {
@@ -194,7 +185,6 @@ FocusScope {
     function handleKey(event) {
         const mods = event.modifiers & (Qt.ControlModifier | Qt.ShiftModifier | Qt.AltModifier);
         const ctrl = (mods & Qt.ControlModifier) !== 0;
-        const plain = mods === 0;
         const key = event.key;
         if (!root.view)
             return;
@@ -215,12 +205,10 @@ FocusScope {
                 root.view.move(delta);
         } else if (key === Qt.Key_PageDown || key === Qt.Key_PageUp) {
             root.view.page(key === Qt.Key_PageDown ? 1 : -1);
-        } else if (key === Qt.Key_Tab && plain) {
-            root.quickAsk();
         } else if (key === Qt.Key_Backspace && field.text.length === 0) {
             root.pop();
-        } else if (mods === Qt.ControlModifier && (key === Qt.Key_1 || key === Qt.Key_2 || key === Qt.Key_3)) {
-            const target = key === Qt.Key_1 ? "ask" : key === Qt.Key_2 ? "web" : "downloads";
+        } else if (mods === Qt.ControlModifier && (key === Qt.Key_2 || key === Qt.Key_3)) {
+            const target = key === Qt.Key_2 ? "web" : "downloads";
             if (root.topView !== target)
                 root.push(target, ({}), "");
         } else {
@@ -313,28 +301,7 @@ FocusScope {
             maximumHeight: root.stageBudget
             sourceComponent: RootView {
                 s: root.s
-                hyakki: root.hyakki
-                session: root.session
                 downloads: root.downloads
-            }
-        }
-        ViewSlot {
-            id: askSlot
-            s: root.s
-            name: "ask"
-            live: root.inStack("ask")
-            current: root.topView === "ask"
-            direction: root.direction
-            barActive: root.active
-            fieldText: field.text
-            heldText: root.entryFor("ask").query
-            args: root.entryFor("ask").args
-            maximumHeight: root.stageBudget
-            sourceComponent: AskView {
-                s: root.s
-                hyakki: root.hyakki
-                session: root.session
-                onPinRequested: (question, answer) => root.bubblePinned(question, answer)
             }
         }
         ViewSlot {

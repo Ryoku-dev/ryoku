@@ -167,10 +167,6 @@ _ryoku_remove_drop() {
 
 ryoku_choice_validate_env() {
   local id
-  case ${RYOKU_HYAKKI:-0} in
-    0|1) ;;
-    *) die "RYOKU_HYAKKI must be 0 or 1 (got '%s')" "${RYOKU_HYAKKI}" ;;
-  esac
   case ${RYOKU_CACHYOS_LAYER:-0} in
     0|1) ;;
     *) die "RYOKU_CACHYOS_LAYER must be 0 or 1 (got '%s')" "${RYOKU_CACHYOS_LAYER}" ;;
@@ -192,7 +188,6 @@ ryoku_choice_apply_fresh() {
   : "${RYOKU_BROWSER:=${RYOKU_CHOICE_POLICY[browser:fresh]}}"
   : "${RYOKU_LOGIN_SHELL:=${RYOKU_CHOICE_POLICY[login-shell:fresh]}}"
   : "${RYOKU_FILE_MANAGER:=${RYOKU_CHOICE_POLICY[file-manager:fresh]}}"
-  : "${RYOKU_HYAKKI:=0}"
   : "${RYOKU_HIDE_APPS:=}"
   : "${RYOKU_CACHYOS_LAYER:=0}"
   ryoku_choice_validate browser "$RYOKU_BROWSER"
@@ -215,11 +210,6 @@ ryoku_choice_apply_fresh() {
       for package in "${packages[@]}"; do _ryoku_append_drop "$package"; done
     done < <(_ryoku_choice_ids "$kind")
   done
-  if [[ $RYOKU_HYAKKI == 0 ]]; then
-    _ryoku_append_drop hyakki
-  else
-    _ryoku_remove_drop hyakki
-  fi
   export RYOKU_BROWSER RYOKU_LOGIN_SHELL RYOKU_FILE_MANAGER
-  export RYOKU_HYAKKI RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER RYOKU_DROP_PACKAGES
+  export RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER RYOKU_DROP_PACKAGES
 }

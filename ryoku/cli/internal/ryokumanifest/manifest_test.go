@@ -61,13 +61,3 @@ func TestForCachyOSKeepsAnOlderManifestUnchanged(t *testing.T) {
 	}
 }
 
-func TestHyakkiIsOptInNotDeliverOnce(t *testing.T) {
-	if !IsOptIn("hyakki") {
-		t.Fatal("hyakki is not in the opt-in package set")
-	}
-	for _, name := range AppNames() {
-		if name == "hyakki" {
-			t.Fatal("hyakki remains in the deliver-once app set")
-		}
-	}
-}

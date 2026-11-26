@@ -53,11 +53,6 @@ controls grow out of the rail; let go and they melt back. It is built from
 small independent surfaces, so it grows with what you actually use: seven bar
 styles, desktop widgets, a store for more, and a plugin host.
 
-Hyakki is the optional AI layer: one native engine runs Ask, Agents, Teams and
-Dreams; Index searches projects and system code, and Oni provides optional
-desktop interaction. It is off by default. Open Ryoku Settings > Apps > Hyakki
-to manage its lifecycle and reach its native settings. See [Hyakki](docs/hyakki.md).
-
 Underneath, Ryoku is a distribution, not a config dump. The desktop, the
 installer and the system definition live in this repository, every machine is
 built from it, and a live machine is only ever a deployment target. It is a

@@ -1,1 +1,0 @@
-{"kind":"character","data":{"id":"testmoth","name":"Moth (test)","fallbacks":[{"slot":"animations.states.reading","reason":"The profile has no reading animation.","used":"static pose"}]}}

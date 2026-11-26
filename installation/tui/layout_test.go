@@ -146,7 +146,7 @@ func TestBoxLinesPadsAndTruncates(t *testing.T) {
 // and the clamp then cut off the card's title and the step being asked.
 func TestShortGridScrollsTheRail(t *testing.T) {
 	for _, sz := range [][2]int{{80, 24}, {80, 25}, {100, 24}} {
-		for _, key := range []string{"keyboard", "hyakki", "gaming", "administrator"} {
+		for _, key := range []string{"keyboard", "file-manager", "gaming", "administrator"} {
 			m := wizardAt(key, sz[0], sz[1])
 			got := stripSGR(m.fittedFrame())
 			for _, want := range []string{m.cur().title, "install steps", key} {

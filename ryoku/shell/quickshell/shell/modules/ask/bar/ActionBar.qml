@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Lithic
 import Ryoku.Ui.Singletons
-import shell.services as ShellServices
 import "../look"
 
 // The bar's foot. Left: where you are, or for a moment what just happened (the
@@ -16,7 +15,7 @@ Item {
     property string context: ""
     // a view's own item for the left of the foot, in place of the context line
     property Component contextItem: null
-    // a surface's own mark in place of Hyakki's
+    // a surface's own mark beside its context line
     property string glyph: ""
     property var primary: null
     property bool hasActions: false
@@ -118,15 +117,6 @@ Item {
             opacity: 1 - Math.min(1, leftSide.lift * 1.6)
             spacing: Math.round(8 * root.s)
 
-            Image {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.round(14 * root.s)
-                height: width
-                visible: root.glyph.length === 0 && status === Image.Ready
-                source: root.glyph.length === 0 ? ShellServices.Icons.path("dev.ryoku.Hyakki", true) : ""
-                sourceSize: Qt.size(width * 2, height * 2)
-                opacity: 0.86
-            }
             Symbol {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.glyph.length > 0
@@ -140,7 +130,7 @@ Item {
                 width: Math.min(implicitWidth, leftSide.width - 24 * root.s)
                 visible: root.contextItem === null
                 s: root.s
-                text: root.context.length > 0 ? root.context : root.glyph.length > 0 ? "" : I18n.tr("Hyakki")
+                text: root.context
                 font.features: ({ "tnum": 1 })
             }
             Loader {

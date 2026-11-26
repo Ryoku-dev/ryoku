@@ -7,7 +7,7 @@ Style (Lithic, Material, Adwaita or Fluent).
 - `Sidebar.qml` owns placement in the work area, the content and click-away windows,
   and each design's open and close motion.
 - `QsLook.qml` holds the per-design tables every part reads (sizes, cuts, radii, type,
-  motion) on top of the Hyakki bar's `Look`. A part asks it, never `theme.design`.
+  motion) on top of the Alt+Space bar's `Look`. A part asks it, never `theme.design`.
 - `SidebarFrame.qml` and `SidebarChrome.qml` provide the surface and its head.
 - `ControlsBoard.qml` renders the persisted block order and instantiates only the
   blocks the user has chosen to show; `SectionHead.qml` heads each block and

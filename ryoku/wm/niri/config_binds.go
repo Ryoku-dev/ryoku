@@ -165,7 +165,6 @@ func shippedBinds() map[string]niriBind {
 		// Shell
 		"shell.launcher":          {action: spawnArgs("ryoku-shell", "launcher")},
 		"shell.ask":               {action: spawnArgs("ryoku-shell", "ask")},
-		"shell.hyakki":            {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.Hyakki", "hyakki-app")},
 		"shell.cheatsheet":        {action: spawnArgs("ryoku-shell", "cheatsheet")},
 		"shell.gamebar":           {action: spawnArgs("ryoku-shell", "gamebar"), ignoreInhibitor: true},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},

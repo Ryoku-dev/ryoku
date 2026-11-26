@@ -57,8 +57,7 @@ jobs:
                 status=1
               fi
             done < <(sed -E 's/`[^`]*`//g' "$md" | grep -oE '\]\([^)]+\)' | sed -E 's/^\]\(//; s/\)$//')
-          done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**' \
-            ':(exclude)ryoku/hyakki/internal/skills/sets')
+          done < <(git ls-files -z '*.md' ':(glob,exclude)**/vendor/**')
 
           if (( status == 0 )); then
             echo "All Markdown relative links resolve."

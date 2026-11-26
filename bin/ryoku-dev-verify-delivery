@@ -120,13 +120,6 @@ else
 	say "delivery: every QML module the desktop imports is shipped or a ryoku-desktop dependency"
 fi
 
-# Validate the actual reviewed inputs, including shared-source and legal parity.
-if ! python3 ryoku/hyakki/release/native.py check-source; then
-  echo "delivery: Hyakki corresponding source is incomplete or inconsistent" >&2
-  fail=1
-else
-  say "delivery: Hyakki source, shared libraries and legal assets are complete"
-fi
 
 # 2. publish lag. the [ryoku] repo publishes on push to main; unstable-dev work
 # only reaches users once main fast-forwards. report the gap so it is never

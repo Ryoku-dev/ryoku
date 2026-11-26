@@ -22,9 +22,12 @@ type retiredApp struct {
 
 // retiredApps is the removal table. Ryoku Motion (ryomotion) was the screen-demo
 // recorder and editor; the recorder is GPU Screen Recorder now, driven by
-// `ryoku-shell record`, so ryomotion is no longer built or shipped.
+// `ryoku-shell record`, so ryomotion is no longer built or shipped. Rashin
+// (ryoku-rashin) was the optional AI system; its package is no longer served,
+// and its pinned Python dependencies would otherwise fail later upgrades.
 var retiredApps = []retiredApp{
 	{"ryomotion", "Ryoku Motion"},
+	{"ryoku-rashin", "Rashin"},
 }
 
 // Seams: the live box's answers, replaced in tests.

@@ -175,14 +175,14 @@ equal(W.plan({ sources, states, scope: "dictionary", query: "tbh", typing: false
 // every web engine failed or is paused
 const blocked = { ...ranked, "web": { state: "paused", items: [], until: "2026-11-18T15:20:00-05:00" } };
 const stuck = W.plan({ sources, states: blocked, scope: "all", cap: 3, query: "tbh", typing: false, flying: false });
-equal(ids(stuck), ["definition", "fallback", "github", "wikipedia", "youtube"], "a paused lane leaves two ways on in its place");
-equal([stuck[1].title, stuck[1].state, stuck[1].until, stuck[1].rows.map(r => r.target)], ["Web", "paused", "2026-11-18T15:20:00-05:00", ["ask", "browser"]], "ask Hyakki, then the browser, and until when");
+equal(ids(stuck), ["definition", "fallback", "github", "wikipedia", "youtube"], "a paused lane leaves a way on in its place");
+equal([stuck[1].title, stuck[1].state, stuck[1].until, stuck[1].rows.map(r => r.target)], ["Web", "paused", "2026-11-18T15:20:00-05:00", ["browser"]], "the browser, and until when");
 const broken = W.plan({ sources, states: { "web": { state: "error", items: [], error: "No engine answered" } }, scope: "all", query: "tbh", typing: false, flying: false });
 equal([ids(broken), broken[0].state, broken[0].error], [["fallback"], "error", "No engine answered"], "a failed lane does the same with its reason");
 equal(ids(W.plan({ sources, states: blocked, scope: "all", query: "tbh more", typing: true })), ["suggestions", "definition", "wikipedia"], "typing on does not show the ways on: no web engine runs for it");
 equal(ids(W.plan({ sources, states: blocked, scope: "code", query: "tbh", typing: false })), ["github"], "another scope is not the lane's business");
 const gone = W.plan({ sources: [], states: {}, scope: "all", query: "tbh", typing: true, available: false });
-equal([ids(gone), gone[0].state, gone[0].rows.map(r => r.target)], [["fallback"], "unavailable", ["ask", "browser"]], "with no search service the same two ways stay");
+equal([ids(gone), gone[0].state, gone[0].rows.map(r => r.target)], [["fallback"], "unavailable", ["browser"]], "with no search service the same way stays");
 equal(W.plan({ sources: [], states: {}, scope: "all", query: "", available: false }), [], "and nothing without a query");
 
 equal(W.failures(sources, states, "all"), [{ id: "github", name: "GitHub", error: "Timed out" }], "failed sources are named with their reason");

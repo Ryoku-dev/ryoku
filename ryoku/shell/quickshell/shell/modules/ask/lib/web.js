@@ -146,15 +146,14 @@ function progress(sources, states, scope, engines) {
 //                full search); they stay under a full search only until its
 //                first row lands, so the list never empties in between
 //   Definition   the dictionary's card (one sense in All)
-//   Web          the merged lane; when every engine failed or is paused, two
-//                ways on take its place (ask Hyakki, search in the browser)
+//   Web          the merged lane; when every engine failed or is paused, a
+//                way on takes its place (search in the browser)
 //   the rest     by the rank the daemon gave them in All (ties keep its order),
 //                the first `cap` rows each; inside a scope every row, in its order
 // input: {sources, states, scope, cap, query, typing, flying, available, suggestions}
 function plan(input) {
     var query = String(input.query || "").trim();
     var ways = [
-        { id: "fallback:ask", kind: "fallback", target: "ask" },
         { id: "fallback:browser", kind: "fallback", target: "browser" }
     ];
     if (input.available === false)

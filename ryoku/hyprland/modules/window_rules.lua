@@ -106,13 +106,6 @@ hl.window_rule({
 
 
 hl.window_rule({
-    name   = "float-hyakki-app",
-    match  = { class = "^(dev\\.ryoku\\.Hyakki)$" },
-    float  = true,
-    size   = fit(1280, 820),
-    center = true,
-})
-hl.window_rule({
     name   = "float-phone-tools",
     match  = { title = "^ryoku-phone-.*$" },
     float  = true,

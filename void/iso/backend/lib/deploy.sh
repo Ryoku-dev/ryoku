@@ -42,7 +42,6 @@ void_deploy_user() {
     zsh) shell=/usr/bin/zsh ;;
     bash) shell=/usr/bin/bash ;;
   esac
-  [[ ${RYOKU_HYAKKI:-0} == 1 ]] && args+=(--hyakki)
   if [[ -n ${RYOKU_HIDE_APPS:-} ]]; then
     local -a hidden=()
     IFS=, read -ra hidden <<<"$RYOKU_HIDE_APPS"
@@ -53,7 +52,7 @@ void_deploy_user() {
   ryoku_seed_wallpapers "$home"
   ryoku_deploy_chown "$user"
   for account in "${RYOKU_ACCOUNT_NAMES[@]}"; do
-    ryoku_narrate_seed_self "$account" default "${RYOKU_HYAKKI:-0}" \
+    ryoku_narrate_seed_self "$account" default \
       "${RYOKU_HIDE_APPS:-}" "${RYOKU_DROP_PACKAGES:-}" "$shell" runit \
       "${RYOKU_LOCALE:-C.UTF-8}"
     log 'provisioning the Ryoku desktop for %s' "$account"

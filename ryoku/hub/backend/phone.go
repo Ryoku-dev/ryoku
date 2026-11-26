@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -225,4 +227,17 @@ func sortHubPhoneDevices(devices []hubPhoneDevice) {
 		}
 		return strings.ToLower(devices[i].Name) < strings.ToLower(devices[j].Name)
 	})
+}
+
+func privileged(args ...string) error {
+	cmd := exec.Command("pkexec", append([]string{"ryoku-host"}, args...)...)
+	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	if err := cmd.Run(); err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && (exit.ExitCode() == 126 || exit.ExitCode() == 127) {
+			return fmt.Errorf("the password prompt was dismissed")
+		}
+		return fmt.Errorf("ryoku-host %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
 }

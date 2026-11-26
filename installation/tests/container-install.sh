@@ -143,9 +143,7 @@ files=(
   fish/config.fish
   ryoku-terminal/env.sh
   bash/ryoku.bash
-  bash/hyakki.bash
   zsh/ryoku.zsh
-  zsh/hyakki.zsh
   starship.toml
   kitty/kitty.conf
   yazi/yazi.toml

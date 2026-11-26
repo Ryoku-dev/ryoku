@@ -935,35 +935,6 @@ leave. `components/performance/PerformanceStore.qml` (a JSON file kept key by
 key) and `components/graphics/GraphicsStore.qml` (`ryoku-hub gpu` calls, with
 prompts and a Needs you probe) are the two to read first.
 
-### The Hyakki page
-
-`schema/hyakki.js` holds Apps > Hyakki. It is a lifecycle page with links into
-the native app, not a second form for Oni's settings.
-
-- **Use Hyakki** installs the optional app when needed and turns it on.
-  Turning it off from this page stops it and removes the app; conversations
-  and settings stay. `hyakki off` stops the runtime without uninstalling it.
-- **Open Hyakki** opens the native app. Super+Alt+Space focuses its window,
-  whose desktop app id is `dev.ryoku.Hyakki`.
-- **Desktop shortcuts** opens the shared shortcut editor. Alt+Space remains
-  the shell's thin Quick Ask client, web search and downloads.
-- **Vision and screen**, **Oni on the desktop**, **Oni privacy**, **Writing**,
-  **Oni voice**, **Hyakki app features**, and **Models and providers** open
-  the matching native settings views with
-  `hyakki open --tab settings --view <view>`. The schema uses `oni-screen`,
-  `oni`, `oni-privacy`, `oni-writing`, `oni-voice`, `features`, and `providers`.
-
-Opening a settings link grants no screen, microphone or input permission.
-Oni's Pick chooses a window with one click; it is not a frozen-screen drag-box
-selector. The retired Theia/Sight pages and gestures are not another assistant
-alongside Oni. Clipboard OCR, Voice typing and ryoshot remain independent.
-
-Legacy data migration uses `ryoku-host hyakki migrate` as the desktop user,
-without sudo or pkexec, before retirement. The coordinator refuses active
-legacy GUI/workers or an uninspectable supervisor, restores legacy activation
-if native migration fails, and preserves the user's existing opt-in.
-See [Hyakki](hyakki.md) for lifecycle, migration and native settings.
-
 ## Changes
 
 `Singletons/Changes.qml` is the one write path. A row that writes anywhere else

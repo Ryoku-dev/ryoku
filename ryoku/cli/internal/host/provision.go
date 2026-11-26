@@ -21,7 +21,6 @@ var provisionDesktopIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*
 
 type ProvisionOptions struct {
 	Rice        string
-	Hyakki      bool
 	HideApps    []string
 	SkipWelcome bool
 }
@@ -59,11 +58,11 @@ func parseProvisionArgs(args []string, named bool) (string, ProvisionOptions, er
 	name := ""
 	if named {
 		if len(args) == 0 {
-			return "", options, fmt.Errorf(i18n.T("Use provision <name> [--rice <slug>] [--hyakki] [--hide-app <id>]... [--skip-welcome]."))
+			return "", options, fmt.Errorf(i18n.T("Use provision <name> [--rice <slug>] [--hide-app <id>]... [--skip-welcome]."))
 		}
 		name, args = args[0], args[1:]
 	}
-	seenRice, seenHyakki, seenSkip := false, false, false
+	seenRice, seenSkip := false, false
 	for index := 0; index < len(args); index++ {
 		switch args[index] {
 		case "--rice":
@@ -76,11 +75,6 @@ func parseProvisionArgs(args []string, named bool) (string, ProvisionOptions, er
 			index++
 			options.Rice = args[index]
 			seenRice = true
-		case "--hyakki":
-			if seenHyakki {
-				return "", options, fmt.Errorf(i18n.T("--hyakki can be used only once."))
-			}
-			options.Hyakki, seenHyakki = true, true
 		case "--hide-app":
 			if index+1 >= len(args) {
 				return "", options, fmt.Errorf(i18n.T("--hide-app needs a value."))
@@ -114,9 +108,6 @@ func parseProvisionArgs(args []string, named bool) (string, ProvisionOptions, er
 
 func provisionOptionArgs(options ProvisionOptions) []string {
 	args := []string{"--rice", options.Rice}
-	if options.Hyakki {
-		args = append(args, "--hyakki")
-	}
 	for _, id := range options.HideApps {
 		args = append(args, "--hide-app", id)
 	}
@@ -253,13 +244,6 @@ func (a *App) seedSelf(options ProvisionOptions) error {
 	}
 	state := ".local/state/ryoku"
 	if err := writeHomeFile(home, filepath.Join(state, "default-rice-pending"), []byte(options.Rice+"\n"), 0o644); err != nil {
-		return err
-	}
-	if options.Hyakki {
-		if err := writeHomeFile(home, filepath.Join(state, "hyakki-on-pending"), []byte("pending\n"), 0o644); err != nil {
-			return err
-		}
-	} else if err := removeHomeFile(home, filepath.Join(state, "hyakki-on-pending")); err != nil {
 		return err
 	}
 	if options.SkipWelcome {

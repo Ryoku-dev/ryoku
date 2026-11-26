@@ -69,10 +69,6 @@ let
     inherit pkgs src;
   };
 
-  hyakki = import ./hyakki.nix {
-    inherit pkgs src version;
-  };
-
 
   ryostore = import ./ryoku-ryostore.nix {
     inherit pkgs src;
@@ -288,7 +284,6 @@ let
       hub
       paletteBridge
       ryoget
-      hyakki
       ryostore
       ryomotion
       ryoportPackage
@@ -304,7 +299,7 @@ let
       wmNiri
       helpers
       qml
-    ] ++ hyakki.runtimePackages;
+    ];
   };
 in
 {
@@ -318,7 +313,6 @@ in
     hub
     paletteBridge
     ryoget
-    hyakki
     ryostore
     ryomotion
     livewall

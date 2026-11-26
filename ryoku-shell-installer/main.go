@@ -163,13 +163,6 @@ func buildItems(f *facts, p *plan, editionPlans ...editionCompositorPlan) []plan
 			options: options(installerplan.FileManager),
 		},
 	}
-	if availability, ok := edition.choices.Component("hyakki"); ok && availability.Available {
-		it = append(it, planItem{
-			label:  i18n.T("Hyakki"),
-			detail: i18n.T("Optional AI for asking about your system and running coding agents; off until you turn it on."),
-			on:     p.components["hyakki"], locked: availability.Locked,
-		})
-	}
 	if availability, ok := edition.choices.GamingComponent(); ok {
 		component := availability.Component
 		detail := i18n.T(component.Detail)
@@ -1100,8 +1093,8 @@ func runHeadless(dry bool, ref, payload, compositor string, overrides planOverri
 	// A machine-readable plan dump keeps unattended runs auditable.
 	selectedApps := selectedComponentIDs(p, installerplan.ComponentApps)
 	selectedGaming := selectedComponentIDs(p, installerplan.StepGaming)
-	fmt.Printf("plan: compositor=%s browser=%s shell=%s file-manager=%s hyakki=%v ryoku-apps=%s gaming=%s cachyos-layer=%v components=%s without=%s nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
-		p.compositor, p.browser, p.shell, p.fileManager, p.componentOn("hyakki"),
+	fmt.Printf("plan: compositor=%s browser=%s shell=%s file-manager=%s ryoku-apps=%s gaming=%s cachyos-layer=%v components=%s without=%s nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
+		p.compositor, p.browser, p.shell, p.fileManager,
 		strings.Join(selectedComponentGroupIDs(p, "ryoku-apps"), ","), strings.Join(selectedGaming, ","),
 		p.componentOn("cachyos-layer"), strings.Join(selectedApps, ","), strings.Join(deselectedComponentIDs(p), ","),
 		p.nvidia, p.switchDM, p.greeter, p.switchNet, p.rivals, p.aur, p.devtools,
@@ -1216,10 +1209,6 @@ func main() {
 	// so the catalogs are compiled in; point the loader at them before Use.
 	i18n.SetFS(catalog.FS)
 	i18n.Use("")
-	hyakkiDefault, err := envToggle("RYOKU_HYAKKI", false)
-	if err != nil {
-		die(err.Error())
-	}
 	cachyosDefault, err := envToggle("RYOKU_CACHYOS_LAYER", false)
 	if err != nil {
 		die(err.Error())
@@ -1238,7 +1227,6 @@ func main() {
 	browser := flag.String("browser", envOr("RYOKU_BROWSER", installerplan.FreshDefault(installerplan.Browser)), i18n.T("browser to install"))
 	shell := flag.String("shell", os.Getenv("RYOKU_LOGIN_SHELL"), i18n.T("login shell"))
 	fileManager := flag.String("file-manager", os.Getenv("RYOKU_FILE_MANAGER"), i18n.T("file manager to install"))
-	hyakki := flag.Bool("hyakki", hyakkiDefault, i18n.T("install Ryoku's Hyakki AI agent"))
 	gaming := flag.Bool("gaming", gamingDefault, i18n.T("install this edition's Steam gaming bundle on CachyOS or Void"))
 	cachyosLayer := flag.Bool("cachyos-layer", cachyosDefault, i18n.T("install Gaming with CachyOS on Arch (network and x86-64-v3 required; Steam + Proton-CachyOS)"))
 	without := flag.String("without", os.Getenv("RYOKU_WITHOUT"), i18n.T("comma-separated optional components to leave out"))
@@ -1249,7 +1237,7 @@ func main() {
 	}
 	overrides := planOverrides{
 		browser: *browser, shell: *shell, fileManager: *fileManager,
-		hyakki: *hyakki, gaming: *gaming, cachyosLayer: *cachyosLayer, without: withoutIDs,
+		gaming: *gaming, cachyosLayer: *cachyosLayer, without: withoutIDs,
 	}
 
 	initGlyphs()

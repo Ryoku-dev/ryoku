@@ -454,16 +454,10 @@ func TestRyoportAndRyotunesBuiltinWindowRules(t *testing.T) {
 	}
 }
 
-func TestHyakkiBuiltinWindowRuleUsesStableAppID(t *testing.T) {
+func TestSettingsOmitTheRetiredHyakkiWindowRule(t *testing.T) {
 	out := string(genSettings(defaultStore()))
-	want := "window-rule {\n" +
-		"    match app-id=\"^dev\\\\.ryoku\\\\.Hyakki$\"\n" +
-		"    open-floating true\n" +
-		"    default-column-width { fixed 1280; }\n" +
-		"    default-window-height { fixed 820; }\n" +
-		"}\n"
-	if !strings.Contains(out, want) {
-		t.Errorf("Hyakki builtin window rule must use its stable app id\n%s", out)
+	if strings.Contains(out, "dev.ryoku.Hyakki") || strings.Contains(out, "hyakki") {
+		t.Errorf("retired Hyakki window rule still emitted\n%s", out)
 	}
 }
 

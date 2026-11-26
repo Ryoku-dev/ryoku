@@ -2388,16 +2388,6 @@
       "requires": "codex"
     },
     {
-      "id": "ryoku.opencode-usage.collect",
-      "group": "ryoku-internal",
-      "title": "Collect OpenCode usage",
-      "command": "opencode-usage",
-      "description": "Aggregates local OpenCode sessions into the usage cache consumed by the bar.",
-      "tool": "opencode-usage",
-      "level": "internal",
-      "requires": "opencode"
-    },
-    {
       "id": "ryoku.ryovm.caps",
       "group": "ryoku-apps",
       "title": "Check virtual machine support",

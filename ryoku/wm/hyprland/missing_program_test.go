@@ -14,49 +14,44 @@ func withoutProgram(t *testing.T, name string) {
 	t.Cleanup(func() { hasProgram = prev })
 }
 
-// With the Hyakki app absent its chord is switched off in the K() table, so
-// binds.lua never registers it, and a rebind the user recorded for it is
-// overruled the same way: the lookup is keyed by the shipped chord. The Hyakki
-// bar needs no program and stays registered.
-func TestAbsentProgramSwitchesItsBindOff(t *testing.T) {
+// No shipped bind needs an optional program. An absent program must not
+// switch the search bar off, and the old Hyakki chord is not a shipped row.
+func TestSearchBarStaysBoundWithoutOptionalPrograms(t *testing.T) {
 	withoutProgram(t, "hyakki-app")
-	got := string(renderRebinds(Overrides{KeybindRebinds: map[string]string{"SUPER + ALT + Space": "SUPER + A"}}))
-	if !strings.Contains(got, `["SUPER + ALT + Space"] = false`) {
-		t.Fatalf("Hyakki window chord still registered without hyakki-app:\n%s", got)
+	got := string(renderRebinds(Overrides{}))
+	if strings.Contains(got, `["ALT + Space"] = false`) || strings.Contains(got, "hyakki") {
+		t.Fatalf("search bar or a Hyakki chord was switched off:\n%s", got)
 	}
-	if strings.Contains(got, `"SUPER + A"`) {
-		t.Fatalf("a rebind of an absent program's bind leaked into the table:\n%s", got)
+	var ask bool
+	for _, c := range wm.ShippedBinds() {
+		if c.ID == "shell.hyakki" {
+			t.Fatal("shell.hyakki is still shipped")
+		}
+		row := catalogRow(c, true, nil, nil)
+		if row.Unhonored != "" {
+			t.Errorf("%s unhonored = %q", c.ID, row.Unhonored)
+		}
+		if c.ID == "shell.ask" {
+			ask = true
+			if row.Label != "Search" {
+				t.Errorf("search label = %q", row.Label)
+			}
+		}
 	}
-	if strings.Contains(got, `["ALT + Space"] = false`) {
-		t.Fatalf("the Hyakki bar needs no program, yet it was switched off:\n%s", got)
+	if !ask {
+		t.Fatal("shell.ask vanished")
 	}
 }
 
-func TestHyakkiBarStaysOnWithoutOni(t *testing.T) {
+func TestSearchBarStaysOnWithoutOni(t *testing.T) {
 	withoutProgram(t, "oni")
 	if got := string(renderRebinds(Overrides{})); strings.Contains(got, `["ALT + Space"] = false`) {
-		t.Fatalf("the Hyakki bar was switched off without oni:\n%s", got)
+		t.Fatalf("search bar switched off without oni:\n%s", got)
 	}
 }
 
 func TestPresentProgramLeavesTheTableAlone(t *testing.T) {
 	if got := string(renderRebinds(Overrides{})); strings.Contains(got, "= false") {
 		t.Fatalf("a bind was switched off with every program present:\n%s", got)
-	}
-}
-
-func TestAbsentProgramRowSaysSo(t *testing.T) {
-	withoutProgram(t, "hyakki-app")
-	var row wm.BindRow
-	for _, c := range wm.ShippedBinds() {
-		if c.ID == "shell.hyakki" {
-			row = catalogRow(c, true, nil, nil)
-		}
-	}
-	if row.Unhonored == "" {
-		t.Fatalf("shell.hyakki row reason = %q", row.Unhonored)
-	}
-	if len(row.Keys) == 0 {
-		t.Fatal("the row dropped its chord; it should keep it and say why it is off")
 	}
 }

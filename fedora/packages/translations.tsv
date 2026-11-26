@@ -20,7 +20,6 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	Ryoku-owned RPM.
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
-bubblewrap	bubblewrap	desktop	
 calf	lv2-calf-plugins	desktop	Python equalizer LV2 effects.
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	Ryoku-owned RPM.
 cava	cava	desktop	
@@ -56,8 +55,6 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc libstdc++	desktop	
-ggml-cuda	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks CUDA; Rashin downloads its own llama-server.
-ggml-vulkan	-	optional	Fedora's llama-cpp is too old for LFM3 and lacks Vulkan; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	gh	desktop	
 glibc	glibc	desktop	
@@ -133,7 +130,6 @@ limine-snapper-sync	-	system	Fedora snapshots are not supported in this release.
 linux	kernel	system	
 linux-firmware	linux-firmware	system	
 linux-headers	kernel-devel kernel-headers	desktop	
-llama-cpp	-	optional	Fedora's build predates LFM3 (b11960) and has no Vulkan; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	Ryoku-owned RPM.
 looking-glass	-	optional	No Fedora package provides this Arch package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	Python equalizer and compressor plugins.
@@ -223,7 +219,6 @@ ryoku-keysounds-niri	ryoku-keysounds-niri	optional	Ryoku-owned RPM.
 ryoku-keysounds-profiles	ryoku-keysounds-profiles	optional	Ryoku-owned RPM.
 ryoku-oh-my-zsh	ryoku-oh-my-zsh	desktop	Ryoku-owned RPM.
 ryoku-palette-bridge	ryoku-palette-bridge	desktop	Ryoku-owned RPM.
-hyakki	hyakki	desktop	Ryoku-owned RPM.
 ryoku-shell	ryoku-shell	desktop	Ryoku-owned RPM.
 ryomanager	ryomanager	optional	Ryoku-owned RPM.
 ryoport	ryoport	optional	Ryoku-owned RPM.
@@ -322,9 +317,3 @@ zsh	zsh	desktop
 zsh-autosuggestions	zsh-autosuggestions	desktop	
 zsh-history-substring-search	zsh-history-substring-search	desktop	Ryoku-owned RPM.
 zsh-syntax-highlighting	zsh-syntax-highlighting	desktop	
-libx11	libX11 libX11-xcb	desktop	Hyakki's native X11 backend.
-libxcursor	libXcursor	desktop	Hyakki's native X11 backend.
-libxfixes	libXfixes	desktop	Hyakki's native X11 backend.
-libxkbcommon-x11	libxkbcommon-x11	desktop	Hyakki's native X11 backend.
-hicolor-icon-theme	hicolor-icon-theme	desktop	Native application icon installation.
-whisper-cpp	-	optional	No Fedora package with the required whisper-server executable is nominated.

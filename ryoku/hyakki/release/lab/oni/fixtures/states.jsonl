@@ -1,6 +1,0 @@
-{"atMs":4000,"frame":{"kind":"state","data":{"state":"listening"}}}
-{"atMs":8000,"frame":{"kind":"state","data":{"state":"thinking"}}}
-{"atMs":12000,"frame":{"kind":"state","data":{"state":"reading"}}}
-{"atMs":16000,"frame":{"kind":"state","data":{"state":"speaking"}}}
-{"atMs":20000,"frame":{"kind":"state","data":{"state":"error"}}}
-{"atMs":24000,"frame":{"kind":"state","data":{"state":"idle","reason":"hidden"}}}

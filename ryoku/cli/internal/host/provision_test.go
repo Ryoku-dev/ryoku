@@ -67,7 +67,7 @@ func TestUsersSeedSelfWritesExpectedTreeAndIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	app, _, stdout := provisionTestApp(t, share, home)
-	args := []string{"seed-self", "--rice", "hacker", "--hyakki", "--hide-app", "hidden.desktop", "--skip-welcome"}
+	args := []string{"seed-self", "--rice", "hacker", "--hide-app", "hidden.desktop", "--skip-welcome"}
 	if code := app.Users(args); code != ExitOK {
 		t.Fatalf("seed-self exit = %d, output = %s", code, stdout.String())
 	}
@@ -82,7 +82,7 @@ func TestUsersSeedSelfWritesExpectedTreeAndIsIdempotent(t *testing.T) {
 		".local/share/ryoku", ".local/share/ryoku/assets", ".local/share/ryoku/assets/brand",
 		".local/share/ryoku/assets/brand/logo.svg", ".local/state", ".local/state/ryoku",
 		".local/state/ryoku/default-rice-pending", ".local/state/ryoku/launcher-overrides",
-		".local/state/ryoku/provisioned", ".local/state/ryoku/hyakki-on-pending",
+		".local/state/ryoku/provisioned",
 		".local/state/ryoku/welcome-seen", ".npmrc", "Desktop", "Documents", "Downloads", "Music",
 		"Pictures", "Pictures/ryodecors", "Pictures/ryodecors/decor.png", "Public", "Templates", "Videos", "Videos/Recordings",
 	}
@@ -93,7 +93,6 @@ func TestUsersSeedSelfWritesExpectedTreeAndIsIdempotent(t *testing.T) {
 	}
 	for path, want := range map[string]string{
 		".local/state/ryoku/default-rice-pending": "hacker\n",
-		".local/state/ryoku/hyakki-on-pending":    "pending\n",
 		".local/state/ryoku/welcome-seen":         "19",
 		".local/state/ryoku/provisioned":          "pkg-one\npkg-two\n",
 		".local/state/ryoku/launcher-overrides":   "hidden.desktop\nnvim.desktop\n",
@@ -197,7 +196,7 @@ func TestUsersProvisionUsesCleanAccountEnvironment(t *testing.T) {
 	})
 	app.cfg.PasswdPath, app.cfg.GroupPath = passwdPath, groupPath
 	app.cfg.UID, app.cfg.UIDSet = 0, true
-	if code := app.Users([]string{"provision", "bob", "--rice", "hacker", "--hyakki", "--hide-app", "hidden.desktop", "--skip-welcome"}); code != ExitOK {
+	if code := app.Users([]string{"provision", "bob", "--rice", "hacker", "--hide-app", "hidden.desktop", "--skip-welcome"}); code != ExitOK {
 		t.Fatalf("provision exit = %d, output = %s", code, stdout.String())
 	}
 	if len(runner.commands) != 1 {
@@ -211,7 +210,7 @@ func TestUsersProvisionUsesCleanAccountEnvironment(t *testing.T) {
 	for _, part := range []string{
 		"-u bob -- /usr/bin/env -i", "HOME=/home/bob", "USER=bob", "LOGNAME=bob", "SHELL=/bin/zsh",
 		"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=en_GB.UTF-8", "RYOKU_HOST_INIT=systemd",
-		"/usr/bin/ryoku-host users seed-self --rice hacker --hyakki --hide-app hidden.desktop --skip-welcome",
+		"/usr/bin/ryoku-host users seed-self --rice hacker --hide-app hidden.desktop --skip-welcome",
 	} {
 		if !strings.Contains(joined, part) {
 			t.Errorf("argv %q does not contain %q", joined, part)

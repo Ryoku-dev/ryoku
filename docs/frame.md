@@ -55,8 +55,7 @@ Ryoku-owned surface host: it rides the shared `Popout` and mounts a body by
 `kind`, so credential prompts, voice, capture, and small rail cards all share
 one component. The menu manager, rather than a widget or IPC client, owns
 their lifecycle. Quick settings (Super+Escape) is not a frame surface; it is a
-screen-edge overlay of its own subsystem, see `docs/sidebars.md`. Oni's optional
-desktop surface belongs to Hyakki, not the frame; see `docs/hyakki.md`.
+screen-edge overlay of its own subsystem, see `docs/sidebars.md`.
 
 ## Input and focus
 

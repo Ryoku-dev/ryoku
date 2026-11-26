@@ -120,7 +120,6 @@ export RYOKU_VARIANT
 : "${RYOKU_LOGIN_SHELL:=}"
 : "${RYOKU_DROP_PACKAGES:=}"
 : "${RYOKU_FILE_MANAGER:=}"
-: "${RYOKU_HYAKKI:=}"
 : "${RYOKU_HIDE_APPS:=}"
 : "${RYOKU_CACHYOS_LAYER:=}"
 export RYOKU_DROP_PACKAGES
@@ -135,7 +134,7 @@ fi
 # dropped like a deselected app, so they never land and updates never add them.
 [[ $RYOKU_VARIANT != cachyos ]] || ryoku_cachyos_drops
 export RYOKU_BROWSER RYOKU_LOGIN_SHELL RYOKU_FILE_MANAGER
-export RYOKU_HYAKKI RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER RYOKU_DROP_PACKAGES
+export RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER RYOKU_DROP_PACKAGES
 : "${RYOKU_REBOOT:=}"
 : "${RYOKU_DRYRUN:=}"
 # carve (in-place resize) contract: shrink RYOKU_RESIZE_PART to free
@@ -171,7 +170,7 @@ ryoku_accounts_validate
 
 main() {
   [[ -n $RYOKU_DRYRUN ]] && log "DRY RUN: no disk is touched; commands are printed only"
-  log 'Ryoku install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s files=%s hyakki=%s hidden=%s cachyos-layer=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER" "$RYOKU_LOGIN_SHELL" "$RYOKU_FILE_MANAGER" "$RYOKU_HYAKKI" "${RYOKU_HIDE_APPS:-none}" "$RYOKU_CACHYOS_LAYER"
+  log 'Ryoku install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s files=%s hidden=%s cachyos-layer=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER" "$RYOKU_LOGIN_SHELL" "$RYOKU_FILE_MANAGER" "${RYOKU_HIDE_APPS:-none}" "$RYOKU_CACHYOS_LAYER"
 
   ryoku_preflight
   # an offline install with no usable baked repo can only fail, and it must fail

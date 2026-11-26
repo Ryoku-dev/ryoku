@@ -42,7 +42,6 @@ var pieceLabels = map[string]string{
 	"ryoget":       i18n.T("ryoget, downloads"),
 	"ryoseek":      i18n.T("ryoseek, search"),
 	"hub":          i18n.T("ryoku-hub, the settings backend"),
-	"hyakki":       i18n.T("Hyakki and Oni, the optional AI system"),
 	"cli":          i18n.T("the ryoku command"),
 	"blobs":        i18n.T("Ryoku.Blobs, the frame renderer"),
 	"picker":       i18n.T("Ryoku.Ryogami, the wallpaper picker"),

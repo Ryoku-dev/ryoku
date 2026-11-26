@@ -14,10 +14,6 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
 - `ryoku-hub` -- the Hub backend (Go), to `/usr/bin/ryoku-hub`.
 - `ryoku` -- the control CLI (update / rollback / snapshots / materialize / ...),
   to `/usr/bin/ryoku`.
-- `ryoku-rashin` -- the optional Rashin system. It ships the `rashind` daemon,
-  pure-Go `rashin` command line, Gio `rashin-app`, built-in free-model router
-  and code index, user socket units, usage collectors, launcher and notices.
-  Prowl is no longer a separate Ryoku package.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
   `/usr/lib/qt6/qml/Ryoku/Blobs`.
 - `skwd-paper-bin` -- the pinned upstream skwd-paper scene renderer (Wallpaper
@@ -76,7 +72,7 @@ Void, and Fedora wrappers, and compares normalized path, mode, and SHA-256
 manifests. Its single allow-list covers only init, boot, package-manager, and
 other edition adapters named in the test.
 
-makedepends across the set include `go` (the Ryoku Go tools and Rashin),
+makedepends across the set include `go` (the Ryoku Go tools),
 `cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), Gio's Wayland,
 xkbcommon, EGL and Vulkan headers, and `rust` + `git`
 (hyprland-preview-share-picker, asusctl), on top of the assumed `base-devel`.

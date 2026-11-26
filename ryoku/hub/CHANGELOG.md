@@ -1,6 +1,9 @@
 # Changelog: ryoku/hub/
 
 ## Unreleased
+### Removed
+- **Hyakki is not a Settings page.** Apps no longer installs, turns on or
+  removes it, and a finished update no longer offers to open it.
 ### Added
 
 - **Credits name Prism, which Downloads' engine adapts (MIT).** The About page

@@ -38,12 +38,12 @@ that contract is documented in `../backend/README.md`.
 The wizard (`steps()` in `main.go`) walks these steps in order:
 
 `keyboard -> locale -> timezone -> network -> hardware -> profile -> gpu ->
-compositor -> browser -> login-shell -> file-manager -> Rashin -> Gaming ->
+compositor -> browser -> login-shell -> file-manager -> Gaming ->
 Apps & tools -> diskpick (target disk) -> disk (strategy) -> partitions
 (layout) -> hostname -> administrator account -> root account -> other people
 -> encryption -> review`
 
-Gaming appears on the Arch, CachyOS, and Void images, after Rashin and before
+Gaming appears on the Arch, CachyOS, and Void images, after File manager and before
 Apps & tools. It defaults to No. Fedora has no Gaming component, so the shared
 flow omits the step there.
 

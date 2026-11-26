@@ -1,8 +1,0 @@
-# SPDX-License-Identifier: GPL-3.0-only
-# shellcheck shell=bash
-# The package never enables a unit and never touches user data.
-
-pre_remove() {
-  printf '%s\n' 'Run "hyakki off" as each user before removing Hyakki, so no user unit or runit service stays linked.'
-}
-

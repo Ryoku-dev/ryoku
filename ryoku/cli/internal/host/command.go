@@ -2,7 +2,6 @@ package host
 
 import (
 	"fmt"
-	"path/filepath"
 )
 
 // AppsUsage is the `apps` section of the help. Its verbs live in
@@ -32,9 +31,6 @@ Services:
   svc [--user|--system] reset-failed <name>...
   svc [--user|--system] failed
   svc env [--all | NAME | NAME=VALUE ...]
-
-Hyakki migration (desktop session user, never root):
-  hyakki migrate [--retire-dev-binaries DIR]
 
 Process helpers:
   app [--cwd DIR] [--label DESKTOP_ID] -- ARGV...
@@ -90,8 +86,8 @@ Users:
   users set-perms <name> <id,id,...>
   users set-password <name>
   users set-limit <name> <bytes|0>
-  users provision <name> [--rice <slug>] [--hyakki] [--hide-app <id>]... [--skip-welcome]
-  users seed-self [--rice <slug>] [--hyakki] [--hide-app <id>]... [--skip-welcome]
+  users provision <name> [--rice <slug>] [--hide-app <id>]... [--skip-welcome]
+  users seed-self [--rice <slug>] [--hide-app <id>]... [--skip-welcome]
 
 ` + AppsUsage + `
 Packages (names use the Arch/Ryoku catalogue):
@@ -165,17 +161,6 @@ func (a *App) Execute(args []string) int {
 		return a.Repo(args[1:])
 	case "svc":
 		return a.Service(args[1:])
-	case "hyakki":
-		retireBinDir := ""
-		if len(args) == 4 && args[1] == "migrate" && args[2] == "--retire-dev-binaries" && filepath.IsAbs(args[3]) {
-			retireBinDir = args[3]
-		} else if len(args) != 2 || args[1] != "migrate" {
-			return ExitUsage
-		}
-		if err := a.MigrateHyakki(retireBinDir); err != nil {
-			return a.failf("%v", err)
-		}
-		return ExitOK
 	case "app":
 		return a.App(args[1:])
 	case "inhibit":

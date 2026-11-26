@@ -25,7 +25,6 @@ Item {
     property var packedLayout: []
     property string focusedActionId: ""
     property bool helpMode: false
-    property bool askMode: false
     property bool answerMode: false
     property bool actionBrowse: false
     property bool searching: false
@@ -33,14 +32,12 @@ Item {
     property string errorText: ""
     property int windowCount: 0
     property bool windowFocusActive: false
-    property string askQuestion: ""
     property var answer: ({ available: false })
 
     signal leadActivated()
     signal resultSelected(string resultKey, int rank)
     signal actionFocusRequested(string actionId)
     signal actionExecuteRequested(string actionId)
-    signal askFinished()
 
     readonly property real pad: 10 * s
     readonly property bool hasResults: selectedResult !== null && results.length > 0
@@ -54,14 +51,10 @@ Item {
     readonly property real standardDesiredHeight: pad * 2 + prefixHeight + resultBodyHeight
     readonly property real rawDesiredHeight: helpMode
         ? pad * 2 + helpPanel.implicitHeight
-        : (askMode ? pad * 2 + askPanel.implicitHeight : standardDesiredHeight)
+        : standardDesiredHeight
     readonly property real desiredHeight: open
         ? Math.min(Math.max(0, maxHeight), rawDesiredHeight) : 0
     readonly property string activeCategory: tabs.activeCategory
-    readonly property bool askBusy: askPanel.busy
-    readonly property bool askResumeMode: askPanel.resumeMode
-    readonly property bool askAnswerCurrent: askPanel.answerCurrent
-    readonly property int askChipCount: askPanel.chips.length
     readonly property string actionVisibleRange: actionShelf.visibleRange
     readonly property real actionShelfHeight: actionShelf.height
     readonly property real resultDeckOpacity: resultDeck.opacity
@@ -114,26 +107,6 @@ Item {
         tabs.cycle(delta);
     }
 
-    function resetAsk() {
-        askPanel.reset();
-    }
-
-    function runAsk() {
-        askPanel.run();
-    }
-
-    function moveAsk(delta) {
-        askPanel.move(delta);
-    }
-
-    function activateAsk() {
-        askPanel.activate();
-    }
-
-    function cancelAsk() {
-        askPanel.cancel();
-    }
-
     function revealRank(rank) {
         ledger.revealRank(rank);
     }
@@ -171,14 +144,14 @@ Item {
                 id: tabs
                 width: prefixStack.width
                 height: visible ? implicitHeight : 0
-                visible: root.actionBrowse && !root.helpMode && !root.askMode
+                visible: root.actionBrowse && !root.helpMode
                 s: root.s
             }
 
             Shared.AnswerPanel {
                 width: prefixStack.width
                 height: visible ? implicitHeight : 0
-                visible: root.answerMode && !root.helpMode && !root.askMode
+                visible: root.answerMode && !root.helpMode
                 s: root.s
                 answer: root.answer
             }
@@ -204,28 +177,6 @@ Item {
             }
         }
 
-        Flickable {
-            id: askViewport
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            visible: root.askMode
-            clip: true
-            contentWidth: width
-            contentHeight: askPanel.implicitHeight
-            boundsBehavior: Flickable.StopAtBounds
-            interactive: contentHeight > height
-
-            Shared.AskPanel {
-                id: askPanel
-                width: askViewport.width
-                s: root.s
-                question: root.askQuestion
-                onFinished: root.askFinished()
-            }
-        }
-
         Item {
             id: standardBody
             anchors.left: parent.left
@@ -233,7 +184,7 @@ Item {
             anchors.top: prefixStack.bottom
             anchors.topMargin: prefixStack.height > 0 ? 8 * root.s : 0
             anchors.bottom: parent.bottom
-            visible: !root.helpMode && !root.askMode
+            visible: !root.helpMode
 
             Item {
                 id: resultDeck

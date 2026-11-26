@@ -72,7 +72,6 @@ Item {
         if (p === "=") return I18n.tr("CALC");
         if (p === "?") return I18n.tr("WEB");
         if (p === "@") return I18n.tr("RADIO");
-        if (askMode) return "HYAKKI";
         return "";
     }
     readonly property bool actionMode: routed.provider === "actions"
@@ -85,10 +84,6 @@ Item {
     // action catalog), not once the user types "/play"; then the results take
     // the space and nothing clips.
     readonly property bool actionBrowse: actionMode && routed.query.length === 0
-    // "\" prefix: a one-shot quick ask to the Hyakki agent. No provider claims
-    // it; the panel owns the whole body and the Enter key while active.
-    readonly property bool askMode: query.length > 0 && query[0] === "\\"
-    readonly property string askQuestion: askMode ? query.slice(1).replace(/^\s+/, "") : ""
     // an async provider is resolving the current query and nothing has come back
     // yet: show a spinner, not a premature "No matches".
     readonly property bool searching: shown && !resting && Dispatcher.busy && results.length === 0
@@ -144,7 +139,6 @@ Item {
             resting: resting,
             gridMode: gridMode,
             help: help,
-            askMode: askMode,
             answerMode: answerMode,
             actionMode: actionMode,
             modeLabel: modeLabel,
@@ -154,7 +148,7 @@ Item {
             totalCount: totalCount,
             busyIds: Object.keys(Dispatcher.busyProviders),
             selectedIndex: gridMode ? appGrid.selectedIndex
-                : (!resting && !help && !askMode ? list.selectedIndex : -1),
+                : (!resting && !help ? list.selectedIndex : -1),
             panelOpen: panel.open,
             selectedActions: acts,
             hasMedia: hasMedia,
@@ -193,7 +187,6 @@ Item {
     readonly property real answerH: answerMode ? answerPanel.implicitHeight + MainMetrics.padRow * s : 0
     readonly property real bodyH: help ? helpPanel.implicitHeight
         : gridMode ? gridH
-        : askMode ? askPanel.implicitHeight + MainMetrics.padRow * s
         : (resting ? restH
         : (answerH + (results.length > 0 ? listH
         : (searching ? loading.height : empty.height))))
@@ -253,8 +246,6 @@ Item {
     onQueryChanged: {
         panel.open = false;
         if (query.length > 0) { root.allApps = false; root.help = false; }
-        // leaving ask mode drops any in-flight or finished ask
-        if (query.length === 0 || query[0] !== "\\") askPanel.reset();
         list.resetSelection();
         root.scheduleEvaluation();
     }
@@ -291,9 +282,9 @@ Item {
         gridActive: root.gridMode
         helpActive: root.help
         onTextChanged: root.query = text
-        onMoved: (d) => { if (root.askMode && (askPanel.chips.length > 0 || askPanel.resumeMode)) askPanel.move(d); else if (panel.open) panel.move(d); else if (root.gridMode) appGrid.move(d * root.gridColumnsForMove); else list.move(d); }
-        onAccepted: { if (root.askMode) { if (askPanel.resumeMode || askPanel.busy || askPanel.answerCurrent) askPanel.activate(); else askPanel.run(); } else if (panel.open) panel.run(); else if (root.gridMode) appGrid.activate(); else list.activate(); }
-        onDismissed: { if (root.askMode && askPanel.busy) { askPanel.cancel(); root.requestClose(); } else if (root.askMode && askPanel.resumeMode) { askPanel.reset(); root.query = ""; search.clear(); } else if (panel.open) panel.open = false; else if (root.help) root.help = false; else if (root.allApps) root.allApps = false; else root.requestClose(); }
+        onMoved: (d) => { if (panel.open) panel.move(d); else if (root.gridMode) appGrid.move(d * root.gridColumnsForMove); else list.move(d); }
+        onAccepted: { if (panel.open) panel.run(); else if (root.gridMode) appGrid.activate(); else list.activate(); }
+        onDismissed: { if (panel.open) panel.open = false; else if (root.help) root.help = false; else if (root.allApps) root.allApps = false; else root.requestClose(); }
         onGridToggled: {
             if (root.gridMode) {
                 root.allApps = false;
@@ -392,20 +383,6 @@ Item {
         answer: providerSet.web ? providerSet.web.answer : ({ available: false })
     }
 
-    Shared.AskPanel {
-        id: askPanel
-        visible: root.askMode
-        anchors.top: divider.bottom
-        anchors.topMargin: MainMetrics.padRow * root.s
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: MainMetrics.padOuter * root.s
-        anchors.rightMargin: MainMetrics.padOuter * root.s
-        s: root.s
-        question: root.askQuestion
-        onFinished: root.requestClose()
-    }
-
     MainVariant.NowPlaying {
         id: nowPlaying
         visible: root.resting && !root.allApps && !root.help && root.hasMedia
@@ -475,7 +452,7 @@ Item {
 
     MainVariant.ResultList {
         id: list
-        visible: !root.resting && !root.askMode && root.results.length > 0
+        visible: !root.resting && root.results.length > 0
         anchors.top: root.answerMode ? answerPanel.bottom : (root.actionBrowse ? tabs.bottom : divider.bottom)
         anchors.topMargin: root.answerMode ? MainMetrics.padRow * root.s : 6 * root.s
         anchors.left: parent.left
@@ -495,7 +472,7 @@ Item {
 
     Row {
         id: loading
-        visible: root.searching && !root.askMode
+        visible: root.searching
         anchors.top: root.answerMode ? answerPanel.bottom : (root.actionBrowse ? tabs.bottom : divider.bottom)
         anchors.topMargin: MainMetrics.padRow * root.s
         anchors.horizontalCenter: parent.horizontalCenter
@@ -517,7 +494,7 @@ Item {
 
     Text {
         id: empty
-        visible: !root.resting && !root.searching && !root.askMode && root.results.length === 0
+        visible: !root.resting && !root.searching && root.results.length === 0
         anchors.top: root.answerMode ? answerPanel.bottom : (root.actionBrowse ? tabs.bottom : divider.bottom)
         anchors.topMargin: MainMetrics.padRow * root.s
         anchors.horizontalCenter: parent.horizontalCenter

@@ -160,8 +160,7 @@ func (m Manifest) DeliverableOnce() []string { return m.Provisioned }
 // machine with a fingerprint reader (reconcileFingerprintModule);
 // limine-snapper-sync and limine-mkinitcpio-hook belong to a Limine box whose
 // boot Ryoku manages (the snapshot offer and the doctor's limine reconcilers);
-// ryoku-palette-bridge is a Ryogami setting the user turns on; hyakki is
-// installed only when the installer or Hub records an explicit user choice.
+// ryoku-palette-bridge is a Ryogami setting the user turns on.
 // The hook is one of three conflicting builds of limine-entry-tool (CachyOS
 // ships the plain tool, dracut boxes carry limine-dracut-support), so pushing
 // it at a box that boots through another build fails the update every time.
@@ -174,7 +173,6 @@ var OptIn = []string{
 	"limine-snapper-sync",
 	"limine-mkinitcpio-hook",
 	"ryoku-palette-bridge",
-	"hyakki",
 }
 
 // IsOptIn reports whether a package name belongs to no box by default.

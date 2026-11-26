@@ -90,9 +90,6 @@ declare -A neutral_hard=() neutral_opt=() neutral_seen=() \
 	niri_hard=() niri_opt=() niri_seen=() \
 	hypr_hard=() hypr_opt=() hypr_seen=()
 walk_closure ryoku-desktop neutral_hard neutral_opt neutral_seen
-# Hyakki is optional on Arch, but this edition's desktop package still
-# requires it, so its own dependencies belong to the desktop closure here.
-walk_closure hyakki neutral_hard neutral_opt neutral_seen
 walk_closure ryoku-desktop-niri niri_hard niri_opt niri_seen
 walk_closure ryoku-desktop-hyprland hypr_hard hypr_opt hypr_seen
 

@@ -1,10 +1,8 @@
 # Changelog: installation/
 
 ## Unreleased
-- **Assistant installation now selects Hyakki.** The shared catalogue,
-  graphical choices and unattended flags use `hyakki` and `--hyakki`.
-  The optional app stays off unless selected, and first-login activation
-  preserves an existing saved-off choice.
+- **Hyakki is not an install choice.** The catalogue, graphical installer,
+  unattended flags and offline package bake no longer offer or install it.
 - **Removed Wayfire from installation.** The Arch and CachyOS compositor
   pickers and offline ISOs now offer and bake only Hyprland and niri.
 - **New installs no longer pull Docker.** The Apps step drops its Docker

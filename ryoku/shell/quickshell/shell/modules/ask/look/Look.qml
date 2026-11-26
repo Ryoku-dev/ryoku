@@ -4,7 +4,7 @@ import QtQuick
 import Quickshell
 import Lithic
 
-// The Hyakki bar in the desktop's design (theme.design), followed live. A design
+// The Alt+Space bar in the desktop's design (theme.design), followed live. A design
 // decides corners, how the planes are layered, the type's manner and the motion;
 // every colour is a Lithic role, so the palette stays the reader's own.
 //   lithic    a stone4 slip cut top-left and bottom-right, ruled by hairlines,
@@ -110,23 +110,6 @@ Singleton {
     // numerals: Lithic sets figures in its mono, the others in tabular sans
     readonly property string figures: look.lithic ? Lithic.font.mono : Lithic.font.sans
     readonly property real figureScale: look.lithic ? 0.84 : 1
-    // how an answer's prose is set (services/lib/markdown.js render): a half line
-    // between blocks, code on a tint of the plane it lies on. px is the body size
-    // in reference px, plane the opaque plane under the text
-    function prose(s, px, plane) {
-        return {
-            px: Math.round(px * s),
-            gap: Math.round(px * 0.65 * s),
-            itemGap: Math.round(3 * s),
-            lineHeight: 138,
-            mono: look.mono,
-            monoPx: Math.round(px * 0.82 * s),
-            codeBg: "" + Lithic.mix(plane, Lithic.fg, look.dark ? 0.08 : 0.06),
-            codePad: Math.round(9 * s),
-            link: "" + Lithic.goldInk,
-            dim: "" + Lithic.fg2
-        };
-    }
 
     // motion
     function dur(ms) {

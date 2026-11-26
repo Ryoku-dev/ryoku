@@ -40,7 +40,7 @@ func residueFixture(t *testing.T) residueLayout {
 
 var packagedNames = func(name string) bool {
 	switch name {
-	case "ryoku-shell", "ryoku-qylock-activate", "oni", "hyakki", "hyakki-app", "ryoku-palette-bridge", "ryogami":
+	case "ryoku-shell", "ryoku-qylock-activate", "ryoku-palette-bridge", "ryogami":
 		return true
 	}
 	return false
@@ -86,13 +86,6 @@ func TestDevUnitsHomeUnitYieldsToPackagedUnit(t *testing.T) {
 		enabled                            bool
 	}{
 		{
-			name:         "oni stays enabled",
-			unit:         "oni.service",
-			homeExec:     "/home/dev/bin/oni",
-			packagedExec: "/usr/bin/oni",
-			enabled:      true,
-		},
-		{
 			name:     "Rashin 1 unit is removed",
 			unit:     legacyAppUnit,
 			homeExec: "/home/dev/bin/ryoku-rashin serve --if-enabled",
@@ -106,9 +99,6 @@ func TestDevUnitsHomeUnitYieldsToPackagedUnit(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			l := residueFixture(t)
-			if c.unit == oniService {
-				c.homeExec = filepath.Join(l.localBin, "oni")
-			}
 			home := filepath.Join(l.userUnits(), c.unit)
 			writeFile(t, home, "[Service]\nExecStart="+c.homeExec+"\n")
 			var pkg string

@@ -196,8 +196,8 @@ func nameSet(lanes [][]string) map[string]bool {
 	set := map[string]bool{}
 	for _, lane := range lanes {
 		for _, n := range lane {
-			if n == "ryoku-rashin" || ryokumanifest.IsOptIn(n) {
-				continue // neither optional installs nor retired names come from convergence
+			if ryokumanifest.IsOptIn(n) {
+				continue // optional installs never come from convergence
 			}
 			set[n] = true
 		}

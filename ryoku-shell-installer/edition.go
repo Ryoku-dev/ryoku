@@ -21,7 +21,6 @@ type planOverrides struct {
 	browser      string
 	shell        string
 	fileManager  string
-	hyakki       bool
 	gaming       bool
 	cachyosLayer bool
 	without      []string
@@ -88,9 +87,6 @@ func validateEditionFlags(overrides planOverrides, plan editionCompositorPlan) e
 			return err
 		}
 	}
-	if err := validateComponentFlag("hyakki", overrides.hyakki, plan); err != nil {
-		return err
-	}
 	if overrides.cachyosLayer {
 		if err := validateComponentFlag("cachyos-layer", true, plan); err != nil {
 			return err
@@ -139,7 +135,6 @@ func validateComponentFlag(id string, selected bool, plan editionCompositorPlan)
 
 func applyPlanOverrides(p *plan, overrides planOverrides) {
 	applyPlanChoices(p, overrides.browser, overrides.shell, overrides.fileManager)
-	p.setComponent("hyakki", overrides.hyakki)
 	if overrides.cachyosLayer {
 		p.setComponent("cachyos-layer", true)
 	}

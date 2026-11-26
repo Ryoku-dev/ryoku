@@ -1,1 +1,0 @@
-Recorded for this test.

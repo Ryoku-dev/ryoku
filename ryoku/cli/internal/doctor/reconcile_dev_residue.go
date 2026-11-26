@@ -167,6 +167,14 @@ func homeRyokuWrapper(configHome string) string {
 // lines at ~/.local/bin.
 const devBinDropIn = "ryoku-dev-bin.conf"
 
+// Retired service units a dev deploy may have left in the user's systemd
+// directory; no package provides a replacement, so the heal removes them
+// outright.
+const (
+	legacyAppUnit   = "ryoku-rashin.service"
+	legacyProwlUnit = "ryoku-prowl.service"
+)
+
 // residueLayout is where a box keeps what the dev deploy laid, lifted out so
 // the unit plan runs against a temp tree.
 type residueLayout struct {

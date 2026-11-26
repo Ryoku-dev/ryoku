@@ -1,7 +1,0 @@
-[Unit]
-# routines wake exits without starting Oni when Hyakki or routines are off
-Description=Hyakki routines wake
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/hyakki routines wake

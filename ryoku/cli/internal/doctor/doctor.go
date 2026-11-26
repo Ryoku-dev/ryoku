@@ -339,6 +339,7 @@ func reconcilers() []reconciler {
 		{i18n.T("retired sidebar settings"), reconcileSidebarRework},
 		{i18n.T("Quick settings layout"), reconcileQuickSettingsLayout},
 		{i18n.T("retired clipboard panel keys"), reconcileRetiredClipboardLayout},
+		{i18n.T("retired answer bubble keys"), reconcileRetiredAskBubble},
 		{i18n.T("retired panel keybind"), reconcileAskKeybind},
 		{i18n.T("retired Shima frame music key"), reconcileShimaFrameMusic},
 		{i18n.T("retired Shima battery warning thresholds"), reconcileIrisBatteryThresholds},
@@ -387,7 +388,6 @@ func reconcilers() []reconciler {
 		{i18n.T("ryoku shell daemon"), reconcileShellDaemon},
 		{i18n.T("duplicate desktop instances"), reconcileShellInstances},
 		{i18n.T("Ryoku vault"), reconcileVault},
-		{i18n.T("Hyakki"), reconcileHyakkiDaemon},
 		{i18n.T("retired screen gestures"), reconcileRetiredVisionSettings},
 		{i18n.T("recordings directory"), reconcileRecordingsDir},
 		{i18n.T("memory pressure"), reconcileMemoryHealth},
@@ -606,9 +606,6 @@ func Run(args []string) error {
 			noun = i18n.T("issues")
 		}
 		fmt.Fprintf(os.Stderr, "\n  %s %s\n", sys.Brand("➜"), sys.Bold(fmt.Sprintf(i18n.T("found %d %s"), warns+fails, noun)))
-		if hyakkiOn() {
-			fmt.Fprintf(os.Stderr, "    %s  %s\n", sys.Brand("hyakki fix doctor"), sys.Dim(i18n.T("let Hyakki's agent investigate and fix these")))
-		}
 		fmt.Fprintf(os.Stderr, "    %s  %s\n", sys.Brand("ryoku doctor --explain"), sys.Dim(i18n.T("AI diagnosis and a suggested fix")))
 		if path != "" {
 			fmt.Fprintf(os.Stderr, "    %s\n", sys.Dim(i18n.Tf("report saved: %s", path)))

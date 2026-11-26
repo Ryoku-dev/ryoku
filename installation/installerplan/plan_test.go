@@ -193,10 +193,6 @@ func TestBashResolverReadsTheSameManifest(t *testing.T) {
 				t.Fatalf("bash resolver: %v\n%s", err, output)
 			}
 			drop := append(DropPackages("firefox", "fish"), DropPackagesFor(FileManager, "nautilus")...)
-			if hyakki, ok := plan.Component("hyakki"); ok &&
-				!componentSelected(hyakki, plan.DefaultComponents()) {
-				drop = append(drop, hyakki.Component.Packages...)
-			}
 			want := "browser=firefox\nshell=fish\nfiles=nautilus\ndrops=" + strings.Join(drop, ",") + "\n" +
 				"browsers=" + strings.Join(plan.AvailableIDs(Browser), ",") + ",\n" +
 				"shells=" + strings.Join(plan.AvailableIDs(LoginShell), ",") + ",\n" +
@@ -290,10 +286,6 @@ func TestComponentAvailabilityByEdition(t *testing.T) {
 				gaming.Component.NeedsNetwork != test.needsNetwork {
 				t.Errorf("gaming component = %+v, want id=%q network=%v", gaming, test.gamingID, test.needsNetwork)
 			}
-			hyakki, ok := plan.Component("hyakki")
-			if !ok || !hyakki.Available || hyakki.Locked || hyakki.Component.DefaultOn {
-				t.Errorf("hyakki availability = %+v, want an available, unlocked, default-off choice", hyakki)
-			}
 			terminal, ok := plan.Component("terminal")
 			if !ok || !terminal.Available || !terminal.Locked ||
 				terminal.Reason != "the Ryoku terminal role: the launcher, Settings, and open in terminal use it" {
@@ -375,9 +367,8 @@ func TestComponentDropAndHideRules(t *testing.T) {
 	selected := arch.DefaultComponents()
 	selected["ryoport"] = false
 	selected["ryomanager"] = false
-	selected["hyakki"] = false
 	drop := arch.DropComponentPackages(selected)
-	for _, want := range []string{"ryoport", "ryomanager", "hyakki"} {
+	for _, want := range []string{"ryoport", "ryomanager"} {
 		if !contains(drop, want) {
 			t.Errorf("drop packages %v missing %s", drop, want)
 		}
@@ -391,14 +382,6 @@ func TestComponentDropAndHideRules(t *testing.T) {
 		t.Fatalf("hidden desktop ids = %q, want none", got)
 	}
 
-	for _, edition := range []string{"void", "fedora"} {
-		plan := resolvedPlan(t, edition)
-		planSelected := plan.DefaultComponents()
-		planSelected["hyakki"] = false
-		if !contains(plan.DropComponentPackages(planSelected), "hyakki") {
-			t.Fatalf("%s kept hyakki after Hyakki was turned off", edition)
-		}
-	}
 
 	if got, want := strings.Join(DropPackagesFor(FileManager, "nautilus"), ","), "dolphin,thunar"; got != want {
 		t.Fatalf("nautilus file-manager drops = %q, want %q", got, want)

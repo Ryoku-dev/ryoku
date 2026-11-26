@@ -116,7 +116,6 @@ if command -v eza >/dev/null 2>&1; then
 fi
 
 _ryoku_cfg=${XDG_CONFIG_HOME:-$HOME/.config}
-[[ -r $_ryoku_cfg/zsh/hyakki.zsh ]] && source "$_ryoku_cfg/zsh/hyakki.zsh"
 [[ -r $_ryoku_cfg/zsh/user.zsh ]] && source "$_ryoku_cfg/zsh/user.zsh"
 
 unset _ryoku_prompt _ryoku_omz

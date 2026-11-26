@@ -1299,10 +1299,6 @@ func (m model) installEnvChecked() ([]string, error) {
 	fm := def(m.picks["file-manager"], installerplan.FreshDefault(installerplan.FileManager))
 	plan := installerChoicesForVariant(m.variant)
 	selected := m.componentSelections()
-	hyakki := "0"
-	if selected["hyakki"] {
-		hyakki = "1"
-	}
 	drop := plan.DropComponentPackages(selected)
 	drop = append(drop, installerplan.DropPackages(br, sh)...)
 	drop = append(drop, installerplan.DropPackagesFor(installerplan.FileManager, fm)...)
@@ -1310,7 +1306,6 @@ func (m model) installEnvChecked() ([]string, error) {
 		"RYOKU_BROWSER="+br,
 		"RYOKU_LOGIN_SHELL="+sh,
 		"RYOKU_FILE_MANAGER="+fm,
-		"RYOKU_HYAKKI="+hyakki,
 	)
 	if m.variant == "plain" {
 		env = append(env, "RYOKU_CACHYOS_LAYER="+def(m.picks["gaming"], "0"))

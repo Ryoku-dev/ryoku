@@ -8,7 +8,6 @@ trap 'rm -rf "$work"' EXIT
 packages=(
   ryoku
   ryoku-shell
-  hyakki
   ryoku-palette-bridge
   ryoku-hub
   ryoku-desktop
@@ -45,12 +44,6 @@ prepare_prebuilt() {
       fake_binary "$dir/ryoku-livewall"
       fake_binary "$dir/ryoget"
       fake_binary "$dir/ryoseek"
-      ;;
-    hyakki)
-      fake_binary "$dir/oni"
-      fake_binary "$dir/hyakki"
-      fake_binary "$dir/hyakki-app"
-      fake_binary "$dir/oni-surface"
       ;;
     ryoku-palette-bridge)
       fake_binary "$dir/ryoku-palette-bridge"
@@ -422,33 +415,6 @@ for pkg in "${packages[@]}"; do
       || fail "ryoku-desktop Void package must not ship the systemd Secret Service override"
     [[ ! -e $work/staged/$pkg-void/usr/lib/environment.d/98-ryoku-dbus.conf ]] \
       || fail "ryoku-desktop Void package must not ship the systemd D-Bus data path"
-  fi
-
-  if [[ $pkg == hyakki ]]; then
-    for edition in arch void fedora fedora-spec; do
-      for binary in hyakki oni hyakki-app oni-surface; do
-        [[ -f $work/staged/$pkg-$edition/usr/bin/$binary && -x $work/staged/$pkg-$edition/usr/bin/$binary && ! -L $work/staged/$pkg-$edition/usr/bin/$binary ]] \
-          || fail "hyakki $edition package is missing $binary"
-      done
-      [[ -f $work/staged/$pkg-$edition/usr/share/applications/dev.ryoku.Hyakki.desktop ]] \
-        || fail "hyakki $edition package is missing its desktop entry"
-      [[ -f $work/staged/$pkg-$edition/usr/share/icons/hicolor/scalable/apps/dev.ryoku.Hyakki.svg ]] \
-        || fail "hyakki $edition package is missing its icon"
-    done
-    for edition in arch fedora fedora-spec; do
-      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/oni.socket ]] \
-        || fail "hyakki $edition package is missing oni.socket"
-      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/oni.service ]] \
-        || fail "hyakki $edition package is missing oni.service"
-    done
-    for service in oni oni-routines hyakki-usage; do
-      [[ -f $work/staged/$pkg-void/usr/lib/ryoku/runit/user/$service/down ]] \
-        || fail "hyakki Void service is not dormant: $service"
-      for edition in arch void fedora fedora-spec; do
-        [[ -f $work/staged/$pkg-$edition/usr/share/hyakki/runit/$service/down ]] \
-          || fail "hyakki $edition standalone service is not dormant: $service"
-      done
-    done
   fi
 
   jobs=()

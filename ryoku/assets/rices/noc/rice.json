@@ -140,13 +140,6 @@
       }
     },
     "shell": {
-      "ask": {
-        "bubble": {
-          "enabled": false,
-          "x": 0.9935622317596566,
-          "y": 0.25671984265734266
-        }
-      },
       "barStyle": "orpheus",
       "showJapaneseGloss": true,
       "bars": {

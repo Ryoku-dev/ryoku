@@ -20,7 +20,6 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
-bubblewrap	bubblewrap	desktop	
 calf	calf	desktop	
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	repo=ryoku
 cava	cava	desktop	
@@ -56,8 +55,6 @@ gamemode	gamemode	desktop
 gamescope	gamescope	desktop	
 gcc	gcc	optional	
 gcc-libs	libgcc	desktop	
-ggml-cuda	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
-ggml-vulkan	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 git	git	desktop	
 github-cli	github-cli	desktop	
 glibc	glibc	desktop	
@@ -137,7 +134,6 @@ limine-snapper-sync	limine-snapper-sync	system	repo=ryoku
 linux	linux	system	
 linux-firmware	linux-firmware linux-firmware-intel linux-firmware-nvidia linux-firmware-broadcom	system	
 linux-headers	linux-headers	desktop	
-llama-cpp	-	optional	Not packaged on Void; Rashin downloads its own llama-server.
 localsend-bin	localsend-bin	extra	repo=ryoku
 looking-glass	-	optional	No Void repository package.
 lsp-plugins-lv2	lsp-plugins-lv2	desktop	
@@ -227,7 +223,6 @@ ryoku-keysounds-niri	@repo	optional	Ryoku-owned package built from the checkout.
 ryoku-keysounds-profiles	@repo	optional	Ryoku-owned package built from the checkout.
 ryoku-oh-my-zsh	ryoku-oh-my-zsh	desktop	repo=ryoku
 ryoku-palette-bridge	@repo	desktop	Ryoku-owned package built from the checkout.
-hyakki	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout.
 ryomanager	@repo	optional	Ryoku-owned package built from the checkout.
 ryoport	ryoport	optional	repo=ryoku
@@ -327,9 +322,3 @@ zsh	zsh	desktop
 zsh-autosuggestions	zsh-autosuggestions	desktop	
 zsh-history-substring-search	zsh-history-substring-search	desktop	
 zsh-syntax-highlighting	zsh-syntax-highlighting	desktop	
-libx11	libX11	desktop	
-libxcursor	libXcursor	desktop	
-libxfixes	libXfixes	desktop	
-libxkbcommon-x11	libxkbcommon-x11	desktop	
-hicolor-icon-theme	hicolor-icon-theme	desktop	
-whisper-cpp	-	optional	No Void package with the required whisper-server executable is nominated.

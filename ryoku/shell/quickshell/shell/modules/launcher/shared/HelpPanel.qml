@@ -20,8 +20,7 @@ Item {
         { k: ">",      d: I18n.tr("packages: >install, >remove, >search") },
         { k: "=",      d: I18n.tr("calculator") },
         { k: "?",      d: I18n.tr("web search (supports !bangs)") },
-        { k: "@",      d: I18n.tr("live radio: @lofi tunes in, @stop tunes out") },
-        { k: "\\",     d: I18n.tr("ask the Hyakki agent (one terse answer)") }
+        { k: "@",      d: I18n.tr("live radio: @lofi tunes in, @stop tunes out") }
     ]
     readonly property var keyRows: [
         { k: "Enter",  d: I18n.tr("run the selected result's primary action") },

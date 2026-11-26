@@ -119,7 +119,7 @@ Item {
         if (row.kind === "query" || row.kind === "suggestion")
             return { label: I18n.tr("Search") };
         if (row.kind === "fallback")
-            return { label: row.target === "ask" ? I18n.tr("Ask Hyakki") : I18n.tr("Search in the browser") };
+            return { label: I18n.tr("Search in the browser") };
         return { label: root.link(row).length > 0 ? I18n.tr("Open in the browser") : I18n.tr("Copy") };
     }
     readonly property var secondaryAction: {
@@ -134,8 +134,6 @@ Item {
         const item = row && row.item && row.kind !== "suggestion" ? row.item : null;
         if (item) {
             out.push({ id: "detail", label: root.detailOpen ? I18n.tr("Hide details") : I18n.tr("Show details"), glyph: "side_navigation", hint: "Ctrl+I", section: "" });
-            if (row.kind === "result" && String(item.url || "").length > 0)
-                out.push({ id: "ask", label: I18n.tr("Ask Hyakki about this page"), glyph: "explore", hint: "Ctrl+Shift+A", section: "" });
             if (Web.downloadable(item))
                 out.push({ id: "download", label: I18n.tr("Download"), glyph: "download", hint: "Ctrl+D", section: "" });
             const links = Web.altLinks(item);
@@ -225,12 +223,9 @@ Item {
         if (entry.kind === "query")
             return { id: entry.id, kind: "query", last: last, size: "one", glyph: "search", glyphTone: "accent", title: entry.text };
         if (entry.kind === "fallback") {
-            const ask = entry.target === "ask";
             return {
                 id: entry.id, kind: "fallback", target: entry.target, last: last, size: "one",
-                glyph: ask ? "explore" : "open_in_browser",
-                title: ask ? I18n.tr("Ask Hyakki about this") : I18n.tr("Search in the browser"),
-                hint: ask ? "Tab" : ""
+                glyph: "open_in_browser", title: I18n.tr("Search in the browser"), hint: ""
             };
         }
         const item = entry.item;
@@ -349,10 +344,7 @@ Item {
         } else if (row.kind === "suggestion") {
             root.request("picked", row.title);
         } else if (row.kind === "fallback") {
-            if (row.target === "ask")
-                root.pushRequested("ask", { question: root.text });
-            else
-                root.open(Web.browserSearchUrl(root.text));
+            root.open(Web.browserSearchUrl(root.text));
         } else if (Date.now() < root.settleAt) {
             return;
         } else if (root.link(row).length > 0) {
@@ -383,8 +375,6 @@ Item {
             return;
         } else if (id === "detail") {
             root.detailOpen = !root.detailOpen;
-        } else if (id === "ask") {
-            root.pushRequested("ask", { context: { title: String(item.title || ""), url: String(item.url || "") } });
         } else if (id === "download") {
             if (!root.downloads || !Web.downloadable(item))
                 return;

@@ -26,8 +26,6 @@ HOST_BUILD=$(mktemp -d)
 HARNESS_PATH=$(mktemp)
 trap 'rm -rf "$HOST_BUILD"; rm -f "$HARNESS_PATH"' EXIT
 (cd "$ROOT/ryoku/cli" && CGO_ENABLED=0 go build -o "$HOST_BUILD/ryoku-host" ./cmd/ryoku-host)
-(cd "$ROOT/ryoku/hyakki" && GOWORK=off GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOENV=off \
-	CGO_ENABLED=0 go build -mod=vendor -buildvcs=false -o "$HOST_BUILD/hyakki" ./cmd/hyakki)
 
 # The in-container harness: one POSIX sh script (Void's /bin/sh is dash), the
 # repo bind-mounted read-only at /repo. One runsvdir for the whole suite;
@@ -68,15 +66,10 @@ EOF
 }
 for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami \
 	ryoku-idle ryoku-clamshell pipewire bluetoothctl \
-	ryoku-palette-bridge ryoku \
-	claude-usage codex-usage opencode-usage nmcli \
+	ryoku-palette-bridge ryoku nmcli \
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	mkstub "$b"
 done
-cp /repo/ryoku/hyakki/usage/hyakki-usage "$WORK/bin/hyakki-usage"
-cp /hyakki "$WORK/bin/hyakki"
-chmod +x "$WORK/bin/hyakki"
-chmod +x "$WORK/bin/hyakki-usage"
 
 # argument-aware stubs: a binary that is both a pre-start hook and the daemon
 # must exit for the hook and stay up for the daemon.
@@ -133,23 +126,12 @@ EOF
 chmod +x "$WORK/bin/ryoku-idle"
 
 # hook-only and collector stubs must return, never sleep.
-for b in ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryoku \
-	claude-usage codex-usage opencode-usage nmcli \
+for b in ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryoku nmcli \
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	echo exit0 > "$WORK/ctl/$b"
 done
 
-# Data-only installations remain collectable, and a colocated guard finds the
-# matching collectors without a package-path override.
-mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.local/share/opencode/storage"
-printf '{}\n' >"$HOME/.claude/.credentials.json"
-"$WORK/bin/hyakki-usage"
-for collector in claude-usage codex-usage opencode-usage; do
-	[ "$(grep -c "^$collector" "$LOG")" -eq 1 ] || fail "data-only guard skipped $collector"
-done
-: >"$LOG"
-
-# Hyakki's native worker keeps the production 45-second/five-minute schedule.
+# snapper-cleanup runs on a fast test schedule.
 cat > "$WORK/snapper-cleanup" <<'EOF'
 #!/bin/sh
 echo "snapper-cleanup" >> "$LOG"
@@ -169,9 +151,6 @@ install_svc /repo/void/init/user/ryoku-shell ryoku-shell
 install_svc /repo/void/init/user/ryoku-bootstrap ryoku-bootstrap
 install_svc /repo/void/init/user/ryoku-idle ryoku-idle park
 install_svc /repo/void/init/user/ryoku-eq ryoku-eq
-install_svc /repo/void/init/user/hyakki-usage hyakki-usage park
-install_svc /repo/void/init/user/oni-routines oni-routines park
-install_svc /repo/void/init/user/oni oni park
 install_svc /repo/void/init/user/ryoku-bluetooth-reset ryoku-bluetooth-reset
 install_svc /repo/void/init/system/ryoku-var-state ryoku-var-state
 install_svc /repo/void/init/system/ryoku-network-kill-guard ryoku-network-kill-guard
@@ -228,13 +207,6 @@ wait_count_ge() { # pattern n [timeout-quarters]
 	done
 	return 1
 }
-
-#### Optional native services are delivered but remain down until requested.
-for service in oni oni-routines hyakki-usage; do
-	wait_stat "$service" down || fail "$service started without an explicit request"
-done
-[ "$(count 'claude-usage')" -eq 0 ] || fail "usage collection started without a request"
-pass "Oni and its workers stay dormant at session start"
 
 #### 1. failed-wait parking: eq (missing config file) and bluetooth-reset
 ####    (no session D-Bus) park instead of crash-looping.
@@ -294,23 +266,9 @@ sleep 3
 pass "Restart=on-failure parks on clean exit and stays parked"
 
 
-#### 7. The real native usage worker runs its collectors on the shipped schedule.
-mkdir -p "$HOME/.config/hyakki"
-printf '{"enabled":true}\n' >"$HOME/.config/hyakki/hyakki.json"
-sv up "$WORK/svc/hyakki-usage"
-wait_count_ge 'claude-usage' 1 240 || fail "native usage worker did not collect after its initial delay"
-wait_count_ge 'codex-usage' 2 1500 || fail "native usage worker did not repeat on its five-minute period"
-sv up "$WORK/svc/oni-routines"
-wait_stat oni-routines run || fail "requested routine worker did not start"
-printf '{"enabled":false}\n' >"$HOME/.config/hyakki/hyakki.json.new"
-mv "$HOME/.config/hyakki/hyakki.json.new" "$HOME/.config/hyakki/hyakki.json"
-wait_stat hyakki-usage down || fail "native usage worker did not park when Hyakki was turned off"
-wait_stat oni-routines down || fail "native routine worker did not park when Hyakki was turned off"
-before_usage=$(count 'claude-usage')
-sleep 3
-[ "$(count 'claude-usage')" -eq "$before_usage" ] || fail "collector survived Hyakki being turned off"
+#### 7. The snapper-cleanup loop repeats on its schedule.
 wait_count_ge 'snapper-cleanup' 2 || fail "snapper-cleanup loop did not repeat"
-pass "native optional workers honor the production schedule and stop on activation changes"
+pass "the snapper-cleanup loop honors its schedule"
 
 #### 8. wait-for predicates (env, file, !-inverse).
 . /repo/void/init/lib/wait-for
@@ -637,5 +595,4 @@ docker run --rm \
 	-v "$ROOT:/repo:ro" \
 	-v "$HARNESS_PATH:/harness.sh:ro" \
 	-v "$HOST_BUILD/ryoku-host:/ryoku-host:ro" \
-	-v "$HOST_BUILD/hyakki:/hyakki:ro" \
 	"$IMAGE" sh /harness.sh

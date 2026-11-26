@@ -234,7 +234,6 @@ never by an edit to the routing.
 | packages | `install`/`remove`/`search` | GPK across every package manager |
 | mpris | (default, media words) | now-playing + transport for any player |
 | script | per-script keyword | run rofi-script / dmenu scripts |
-| Hyakki ask | `\` | ask Hyakki a read-only question about this machine. The answer renders as selectable text with actions for files, folders, URLs and proposed commands. Open in Hyakki continues the conversation in the native app. Needs Hyakki on; see [Hyakki](hyakki.md) |
 
 Ranking and protocol logic live as testable JavaScript in `shared/lib/` and each
 provider's folder (`fuzzy.js`, `dispatch.js`, `rofiscript.js`, `wave.js`,

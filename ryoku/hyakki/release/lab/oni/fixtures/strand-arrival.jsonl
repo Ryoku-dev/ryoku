@@ -1,8 +1,0 @@
-{"atMs":2000,"frame":{"kind":"strand.target","data":{"seq":5,"x":0.74,"y":0.62,"w":0.03,"h":0.03}}}
-{"atMs":4000,"frame":{"kind":"strand.target","data":{"seq":6,"x":0.78,"y":0.55,"w":0.03,"h":0.03}}}
-{"atMs":5000,"frame":{"kind":"strand.target","data":{"seq":4,"x":0.7,"y":0.7,"w":0.03,"h":0.03}}}
-{"atMs":25000,"frame":{"kind":"strand.target","data":{"seq":6,"x":0.78,"y":0.55,"w":0.03,"h":0.03}}}
-{"atMs":27000,"frame":{"kind":"strand.retract","data":{"seq":6}}}
-{"atMs":36000,"frame":{"kind":"strand.target","data":{"seq":7,"x":0.74,"y":0.62,"w":0.03,"h":0.03}}}
-{"atMs":50000,"frame":{"kind":"strand.target","data":{"seq":8,"x":0.74,"y":0.62,"w":0.03,"h":0.03}}}
-{"atMs":51000,"eof":true}

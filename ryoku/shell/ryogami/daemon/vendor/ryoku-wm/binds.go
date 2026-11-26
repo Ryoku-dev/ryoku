@@ -239,8 +239,7 @@ var catalogue = []CatalogBind{
 
 	// Shell
 	{ID: "shell.launcher", Category: "Shell", Label: "App launcher", Chord: "SUPER + Space", Kind: BindShell},
-	{ID: "shell.ask", Category: "Shell", Label: "Hyakki bar", Hint: "Ask, search the web and start downloads", Chord: "ALT + Space", Kind: BindShell},
-	{ID: "shell.hyakki", Category: "Shell", Label: "Hyakki", Hint: "The Hyakki app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "hyakki-app", NeedsName: "Hyakki"},
+	{ID: "shell.ask", Category: "Shell", Label: "Search", Hint: "Search the web and start downloads", Chord: "ALT + Space", Kind: BindShell},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
 	{ID: "shell.gamebar", Category: "Shell", Label: "Game Bar", Hint: "Capture, performance and tasks over a full screen game", Chord: "SUPER + SHIFT + G", Kind: BindShell},
 	{ID: "shell.lock", Category: "Shell", Label: "Lock the screen", Chord: "SUPER + L", Kind: BindShell},

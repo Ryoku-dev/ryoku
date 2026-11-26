@@ -1,6 +1,11 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Hyakki, Oni and Rashin no longer ship with Ryoku.** They live in their
+  own repository now. The Alt+Space bar keeps web search, quick sums and
+  downloads; its ask view, recent asks and the pinned answer bubble are gone,
+  and doctor strips the retired `ask.bubble` keys from `shell.json` and removes
+  a leftover `ryoku-rashin` package.
 - **Hyakki replaces Rashin and Theia.** One native app, the Oni daemon and Oni
   Vision handle the assistant and its optional desktop features. The Hub and
   shortcuts open Hyakki rather than keeping the old assistant alongside it.

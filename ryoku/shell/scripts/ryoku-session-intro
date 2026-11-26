@@ -109,32 +109,6 @@ consume_profile_welcome() {
 	) &
 }
 
-consume_hyakki_on() {
-	local marker="$state/hyakki-on-pending" result=0
-	[[ -e $marker ]] || return 0
-	if ! command -v hyakki >/dev/null 2>&1; then
-		log_intro "Hyakki activation is pending but hyakki is not installed; keeping the marker"
-		return 1
-	fi
-	flock -n "${XDG_RUNTIME_DIR:-/tmp}/hyakki-first-login.lock" hyakki on --if-unset || result=$?
-	case "$result" in
-	0 | 3) ;;
-	*)
-		log_intro "could not apply Hyakki's first-login preference; keeping the marker"
-		return 1
-		;;
-	esac
-	if ! rm -f -- "$marker"; then
-		log_intro "Hyakki's first-login preference was applied but its marker could not be removed"
-		return 1
-	fi
-	if [[ $result == 3 ]]; then
-		log_intro "kept Hyakki off as already chosen"
-	else
-		log_intro "turned Hyakki on for the first login"
-	fi
-}
-
 case "${1:-}" in
 welcome)
 	consume_default_rice || true
@@ -149,7 +123,6 @@ welcome)
 			env "${qml_env[@]}" qs -c welcome &&
 			mkdir -p "$state" && printf '%s' "$welcome_version" >"$state/welcome-seen"
 	fi
-	consume_hyakki_on || true
 	;;
 keys-hint)
 	[[ -e $state/keys-hint-seen ]] && exit 0

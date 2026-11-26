@@ -11,8 +11,8 @@
 #      resolved from there first. Their compile deps and the plugin's
 #      reachability-metadata zip are not vendored yet, so these two builds are
 #      not fully offline and --offline is deliberately not asserted.
-#   2. ryoku-hub and Hyakki ran a bare `go build`, which downloads modules
-#      from proxy.golang.org. They build -mod=vendor from a committed vendor/.
+#   2. ryoku-hub ran a bare `go build`, which downloads modules
+#      from proxy.golang.org. It builds -mod=vendor from a committed vendor/.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

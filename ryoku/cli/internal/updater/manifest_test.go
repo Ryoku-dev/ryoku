@@ -76,25 +76,6 @@ func TestPlanManifestLeavesProvisionedLaneToShippedApps(t *testing.T) {
 	}
 }
 
-func TestPlanManifestNeverInstallsOptionalHyakkiOrRetiredPackage(t *testing.T) {
-	for _, name := range []string{"hyakki", "ryoku-rashin"} {
-		t.Run(name, func(t *testing.T) {
-			m := &ryokumanifest.Manifest{
-				Base:        []string{"base"},
-				FirstParty:  []string{"ryoku-desktop", name},
-				Provisioned: ryokumanifest.AppNames(),
-			}
-			installed := map[string]bool{"base": true, "ryoku-desktop": true}
-			for _, baseline := range []map[string]bool{installed, {"base": true, "ryoku-desktop": true, name: true}} {
-				plan := PlanManifest(m, baseline, m, installed)
-				if len(plan.Install) != 0 || len(plan.AUR) != 0 {
-					t.Fatalf("manifest revived an optional or retired package: %+v", plan)
-				}
-			}
-		})
-	}
-}
-
 func TestPlanManifestReportsRetiredNames(t *testing.T) {
 	prev := &ryokumanifest.Manifest{Dev: []string{"dropped-tool"}}
 	next := &ryokumanifest.Manifest{}

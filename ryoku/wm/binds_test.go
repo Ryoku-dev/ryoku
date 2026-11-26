@@ -288,31 +288,27 @@ func find(t *testing.T, id string) CatalogBind {
 }
 
 // A bind that launches an optional app loses its chord when the app is gone,
-// and the legend names the program; every other bind is untouched by the lookup.
+// and the legend names the program. No shipped bind does that; the rule lives
+// on the bind itself.
 func TestMissingNamesTheAbsentProgram(t *testing.T) {
 	absent := func(string) bool { return false }
 	present := func(string) bool { return true }
-	var needy, plain int
+	if len(ShippedBinds()) == 0 {
+		t.Fatal("catalogue is empty")
+	}
 	for _, b := range ShippedBinds() {
-		if b.Needs == "" {
-			plain++
-			if got := b.Missing(absent); got != "" {
-				t.Errorf("%s needs nothing but reads missing: %q", b.ID, got)
-			}
-			continue
+		if b.Needs != "" {
+			t.Errorf("%s still names an optional program %q", b.ID, b.Needs)
 		}
-		needy++
-		if got := b.Missing(present); got != "" {
-			t.Errorf("%s has its program but reads missing: %q", b.ID, got)
-		}
-		if b.NeedsName == "" || b.NeedsName == b.Needs {
-			t.Errorf("%s names its program %q, not the app the user installs", b.ID, b.Needs)
-		}
-		if got := b.Missing(absent); got != b.NeedsName+" is not installed." {
-			t.Errorf("%s missing reason = %q", b.ID, got)
+		if got := b.Missing(absent); got != "" {
+			t.Errorf("%s needs nothing but reads missing: %q", b.ID, got)
 		}
 	}
-	if needy == 0 || plain == 0 {
-		t.Fatalf("catalogue has %d needy and %d plain binds; the test needs both", needy, plain)
+	optional := CatalogBind{ID: "test.optional", Needs: "some-app", NeedsName: "Some App"}
+	if got := optional.Missing(present); got != "" {
+		t.Errorf("present program reads missing: %q", got)
+	}
+	if got := optional.Missing(absent); got != "Some App is not installed." {
+		t.Errorf("missing reason = %q", got)
 	}
 }

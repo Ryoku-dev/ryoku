@@ -204,7 +204,6 @@ pkgs.stdenv.mkDerivation {
     # Ryoku's Fish configuration is part of the actual desktop package.
     mkdir -p "$cfg/fish/conf.d"
     cp ryoku/apps/fish/config.fish "$cfg/fish/config.fish"
-    cp ryoku/apps/fish/conf.d/hyakki.fish "$cfg/fish/conf.d/hyakki.fish"
 
     mkdir -p "$cfg/wireplumber"
     cp -a ryoku/apps/wireplumber/. "$cfg/wireplumber/"

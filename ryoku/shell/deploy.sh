@@ -748,66 +748,17 @@ build_go "$here/../cli" ryoku-host ./cmd/ryoku-host
 piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 install -m755 "$here/../cli/ryoku-host" "$bindir/ryoku-host"
-  dev_bin_dropin() {
-    local unit="$cfg/systemd/user/$1" dir="$cfg/systemd/user/$1.d"
-    shift
-    mkdir -p "$dir"
-    {
-      printf '[Service]\n'
-      grep -oE '^Exec[A-Za-z]+=' "$unit" | sort -u
-      grep -E '^Exec[A-Za-z]+=' "$unit" | sed 's|/usr/bin/|%h/.local/bin/|'
-      printf '%s\n' "$@"
-    } >"$dir/ryoku-dev-bin.conf"
-  }
-# Stage the complete sibling set before replacing any trusted executable.
-piece hyakki "Hyakki and Oni, the optional AI system"
-hyakki_module="$here/../hyakki"
-hyakki_version=${RYOKU_PKGVER:-dev}
-hyakki_build_install() (
-  set -e
-  export GOWORK=off GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOENV=off GOFLAGS=
-  unset GOOS GOARCH
-  local work binary cgo
-  local -a flags=(-mod=vendor -buildvcs=false -trimpath -ldflags "-s -w -X main.version=$hyakki_version")
-  work=$(mktemp -d "$bindir/.hyakki-build.XXXXXX")
-  trap 'rm -rf "$work"' EXIT
-  python3 "$hyakki_module/release/native.py" check-source
-  for binary in hyakki oni hyakki-app oni-surface; do
-    cgo=0
-    [[ $binary == hyakki-app || $binary == oni-surface ]] && cgo=1
-    CGO_ENABLED=$cgo build_go "$hyakki_module" "$work/$binary" "./cmd/$binary" "${flags[@]}"
-  done
-  python3 "$hyakki_module/release/native.py" notices
-  HYAKKI_BUILD_DIR="$work" DESTDIR="$work/stage" "$hyakki_module/release/install.sh"
-  for binary in "$work/stage/usr/bin/"*; do
-    mv -f "$binary" "$bindir/${binary##*/}"
-  done
-  PATH="$bindir:$PATH" "$bindir/ryoku-host" hyakki migrate --retire-dev-binaries "$bindir"
-  mkdir -p "$datadir/applications" "$datadir/metainfo" "$datadir/icons/hicolor/scalable/apps" \
-    "$datadir/licenses/hyakki" "$datadir/doc/hyakki" "$datadir/hyakki/runit"
-  cp -a "$work/stage/usr/share/applications/." "$datadir/applications/"
-  cp -a "$work/stage/usr/share/metainfo/." "$datadir/metainfo/"
-  cp -a "$work/stage/usr/share/icons/hicolor/scalable/apps/." "$datadir/icons/hicolor/scalable/apps/"
-  cp -a "$work/stage/usr/share/licenses/hyakki/." "$datadir/licenses/hyakki/"
-  cp -a "$work/stage/usr/share/doc/hyakki/." "$datadir/doc/hyakki/"
-  cp -a "$work/stage/usr/share/hyakki/runit/." "$datadir/hyakki/runit/"
-  if [ -d /run/systemd/system ]; then
-    mkdir -p "$cfg/systemd/user"
-    for binary in ryoku-rashin.service ryoku-prowl.service rashind.socket rashind.service \
-      ryoku-ai-usage.service ryoku-ai-usage.timer rashind-routines.service rashind-routines.timer; do
-      if [[ ! -L $cfg/systemd/user/$binary || $(readlink -- "$cfg/systemd/user/$binary") != /dev/null ]]; then
-        rm -f "$cfg/systemd/user/$binary"
-      fi
-    done
-    cp -a "$work/stage/usr/lib/systemd/user/." "$cfg/systemd/user/"
-    dev_bin_dropin oni.service
-    dev_bin_dropin hyakki-usage.service
-    dev_bin_dropin oni-routines.service
-  fi
-)
-hyakki_build_install
-piece_end
-say "installed $bindir/hyakki, $bindir/oni, $bindir/hyakki-app and $bindir/oni-surface"
+dev_bin_dropin() {
+  local unit="$cfg/systemd/user/$1" dir="$cfg/systemd/user/$1.d"
+  shift
+  mkdir -p "$dir"
+  {
+    printf '[Service]\n'
+    grep -oE '^Exec[A-Za-z]+=' "$unit" | sort -u
+    grep -E '^Exec[A-Za-z]+=' "$unit" | sed 's|/usr/bin/|%h/.local/bin/|'
+    printf '%s\n' "$@"
+  } >"$dir/ryoku-dev-bin.conf"
+}
 # every system helper the package ships to /usr/bin, by the same globs, so a new
 # hardware helper reaches a checkout the moment it lands.
 for s in "$here/../../system/hardware"/*/ryoku-*; do
@@ -1531,7 +1482,6 @@ mkdir -p "$cfg/wireplumber"; cp -a "$here/../apps/wireplumber/." "$cfg/wireplumb
 mkdir -p "$cfg/environment.d"; cp -a "$here/environment.d/." "$cfg/environment.d/"
 if [ -d /run/systemd/system ]; then
   mkdir -p "$cfg/systemd/user"; cp -a "$here/systemd/user/." "$cfg/systemd/user/"
-  cp -a "$hyakki_module/systemd/." "$cfg/systemd/user/"
   # The dev deploy runs these units' binaries from ~/.local/bin; the package ships
   # /usr/bin. The unit stays byte-for-byte as shipped and a drop-in repoints its
   # Exec lines: an edited copy reads as a hand edit to `ryoku materialize`, which
@@ -1542,9 +1492,6 @@ if [ -d /run/systemd/system ]; then
   dev_bin_dropin ryoku-clamshell.service
   dev_bin_dropin ryoku-profile-scope.service
   dev_bin_dropin ryoku-profile-session.service
-  dev_bin_dropin oni.service
-  dev_bin_dropin hyakki-usage.service
-  dev_bin_dropin oni-routines.service
   dev_bin_dropin ryoku-bt-agent.service
   # Ryogami resolves the staged picker from XDG_DATA_HOME when it starts.
   dev_bin_dropin ryogami.service
@@ -1563,10 +1510,6 @@ else
   # Older deploys pinned the account's home here. The daemon now derives the
   # picker entry from the session's XDG data home on every start.
   rm -f "$runit_env_root/RYOGAMI_SHELL_QML"
-fi
-hyakki_config="${XDG_CONFIG_HOME:-$HOME/.config}/hyakki/hyakki.json"
-if [[ -f $hyakki_config ]] && jq -e '.enabled == true' "$hyakki_config" >/dev/null 2>&1; then
-  "$bindir/hyakki" on
 fi
 # pip (PEP 668 --user): Ryoku-owned, so a dev box tracks it the way the package
 # materializes it for an installed one.

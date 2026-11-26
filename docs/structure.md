@@ -28,7 +28,7 @@ Start with the guide that matches the job:
   [development](development.md), [Ryoku Settings](hub.md), [internationalization](i18n.md),
   [compositors](compositors.md), [adding a window
   manager](adding-a-window-manager.md), [Hyprland
-  plugins](hyprland-plugins.md), [Hyakki](hyakki.md) and [dictation](dictation.md).
+  plugins](hyprland-plugins.md) and [dictation](dictation.md).
 
 The rest of this page maps those guides to the source tree.
 
@@ -204,18 +204,6 @@ truth for the live desktop.
   is "Ryoku Settings"; the binary and config keep the internal `hub` name.
   Deployed to `~/.config/quickshell/hub`; built by the shell's `deploy.sh`. How
   it is built and how to extend it is in `docs/hub.md`.
-- `hyakki/` the optional AI system. Its main Go module retains the internal
-  name `ryoku-rashin`; canonical native window and reflex adapters live in the
-  `wm/oniwindow/` and `wm/reflex/` Go submodules. Its physical command siblings
-  are `cmd/hyakki/` (CLI),
-  `cmd/oni/` (daemon), `cmd/hyakki-app/` (Gio app) and `cmd/oni-surface/`
-  (desktop surface). `internal/engine/` runs the native sessions,
-  `internal/localmodels/` manages optional local models, `internal/index/`
-  provides cited source search, and `internal/oni/` defines desktop
-  capabilities. Native services and packaging live with the app; the desktop's
-  package integration lives under `release/packages/hyakki/`. The Hub manages
-  lifecycle and links to native settings; Alt+Space is a thin Quick Ask client.
-  See `docs/hyakki.md`.
 - `assets/` `brand/` the 力 logo and icons,
   `wallpapers/` the shipped wallpaper set (installs to `Wallpapers/` under the
   configured Pictures folder), and `ryodecors/` the decor art the
@@ -316,7 +304,7 @@ serves them with no release infrastructure.
 - `packages/` one directory per pacman package in the `[ryoku]` repo, each a
   `PKGBUILD`. 40 in all, in four groups by why they exist:
   - built from the checked-out monorepo: the components (`ryoku-shell`,
-    `ryoku-hub`, `hyakki`, `ryoku`, `ryoku-blobs`,
+    `ryoku-hub`, `ryoku`, `ryoku-blobs`,
     `ryotunes`, `ryogami` the wallpaper daemon), the `ryoku-desktop` umbrella,
     `ryoku-keyring`, the `gpk` package manager, and the on-demand key sounds:
     `ryoku-keysounds-profiles` (the samples and the importer, shared) and

@@ -97,7 +97,6 @@ fi
 : "${RYOKU_LOGIN_SHELL:=}"
 : "${RYOKU_DROP_PACKAGES:=}"
 : "${RYOKU_FILE_MANAGER:=}"
-: "${RYOKU_HYAKKI:=}"
 : "${RYOKU_HIDE_APPS:=}"
 : "${RYOKU_CACHYOS_LAYER:=}"
 : "${RYOKU_REBOOT:=}"
@@ -114,14 +113,13 @@ esac
 RYOKU_REQUIRE_UEFI=0
 if [[ $RYOKU_FIRMWARE_MODE == bios ]]; then RYOKU_BIOS_BOOT_MIB=1; else RYOKU_BIOS_BOOT_MIB=0; fi
 export RYOKU_REPO RYOKU_DROP_PACKAGES RYOKU_BROWSER RYOKU_LOGIN_SHELL
-export RYOKU_FILE_MANAGER RYOKU_HYAKKI RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER
+export RYOKU_FILE_MANAGER RYOKU_HIDE_APPS RYOKU_CACHYOS_LAYER
 export RYOKU_PACKAGE_CACHE_DIR RYOKU_CHROOT_CMD RYOKU_REQUIRE_UEFI RYOKU_BIOS_BOOT_MIB
 ryoku_choice_apply_fresh Void "$RYOKU_REPO/void/packages/translations.tsv"
 if [[ $RYOKU_CACHYOS_LAYER == 1 ]]; then
   log 'CachyOS layer is not available on Void; ignoring RYOKU_CACHYOS_LAYER=1'
   RYOKU_CACHYOS_LAYER=0
 fi
-export RYOKU_HYAKKI RYOKU_CACHYOS_LAYER RYOKU_DROP_PACKAGES
 
 [[ -n $RYOKU_DISK ]] || die "RYOKU_DISK is required"
 [[ -n $RYOKU_PASSWORD_HASH ]] || die "RYOKU_PASSWORD_HASH is required"
@@ -147,10 +145,10 @@ ryoku_accounts_validate
 
 main() {
   [[ -z $RYOKU_DRYRUN ]] || log "DRY RUN: no disk is touched; commands are printed only"
-  log 'Ryoku Void install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s files=%s hyakki=%s hidden=%s' \
+  log 'Ryoku Void install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s files=%s hidden=%s' \
     "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" \
     "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER" "$RYOKU_LOGIN_SHELL" \
-    "$RYOKU_FILE_MANAGER" "$RYOKU_HYAKKI" "${RYOKU_HIDE_APPS:-none}"
+    "$RYOKU_FILE_MANAGER" "${RYOKU_HIDE_APPS:-none}"
 
   ryoku_preflight
   void_offline_verify

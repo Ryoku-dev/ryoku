@@ -12,50 +12,35 @@ func withoutProgram(t *testing.T, name string) {
 	t.Cleanup(func() { hasProgram = prev })
 }
 
-// With the Hyakki app absent its window chord is not emitted, a rebind the
-// user recorded for it does not resurrect it, the legend row keeps its place
-// and names the program, and the Hyakki bar, which needs no program, stays bound.
-func TestAbsentProgramDropsItsBind(t *testing.T) {
+// No shipped bind needs an optional program. The search bar stays bound, and
+// the old Hyakki window chord is not emitted.
+func TestSearchBarStaysBoundWithoutOptionalPrograms(t *testing.T) {
 	withoutProgram(t, "hyakki-app")
 	s := loadStore("")
-	s.KeybindRebinds = map[string]string{"SUPER + ALT + Space": "SUPER + CTRL + SHIFT + F12"}
-	kdl, report := genBinds(s)
-	for _, chord := range []string{"Super+Alt+Space", "Super+Ctrl+Shift+F12"} {
-		if strings.Contains(kdl, "\n    "+chord+" {") {
-			t.Fatalf("%s is bound without hyakki-app:\n%s", chord, kdl)
-		}
-	}
+	kdl, _ := genBinds(s)
 	if !strings.Contains(kdl, "\n    Alt+Space {") {
-		t.Fatalf("the Hyakki bar went missing although it needs no program:\n%s", kdl)
+		t.Fatalf("search bar went missing:\n%s", kdl)
 	}
-	reported := false
-	for _, u := range report {
-		if strings.Contains(u.Key, "SUPER + ALT + Space") && u.Reason != "" {
-			reported = true
-		}
-	}
-	if !reported {
-		t.Fatalf("apply did not report the dropped Hyakki bind: %+v", report)
+	if strings.Contains(kdl, "hyakki") || strings.Contains(kdl, "dev.ryoku.Hyakki") {
+		t.Fatalf("Hyakki chord still emitted:\n%s", kdl)
 	}
 	for _, r := range bindRows(s) {
 		if r.ID == "shell.hyakki" {
-			if r.Unhonored == "" {
-				t.Fatalf("shell.hyakki row reason = %q", r.Unhonored)
-			}
-			return
+			t.Fatal("shell.hyakki row still in the legend")
+		}
+		if r.ID == "shell.ask" && r.Label != "Search" {
+			t.Fatalf("search label = %q", r.Label)
 		}
 	}
-	t.Fatal("shell.hyakki row vanished from the legend")
 }
 
-// The Hyakki bar opens with Hyakki off: Web and Downloads need no daemon.
-func TestHyakkiBarBoundWithoutOni(t *testing.T) {
+func TestSearchBarBoundWithoutOni(t *testing.T) {
 	withoutProgram(t, "oni")
 	kdl, _ := genBinds(loadStore(""))
 	if !strings.Contains(kdl, "\n    Alt+Space {") {
-		t.Fatalf("the Hyakki bar is unbound without oni:\n%s", kdl)
+		t.Fatalf("search bar unbound without oni:\n%s", kdl)
 	}
-	if !strings.Contains(kdl, `spawn "ryoku-summon" "--app-id" "dev.ryoku.Hyakki" "hyakki-app";`) {
-		t.Fatalf("the Hyakki window bind does not use its stable app id:\n%s", kdl)
+	if strings.Contains(kdl, "hyakki-app") {
+		t.Fatalf("Hyakki window bind still emitted:\n%s", kdl)
 	}
 }

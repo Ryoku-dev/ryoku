@@ -392,32 +392,6 @@ Column {
         elide: Text.ElideNone
     }
 
-    // the health check found trouble in this run and Hyakki can look into it
-    Row {
-        width: view.width
-        visible: view.run.canFix
-        spacing: LithicTokens.space.s3
-
-        Label {
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - fixPlaque.width - parent.spacing
-            text: view.run.fixMsg !== "" ? view.run.fixMsg : I18n.tr("The health check found problems after this update.")
-            typeRole: "detail"
-            ink: view.run.fixState === "failed" ? Lithic.jasper : Lithic.fg2
-            wrapMode: Text.Wrap
-            elide: Text.ElideNone
-        }
-        Plaque {
-            id: fixPlaque
-            anchors.verticalCenter: parent.verticalCenter
-            kind: "line"
-            small: true
-            glyph: "open_in_new"
-            text: I18n.tr("Fix with Hyakki")
-            busy: view.run.fixState === "opening"
-            onClicked: view.run.fix()
-        }
-    }
 
     Flow {
         width: view.width

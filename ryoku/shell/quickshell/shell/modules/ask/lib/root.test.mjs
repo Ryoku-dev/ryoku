@@ -10,7 +10,7 @@ function equal(actual, expected, label) {
     }
 }
 
-equal(R.prefixRoute("\\why is it slow"), { view: "ask", rest: "why is it slow", external: false }, "a backslash opens Ask with the rest");
+equal(R.prefixRoute("\\why is it slow"), null, "a backslash is plain text");
 equal(R.prefixRoute("? arch wiki"), { view: "web", rest: "arch wiki", external: false }, "a question mark opens Web and drops the gap");
 equal(R.prefixRoute("/"), { view: "downloads", rest: "", external: true }, "a slash hands off to Kit Downloads");
 equal(R.prefixRoute("/ kernel"), { view: "downloads", rest: "kernel", external: true }, "the Downloads handoff preserves its filter");
@@ -33,20 +33,19 @@ equal(["2+2", "12 * (3 - 1)", "15% of 80", "5 km to mi", "sqrt 16", "100 usd in 
 equal(["hello", "42", "3.14", "ubuntu 24.04", "example.com/2+2", "install python3"].map(R.looksLikeMath), [false, false, false, false, false, false], "words, bare numbers and links do not");
 
 const commands = [
-    { id: "ask", title: "Ask Hyakki", keywords: ["question", "ai"] },
     { id: "web", title: "Search the web", keywords: ["internet", "find"] },
     { id: "downloads", title: "Downloads", keywords: ["torrent", "queue"] },
-    { id: "hyakki", title: "Open Hyakki", keywords: ["app"] }
+    { id: "open", title: "Open the saved folder", keywords: ["files"] }
 ];
-equal(R.rank(commands, "").map(c => c.id), ["ask", "web", "downloads", "hyakki"], "an empty query keeps the given order");
+equal(R.rank(commands, "").map(c => c.id), ["web", "downloads", "open"], "an empty query keeps the given order");
 equal(R.rank(commands, "down").map(c => c.id), ["downloads"], "a title prefix matches");
-equal(R.rank(commands, "hyakki").map(c => c.id), ["ask", "hyakki"], "a word start matches, earlier command first on a tie");
-equal(R.rank(commands, "open hyakki").map(c => c.id), ["hyakki"], "a whole title wins");
+equal(R.rank(commands, "saved folder").map(c => c.id), ["open"], "text inside a title matches");
+equal(R.rank(commands, "open the saved folder").map(c => c.id), ["open"], "a whole title wins");
 equal(R.rank(commands, "torrent").map(c => c.id), ["downloads"], "a keyword matches");
 equal(R.rank(commands, "web").map(c => c.id), ["web"], "a word inside the title matches");
 equal(R.rank(commands, "zzz"), [], "nothing matches nonsense");
 equal(R.matchScore("dl", "Downloads") > 0, true, "letters in order match loosely");
-equal(R.matchScore("d", "Open Hyakki"), 0, "one loose letter is not a match");
+equal(R.matchScore("d", "Open the web"), 0, "one loose letter is not a match");
 
 // the home list shows what is moving, then news: what settled and was not seen ten minutes ago
 const now = Date.parse("2026-11-22T12:00:00Z");
@@ -74,30 +73,17 @@ equal(R.pickDownloads([gone], now).length, 0, "a dismissed row leaves at once");
 const ahead = Object.assign({}, tasks[0], { seen: "2026-11-22T14:00:00Z" });
 equal(R.unseen([ahead], now), ["a"], "a seen stamp from a clock that ran ahead is marked again");
 
-const sessions = [
-    { id: "s1", turns: 2, lastMessageAt: "2026-11-22T11:00:00Z", updated: "2026-11-22T11:00:00Z" },
-    { id: "s2", turns: 0, updated: "2026-11-22T11:30:00Z" },
-    { id: "s3", turns: 1, archived: true, lastMessageAt: "2026-11-22T10:00:00Z" },
-    { id: "s4", turns: 1, temporary: true, lastMessageAt: "2026-11-22T10:00:00Z" },
-    { id: "s5", turns: 3, updated: "2026-11-21T13:00:00Z" },
-    { id: "s6", turns: 1, lastMessageAt: "2026-11-19T10:00:00Z", updated: "2026-11-22T11:59:00Z" }
-];
-const day = 24 * 60 * 60 * 1000;
-equal(R.pickAsks(sessions, now, day).map(s => s.id), ["s1", "s5"], "home asks: a turn in the last day, by its last message, never archived, temporary or empty");
-equal(R.pickAsks(sessions, now, 0).map(s => s.id), ["s1", "s5", "s6"], "without a window every real conversation counts");
-equal(R.pickAsks(sessions, now, day, "s1").map(s => s.id), ["s5"], "an ask waiting to be deleted is already gone");
-
 equal(R.quote("  a   long\nline  "), "a long line", "quoting flattens white space");
 equal(R.quote("abcdefghij", 6), "abcde\u2026", "a long quote is cut with an ellipsis");
 
-const labels = { downloads: "Downloads", asks: "Recent asks", goTo: "Go to", results: "Commands", link: "Link", calc: "Calculator", fallbacks: "Use text with" };
-const empty = R.sections({ query: "", commands, downloads: [{ id: "task:b" }], asks: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }], hyakki: "ready", labels });
-equal(empty.map(s => [s.id, s.rows.length]), [["downloads", 1], ["asks", 3], ["goto", 4]], "an empty line shows downloads, three recent asks and the commands");
-equal(R.sections({ query: "", commands, downloads: [], asks: [{ id: 1 }], hyakki: "off", labels }).map(s => s.id), ["goto"], "without Hyakki or downloads only the commands show");
+const labels = { downloads: "Downloads", goTo: "Go to", results: "Commands", link: "Link", calc: "Calculator", fallbacks: "Use text with" };
+const empty = R.sections({ query: "", commands, downloads: [{ id: "task:b" }], labels });
+equal(empty.map(s => [s.id, s.rows.length]), [["downloads", 1], ["goto", 3]], "an empty line shows downloads and the commands");
+equal(R.sections({ query: "", commands, downloads: [], labels }).map(s => s.id), ["goto"], "without downloads only the commands show");
 
-const typed = R.sections({ query: "down", commands, labels, hyakki: "ready" });
-equal(typed.map(s => s.id), ["results", "fallbacks"], "typing filters commands and closes with the fallbacks");
-equal(typed[1].rows.map(r => [r.target, r.text]), [["ask", "down"], ["web", "down"]], "the fallbacks carry the text");
+const typed = R.sections({ query: "down", commands, labels });
+equal(typed.map(s => s.id), ["results", "fallbacks"], "typing filters commands and closes with the fallback");
+equal(typed[1].rows.map(r => [r.target, r.text]), [["web", "down"]], "the fallback carries the text");
 
 const linked = R.sections({ query: "https://example.com/a.zip", commands, link: R.detectLink("https://example.com/a.zip"), labels });
 equal([linked[0].id, linked[0].title, linked[0].rows[0].kind], ["top", "Link", "link"], "a link leads the list");
@@ -146,5 +132,5 @@ equal(R.batch(null), { links: [], urls: [], count: 0, cleaned: 0, duplicates: 0,
 const manyLabels = Object.assign({ links: "Links" }, labels);
 const several = R.sections({ query: paste, commands, many: { state: "ready", batch: read }, link: R.detectLink("https://example.com/a.zip"), labels: manyLabels });
 equal([several[0].id, several[0].title, several[0].rows.map(r => r.kind)], ["top", "Links", ["many"]], "several links lead the list in place of the single link");
-equal(several[several.length - 1].rows.map(r => r.target), ["ask", "web"], "several links still close with the fallbacks");
+equal(several[several.length - 1].rows.map(r => r.target), ["web"], "several links still close with the fallback");
 equal(R.sections({ query: paste, commands, many: null, labels: manyLabels })[0].id, "fallbacks", "a paste the engine found nothing in falls to the fallbacks");

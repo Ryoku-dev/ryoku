@@ -1,7 +1,0 @@
-{"atMs":1000,"frame":{"kind":"motion","data":{"reduce":"on","batterySaver":false,"courtesy":true,"sounds":false}}}
-{"atMs":3000,"frame":{"kind":"strand.target","data":{"seq":1,"x":0.74,"y":0.62,"w":0.03,"h":0.03}}}
-{"atMs":6000,"frame":{"kind":"strand.retract","data":{"seq":1}}}
-{"atMs":9000,"frame":{"kind":"strand.target","data":{"seq":2,"x":0.7,"y":0.5,"w":0.06,"h":0.06,"mode":"lasso"}}}
-{"atMs":12000,"frame":{"kind":"strand.retract","data":{"seq":2}}}
-{"atMs":15000,"frame":{"kind":"strand.target","data":{"seq":3,"x":0.56,"y":0.46,"w":0.04,"h":0.04,"mode":"region","region":{"x":860,"y":380,"w":480,"h":270}}}}
-{"atMs":18000,"frame":{"kind":"strand.retract","data":{"seq":3}}}

@@ -63,7 +63,7 @@ For an unattended install, the same catalogue used by the ISO installer is
 available through flags:
 
 ```bash
-curl -fsSL .../install.sh | bash -s -- --yes --compositor niri --browser chromium --shell zsh --file-manager dolphin --hyakki=false --without ryotunes,ryoport
+curl -fsSL .../install.sh | bash -s -- --yes --compositor niri --browser chromium --shell zsh --file-manager dolphin --without ryotunes,ryoport
 ```
 
 `--compositor` accepts the variants shipped by the host edition. `--browser`
@@ -71,13 +71,13 @@ accepts `firefox` (recommended and the default), `chromium`, `zen`, or `none`.
 `--shell` accepts `fish` (recommended), `zsh`, or `bash`; without it the
 installer keeps a supported current shell. `--file-manager` accepts `nautilus`
 (recommended), `dolphin`, or `thunar`; without it an installed one is kept.
-`--hyakki=false` leaves out the AI agent. `--without` takes comma-separated
+`--without` takes comma-separated
 component IDs such as `ryotunes,ryoport`. Plain Arch also accepts
 `--cachyos-layer`, which adds the CachyOS kernel and tuning while keeping the
 Arch kernel as a fallback.
 
 The matching environment variables are `RYOKU_BROWSER`, `RYOKU_LOGIN_SHELL`,
-`RYOKU_FILE_MANAGER`, `RYOKU_HYAKKI=0|1`, `RYOKU_WITHOUT`, and
+`RYOKU_FILE_MANAGER`, `RYOKU_WITHOUT`, and
 `RYOKU_CACHYOS_LAYER=0|1`. Package names are translated through the host
 edition table. Choices unavailable on that edition are rejected before sudo.
 Zen and Arch-only AUR components remain unavailable on Void and Fedora.
@@ -111,7 +111,7 @@ terminal language:
    daemons (dunst/mako/waybar/swww/…), a plain Hyprland, niri or sway setup
    to migrate from, an Omarchy install to retire (repo + mirror pin),
    keyboard layout, btrfs, and an interrupted previous run to resume.
-2. **Plan** the compositor, browser, login shell, file manager, Hyakki, and
+2. **Plan** the compositor, browser, login shell, file manager and
    apps from the shared installer catalogue, then review the migration toggles.
    Existing supported shells and file managers are kept. Required edition
    components stay visible but cannot be turned off.

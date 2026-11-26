@@ -142,7 +142,6 @@ Prefer a command to a file edit; read a command's `--help` before running it.
 | `ryoku-shell` | The live shell: the active subshell or bar style (`barstyle`, `shells`), the dock, menus, popouts, and the `shell.json` settings store (the sole writer of `shell.json`). |
 | `ryoku-hub` | Ryoku Settings and the window-manager settings applied through the active provider. |
 | `ryogami` | Wallpapers and the colour palette (`ryogami wallpaper set|next|random`). |
-| `hyakki` | Optional Ask, Agent sessions, cited indexes and Oni. The Hub manages lifecycle and links to native settings. See `docs/hyakki.md`. |
 
 ```bash
 ryoku --help                              # the ryoku CLI surface

@@ -39,7 +39,6 @@ def exercise(shell: str) -> None:
         target = cfg / shell
         target.mkdir(parents=True)
         shutil.copy(REPO / f"ryoku/apps/{shell}/ryoku.{ 'bash' if shell == 'bash' else 'zsh'}", target)
-        shutil.copy(REPO / f"ryoku/apps/{shell}/hyakki.{ 'bash' if shell == 'bash' else 'zsh'}", target)
         (cfg / "ryoku-terminal").mkdir(parents=True)
         shutil.copy(REPO / "ryoku/apps/terminal-shell/env.sh", cfg / "ryoku-terminal/env.sh")
         if shell == "bash":
@@ -53,12 +52,6 @@ def exercise(shell: str) -> None:
         for name in ("ryoku-fastfetch", "starship", "zoxide", "mise", "fd", "eza"):
             body = "printf ':\\n'\n" if name in ("starship", "zoxide", "mise", "fzf") else "exit 0\n"
             write_stub(bindir / name, body)
-        write_stub(
-            bindir / "hyakki",
-            "case \" $* \" in\n"
-            "  *\" ask --buffer -- \"*) printf \"touch '%s/ran'\\n\" \"$HOME\" ;;\n"
-            "esac\n",
-        )
 
         env = os.environ.copy()
         env.update({
@@ -77,17 +70,12 @@ def exercise(shell: str) -> None:
             startup = read_until(fd, b"PTY> ")
             if b"unsupported readline function" in startup:
                 raise AssertionError(f"{shell} startup emitted unsupported Readline warnings")
-            os.write(fd, b"describe marker")
-            os.write(fd, b"\x1br")
-            time.sleep(0.5)
-            if (home / "ran").exists():
-                raise AssertionError(f"{shell} Alt+R executed without Enter")
-            os.write(fd, b"\r")
+            os.write(fd, f"touch '{home}/ran'\r".encode())
             end = time.time() + 5
             while time.time() < end and not (home / "ran").exists():
                 time.sleep(0.1)
             if not (home / "ran").exists():
-                raise AssertionError(f"{shell} Alt+R did not replace the buffer")
+                raise AssertionError(f"{shell} did not run a typed command")
             read_until(fd, b"PTY> ")
             os.write(fd, b"exit\r")
             os.waitpid(pid, 0)

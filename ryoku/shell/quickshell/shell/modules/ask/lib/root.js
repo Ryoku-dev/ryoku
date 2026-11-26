@@ -2,7 +2,7 @@
 // commands it matches and in what order, and the sections the list shows.
 // Labels arrive translated from QML; nothing here names a string a reader sees.
 
-var PREFIXES = { "\\": "ask", "?": "web", "/": "downloads" };
+var PREFIXES = { "?": "web", "/": "downloads" };
 
 function prefixRoute(text) {
     var value = String(text || "");
@@ -182,25 +182,6 @@ function dismissed(now) {
     return new Date(now - GRACE - 60 * 1000);
 }
 
-// pickAsks: conversations with a turn, never archived or temporary, newest first as Hyakki lists
-// them; windowMs keeps only those with a message that recent (0 keeps every one)
-function pickAsks(sessions, now, windowMs, hidden) {
-    var out = [];
-    var list = sessions || [];
-    for (var i = 0; i < list.length; i++) {
-        var s = list[i] || {};
-        if (s.archived === true || s.temporary === true || !(Number(s.turns) > 0) || String(s.id) === String(hidden || ""))
-            continue;
-        if (windowMs > 0) {
-            var last = at(s.lastMessageAt) || at(s.updated);
-            if (last === 0 || now - last > windowMs)
-                continue;
-        }
-        out.push(s);
-    }
-    return out;
-}
-
 function quote(text, limit) {
     var value = String(text || "").replace(/\s+/g, " ").trim();
     var max = limit || 48;
@@ -261,9 +242,8 @@ function batch(result) {
 //   query, commands (already translated), link (detectLink result or null),
 //   many (several links in the field: {state: "reading"|"ready"|"failed", ...}
 //   or null; it takes the place of link), calc ({expr, result} or null),
-//   downloads (rows), asks (rows), hyakki ("ready" | "off" | "not-installed" |
-//   "error" | "connecting"), labels ({downloads, asks, goTo, results, link,
-//   links, calc, fallbacks}).
+//   downloads (rows), labels ({downloads, goTo, results, link, links, calc,
+//   fallbacks}).
 // Every section is {id, title, rows}; a row carries {id, kind, ...}.
 function sections(input) {
     var query = String(input.query || "").trim();
@@ -272,8 +252,6 @@ function sections(input) {
     if (query.length === 0) {
         if ((input.downloads || []).length > 0)
             out.push({ id: "downloads", title: labels.downloads || "", rows: input.downloads });
-        if (input.hyakki === "ready" && (input.asks || []).length > 0)
-            out.push({ id: "asks", title: labels.asks || "", rows: input.asks.slice(0, 3) });
         out.push({ id: "goto", title: labels.goTo || "", rows: (input.commands || []).map(function(command) {
             return { id: "cmd:" + command.id, kind: "command", command: command };
         }) });
@@ -294,7 +272,6 @@ function sections(input) {
             return { id: "cmd:" + command.id, kind: "command", command: command };
         }) });
     out.push({ id: "fallbacks", title: labels.fallbacks || "", rows: [
-        { id: "fallback:ask", kind: "fallback", target: "ask", text: query },
         { id: "fallback:web", kind: "fallback", target: "web", text: query }
     ] });
     return out;
@@ -304,6 +281,6 @@ if (typeof module !== "undefined" && module.exports)
     module.exports = {
         prefixRoute: prefixRoute, hostOf: hostOf, detectLink: detectLink, looksLikeMath: looksLikeMath,
         matchScore: matchScore, rank: rank, pickDownloads: pickDownloads, unseen: unseen, dismissed: dismissed,
-        pickAsks: pickAsks, quote: quote, sections: sections, countLinks: countLinks, asLink: asLink, batch: batch,
+        quote: quote, sections: sections, countLinks: countLinks, asLink: asLink, batch: batch,
         GRACE: GRACE
     };

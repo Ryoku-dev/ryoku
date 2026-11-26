@@ -15,16 +15,12 @@ fail() {
 	exit 1
 }
 
-# The em-dash check skips the vendored qylock tree, ryoku/i18n/catalog, the
-# embedded potion model and Rashin's vendored skill sets. The catalog is
-# generated: its keys are the English source strings verbatim (including
-# em-dashes vendored sources still carry), and a key that differs from its
-# source no longer matches at lookup. sync.py already strips em-dashes from
-# every translation. The model's tokenizer.json is a third-party vocabulary,
-# and the em-dash is one of its tokens, as it is in the vocabularies of the
-# grammar checker's tagger and chunker models (ported from Harper). The skill
-# sets are upstream files kept byte-identical by bin/ryoku-dev-sync-hyakki-skills.
-exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/hyakki/internal/index/embed/model/|^ryoku/hyakki/internal/grammar/pos/model/|^ryoku/hyakki/internal/skills/sets/'
+# The em-dash check skips the vendored qylock tree and ryoku/i18n/catalog. The
+# catalog is generated: its keys are the English source strings verbatim
+# (including em-dashes vendored sources still carry), and a key that differs
+# from its source no longer matches at lookup. sync.py already strips em-dashes
+# from every translation.
+exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/'
 text='\.(md|txt|sh|bash|yml|yaml|toml|json|jsonc|conf|lua|tpl|fish|desktop|rules)$|(^|/)(README|NOTICE|LICENSE)$'
 # A Go module's vendor/ holds upstream files as `go mod vendor` copies them, the
 # same trees scan-slop and the review gate already treat as vendored.

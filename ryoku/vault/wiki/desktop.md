@@ -69,5 +69,4 @@ ryoku wm caps
 ```
 
 Continue with [Hyprland in Lua](hyprland-lua.md) or [niri in
-KDL](niri-kdl.md) only when Ryoku Settings cannot express a raw config change. See
-[Hyakki](hyakki.md) for native sessions, Oni, lifecycle and privacy.
+KDL](niri-kdl.md) only when Ryoku Settings cannot express a raw config change.

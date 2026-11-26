@@ -10,8 +10,7 @@ import shell.services
 import "bar"
 import "look"
 
-// The Hyakki bar (Alt+Space): a command bar over everything, in the desktop's
-// design. This is the window, its arrival and its clients; the body is
+// The Alt+Space bar: a command bar over everything, in the desktop's design. This is the window, its arrival and its clients; the body is
 // bar/BarSurface. mode is where the shell asked it to open: "ask" is the root
 // list and "web" opens web search over it.
 Scope {
@@ -23,7 +22,6 @@ Scope {
 
     signal requestClose()
     signal modeChangeRequested(string mode)
-    signal bubblePinned(string question, string answer)
 
     readonly property real s: Tokens.uiScaleFor(screen ? screen.name : "")
     readonly property var clearances: SidebarState.railClearances(screen)
@@ -46,8 +44,6 @@ Scope {
         }
     }
 
-    HyakkiClient { id: hyakkiClient }
-    HyakkiSession { id: askSession; client: hyakkiClient; kind: "ask" }
     SearchClient { id: searchClient }
     DownloadsClient { id: downloadsClient }
 
@@ -142,8 +138,6 @@ Scope {
                     width: holder.width
                     height: holder.height
                     s: root.s
-                    hyakki: hyakkiClient
-                    session: askSession
                     search: searchClient
                     downloads: downloadsClient
                     active: root.active
@@ -154,7 +148,6 @@ Scope {
                     maximumHeight: root.maximumHeight
                     onRequestClose: root.requestClose()
                     onModeRequested: next => root.modeChangeRequested(next)
-                    onBubblePinned: (question, answer) => root.bubblePinned(question, answer)
                 }
             }
         }

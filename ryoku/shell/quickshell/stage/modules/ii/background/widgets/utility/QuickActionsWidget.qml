@@ -117,7 +117,7 @@ AbstractBackgroundWidget {
                 anchors.margins: 16
                 spacing: 16
 
-                // Top: AI button (pill shape, accent color)
+                // Top: the Alt+Space bar (pill shape, accent color)
                 RippleButton {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 64
@@ -139,7 +139,7 @@ AbstractBackgroundWidget {
                         }
 
                         StyledText {
-                            text: Translation.tr("Hyakki")
+                            text: Translation.tr("Search and downloads")
                             font.pixelSize: Appearance.font.pixelSize.large
                             font.weight: Font.Medium
                             color: root.onAccentColor

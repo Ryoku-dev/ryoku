@@ -41,7 +41,7 @@ func writeReport(override string, findings []finding) (string, error) {
 // ryoku-desktop channel commit, so these per-component and third-party versions
 // are otherwise absent from a report a maintainer reads.
 var diagnosticPackages = []string{
-	"ryoku-desktop", "ryoku", "ryoku-shell", "ryoku-hub", "ryoku-blobs", "hyakki",
+	"ryoku-desktop", "ryoku", "ryoku-shell", "ryoku-hub", "ryoku-blobs",
 	"quickshell",
 	"qt6-base", "qt6-declarative", "qt6-wayland",
 	"pipewire", "wireplumber", "nvidia-utils", "mesa", "limine", "snapper",
@@ -85,7 +85,6 @@ var diagnosticServices = []diagnosticService{
 	{"--user", "ryotunesd.socket"},
 	{"--user", "ryoku-shell.service"},
 	{"--user", "ryogami.service"},
-	{"--user", "hyakkid.socket"},
 }
 
 // Whether a service is running, as far as this report is allowed to look.

@@ -54,8 +54,16 @@ for retired in \
 	"$root/nix/packages/prowl-agent.nix"; do
 	[[ ! -e $retired ]] || fail "retired Prowl package remains: ${retired#"$root"/}"
 done
+# Hyakki lives in its own repository now; Ryoku builds none of its packages.
+for retired in \
+	"$root/release/packages/hyakki/PKGBUILD" \
+	"$root/fedora/packages/rpm/hyakki.spec" \
+	"$root/void/packages/srcpkgs/hyakki/template" \
+	"$root/nix/packages/hyakki.nix"; do
+	[[ ! -e $retired ]] || fail "detached Hyakki package remains: ${retired#"$root"/}"
+done
 dependency_pkgbuilds=("$root"/release/packages/ryoku-desktop*/PKGBUILD)
-for name in ryoku-shell ryogami hyakki ryoku-hub ryoku; do
+for name in ryoku-shell ryogami ryoku-hub ryoku; do
 	path="$root/release/packages/$name/PKGBUILD"
 	[[ -f $path ]] && dependency_pkgbuilds+=("$path")
 done

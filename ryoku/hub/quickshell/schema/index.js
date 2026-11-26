@@ -27,7 +27,6 @@
 .import "sign-in.js" as SignIn
 .import "screen-capture.js" as ScreenCapture
 .import "voice-typing.js" as VoiceTyping
-.import "hyakki.js" as Hyakki
 .import "notifications.js" as Notifications
 .import "sounds.js" as Sounds
 .import "launcher.js" as Launcher
@@ -64,7 +63,6 @@ var byFile = {
     "SignIn": SignIn,
     "ScreenCapture": ScreenCapture,
     "VoiceTyping": VoiceTyping,
-    "Hyakki": Hyakki,
     "AddOns": AddOns,
     "Wifi": Wifi,
     "Ethernet": Ethernet,

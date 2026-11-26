@@ -184,7 +184,7 @@ depends=(
   'tesseract-data-eng'   # English OCR language data
   'zbar'                 # QR-code scanning (pill Super+D)
   'gpu-screen-recorder'  # the screen recorder behind the capture card and `ryoku-shell record`
-  'wtype'                # Rashin's screen control types through it on Wayland
+  'wtype'                # voice typing types through it on Wayland
   'libqalculate'         # calculator backend (launcher Super+Space)
   'upower'               # battery + power status (pill/bar battery indicator)
   'power-profiles-daemon'
@@ -221,10 +221,6 @@ optdepends=(
   'zsh-history-substring-search: history search for Zsh'
   'zsh-syntax-highlighting: syntax highlighting for Zsh'
   "ryoku-oh-my-zsh=$epoch:$pkgver: Ryoku prompt and plugins for Zsh"
-  # Rashin is every AI piece of the desktop (the agent, its window, the bar's AI
-  # usage collectors). The installer offers it ticked and the doctor delivers it
-  # once, so removing it sticks; hyakki pins itself to this release.
-  "hyakki=$epoch:$pkgver: Hyakki, Oni and native AI surfaces"
   'starship: shell prompt'
   'fastfetch: system summary (launcher, RyoStore covers)'
   'yazi: terminal file manager'

@@ -88,8 +88,6 @@ run_case() {
     || { printf '%s: default install delegated unexpected hidden launchers: %s\n' "$name" "$seed_intent" >&2; exit 1; }
   [[ $seed_intent == *" rice=default "* ]] \
     || { printf '%s: default rice was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
-  [[ $seed_intent == *" hyakki=1 "* ]] \
-    || { printf '%s: Hyakki first-login setup was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
   [[ $seed_intent == *" init=runit "* ]] \
     || { printf '%s: Turnstile user-service setup was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
   [[ $seed_intent == *" provisioned-ledger="* ]] \

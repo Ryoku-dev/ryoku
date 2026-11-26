@@ -24,8 +24,8 @@ import (
 // setting silently reverting was the hazard of the Hub and the daemon both
 // writing it directly).
 //
-// The daemon owns a typed schema for the reference namespaces plus Ryoku's Ask
-// and Controls state. Those are validated: enum membership and integer ranges
+// The daemon owns a typed schema for the reference namespaces plus Ryoku's
+// Controls state. Those are validated: enum membership and integer ranges
 // are rejected, float strength/contrast/opacity values clamp into range, and
 // Controls drops unknown or duplicate layouts; unowned top-level keys pass through.
 //
@@ -51,7 +51,6 @@ var contractKeys = map[string]bool{
 	"menus":             true,
 	"notifications":     true,
 	"wallpaper":         true,
-	"ask":               true,
 	"phone":             true,
 	"controls":          true,
 	"batteryAlerts":     true,
@@ -128,7 +127,7 @@ var (
 
 // settings mirrors the reference configuration schema (contract 14), minus the
 // icon-theme group, custom-CSS file, and app-launcher menu that Ryoku does not
-// consume. Ask and Controls are Ryoku's typed shell state.
+// consume. Controls is Ryoku's typed shell state.
 type settings struct {
 	DeckFrostEnabled  bool                  `json:"deckFrostEnabled"`
 	DeckFrost         float64               `json:"deckFrost"`
@@ -139,7 +138,6 @@ type settings struct {
 	Menus             menusSettings         `json:"menus"`
 	Notifications     notificationsSettings `json:"notifications"`
 	Wallpaper         wallpaperSettings     `json:"wallpaper"`
-	Ask               askSettings           `json:"ask"`
 	Phone             phoneSettings         `json:"phone"`
 	Controls          controlsSettings      `json:"controls"`
 	BatteryAlerts     batteryAlertsSettings `json:"batteryAlerts"`
@@ -322,16 +320,6 @@ type wallpaperSettings struct {
 	VideoTranscodeWidth int    `json:"video_transcode_width"`
 }
 
-type askSettings struct {
-	Bubble askBubbleSettings `json:"bubble"`
-}
-
-type askBubbleSettings struct {
-	Enabled bool    `json:"enabled"`
-	X       float64 `json:"x"`
-	Y       float64 `json:"y"`
-	Screen  string  `json:"screen"`
-}
 type phoneSettings struct {
 	Enabled              bool                    `json:"enabled"`
 	DesktopNotifications bool                    `json:"desktopNotifications"`
@@ -493,7 +481,6 @@ func defaultSettings() *settings {
 		},
 		Notifications: notificationsSettings{NotificationPosition: "Right", PopupWindowMargins: 0, ShowImages: false},
 		Wallpaper:     wallpaperSettings{ContentFit: "Cover", TransitionPreset: "random", VideoEngine: "ryogami", VideoEnabled: true, VideoTranscodeFps: 24, VideoTranscodeWidth: 1920},
-		Ask:           askSettings{Bubble: askBubbleSettings{Enabled: false, X: 0.94, Y: 0.68, Screen: ""}},
 		Phone: phoneSettings{
 			Enabled: false, DesktopNotifications: true,
 			Contacts: phoneContactsSettings{Enabled: true, HideUnnamed: true},
@@ -634,7 +621,6 @@ func (s *settings) normalize(strict bool) error {
 	s.Menus.normalize(v)
 	s.Notifications.normalize(v)
 	s.Wallpaper.normalize(v)
-	s.Ask.normalize(v)
 	s.Phone.normalize(v)
 	s.Controls.normalize(v)
 	s.BatteryAlerts.normalize(v)
@@ -802,10 +788,6 @@ func (w *wallpaperSettings) normalize(v *validator) {
 	// ryoku-shell keeps the key but no longer duplicates the preset name list.
 }
 
-func (a *askSettings) normalize(v *validator) {
-	v.clampF(&a.Bubble.X, 0, 1)
-	v.clampF(&a.Bubble.Y, 0, 1)
-}
 func (p *phoneSettings) normalize(v *validator) {
 	v.rangeI("phone.scrcpy.wirelessPort", &p.Scrcpy.WirelessPort, 1, 65535)
 	v.rangeI("phone.scrcpy.maxSize", &p.Scrcpy.MaxSize, 0, 7680)
@@ -1097,7 +1079,6 @@ func buildSettings(raw map[string]any, strict bool) (*settings, error) {
 		"menus":             &s.Menus,
 		"notifications":     &s.Notifications,
 		"wallpaper":         &s.Wallpaper,
-		"ask":               &s.Ask,
 		"phone":             &s.Phone,
 		"controls":          &s.Controls,
 		"batteryAlerts":     &s.BatteryAlerts,
@@ -1342,7 +1323,7 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 		return fmt.Errorf("sidebars settings are retired")
 	}
 	if segs[0] == "sight" {
-		return fmt.Errorf("screen gesture settings are retired; use Hyakki's native Oni settings")
+		return fmt.Errorf("screen gesture settings are retired")
 	}
 	if len(value) == 0 {
 		return fmt.Errorf("missing value")

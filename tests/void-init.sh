@@ -69,7 +69,6 @@ while IFS=$'\t' read -r id scope activation systemd_unit runit_service disable_r
 	if [[ $scope == user && $activation == session-global && $systemd_unit != - ]]; then
 		unit_path=$(find \
 			"$ROOT/ryoku/shell/systemd/user" \
-			"$ROOT/ryoku/hyakki/systemd" \
 			"$ROOT/system/hardware/bluetooth" \
 			-maxdepth 1 -type f -name "$systemd_unit" -print -quit)
 		[[ -n $unit_path ]] || fail "globally enabled user unit has no source: $systemd_unit"
@@ -81,13 +80,10 @@ done < "$SERVICE_MANIFEST"
 
 while IFS= read -r unit; do
 	name=${unit##*/}
-	# Socket activation owns the service as one lifecycle row.
-	[[ $name == oni.service ]] && continue
 	[[ $(grep -cxF "$name" <(cut -f4 "$SERVICE_MANIFEST")) == 1 ]] \
 		|| fail "payload systemd unit needs exactly one service activation row: ${unit#"$ROOT/"}"
 done < <(find \
 	"$ROOT/ryoku/shell/systemd/user" \
-	"$ROOT/ryoku/hyakki/systemd" \
 	"$ROOT/ryoku/palette-bridge/packaging/systemd" \
 	"$ROOT/ryoku/shell/ryoget/packaging/systemd" \
 	"$ROOT/ryoku/cli/systemd" \

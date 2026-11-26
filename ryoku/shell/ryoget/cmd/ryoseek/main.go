@@ -1,5 +1,5 @@
 // ryoseek is Ryoku's search daemon: one per user, started on demand by the
-// Hyakki bar, it owns every web engine's budget and block timer so they
+// Alt+Space bar, it owns every web engine's budget and block timer so they
 // survive the bar closing.
 package main
 

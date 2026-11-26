@@ -275,7 +275,6 @@ func (m model) componentSelections() map[string]bool {
 	for id, on := range m.selectedApps() {
 		selected[id] = on
 	}
-	selected["hyakki"] = def(m.picks["hyakki"], "0") == "1"
 	if gaming, ok := plan.GamingComponent(); ok {
 		selected[gaming.Component.ID] = m.picks["gaming"] == "1"
 	}

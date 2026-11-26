@@ -49,7 +49,6 @@ reviews:
   path_filters:
     - "!**/vendor/**"
     - "!ryoku/cli/vendor/**"
-    - "!ryoku/rashin/internal/skills/sets/**"
     - "!**/*.qmltypes"
     - "!ryoku/ui/translations/es.json"
     - "!ryoku/ui/translations/fr.json"

@@ -134,13 +134,6 @@
       }
     },
     "shell": {
-      "ask": {
-        "bubble": {
-          "enabled": false,
-          "x": 0.94,
-          "y": 0.68
-        }
-      },
       "barStyle": "kairos",
       "showJapaneseGloss": true,
       "bars": {

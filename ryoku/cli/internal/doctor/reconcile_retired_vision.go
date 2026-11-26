@@ -10,7 +10,7 @@ import (
 )
 
 // Screen gestures have no native equivalent. Only clipboard OCR languages move;
-// the retired settings remain in a private backup, never become Oni permissions.
+// the retired settings remain in a private backup.
 func reconcileRetiredVisionSettings(checkOnly bool) recResult {
 	path := filepath.Join(sys.ConfigHome(), "ryoku", "shell.json")
 	raw, err := os.ReadFile(path)
@@ -29,7 +29,7 @@ func reconcileRetiredVisionSettings(checkOnly bool) recResult {
 	}
 	if checkOnly {
 		return wouldRes(i18n.T("retired screen gesture settings remain")).
-			withFix(i18n.T("ryoku doctor backs them up and preserves clipboard OCR languages without enabling Oni"))
+			withFix(i18n.T("ryoku doctor backs them up and preserves clipboard OCR languages"))
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -39,7 +39,7 @@ func reconcileRetiredVisionSettings(checkOnly bool) recResult {
 	if err != nil {
 		return failRes(i18n.T("could not encode %s: %v"), path, err)
 	}
-	backup, err := os.CreateTemp(filepath.Dir(path), "shell.json.before-oni-vision-*")
+	backup, err := os.CreateTemp(filepath.Dir(path), "shell.json.before-retired-vision-*")
 	if err != nil {
 		return failRes(i18n.T("could not back up %s: %v"), path, err)
 	}

@@ -43,10 +43,6 @@ These are full applications, not `~/.config` seeds. A Quickshell app ships its
 `quickshell/` tree as `qs -c <name>`; a compiled app builds from a
 `CMakeLists.txt` to `/usr/bin/<name>`.
 
-The Hyakki app (`hyakki-app`) is not here: it builds from
-`ryoku/hyakki/cmd/hyakki-app` and ships with `hyakki`, so a box without
-Hyakki has no Hyakki window either.
-
 The music app lives in [Ryotunes](https://github.com/ryoku-dev/ryotunes), with a
 native Quickshell client and libmpv daemon. `release/repo/import-ryotunes.sh`
 imports its checksummed release package unchanged and signs it for `[ryoku]`;

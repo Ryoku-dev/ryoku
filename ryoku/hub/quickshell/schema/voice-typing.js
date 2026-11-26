@@ -73,4 +73,4 @@ var rows = [
       keywords: ["uninstall", "remove", "engine", "package", "ryoku-dictation"], control: "custom", activatable: true }
 ];
 
-var related = ["shortcuts", "screen-capture", "hyakki"];
+var related = ["shortcuts", "screen-capture"];

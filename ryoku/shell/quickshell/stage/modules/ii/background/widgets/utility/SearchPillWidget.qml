@@ -33,7 +33,7 @@ AbstractBackgroundWidget {
     readonly property string action1Key: options.action1 ?? "ai_chat"
     readonly property string action2Key: options.action2 ?? "music_rec"
     readonly property string action3Key: options.action3 ?? "search"
-    readonly property string aiLogo: options.aiLogo ?? "hyakki"
+    readonly property string aiLogo: options.aiLogo ?? "symbol"
     readonly property string outerLeftIcon: options.outerLeftIcon ?? "spark"
     readonly property bool useMaterialSymbolForOuterLeftIcon: options.useMaterialSymbolForOuterLeftIcon ?? false
     readonly property string outerLeftIconSource: {
@@ -57,12 +57,11 @@ AbstractBackgroundWidget {
     }
     implicitHeight: 60 * root.contentScale
 
-    readonly property string activeAiLogo: root.aiLogo === "auto" ? "hyakki" : root.aiLogo
+    readonly property string activeAiLogo: root.aiLogo === "auto" ? "symbol" : root.aiLogo
 
     function getAiIconAsset() {
         const logo = root.activeAiLogo;
-        if (logo === "hyakki") return "";
-        if (logo === "google") return "";
+        if (logo === "gemini") return "google-gemini-symbolic.svg";
         if (logo === "openai") return "ai-openai-symbolic.svg";
         if (logo === "claude") return "bootstrap_claude.svg";
         if (logo === "deepseek") return "deepseek-symbolic.svg";
@@ -80,14 +79,14 @@ AbstractBackgroundWidget {
         if (logo === "nixos") return "nixos-symbolic.svg";
         if (logo === "ubuntu") return "ubuntu-symbolic.svg";
         if (logo === "linux") return "linux-symbolic.svg";
-        return "google-gemini-symbolic.svg";
+        return "";
     }
 
     function getActionDetails(key) {
         if (key === "ai_chat") return {
             defaultIcon: "neurology",
             iconAsset: root.getAiIconAsset(),
-            label: Translation.tr("Ask")
+            label: Translation.tr("Search and downloads")
         };
         if (key === "music_rec") return { defaultIcon: "music_note", iconAsset: "", label: Translation.tr("Music Recognition") };
         if (key === "translator") return { defaultIcon: "translate", iconAsset: "", label: Translation.tr("Translator") };
