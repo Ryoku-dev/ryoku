@@ -5,7 +5,8 @@
 ### Added
 - **The AI usage Codex card reads its 5 h and weekly limits from OpenCode.**
   When OpenCode is signed in to ChatGPT, the card shows both windows as bars
-  and does not need the Codex CLI; Codex's own login remains the fallback.
+  and does not need the Codex CLI; Codex's own login remains the fallback. The
+  Codex bar chip shows both percentages and their reset countdowns.
 
 ### Fixed
 - **The battery readout follows the real charge on two-battery laptops.** The

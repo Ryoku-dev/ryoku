@@ -141,6 +141,7 @@ When shown, AI usage marks a pace trend beside the five-hour total and lists
 five-hour and weekly pace details in its tooltip when reset times are available.
 The Codex card shows the 5-hour and weekly limits as two bars when OpenCode
 reports them through its ChatGPT login; the Codex CLI remains the fallback.
+The Codex chip shows both percentages and their reset countdowns.
 
 Its settings use the `orpheus` namespace in `shell.json`:
 
