@@ -123,6 +123,22 @@ type Input struct {
 	SwipeInvert        bool    `json:"swipeInvert"`
 	SwipeCreateNew     bool    `json:"swipeCreateNew"`
 	SwipeDistance      int     `json:"swipeDistance"`
+	// Gestures binds each (fingers, direction) trigger to one hl.gesture action.
+	// An empty list keeps the older workspace-swipe toggle. The key is always
+	// present so another compositor can hide the editor.
+	Gestures []Gesture `json:"gestures"`
+}
+
+// Gesture is one touchpad gesture. Enabled false, or a blank direction or
+// action, keeps the slot in the list and emits nothing.
+type Gesture struct {
+	Enabled       bool   `json:"enabled"`
+	Fingers       int    `json:"fingers"`
+	Direction     string `json:"direction"`
+	Action        string `json:"action"`
+	WorkspaceName string `json:"workspaceName"`
+	ZoomLevel     string `json:"zoomLevel"`
+	Mode          string `json:"mode"`
 }
 
 // Cursor: theme + size + the cursor-section niceties.
@@ -410,6 +426,7 @@ func defaultOverrides() Overrides {
 			RepeatRate:         25, RepeatDelay: 600,
 			WorkspaceSwipe: false, SwipeFingers: 3,
 			SwipeInvert: true, SwipeCreateNew: true, SwipeDistance: 300,
+			Gestures: []Gesture{},
 		},
 		Cursor:         Cursor{Theme: "Bibata-Modern-Ice", Size: 24, InactiveTimeout: 0, HideOnKeyPress: false},
 		Windows:        Windows{TameMaximizeOnOpen: true},
@@ -463,11 +480,17 @@ type neutralStore struct {
 // merge is namespace-agnostic, so a key under the wrong namespace is still
 // honoured; the split only matters for a compositor that ignores wm.hyprland.
 func loadStore(path string) Overrides {
-	o := defaultOverrides()
 	ns, ok := readNeutralStore(path)
 	if !ok {
-		return normalizeOverrides(o)
+		return normalizeOverrides(defaultOverrides())
 	}
+	return overridesFromNeutral(ns)
+}
+
+// overridesFromNeutral fills defaults from one desktop.json object, whether it
+// was read from disk or from the Hub's previous preview marker.
+func overridesFromNeutral(ns neutralStore) Overrides {
+	o := defaultOverrides()
 	flat := map[string]json.RawMessage{}
 	for k, v := range ns.Desktop {
 		flat[k] = v
@@ -483,6 +506,27 @@ func loadStore(path string) Overrides {
 	}
 	o.Cursor.Theme = wm.ResolveCursorTheme(o.Cursor.Theme)
 	return normalizeOverrides(o)
+}
+
+// overridesFromPreviewMarker reads the draft the Hub last pushed live. The
+// marker is written after that preview, so during the next one it is still the
+// previous draft. False when no preview is in progress.
+func overridesFromPreviewMarker() (Overrides, bool) {
+	b, err := os.ReadFile(filepath.Join(ryokuConfigDir(), ".desktop-preview.json"))
+	if err != nil {
+		return Overrides{}, false
+	}
+	var wrap struct {
+		Draft json.RawMessage `json:"draft"`
+	}
+	if json.Unmarshal(b, &wrap) != nil || len(wrap.Draft) == 0 {
+		return Overrides{}, false
+	}
+	var ns neutralStore
+	if json.Unmarshal(wrap.Draft, &ns) != nil {
+		return Overrides{}, false
+	}
+	return overridesFromNeutral(ns), true
 }
 
 // readNeutralStore reads desktop.json, false when it is absent or unparseable.
@@ -677,9 +721,33 @@ func writeOverlayLua(name string, body []byte) error {
 	return atomicWrite(filepath.Join(hyprConfigDir(), name), body, 0o644)
 }
 
+// luaStr quotes s the way Lua reads it. Go's %q writes \xNN for a control
+// character, and Lua treats that as a different escape or rejects it. A byte
+// below 0x20 other than newline and carriage return is Lua's \ddd form.
 func luaStr(s string) string {
-	r := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "\n", "\\n", "\r", "\\r")
-	return "\"" + r.Replace(s) + "\""
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, "\\%03d", r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func luaNum(f float64) string {

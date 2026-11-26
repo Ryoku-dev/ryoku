@@ -765,7 +765,26 @@ Item {
             && JSON.stringify(pg.hv("desktop.input.kbOptions")) === JSON.stringify(pg.cv("desktop.input.kbOptions"));
     }
 
-    readonly property bool swipeOn: pg.hv("desktop.input.workspaceSwipe") === true
+    // The gesture list belongs to a provider whose defaults carry it. Wayfire
+    // still writes the swipe toggle and the finger count, and must keep those
+    // rows when this list is absent.
+    readonly property bool gestureListOn: {
+        var input = pg.hub && pg.hub.hyprDefaults && pg.hub.hyprDefaults.desktop
+            && pg.hub.hyprDefaults.desktop.input;
+        return !!(input && input.gestures !== undefined) && Settings.modelsKey("desktop.input.gestures");
+    }
+    readonly property bool swipeOn: {
+        if (pg.hv("desktop.input.workspaceSwipe") === true)
+            return true;
+        var g = pg.hv("desktop.input.gestures");
+        if (!Array.isArray(g))
+            return false;
+        for (var i = 0; i < g.length; i++) {
+            if (g[i] && g[i].enabled && g[i].action === "workspace")
+                return true;
+        }
+        return false;
+    }
 
     // ── the catalogue overlay (filtered pick over the runtime xkb lists) ─────
     property var catList: null            // [{ code, name }] while open, else null
@@ -1560,15 +1579,30 @@ Item {
                 Setting {
                     path: "desktop.input.workspaceSwipe"
                     ctl: "sw"
+                    gate: !pg.gestureListOn
                     label: I18n.tr("Swipe between workspaces")
                     desc: I18n.tr("A horizontal swipe slides to the next workspace.")
                 }
                 Setting {
                     path: "desktop.input.swipeFingers"
-                    ctl: "seg"; asInt: true; gate: pg.swipeOn
+                    ctl: "seg"; asInt: true; gate: !pg.gestureListOn && pg.swipeOn
                     opts: [{ "key": 3, "label": "3" }, { "key": 4, "label": "4" }]
                     label: I18n.tr("Swipe fingers")
                     desc: I18n.tr("How many fingers count as a workspace swipe.")
+                }
+                Loader {
+                    id: gestureEditor
+                    width: parent.width
+                    visible: pg.gestureListOn
+                    source: visible ? "GestureEditor.qml" : ""
+                    onLoaded: {
+                        if (!item)
+                            return;
+                        item.width = Qt.binding(() => gestureEditor.width);
+                        item.hub = Qt.binding(() => pg.hub);
+                    }
+                    implicitHeight: item ? item.implicitHeight : 0
+                    height: implicitHeight
                 }
                 Setting {
                     path: "desktop.input.swipeInvert"

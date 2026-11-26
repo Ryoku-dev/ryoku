@@ -626,8 +626,8 @@ func inputReason(leaf string) string {
 		return "Wayfire core supports click-to-focus, but has no focus-follows-pointer mode."
 	case "middleClickPaste":
 		return "Wayfire has no primary-selection switch."
-	case "swipeInvert", "swipeCreateNew", "swipeDistance":
-		return "wayfire's workspace swipe has no inversion, create-new or distance setting."
+	case "swipeInvert", "swipeCreateNew", "swipeDistance", "gestures":
+		return "wayfire's workspace swipe has no inversion, create-new, distance, or per-gesture action."
 	}
 	return "wayfire has no matching input control."
 }

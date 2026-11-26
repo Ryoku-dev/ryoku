@@ -315,6 +315,15 @@ var rows = [
     {
         "tab": "",
         "group": "TOUCHPAD",
+        "key": "desktop.input.gestures",
+        "label": "Touchpad gestures",
+        "desc": "A 3-finger swipe left or right switches workspace. Any other finger count and direction can close, float, fullscreen, zoom, or open a special workspace.",
+        "ctl": "custom",
+        "src": "desktop.json"
+    },
+    {
+        "tab": "",
+        "group": "TOUCHPAD",
         "key": "desktop.input.swipeInvert",
         "label": "Natural swipe direction",
         "desc": "The workspace row follows your fingers.",

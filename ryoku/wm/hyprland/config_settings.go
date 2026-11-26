@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -799,16 +801,236 @@ func genLayoutWorkspaceAnimation(o Overrides) string {
 	return genAnimItem(item)
 }
 
-// genGesture: the workspace-swipe touchpad gesture when enabled.
+// genGesture writes one hl.gesture line per enabled row. A list, even one
+// whose rows are all off, replaces the old workspace-swipe toggle. An empty
+// list still emits that toggle, so a store saved before the list keeps its swipe.
+// Hyprland keeps the first gesture on a finger count and axis and rejects a
+// later one, which aborts the rest of the config, so those later rows are skipped.
 func genGesture(o Overrides) string {
+	return writeGestures(o, false)
+}
+
+// genGestureLive is the preview form. Hyprland keeps a registered gesture until
+// reload, so a Hub row that was removed, turned off, or pointed at a new
+// trigger would keep running. The preview unsets the triggers the Hub itself
+// registered (the saved store and the previous preview) and the ones it is
+// about to add, then adds the draft. A gesture that only user.lua registered
+// is left alone, because this eval does not rerun user.lua. Unset errors when
+// nothing is registered; pcall ignores that. Live cursor zoom omits zoom_level,
+// which Hyprland ignores and which a later mode would otherwise keep as a
+// multiply factor.
+func genGestureLive(o Overrides) string {
+	return previewGestures(o, previousHubGestureKeys())
+}
+
+// gestureTrigger is one fingers-and-direction pair Hyprland matches exactly.
+type gestureTrigger struct {
+	fingers   int
+	direction string
+}
+
+// previewGestures unsets prior, then every trigger the draft itself will add,
+// then adds the draft. prior is what the Hub last registered, so a removed row
+// is cleared without touching a trigger the Hub never owned.
+func previewGestures(o Overrides, prior []gestureTrigger) string {
+	seen := map[gestureTrigger]bool{}
+	var keys []gestureTrigger
+	add := func(k gestureTrigger) {
+		if k.direction == "" || seen[k] {
+			return
+		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	for _, k := range prior {
+		add(k)
+	}
+	for _, g := range gestureRows(o) {
+		add(gestureTrigger{gestureFingers(g), g.Direction})
+	}
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", k.fingers, k.direction)
+	}
+	for _, g := range gestureRows(o) {
+		b.WriteString(gestureLine(g))
+	}
+	return b.String()
+}
+
+func writeGestures(o Overrides, live bool) string {
+	if live {
+		return genGestureLive(o)
+	}
+	var b strings.Builder
+	for _, g := range gestureRows(o) {
+		b.WriteString(gestureLine(g))
+	}
+	return b.String()
+}
+
+// hubGestureKeys is the trigger set gestureRows would register for o.
+func hubGestureKeys(o Overrides) []gestureTrigger {
+	var keys []gestureTrigger
+	seen := map[gestureTrigger]bool{}
+	for _, g := range gestureRows(o) {
+		k := gestureTrigger{gestureFingers(g), g.Direction}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// previousHubGestureKeys is the Hub-owned set a live preview may clear: the
+// draft last pushed, if a preview is still open, and the saved store. Their
+// union covers a row removed in this session and a row removed since the last
+// save. A trigger in neither came from user.lua and is not cleared.
+func previousHubGestureKeys() []gestureTrigger {
+	seen := map[gestureTrigger]bool{}
+	var keys []gestureTrigger
+	add := func(o Overrides) {
+		for _, k := range hubGestureKeys(o) {
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			keys = append(keys, k)
+		}
+	}
+	if o, ok := overridesFromPreviewMarker(); ok {
+		add(o)
+	}
+	if st, err := os.Stat(desktopStorePath()); err == nil && !st.IsDir() {
+		add(loadStore(desktopStorePath()))
+	}
+	return keys
+}
+
+// gestureRows is the list Hyprland will accept. A configured list wins, including
+// when every row is off. Otherwise the old toggle is one horizontal workspace swipe.
+func gestureRows(o Overrides) []Gesture {
+	if len(o.Input.Gestures) > 0 {
+		return gesturesToEmit(o.Input.Gestures)
+	}
 	if !o.Input.WorkspaceSwipe {
-		return ""
+		return nil
 	}
 	n := o.Input.SwipeFingers
 	if n < 3 {
 		n = 3
 	}
-	return fmt.Sprintf("hl.gesture({ fingers = %d, direction = \"horizontal\", action = \"workspace\" })\n", n)
+	return []Gesture{{
+		Enabled: true, Fingers: n, Direction: "horizontal", Action: "workspace",
+	}}
+}
+
+func gesturesToEmit(gs []Gesture) []Gesture {
+	var out []Gesture
+	for _, g := range gs {
+		if !g.Enabled || g.Direction == "" || g.Action == "" || !zoomEmittable(g) {
+			continue
+		}
+		drop := false
+		for _, prev := range out {
+			if gestureOvershadows(prev, g) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+func gestureOvershadows(prev, next Gesture) bool {
+	if gestureFingers(prev) != gestureFingers(next) {
+		return false
+	}
+	if prev.Direction == next.Direction {
+		return true
+	}
+	switch prev.Direction {
+	case "swipe":
+		return gestureAxis(next.Direction) != "pinch"
+	case "horizontal":
+		return next.Direction == "left" || next.Direction == "right"
+	case "vertical":
+		return next.Direction == "up" || next.Direction == "down"
+	case "pinch":
+		return next.Direction == "pinchin" || next.Direction == "pinchout"
+	default:
+		return false
+	}
+}
+
+func gestureFingers(g Gesture) int {
+	if g.Fingers < 3 {
+		return 3
+	}
+	return g.Fingers
+}
+
+func gestureAxis(direction string) string {
+	switch direction {
+	case "left", "right", "horizontal":
+		return "horizontal"
+	case "up", "down", "vertical":
+		return "vertical"
+	case "pinch", "pinchin", "pinchout":
+		return "pinch"
+	case "swipe":
+		return "swipe"
+	default:
+		return direction
+	}
+}
+
+// zoomEmittable reports whether a cursor-zoom row has a level Hyprland can
+// use. Follow fingers needs none. Anything else must be a number above 0,
+// and toggle needs a level above 1. A multiply above 1 on a two-way pinch
+// only zooms in, which the editor explains, and it is still written.
+func zoomEmittable(g Gesture) bool {
+	if g.Action != "cursor_zoom" || g.Mode == "" || g.Mode == "live" {
+		return true
+	}
+	z, err := strconv.ParseFloat(strings.TrimSpace(g.ZoomLevel), 64)
+	if err != nil || z <= 0 {
+		return false
+	}
+	if g.Mode == "toggle" && z <= 1 {
+		return false
+	}
+	return true
+}
+
+func gestureLine(g Gesture) string {
+	if !g.Enabled || g.Direction == "" || g.Action == "" {
+		return ""
+	}
+	var extra string
+	switch g.Action {
+	case "special":
+		if g.WorkspaceName != "" {
+			extra = ", workspace_name = " + luaStr(g.WorkspaceName)
+		}
+	case "cursor_zoom":
+		if g.Mode != "live" && strings.TrimSpace(g.ZoomLevel) != "" {
+			extra += ", zoom_level = " + luaStr(strings.TrimSpace(g.ZoomLevel))
+		}
+		if g.Mode != "" {
+			extra += fmt.Sprintf(", mode = %q", g.Mode)
+		}
+	case "float", "fullscreen":
+		if g.Mode != "" {
+			extra = fmt.Sprintf(", mode = %q", g.Mode)
+		}
+	}
+	return fmt.Sprintf("hl.gesture({ fingers = %d, direction = %q, action = %q%s })\n", gestureFingers(g), g.Direction, g.Action, extra)
 }
 
 // wobbleCurve = an easeOutBack overshoot so a dragged float trails and settles.
@@ -904,6 +1126,6 @@ func genAnimatedBorder(o Overrides, follow, full bool) string {
 func liveLua(o Overrides) string {
 	follow := borderFollowsPalette(o)
 	return fullConfigLua(o, follow) + genMotion(o, true) + genAnimatedBorder(o, follow, true) +
-		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGesture(o) + genPluginConfig(o) +
+		genAnimBlock(o) + genLayoutWorkspaceAnimation(o) + genGestureLive(o) + genPluginConfig(o) +
 		fmt.Sprintf("hl.exec_cmd(%s)\n", luaStr(fmt.Sprintf("hyprctl setcursor %s %d", o.Cursor.Theme, o.Cursor.Size)))
 }

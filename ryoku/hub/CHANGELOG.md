@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Added
+- **Touchpad gestures beyond the workspace swipe.** Input > Touchpad lists
+  every gesture that is on. Each row picks fingers, a direction, and an action:
+  switch workspace, special workspace, move, resize, close, float, fullscreen,
+  cursor zoom, or scroll-drag. A store that still has only the old swipe toggle
+  keeps that left/right workspace swipe until the list is edited. Up and down
+  are not added as a workspace swipe. A later row on the same fingers and axis
+  is marked as already used. A 3-finger and a 4-finger row can share a
+  direction, and the editor says so. A zoom level the compositor would
+  reject stays on the row and is not saved. Editing the list turns the old
+  swipe toggle off before the list is written, so removing the last row
+  does not bring that swipe back. A compositor that does not model the
+  list, such as Wayfire, keeps the swipe toggle and the finger count
+  (`pages/GestureEditor.qml`, `pages/gesture/GestureNote.qml`,
+  `pages/InputPage.qml`, `schema/InputPage.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
