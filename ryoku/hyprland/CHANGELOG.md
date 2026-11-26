@@ -8,9 +8,12 @@
   toggle, and an empty gesture list, keeps that one left/right swipe. Up and down
   are not added. A later row on the same fingers and axis is left out, because
   Hyprland would reject it and stop reading the rest of the config. A live preview
-  clears every trigger this writer can register, then adds the draft, so a
-  removed, disabled, or moved gesture stops without a reload. Live cursor
-  zoom omits `zoom_level` (`../wm/hyprland/config_settings.go`,
+  clears the triggers the Hub itself registered (the saved store and the
+  previous preview) and the ones it is about to add, then adds the draft.
+  A gesture that only `user.lua` registered stays. A removed, disabled, or
+  moved Hub row stops without a reload. A zoom level that is not a usable
+  number is left out. A special-workspace name is written as a Lua string.
+  Live cursor zoom omits `zoom_level` (`../wm/hyprland/config_settings.go`,
   `../wm/hyprland/config_store.go`).
 - **Per-output tiling layout on Hyprland.** `ryoku-output-tiling` sets the live
   layout of one output's workspaces and remembers it. While the display link is

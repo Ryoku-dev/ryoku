@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 )
 
@@ -808,41 +810,103 @@ func genGesture(o Overrides) string {
 	return writeGestures(o, false)
 }
 
-// genGestureLive is the preview form. Hyprland keeps registered gestures until
-// reload, so a row that was removed, turned off, or pointed at a new trigger
-// would keep running. The preview clears every trigger this writer can
-// register, then adds the draft. Unset errors when nothing is registered;
-// pcall ignores that. Live cursor zoom omits zoom_level, which Hyprland ignores
-// and which a later mode would otherwise keep as a multiply factor.
+// genGestureLive is the preview form. Hyprland keeps a registered gesture until
+// reload, so a Hub row that was removed, turned off, or pointed at a new
+// trigger would keep running. The preview unsets the triggers the Hub itself
+// registered (the saved store and the previous preview) and the ones it is
+// about to add, then adds the draft. A gesture that only user.lua registered
+// is left alone, because this eval does not rerun user.lua. Unset errors when
+// nothing is registered; pcall ignores that. Live cursor zoom omits zoom_level,
+// which Hyprland ignores and which a later mode would otherwise keep as a
+// multiply factor.
 func genGestureLive(o Overrides) string {
-	return writeGestures(o, true)
+	return previewGestures(o, previousHubGestureKeys())
 }
 
-// gestureTriggers are the finger counts and directions this writer can register.
-// Live preview unsets every one of them before adding the draft, because a row
-// that was removed, disabled, or given a new finger count is no longer in the
-// list and would otherwise keep running until reload.
-var gestureTriggers = struct {
-	fingers    []int
-	directions []string
-}{
-	fingers:    []int{3, 4},
-	directions: []string{"swipe", "left", "right", "up", "down", "horizontal", "vertical", "pinch", "pinchin", "pinchout"},
+// gestureTrigger is one fingers-and-direction pair Hyprland matches exactly.
+type gestureTrigger struct {
+	fingers   int
+	direction string
 }
 
-func writeGestures(o Overrides, live bool) string {
-	var b strings.Builder
-	if live {
-		for _, n := range gestureTriggers.fingers {
-			for _, dir := range gestureTriggers.directions {
-				fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", n, dir)
-			}
+// previewGestures unsets prior, then every trigger the draft itself will add,
+// then adds the draft. prior is what the Hub last registered, so a removed row
+// is cleared without touching a trigger the Hub never owned.
+func previewGestures(o Overrides, prior []gestureTrigger) string {
+	seen := map[gestureTrigger]bool{}
+	var keys []gestureTrigger
+	add := func(k gestureTrigger) {
+		if k.direction == "" || seen[k] {
+			return
 		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	for _, k := range prior {
+		add(k)
+	}
+	for _, g := range gestureRows(o) {
+		add(gestureTrigger{gestureFingers(g), g.Direction})
+	}
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "pcall(function() hl.gesture({ fingers = %d, direction = %q, action = \"unset\" }) end)\n", k.fingers, k.direction)
 	}
 	for _, g := range gestureRows(o) {
 		b.WriteString(gestureLine(g))
 	}
 	return b.String()
+}
+
+func writeGestures(o Overrides, live bool) string {
+	if live {
+		return genGestureLive(o)
+	}
+	var b strings.Builder
+	for _, g := range gestureRows(o) {
+		b.WriteString(gestureLine(g))
+	}
+	return b.String()
+}
+
+// hubGestureKeys is the trigger set gestureRows would register for o.
+func hubGestureKeys(o Overrides) []gestureTrigger {
+	var keys []gestureTrigger
+	seen := map[gestureTrigger]bool{}
+	for _, g := range gestureRows(o) {
+		k := gestureTrigger{gestureFingers(g), g.Direction}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// previousHubGestureKeys is the Hub-owned set a live preview may clear: the
+// draft last pushed, if a preview is still open, and the saved store. Their
+// union covers a row removed in this session and a row removed since the last
+// save. A trigger in neither came from user.lua and is not cleared.
+func previousHubGestureKeys() []gestureTrigger {
+	seen := map[gestureTrigger]bool{}
+	var keys []gestureTrigger
+	add := func(o Overrides) {
+		for _, k := range hubGestureKeys(o) {
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			keys = append(keys, k)
+		}
+	}
+	if o, ok := overridesFromPreviewMarker(); ok {
+		add(o)
+	}
+	if st, err := os.Stat(desktopStorePath()); err == nil && !st.IsDir() {
+		add(loadStore(desktopStorePath()))
+	}
+	return keys
 }
 
 // gestureRows is the list Hyprland will accept. A configured list wins, including
@@ -866,7 +930,7 @@ func gestureRows(o Overrides) []Gesture {
 func gesturesToEmit(gs []Gesture) []Gesture {
 	var out []Gesture
 	for _, g := range gs {
-		if !g.Enabled || g.Direction == "" || g.Action == "" {
+		if !g.Enabled || g.Direction == "" || g.Action == "" || !zoomEmittable(g) {
 			continue
 		}
 		drop := false
@@ -926,6 +990,24 @@ func gestureAxis(direction string) string {
 	}
 }
 
+// zoomEmittable reports whether a cursor-zoom row has a level Hyprland can
+// use. Follow fingers needs none. Anything else must be a number above 0,
+// and toggle needs a level above 1. A multiply above 1 on a two-way pinch
+// only zooms in, which the editor explains, and it is still written.
+func zoomEmittable(g Gesture) bool {
+	if g.Action != "cursor_zoom" || g.Mode == "" || g.Mode == "live" {
+		return true
+	}
+	z, err := strconv.ParseFloat(strings.TrimSpace(g.ZoomLevel), 64)
+	if err != nil || z <= 0 {
+		return false
+	}
+	if g.Mode == "toggle" && z <= 1 {
+		return false
+	}
+	return true
+}
+
 func gestureLine(g Gesture) string {
 	if !g.Enabled || g.Direction == "" || g.Action == "" {
 		return ""
@@ -934,11 +1016,11 @@ func gestureLine(g Gesture) string {
 	switch g.Action {
 	case "special":
 		if g.WorkspaceName != "" {
-			extra = fmt.Sprintf(", workspace_name = %q", g.WorkspaceName)
+			extra = ", workspace_name = " + luaStr(g.WorkspaceName)
 		}
 	case "cursor_zoom":
-		if g.Mode != "live" && g.ZoomLevel != "" {
-			extra += fmt.Sprintf(", zoom_level = %q", g.ZoomLevel)
+		if g.Mode != "live" && strings.TrimSpace(g.ZoomLevel) != "" {
+			extra += ", zoom_level = " + luaStr(strings.TrimSpace(g.ZoomLevel))
 		}
 		if g.Mode != "" {
 			extra += fmt.Sprintf(", mode = %q", g.Mode)

@@ -70,6 +70,19 @@ Item {
         return [];
     }
 
+    // A zoom the writer would refuse stays on screen so the message remains,
+    // and it is not written into the store.
+    property var held: ({})
+
+    readonly property var shown: {
+        var base = root.rows;
+        var hold = root.held || {};
+        var out = [];
+        for (var i = 0; i < base.length; i++)
+            out.push(hold[String(i)] || base[i]);
+        return out;
+    }
+
     function fingerCount(g) { return !g.fingers || g.fingers < 3 ? 3 : g.fingers }
 
     function axisOf(direction) {
@@ -107,8 +120,8 @@ Item {
             return false;
         var fingers = root.fingerCount(g);
         var axis = root.axisOf(g.direction);
-        for (var i = 0; i < root.rows.length; i++) {
-            var o = root.rows[i];
+        for (var i = 0; i < root.shown.length; i++) {
+            var o = root.shown[i];
             if (o === g || !o.enabled || !o.direction)
                 continue;
             if (root.fingerCount(o) === fingers)
@@ -119,22 +132,32 @@ Item {
         return false;
     }
 
+    function zoomError(g) {
+        if (!g || g.action !== "cursor_zoom" || g.mode === "live" || !g.mode)
+            return "";
+        var z = parseFloat(g.zoomLevel);
+        if (!g.zoomLevel || isNaN(z) || z <= 0)
+            return I18n.tr("Set a zoom level above 0. A level below 1 zooms out.");
+        if (g.mode === "toggle" && z <= 1)
+            return I18n.tr("Toggle needs a zoom level above 1.");
+        return "";
+    }
+
     function slotError(g, index) {
         if (!g.enabled)
             return "";
+        var zoom = root.zoomError(g);
+        if (zoom)
+            return zoom;
         if (!g.direction || !g.action)
             return I18n.tr("Pick a direction and an action.");
         for (var i = 0; i < index; i++) {
-            if (root.overshadows(root.rows[i], g))
+            if (root.overshadows(root.shown[i], g))
                 return I18n.tr("A gesture above already uses this finger count and direction.");
         }
-        if (g.action === "cursor_zoom" && g.mode !== "live") {
-            var z = parseFloat(g.zoomLevel);
-            if (!g.zoomLevel || isNaN(z) || z <= 0)
-                return I18n.tr("Set a zoom level above 0. A level below 1 zooms out.");
-            if (g.mode === "toggle" && z <= 1)
-                return I18n.tr("Toggle needs a zoom level above 1.");
-            if (g.mode === "mult" && g.direction === "pinch" && z > 1)
+        if (g.action === "cursor_zoom" && g.mode === "mult" && g.direction === "pinch") {
+            var level = parseFloat(g.zoomLevel);
+            if (level > 1)
                 return I18n.tr("Multiplying a pinch by more than 1 only zooms in. Choose Follow fingers.");
         }
         return "";
@@ -177,13 +200,16 @@ Item {
     }
 
     function persist(next) {
-        root.he("desktop.input.gestures", next);
+        // Clear the legacy toggle first. Writing an empty list while that
+        // toggle is still on makes the rows fall back to the old swipe.
         root.he("desktop.input.workspaceSwipe", false);
+        root.he("desktop.input.gestures", next);
     }
 
     function setGesture(index, updates) {
         var next = root.copyRows();
-        var row = Object.assign({}, next[index], updates);
+        var source = root.shown[index] || next[index];
+        var row = Object.assign({}, source, updates);
         if (updates.action !== undefined) {
             row.mode = root.defaultMode(updates.action);
             if (updates.action !== "cursor_zoom")
@@ -191,21 +217,32 @@ Item {
             if (updates.action !== "special")
                 row.workspaceName = "";
         }
+        if (root.zoomError(row)) {
+            var hold = Object.assign({}, root.held);
+            hold[String(index)] = row;
+            root.held = hold;
+            return;
+        }
+        var keep = Object.assign({}, root.held);
+        delete keep[String(index)];
+        root.held = keep;
         next[index] = row;
         root.persist(next);
     }
 
     function addGesture() {
-        for (var i = 0; i < root.rows.length; i++) {
-            if (root.incomplete(root.rows[i]))
+        for (var i = 0; i < root.shown.length; i++) {
+            if (root.incomplete(root.shown[i]) || root.zoomError(root.shown[i]))
                 return;
         }
+        root.held = {};
         var next = root.copyRows();
         next.push(root.blank());
         root.persist(next);
     }
 
     function removeGesture(index) {
+        root.held = {};
         var next = root.copyRows();
         next.splice(index, 1);
         root.persist(next);
@@ -222,7 +259,7 @@ Item {
         }
 
         Repeater {
-            model: root.rows
+            model: root.shown
             delegate: SettingCard {
                 required property int index
                 required property var modelData
