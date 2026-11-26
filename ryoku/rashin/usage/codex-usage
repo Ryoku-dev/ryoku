@@ -2,19 +2,21 @@
 """
 OpenAI Codex quota for the Quickshell bar widget.
 
-Reads the authoritative rate limits the Codex CLI exposes via its local
-app-server JSON-RPC (account/rateLimits/read), falling back to the newest
-recorded session rollout. Codex can expose multiple independent limit buckets,
-so the cache stores bucket/window metadata instead of assuming Claude's fixed
-5h/7d model.
+Reuses the ChatGPT subscription OpenCode already holds, then falls back to the
+authoritative rate limits the Codex CLI exposes via its local app-server
+JSON-RPC (account/rateLimits/read), then to the newest recorded session
+rollout. Codex can expose multiple independent limit buckets, so the cache
+stores bucket/window metadata instead of assuming Claude's fixed 5h/7d model.
 """
 import json, os, select, shutil, subprocess, sys, time
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 CODEX_HOME = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
 CACHE_FILE = Path(os.environ.get("CODEX_USAGE_CACHE_FILE") or (Path.home() / ".cache" / "codex-usage.json"))
 ACTIVITY_FILE = Path(os.environ.get("CODEX_USAGE_ACTIVITY_FILE") or (Path.home() / ".cache" / "codex-usage-activity.json"))
+OPENCODE_USAGE_URL = os.environ.get("CODEX_USAGE_OPENCODE_URL") or "https://chatgpt.com/backend-api/wham/usage"
 ACTIVITY_SCHEMA_VERSION = 3
 RESET_PLAUSIBILITY_SLOP_SECS = 600
 EVENT_CLOCK_SKEW_SECS = 120
@@ -79,6 +81,112 @@ def fetch_env() -> dict | None:
         "plan": snapshot.get("planType") or "",
         "source": data.get("source") or "fixture",
     }
+
+
+# ── ChatGPT subscription OpenCode already holds ──
+def opencode_credential(export) -> dict | None:
+    """Return the active chatgpt-browser OAuth value from an auth export."""
+    if not isinstance(export, list):
+        return None
+    for item in export:
+        if not isinstance(item, dict):
+            continue
+        if item.get("integrationID") != "openai" or item.get("active") is not True:
+            continue
+        value = item.get("value")
+        if not isinstance(value, dict):
+            continue
+        if value.get("type") != "oauth" or value.get("methodID") != "chatgpt-browser":
+            continue
+        access = value.get("access")
+        if isinstance(access, str) and access:
+            return value
+    return None
+
+
+def opencode_snapshot(payload) -> dict | None:
+    """Map the account usage response to the rateLimits shape this cache uses."""
+    if not isinstance(payload, dict):
+        return None
+    limits = payload.get("rate_limit")
+    if not isinstance(limits, dict):
+        return None
+    windows = {}
+    for key in ("primary_window", "secondary_window"):
+        window = limits.get(key)
+        if not isinstance(window, dict):
+            continue
+        used = window.get("used_percent")
+        seconds = window.get("limit_window_seconds")
+        if not isinstance(used, (int, float)) or not isinstance(seconds, (int, float)):
+            continue
+        minutes = int(seconds // 60)
+        if minutes <= 0:
+            continue
+        reset = window.get("reset_at")
+        windows[key] = {
+            "usedPercent": max(0.0, min(100.0, float(used))),
+            "windowDurationMins": minutes,
+            "resetsAt": int(reset) if isinstance(reset, (int, float)) and reset > 0 else 0,
+        }
+    if not windows:
+        return None
+    plan = str(payload.get("plan_type") or "")
+    snapshot = {
+        "limitId": "codex",
+        "planType": plan,
+        "primary": windows.get("primary_window") or {},
+        "secondary": windows.get("secondary_window") or {},
+    }
+    return {
+        "rateLimits": snapshot,
+        "rateLimitsByLimitId": None,
+        "plan": plan,
+        "source": "opencode",
+    }
+
+
+def fetch_opencode() -> dict | None:
+    if os.environ.get("CODEX_USAGE_DISABLE_OPENCODE") == "1":
+        return None
+    opencode = shutil.which("opencode", path=ENV.get("PATH"))
+    if not opencode:
+        return None
+    try:
+        proc = subprocess.run(
+            [opencode, "auth", "export", "openai"],
+            capture_output=True, text=True, timeout=10, env=ENV)
+    except Exception as e:
+        sys.stderr.write(f"opencode auth export failed: {type(e).__name__}\n")
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        export = json.loads(proc.stdout)
+    except Exception:
+        return None
+    value = opencode_credential(export)
+    if not value:
+        return None
+    headers = {
+        "Authorization": "Bearer " + value["access"],
+        "Accept": "application/json",
+        "User-Agent": "Ryoku-Codex-Usage/0.1",
+    }
+    metadata = value.get("metadata")
+    account = metadata.get("accountID") if isinstance(metadata, dict) else None
+    if isinstance(account, str) and account:
+        headers["ChatGPT-Account-Id"] = account
+    request = urllib.request.Request(OPENCODE_USAGE_URL, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if response.status != 200:
+                return None
+            payload = json.loads(response.read(1024 * 1024))
+    except Exception as e:
+        sys.stderr.write(f"opencode usage request failed: {type(e).__name__}\n")
+        return None
+    return opencode_snapshot(payload)
 
 
 # ── authoritative live limits via the Codex app-server JSON-RPC ──
@@ -679,7 +787,7 @@ def scan_activity() -> tuple[int, int, dict[int, dict]]:
 
 
 def main():
-    data = fetch_env() or fetch_rpc() or fetch_rollout()
+    data = fetch_env() or fetch_opencode() or fetch_rpc() or fetch_rollout()
 
     if not data:
         # keep the last numbers on screen, marked stale
@@ -694,7 +802,10 @@ def main():
 
     buckets = normalize_buckets(data)
     recent_tok, today_tok, session_windows, recent_days_list = scan_activity()
-    supplement_missing_general_windows_from_sessions(buckets, session_windows)
+    # Codex rollout history can belong to a different account than the OpenCode
+    # login; filling a missing account window from it would mix two quotas.
+    if data["source"] != "opencode":
+        supplement_missing_general_windows_from_sessions(buckets, session_windows)
     general = general_bucket(buckets)
     windows = general.get("windows") or []
     max_util, quota_bucket, quota_window_label = quota_window(general)

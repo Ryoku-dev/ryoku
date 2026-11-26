@@ -32,7 +32,9 @@ Item {
     // ── Codex ──
     property bool cxActive: false
     readonly property bool cxFresh:  root.aiCxFresh
+    readonly property int  cxPct5h:  root.aiCxPct5h
     readonly property int  cxPct7d:  root.aiCxPct7d
+    readonly property int  cxReset5hTs: root.aiCxReset5hTs
     readonly property int  cxReset7dTs: root.aiCxReset7dTs
     readonly property string cxPlan: root.aiCxPlan
     readonly property string cxRate: root.aiCxRate
@@ -66,6 +68,25 @@ Item {
     // window for the number, but only flag pace off a genuine 7-day window.
     readonly property int  cxChipPct:  cxReset7dTs > 0 ? cxPct7d : cxPrimaryPct
     readonly property int  cxChipTs:   cxReset7dTs > 0 ? cxReset7dTs : cxPrimaryResetTs
+    // both account windows, in the compact order the bar reads left to right:
+    // 5h%, weekly%, then their reset countdowns.
+    function resetHours(ts) {
+        var now = Date.now() / 1000
+        if (!(ts > now))
+            return ""
+        var mins = Math.round((ts - now) / 60)
+        var h = Math.floor(mins / 60)
+        return h > 0 ? h + "h" : mins + "m"
+    }
+    readonly property string cxDetail: {
+        if (!(cxReset5hTs > 0 && cxReset7dTs > 0))
+            return ""
+        var r5 = resetHours(cxReset5hTs)
+        var r7 = root.aiFmtReset(cxReset7dTs)
+        if (!r5 || !r7)
+            return ""
+        return cxPct5h + "%/" + cxPct7d + "% " + r5 + "/" + r7.replace(/ /g, "")
+    }
 
     // The collectors ship with ryoku-rashin. Without them there is no usage to
     // read, and a running tool alone would raise an empty "0%" chip.
@@ -157,6 +178,7 @@ Item {
         property int pct: 0
         property int resetTs: 0     // reset used for the countdown
         property int paceTs: 0      // genuine weekly reset for pace (0 ⇒ no pace)
+        property string detail: ""  // replaces the pct + countdown text when set
         property bool fresh: true   // false ⇒ the collector could not refetch
         property bool tinted: true  // false ⇒ show the logo in its own colours (Claude)
         property url logo: ""       // Codex / OpenCode vector mark
@@ -220,7 +242,7 @@ Item {
         UiText {
             anchors.verticalCenter: parent.verticalCenter
             visible: !rootMod.root.iconOnly("G7")
-            text: chip.pct + "%" + (chip.countdown ? " · " + chip.countdown : "")
+            text: chip.detail || (chip.pct + "%" + (chip.countdown ? " · " + chip.countdown : ""))
             color: chip.col
             font.family: rootMod.root.mono
             font.pixelSize: 12
@@ -255,6 +277,7 @@ Item {
             name: "Codex"
             logo: Qt.resolvedUrl("../assets/codex-cli.svg"); logoSize: Qt.size(28, 28)
             pct: rootMod.cxChipPct; resetTs: rootMod.cxChipTs; paceTs: rootMod.cxReset7dTs
+            detail: rootMod.cxDetail
             fresh: rootMod.cxFresh
         }
 

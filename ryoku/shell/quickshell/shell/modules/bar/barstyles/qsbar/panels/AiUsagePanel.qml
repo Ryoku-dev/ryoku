@@ -52,15 +52,6 @@ PanelWindow {
     // number/countdown shown in the header: weekly when reported, else primary.
     readonly property int    cxPct:       cxReset7dTs > 0 ? cxPct7d : cxPrimaryPct
     readonly property int    cxResetTs:   cxReset7dTs > 0 ? cxReset7dTs : cxPrimaryResetTs
-    readonly property var    cxExtras: {
-        var a = []
-        for (var i = 0; i < cxWindows.length; i++) {
-            var w = cxWindows[i] || {}
-            if (w.minutes !== 10080)
-                a.push({ label: String(w.label || "window"), pct: w.pct || 0, resetTs: w.resetTs || 0 })
-        }
-        return a
-    }
 
     // ── OpenCode ──
     readonly property bool   ocHas:       root.aiOcHas
@@ -108,6 +99,7 @@ PanelWindow {
         property string emptyText: I18n.tr("no data")
         property var recent: []
         property var extras: []      // [{label, pct, resetTs}] of the other windows
+        property var bars: []        // [{label, pct, resetTs}] full-width meters
 
         readonly property bool behind: aiPanel.root.aiBehindPace(pct, paceTs)
         readonly property color hi:  behind ? aiPanel.root.sealRaw : aiPanel.root.ink
@@ -164,16 +156,30 @@ PanelWindow {
             }
         }
 
-        // weekly meter
+        // weekly meter, or one labeled meter per reported window
         Rectangle {
-            visible: pcard.has
-            width: parent.width; height: 6; radius: 3
+            visible: pcard.has && pcard.bars.length === 0
+            width: parent.width; height: 6
+            radius: Math.min(Tokens.radius, height / 2)
             color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
             Rectangle {
                 width: parent.width * Math.max(0, Math.min(100, pcard.pct)) / 100
                 height: parent.height; radius: parent.radius
                 color: pcard.behind ? aiPanel.root.sealRaw : aiPanel.root.seal
                 Behavior on width { NumberAnimation { duration: 300 } }
+            }
+        }
+
+        Repeater {
+            model: pcard.bars
+            delegate: LimitBar {
+                required property var modelData
+                root: aiPanel.root
+                width: pcard.width
+                label: String(modelData.label || "window")
+                pct: parseInt(modelData.pct) || 0
+                resetTs: parseInt(modelData.resetTs) || 0
+                behind: modelData.minutes === 10080 && pcard.behind
             }
         }
 
@@ -461,7 +467,7 @@ PanelWindow {
                     logo: Qt.resolvedUrl("../assets/codex-cli.svg"); logoSize: Qt.size(36, 36)
                     has: aiPanel.cxHas; fresh: aiPanel.cxFresh; plan: aiPanel.cxPlan
                     pct: aiPanel.cxPct; resetTs: aiPanel.cxResetTs; paceTs: aiPanel.cxReset7dTs
-                    recent: aiPanel.cxRecent; extras: aiPanel.cxExtras
+                    recent: aiPanel.cxRecent; bars: aiPanel.cxWindows
                 }
 
                 Rectangle { visible: aiPanel.cxShow && aiPanel.ocShow; width: parent.width; height: 1; color: root.sep }
