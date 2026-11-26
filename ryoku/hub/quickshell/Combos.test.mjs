@@ -39,7 +39,11 @@ const source = fs
 const context = { Qt };
 vm.createContext(context);
 vm.runInContext(source, context);
-const { qtKeyName, chordFrom, isFamilyChord, familyFrom, expandFamily, shippedKeys, normKeys } = context;
+const {
+    qtKeyName, chordFrom, isFamilyChord, familyFrom, expandFamily, shippedKeys, normKeys,
+    rowConflict, effectiveCounts, conflictKeys, chordMatches, isChordQuery, searchTokens,
+    isUserCopy,
+} = context;
 
 // A KeyEvent as Quickshell delivers it: key code + a modifier bitmask.
 const ev = (key, ...mods) => ({ key, modifiers: mods.reduce((a, m) => a | m, 0) });
@@ -161,4 +165,159 @@ test("shippedKeys expands a family so a digit custom bind is caught shadowing it
     assert.ok(keys[normKeys("SUPER + 3")], "SUPER + 3 shadows the family");
     assert.ok(keys[normKeys("SUPER + 0")], "the tenth (0) shadows the family");
     assert.ok(!keys["{n}+super"], "the raw {n} placeholder is never a shadow key");
+});
+
+test("the legend's custom rows are not shipped, so they do not shadow themselves", () => {
+    const cats = [
+        { name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] },
+        { name: "Custom", binds: [{ id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" }] },
+    ];
+    const keys = shippedKeys(cats, {});
+    assert.ok(keys[normKeys("SUPER + Q")]);
+    assert.ok(!keys[normKeys("SUPER + J")], "a custom chord is not a shipped chord");
+    assert.equal(rowConflict([{ keys: "SUPER + J" }], 0, keys), "");
+    assert.equal(rowConflict([{ keys: "SUPER + Q" }], 0, keys), "shipped");
+});
+
+test("a switched-off shipped bind does not shadow a custom row", () => {
+    const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
+    assert.ok(!shippedKeys(cats, {}, ["SUPER + Q"])[normKeys("SUPER + Q")]);
+    assert.equal(rowConflict([{ keys: "SUPER + Q" }], 0, shippedKeys(cats, {}, ["SUPER + Q"])), "");
+    const moved = shippedKeys(cats, { "SUPER + Q": "SUPER + W" }, []);
+    assert.ok(moved[normKeys("SUPER + W")], "a rebind moves the shipped chord");
+    assert.ok(!moved[normKeys("SUPER + Q")]);
+});
+
+test("a chord another config spelled with its own modifier words still clashes", () => {
+    // an imported bind keeps the spelling its config wrote, so the fold here has
+    // to be the one the import engine folds on (normToken in import.go) or the
+    // page calls a clash the scan already reported.
+    const target = normKeys("SUPER + Q");
+    for (const written of ["MOD + Q", "MAINMOD + Q", "WIN + Q", "META + Q",
+                           "LOGO + Q", "SUPER_L + Q", "Q + SUPER"])
+        assert.equal(normKeys(written), target, written + " is Super + Q");
+    assert.equal(normKeys("MOD1 + H"), normKeys("ALT + H"));
+    assert.equal(normKeys("SHIFT_L + W"), normKeys("SHIFT + W"));
+    assert.equal(normKeys("CONTROL_R + T"), normKeys("CTRL + T"));
+    assert.notEqual(normKeys("MOD + space"), normKeys("SUPER + q"), "a key is never folded");
+
+    const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
+    const shipped = shippedKeys(cats, {});
+    for (const written of ["MOD + Q", "WIN + Q", "SUPER_L + Q"])
+        assert.equal(rowConflict([{ keys: written }], 0, shipped), "shipped", written + " shadows it");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "MOD + Q" }], [])[target], 2, "and counts as two holders");
+});
+
+test("effectiveCounts counts a custom row once and sees real clashes only", () => {
+    const cats = [
+        { name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] },
+        { name: "Custom", binds: [{ id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" }] },
+    ];
+    const custom = [{ keys: "SUPER + J" }];
+    const counts = effectiveCounts(cats, {}, custom, []);
+    assert.equal(counts[normKeys("SUPER + J")], 1, "the legend copy is skipped");
+    assert.ok(!conflictKeys(cats, {}, custom, [])[normKeys("SUPER + J")]);
+
+    const shadow = conflictKeys(cats, {}, [{ keys: "SUPER + Q" }], []);
+    assert.ok(shadow[normKeys("SUPER + Q")], "a custom shadow is a clash");
+});
+
+test("conflictKeys sees rebinds, families and switched-off binds", () => {
+    const cats = [{
+        name: "Windows",
+        binds: [{ combo: "SUPER + Q", kind: "wm" }, { combo: "SUPER + W", kind: "wm" }],
+    }];
+    assert.ok(conflictKeys(cats, { "SUPER + Q": "SUPER + W" }, [], [])[normKeys("SUPER + W")]);
+    assert.ok(!conflictKeys(cats, { "SUPER + Q": "SUPER + W" }, [], ["SUPER + W"])[normKeys("SUPER + W")]);
+
+    const fam = [{ name: "Workspaces", binds: [{ combo: "SUPER + {n}", kind: "wm" }] }];
+    assert.ok(conflictKeys(fam, {}, [{ keys: "SUPER + 3" }], [])[normKeys("SUPER + 3")]);
+});
+
+test("a compositor's own fixed bind counts, only the user's copy is skipped", () => {
+    // Wayfire titles its exclusives with kind "custom" too, under their own
+    // category; the skip that keeps a custom row from shadowing itself must not
+    // swallow them, or a clash with one goes unreported on Wayfire.
+    const cats = [{
+        name: "Legend",
+        binds: [
+            { id: "wayfire.zoom", category: "Wayfire", combo: "SUPER + CTRL + KP_5", kind: "custom" },
+            { id: "custom.0", category: "Custom", combo: "SUPER + J", kind: "custom" },
+        ],
+    }];
+    const keys = shippedKeys(cats, {});
+    assert.ok(keys[normKeys("SUPER + CTRL + KP_5")], "the compositor's own bind is shipped");
+    assert.ok(!keys[normKeys("SUPER + J")], "the user's copy is not");
+    assert.equal(rowConflict([{ keys: "SUPER + J" }], 0, keys), "");
+    assert.equal(rowConflict([{ keys: "SUPER + CTRL + KP_5" }], 0, keys), "shipped");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "SUPER + CTRL + KP_5" }], [])[normKeys("SUPER + CTRL + KP_5")], 2);
+});
+
+test("chord search folds an imported spelling on both the query and the chord", () => {
+    // the page stores an imported bind the way its config wrote it, so a search
+    // has to fold the same modifier words normKeys folds to find it.
+    assert.deepEqual(searchTokens("MOD + Q"), searchTokens("super+q"));
+    assert.deepEqual(searchTokens("MAINMOD + SHIFT + Q"), searchTokens("super+shift+q"));
+    assert.equal(chordMatches("super+q", "MOD + Q"), true);
+    assert.equal(chordMatches("mod+q", "SUPER + Q"), true);
+    assert.equal(chordMatches("super+ctrl+l", "CONTROL_L + SUPER + L"), true);
+    assert.equal(chordMatches("super+ctrl+l", "SUPER + ALT + L"), false);
+});
+
+test("chord search folds case, spacing, order and modifier aliases", () => {
+    assert.equal(chordMatches("super+q", "SUPER + Q"), true);
+    assert.equal(chordMatches("WIN + Q", "SUPER + Q"), true);
+    assert.equal(chordMatches("super+3", "SUPER + 3"), true, "a family member answers its own chord");
+    assert.equal(chordMatches("super+kp_3", "SUPER + KP_3"), true, "the number pad folds to the digit");
+    assert.equal(chordMatches("super+ctrl+3", "SUPER + CTRL + 3"), true);
+    assert.equal(chordMatches("super+ctrl+3", "SUPER + 3"), false, "a different modifier is a different chord");
+    assert.equal(chordMatches("ctrl+l", "CTRL + L"), true);
+    assert.equal(chordMatches("CTRL+L", "CTRL + L"), true);
+    assert.equal(chordMatches("CONTROL + l", "CTRL + L"), true);
+    assert.equal(chordMatches("l + control", "CTRL + L"), true);
+    assert.equal(chordMatches("ctrl", "SUPER + CTRL + L"), true);
+    assert.equal(chordMatches("ctrl+l", "SUPER + L"), false, "a different modifier is a different chord");
+    assert.equal(chordMatches("super+l", "SUPER + SHIFT + L"), false, "a named key must match the whole chord");
+    assert.equal(chordMatches("ctrl+shift+l", "CTRL + L"), false, "a named key must match the whole chord");
+    assert.equal(chordMatches("super+enter", "SUPER + Return"), true);
+    assert.equal(chordMatches("super+page up", "SUPER + Prior"), true);
+    assert.equal(chordMatches("super+num 3", "SUPER + KP_3"), true);
+    assert.equal(chordMatches("super+,", "SUPER + comma"), true);
+});
+
+test("a mouse chord answers to the button name the legend shows", () => {
+    // the legend renders these as LMB, RMB and Scroll Up, not the wire token, so
+    // a search has to answer to the name or the keys nobody can type are lost.
+    assert.equal(chordMatches("super lmb", "SUPER + mouse:272"), true);
+    assert.equal(chordMatches("super+lmb", "SUPER + mouse:272"), true);
+    assert.equal(chordMatches("super rmb", "SUPER + mouse:273"), true);
+    assert.equal(chordMatches("super scroll up", "SUPER + mouse_up"), true);
+    assert.equal(chordMatches("super+scroll down", "SUPER + mouse_down"), true);
+    assert.equal(chordMatches("super scroll", "SUPER + mouse_up"), false, "a wheel key is its own direction");
+    assert.equal(chordMatches("super lmb", "SUPER + mouse:273"), false, "the other button is another key");
+    assert.equal(chordMatches("super left", "SUPER + SHIFT + Left"), false, "a chord query stays exact");
+});
+
+test("two custom rows on one chord clash with each other", () => {
+    const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
+    const keys = conflictKeys(cats, {}, [{ keys: "SUPER + Z" }, { keys: "super + z" }], []);
+    assert.ok(keys[normKeys("SUPER + Z")], "a duplicate clash has two custom sides and no shipped one");
+    assert.equal(effectiveCounts(cats, {}, [{ keys: "SUPER + Z" }, { keys: "SUPER + Z" }], [])[normKeys("SUPER + Z")], 2);
+});
+
+test("isChordQuery leaves ordinary text to the fuzzy scorer", () => {
+    assert.equal(isChordQuery("ctrl+l"), true);
+    assert.equal(isChordQuery("super"), true);
+    assert.equal(isChordQuery("ctrl l"), true);
+    assert.equal(isChordQuery("close window"), false);
+    assert.equal(isChordQuery(""), false);
+});
+
+test("a word that doubles as a modifier alias only reads as one in a chord", () => {
+    // "windows" is a category someone searches for, "windows+l" is a chord.
+    assert.equal(isChordQuery("windows"), false);
+    assert.equal(isChordQuery("win"), false);
+    assert.equal(isChordQuery("option"), false);
+    assert.equal(isChordQuery("windows+l"), true);
+    assert.equal(isChordQuery("win l"), true);
 });

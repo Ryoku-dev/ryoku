@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### Added
+- **Keybinds opens a conflict view, and the search reads a chord.** The
+  conflict count in the action bar is now the way in: clicking it narrows the
+  legend to every shortcut holding a clashing chord, so both sides of a clash
+  read together instead of one row saying it conflicts with nothing visible,
+  and each row names what it is bound to beside it. The lens shows as a chip in
+  the search field, not as a category in the rail, and a search inside it
+  stays within the conflicts. The search field also accepts a chord the way
+  someone writes one, so "ctrl+l", "CTRL + L" and "Control+l" land on the same
+  shortcut, and typing "super" lists the Super family. A chord names exactly the
+  chord: "super left" finds Super + Left and not Super + Shift + Left, while free
+  text such as "close" or "num 3" still searches labels. A bind another config
+  wrote with its own modifier words is found by the Ryoku names too, and the
+  mouse keys answer to the button names the legend shows, so "super lmb" and
+  "super scroll up" find their rows
+  (`quickshell/pages/KeybindsPage.qml`, `quickshell/Combos.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
   tunnel also shows its traffic while up, edits its name, endpoint, allowed
@@ -43,6 +58,35 @@
   reason when WirePlumber or `wpctl` is missing (`quickshell/pages/ConnectionsPage.qml`).
 
 ### Fixed
+- **The conflict view and the search read the user's custom shortcuts as they
+  stand, not as they were when the page opened.** The lens and its notes were
+  built from the legend the page fetched on open, whose Custom section is the
+  saved state, while the count reads the live draft. A custom shortcut added
+  this session was counted and then absent: a clash with a shipped shortcut
+  showed one side of the pair, and two custom shortcuts on one chord showed
+  nothing. The Custom side of the lens is now rebuilt from the store, labelled
+  and keycapped the way the saved legend labels it and keeping the provider's
+  own "not on" reason for a bind it has seen
+  (`quickshell/pages/KeybindsPage.qml`).
+- **A compositor's own fixed shortcuts are counted again.** The legend marks
+  them with the same kind it marks a user's shortcut -- Wayfire titles its
+  exclusives that way -- so the skip that keeps a custom row from shadowing
+  itself swallowed them too, and a clash with one went unreported on Wayfire.
+  A user's row is now told apart by its category and id, never by its kind
+  (`quickshell/Combos.js`).
+- **A custom shortcut no longer reports shadowing a Ryoku shortcut it does not
+  use.** The legend carries the user's custom rows as well as the shipped ones,
+  and the conflict check walked that copy, so every custom row shadowed itself
+  and was labelled as a clash with a shipped bind, naming itself in the note.
+  The rules now live in one place, with a custom row counted once
+  (`quickshell/Combos.js`, `quickshell/pages/KeybindsPage.qml`).
+- **A shortcut imported from another config with its own modifier words now
+  counts as conflicting when it lands on a Ryoku shortcut.** An imported bind
+  keeps the spelling its config wrote ("MOD + Q", "SUPER_L + ALT_L + Left"),
+  and only the import engine folded those words, so two binds on the same
+  physical keys read as different keys to the page. The search folds the same
+  words now, so "super+q" finds a bind stored as "MOD + Q"
+  (`quickshell/Combos.js` `normKeys`, `searchTokens`).
 - **Re-rendering app themes works when the config directory is not `~/.config`
   (#814).** The matugen templates are now rendered against the XDG directories
   instead of the home directory.

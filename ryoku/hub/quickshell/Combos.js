@@ -7,8 +7,23 @@
 // keeps. The engine owns the authoritative norm on the wire; the UI uses these
 // only to compare and to record, never to invent a key.
 
-// normalise a combo for compare: case, spacing and modifier order collapse, so
-// "SUPER + Q", "super+q" and "Q + Super" are one key.
+// the spelling every modifier collapses to when a chord is compared. It mirrors
+// normToken in ryoku/hub/backend/import.go exactly, because an imported bind
+// keeps the spelling its own config wrote: "MOD + Q" and "SUPER_L + Q" land in
+// the store as written, and only a fold that matches the engine's keeps the page
+// from calling a clash that the import scan already reported.
+var modifierAliases = {
+    "super": "super", "mod": "super", "mainmod": "super", "win": "super", "meta": "super",
+    "logo": "super", "super_l": "super", "super_r": "super",
+    "ctrl": "ctrl", "control": "ctrl", "ctrl_l": "ctrl", "ctrl_r": "ctrl",
+    "control_l": "ctrl", "control_r": "ctrl",
+    "alt": "alt", "alt_l": "alt", "alt_r": "alt", "mod1": "alt",
+    "shift": "shift", "shift_l": "shift", "shift_r": "shift"
+};
+
+// normalise a combo for compare: case, spacing, modifier spelling and modifier
+// order collapse, so "SUPER + Q", "super+q", "Q + Super" and an imported
+// "MOD + Q" are one key.
 function normKeys(s) {
     if (!s)
         return "";
@@ -17,10 +32,133 @@ function normKeys(s) {
     for (var i = 0; i < parts.length; i++) {
         var t = parts[i].trim().toLowerCase();
         if (t.length)
-            out.push(t);
+            out.push(modifierAliases[t] || t);
     }
     out.sort();
     return out.join("+");
+}
+
+// ── chord search ────────────────────────────────────────────────────────────
+// The search field accepts a chord the way someone writes it, not only the
+// sheet's display tokens: case, spaces, modifier order and the common aliases
+// collapse, so "ctrl+l", "CTRL + L" and "Control+l" are one query. A query is
+// read as a chord when it carries a "+" or opens with a modifier; a word alias
+// like "windows" only counts once the query has a "+" or a second token, so
+// bare "windows" still finds the Windows category.
+var searchAliases = {
+    "meta": "super", "win": "super", "windows": "super",
+    "cmd": "super", "command": "super", "logo": "super",
+    "control": "ctrl", "ctl": "ctrl",
+    "option": "alt", "opt": "alt", "opcion": "alt", "opción": "alt",
+    "mayus": "shift", "mayusculas": "shift", "mayúsculas": "shift",
+    "enter": "return", "intro": "return",
+    "esc": "escape",
+    "spacebar": "space", "espacio": "space",
+    "repag": "prior", "avpag": "next",
+    "izquierda": "left", "derecha": "right", "arriba": "up", "abajo": "down",
+    "inicio": "home", "fin": "end",
+    "retroceso": "backspace", "supr": "delete", "suprimir": "delete",
+    "tabulador": "tab",
+    ",": "comma", "-": "minus", "=": "equal",
+    "[": "bracketleft", "]": "bracketright", "`": "grave",
+    "\\": "backslash", "/": "slash", ";": "semicolon",
+    "'": "apostrophe", ".": "period",
+    // the mouse chords no one types: the legend shows them as the button names
+    // wm.DisplayKeys gives them, so a search answers to those names.
+    "mouse:272": "lmb", "mouse:273": "rmb",
+    "mouse_up": "scroll_up", "mouse_down": "scroll_down"
+};
+
+// fold the multi-word spellings before splitting, so "page up" and "num 3"
+// survive as one token.
+function foldChordText(s) {
+    return ("" + (s || "")).toLowerCase()
+        .replace(/page\s*up/g, "prior")
+        .replace(/page\s*down/g, "next")
+        .replace(/\bpgup\b/g, "prior")
+        .replace(/\bpgdn\b/g, "next")
+        .replace(/\bscroll\s*up/g, "scroll_up")
+        .replace(/\bscroll\s*down/g, "scroll_down")
+        .replace(/\bnum(?:pad)?\s*([0-9])\b/g, "kp$1");
+}
+
+// the legend repeats the user's own binds in a Custom category: Go writes
+// Category "Custom" and ID "custom.<n>" for them, on every provider. They are a
+// copy of the live store, so a pass over the legend skips them and counts the
+// store's rows instead, or every custom chord would look like a clash with
+// itself. A compositor's own fixed binds also carry kind "custom" -- Wayfire
+// titles its exclusives that way -- but they sit under their own category with
+// their own id, so it is the category and the id, not the kind, that tell a
+// user's row from a shipped one.
+function isUserCopy(bind) {
+    if (!bind)
+        return false;
+    if ((bind.category || "") === "Custom")
+        return true;
+    return ("" + (bind.id || "")).indexOf("custom.") === 0;
+}
+
+// a chord or query as canonical search tokens. Unknown tokens keep their own
+// spelling, so an exotic key still compares literally. The modifier folds run
+// first, so an imported chord ("MOD + Q") answers a search for "super+q" the
+// same way normKeys already says they are one chord.
+function searchTokens(s) {
+    var parts = foldChordText(s).split(/[\s+]+/);
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+        var t = parts[i].trim();
+        if (!t)
+            continue;
+        if (t.indexOf("kp_") === 0)
+            t = "kp" + t.substring(3);
+        t = modifierAliases[t] || searchAliases[t] || t;
+        out.push(t);
+    }
+    return out;
+}
+
+function isModifierToken(t) {
+    return t === "super" || t === "ctrl" || t === "alt" || t === "shift";
+}
+
+// the aliases that are also everyday words ("windows", "win", "command",
+// "option") only read as a modifier when a chord is clearly meant: a bare
+// "windows" is someone looking for the Windows category, not pressing Super.
+var literalModifiers = { "super": true, "ctrl": true, "alt": true, "shift": true };
+
+// true when `query` is a chord the field should read as one.
+function isChordQuery(query) {
+    var s = ("" + (query || "")).trim();
+    if (s.length === 0)
+        return false;
+    if (s.indexOf("+") >= 0)
+        return true;
+    var parts = foldChordText(s).split(/\s+/);
+    if (parts.length > 1)
+        return isModifierToken(searchAliases[parts[0]] || parts[0]);
+    return literalModifiers[parts[0]] === true;
+}
+
+// does `chord` answer `query`? A query that names a key must match the whole
+// chord, so "super l" does not find Super + Shift + L; a query of modifiers
+// alone filters every chord that holds them, so "ctrl" lists the Ctrl family.
+function chordMatches(query, chord) {
+    var q = searchTokens(query);
+    var c = searchTokens(chord);
+    if (q.length === 0 || c.length === 0)
+        return false;
+    var modsOnly = true;
+    for (var i = 0; i < q.length; i++)
+        if (!isModifierToken(q[i])) {
+            modsOnly = false;
+            break;
+        }
+    if (!modsOnly && q.length !== c.length)
+        return false;
+    for (var j = 0; j < q.length; j++)
+        if (c.indexOf(q[j]) < 0)
+            return false;
+    return true;
 }
 
 // the effective combo a shipped bind fires on: a rebind wins over the default.
@@ -33,13 +171,22 @@ function effectiveCombo(rebinds, defCombo) {
 // for O(1) shadow lookups. `categories` is the `ryoku-hub keybinds` legend. A
 // family stands for ten chords, so it is expanded before it lands in the set:
 // that is how a custom "SUPER + 3" is caught shadowing the workspace family.
-function shippedKeys(categories, rebinds) {
+// The legend also carries the user's custom rows; those are not shipped, so they
+// are skipped here or a custom chord would shadow itself. A switched-off bind
+// holds no chord either, so it is skipped like it is when counting.
+function shippedKeys(categories, rebinds, disabled) {
+    var off = disabledSet(disabled);
     var set = {};
     categories = categories || [];
     for (var c = 0; c < categories.length; c++) {
         var binds = categories[c].binds || [];
         for (var b = 0; b < binds.length; b++) {
-            var chords = expandFamily(effectiveCombo(rebinds, binds[b].combo || ""));
+            if (isUserCopy(binds[b]))
+                continue;
+            var def = binds[b].combo || "";
+            if (off[def])
+                continue;
+            var chords = expandFamily(effectiveCombo(rebinds, def));
             for (var e = 0; e < chords.length; e++) {
                 var k = normKeys(chords[e]);
                 if (k.length)
@@ -48,6 +195,63 @@ function shippedKeys(categories, rebinds) {
         }
     }
     return set;
+}
+
+// the disabled list as an object, for O(1) lookups.
+function disabledSet(disabled) {
+    var off = {};
+    disabled = disabled || [];
+    for (var i = 0; i < disabled.length; i++)
+        if (disabled[i])
+            off[disabled[i]] = true;
+    return off;
+}
+
+// how many shortcuts hold each effective chord: the shipped legend (rebinds
+// applied, families expanded) plus the custom rows. The legend carries the
+// user's custom rows too, so they are skipped there and counted once from
+// `customRows` or every custom chord would look like a clash with itself. A
+// compositor's own fixed binds (kind "custom" under their own category) are
+// shipped, so they count like any other.
+function effectiveCounts(categories, rebinds, customRows, disabled) {
+    var off = disabledSet(disabled);
+    var m = {};
+    categories = categories || [];
+    for (var c = 0; c < categories.length; c++) {
+        var binds = categories[c].binds || [];
+        for (var b = 0; b < binds.length; b++) {
+            if (isUserCopy(binds[b]))
+                continue;
+            var def = binds[b].combo || "";
+            if (off[def])
+                continue;
+            var chords = expandFamily(effectiveCombo(rebinds, def));
+            for (var e = 0; e < chords.length; e++) {
+                var k = normKeys(chords[e]);
+                if (k.length)
+                    m[k] = (m[k] || 0) + 1;
+            }
+        }
+    }
+    customRows = customRows || [];
+    for (var i = 0; i < customRows.length; i++) {
+        var cn = normKeys(customRows[i].keys);
+        if (cn.length)
+            m[cn] = (m[cn] || 0) + 1;
+    }
+    return m;
+}
+
+// the normalised chords held by more than one shortcut. A rebind that lands on
+// another bind and a custom row that shadows one both land here, which is what
+// lets the page show both sides of a clash instead of only the flagged row.
+function conflictKeys(categories, rebinds, customRows, disabled) {
+    var counts = effectiveCounts(categories, rebinds, customRows, disabled);
+    var m = {};
+    for (var k in counts)
+        if (counts[k] > 1)
+            m[k] = true;
+    return m;
 }
 
 // how many custom rows hold a given normalised combo.
