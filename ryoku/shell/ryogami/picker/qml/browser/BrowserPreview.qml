@@ -1,9 +1,10 @@
 import QtQuick
 import Lithic
+import Lithic
 import QtMultimedia
 import Ryoku.Ui.Singletons
 
-Rectangle {
+CutRect {
     id: preview
 
     property var item: null
@@ -27,9 +28,10 @@ Rectangle {
     visible: reveal > 0.001
     opacity: reveal
     focus: shown
-    color: Theme.withAlpha(Theme.surface, 0.99)
-    border.width: 1
-    border.color: Theme.withAlpha(Theme.outline, 0.54)
+    cut: LithicTokens.cut.large * Theme.scale
+    fill: Lithic.stone4
+    strokeWidth: 1
+    strokeColor: Lithic.vein
     Behavior on reveal { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic } }
 
     readonly property bool _isYoutube: provider === "youtube"
@@ -182,7 +184,7 @@ Rectangle {
 
                 Rectangle {
                     width: parent.width
-                    height: Math.min(width / Math.max(preview._sourceAspect, 0.1), details.height * 0.55)
+                    height: Math.min(width / Math.max(preview._sourceAspect, 0.1), details.height * 0.72)
                     radius: Theme.radius
                     color: Theme.withAlpha(Theme.background, 0.76)
                     border.width: 1

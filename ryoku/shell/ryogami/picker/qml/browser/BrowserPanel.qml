@@ -306,12 +306,19 @@ Item {
     }
 
     function openPreview(row) {
+        if (results.field) results.field.currentIndex = row
         panel.previewRow = row
         panel.previewItem = remote.get(row)
         panel.previewFull = ""
         panel.previewOpen = true
         remote.preview(row)
         preview.forceActiveFocus()
+    }
+    // The grid's selection follows the preview, so closing it lands where you were.
+    function stepPreview(d) {
+        var next = panel.previewRow + d
+        if (next < 0 || next >= remote.count) return
+        panel.openPreview(next)
     }
     function closePreview() {
         panel.previewOpen = false
@@ -514,7 +521,6 @@ Item {
                 BrowserResults {
                     id: results
                     width: parent.width - (drawer.visible ? panel.filterW + panel._wsGap : 0)
-                        - (panel.previewOpen ? panel.detailW + panel._wsGap : 0)
                     height: parent.height
                     Behavior on width {
                         NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
@@ -547,39 +553,91 @@ Item {
                     onCancelRequested: function(row) { remote.cancelDownload(row) }
                 }
 
-                BrowserPreview {
-                    id: preview
-                    z: 6
-                    width: panel.previewOpen ? panel.detailW : 0
-                    height: parent.height
-                    shown: panel.previewOpen
-                    item: panel.previewItem
-                    provider: panel.provider
-                    fullPath: panel.previewFull
-                    applying: panel.applyingId !== undefined && panel.previewItem
-                        && String(panel.applyingId) === String(panel.previewItem.id)
-                    maxMinutes: panel._num("sources.youtube.maxMinutes", 3)
-                    sources: sourceData
-                    onCloseRequested: panel.closePreview()
-                    onCopyId: function(id) { panel.copyId(id) }
-                    onSave: {
-                        if (panel.previewRow < 0) return
-                        var clip = (panel.provider === "youtube")
-                            ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
-                        panel.doDownload(panel.previewRow, clip)
-                    }
-                    onApply: {
-                        if (panel.previewRow < 0) return
-                        var clip = (panel.provider === "youtube")
-                            ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
-                        panel.applyRow(panel.previewRow, clip)
-                    }
-                    cancellable: panel.provider !== "steam"
-                    onCancel: if (panel.previewRow >= 0) remote.cancelDownload(panel.previewRow)
-                    Behavior on width {
-                        NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
-                    }
+            }
+
+            // The preview opens over the grid, never beside it, so no card moves.
+            Rectangle {
+                x: work.x
+                y: work.y
+                width: work.width
+                height: work.height
+                color: Qt.rgba(0, 0, 0, 0.6)
+                opacity: panel.previewOpen ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity { NumberAnimation { duration: Theme.standard } }
+                MouseArea { anchors.fill: parent; onClicked: panel.closePreview(); onWheel: (w) => w.accepted = true }
+            }
+            BrowserPreview {
+                id: preview
+                z: 6
+                width: Math.min(1180 * panel._s, work.width - 150 * panel._s)
+                height: work.height - 16 * panel._s
+                x: work.x + (work.width - width) / 2
+                y: work.y + 8 * panel._s + (1 - reveal) * 18 * panel._s
+                shown: panel.previewOpen
+                item: panel.previewItem
+                provider: panel.provider
+                fullPath: panel.previewFull
+                applying: panel.applyingId !== undefined && panel.previewItem
+                    && String(panel.applyingId) === String(panel.previewItem.id)
+                maxMinutes: panel._num("sources.youtube.maxMinutes", 3)
+                sources: sourceData
+                onCloseRequested: panel.closePreview()
+                onCopyId: function(id) { panel.copyId(id) }
+                onSave: {
+                    if (panel.previewRow < 0) return
+                    var clip = (panel.provider === "youtube")
+                        ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
+                    panel.doDownload(panel.previewRow, clip)
                 }
+                onApply: {
+                    if (panel.previewRow < 0) return
+                    var clip = (panel.provider === "youtube")
+                        ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
+                    panel.applyRow(panel.previewRow, clip)
+                }
+                cancellable: panel.provider !== "steam"
+                onCancel: if (panel.previewRow >= 0) remote.cancelDownload(panel.previewRow)
+            }
+            CutRect {
+                visible: panel.previewOpen && panel.previewRow > 0
+                width: 52 * panel._s
+                height: 52 * panel._s
+                x: preview.x - width - 14 * panel._s
+                y: preview.y + preview.height / 2 - height / 2
+                cut: LithicTokens.cut.small * panel._s
+                fill: Lithic.stone4
+                strokeWidth: 1
+                strokeColor: Lithic.vein
+            }
+            IslandButton {
+                visible: panel.previewOpen && panel.previewRow > 0
+                x: preview.x - width - 14 * panel._s + 2 * panel._s
+                y: preview.y + preview.height / 2 - height / 2
+                size: 48
+                glyph: "chevron_left"
+                tooltip: I18n.tr("Previous")
+                onTriggered: panel.stepPreview(-1)
+            }
+            CutRect {
+                visible: panel.previewOpen && panel.previewRow < remote.count - 1
+                width: 52 * panel._s
+                height: 52 * panel._s
+                x: preview.x + preview.width + 14 * panel._s
+                y: preview.y + preview.height / 2 - height / 2
+                cut: LithicTokens.cut.small * panel._s
+                fill: Lithic.stone4
+                strokeWidth: 1
+                strokeColor: Lithic.vein
+            }
+            IslandButton {
+                visible: panel.previewOpen && panel.previewRow < remote.count - 1
+                x: preview.x + preview.width + 14 * panel._s + 2 * panel._s
+                y: preview.y + preview.height / 2 - height / 2
+                size: 48
+                glyph: "chevron_right"
+                tooltip: I18n.tr("Next")
+                onTriggered: panel.stepPreview(1)
             }
         }
     }
@@ -652,8 +710,13 @@ Item {
         if (event.key === Qt.Key_Escape) {
             if (panel.steamPromptOpen) { panel.steamPromptOpen = false; event.accepted = true; return }
             if (panel.previewOpen) { panel.closePreview(); event.accepted = true; return }
-            panel.closeRequested()
             event.accepted = true
+            panel.closeRequested()
+            return
+        } else if (panel.previewOpen && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            panel.stepPreview(event.key === Qt.Key_Left ? -1 : 1)
+            event.accepted = true
+            return
         } else if (event.key >= Qt.Key_0 && event.key <= Qt.Key_9
                    && !(event.modifiers & Qt.ControlModifier)) {
             // 1-9 then 0, left to right along the tabs.
