@@ -41,6 +41,16 @@ and Bar Studio workflow are adapted from OkShell by John Oberhauser:
 OkShell is released under the GNU General Public License version 3. The adapted
 frame-bar areas remain GPL-3.0-compatible with Ryoku's GPL-3 distribution.
 
+The wallpaper selector's Deck layout
+(ryoku/shell/ryogami/picker/qml/deck/) is adapted from kwepaperpicker by
+Black Don (https://github.com/theblack-don/kwepaperpicker, compared at commit
+6840343b37035a300b7491c00841ff578e650010): its paint-chip cards, spectrum
+ribbon, hand geometry, favourites ticks and hover glimpses are ported into
+Ryogami's picker. Ryogami keeps wallpaper ownership in its daemon and card
+field, and feeds the deck's matugen swatches from its own theme preview path.
+kwepaperpicker is released under the GNU General Public License version 3 or
+later; the adapted portions keep that license, compatible with Ryoku's GPL-3.
+
 The Shima bar style (ryoku/shell/quickshell/inir/) is based on iNiR by snowarch
 (https://github.com/snowarch/inir). It is a modified version: Ryoku renamed it,
 gave it its own mark, dropped the Kira mascot, and runs it through Ryoku's

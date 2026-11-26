@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Ryogami can open the wallpaper library as a Deck.** The picker gains a
+  kwepaperpicker style deck with paint chip cards, a spectrum ribbon, matugen
+  swatches and the same desktop actions as the card layout. Wallpaper changes
+  still go through Ryogami's own setter, and the layout is chosen in Picker
+  settings.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

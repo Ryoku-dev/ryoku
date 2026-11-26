@@ -99,6 +99,7 @@ public:
     Q_INVOKABLE void flip(int row);
     Q_INVOKABLE void unflip();
     Q_INVOKABLE QRectF rectOf(int row) const;
+    Q_INVOKABLE void setCardRect(int row, const QRectF &rect);
     Q_INVOKABLE bool action(const QString &name);
     Q_INVOKABLE void setScrollPosition(qreal position);
     Q_INVOKABLE void scrollBy(qreal delta);

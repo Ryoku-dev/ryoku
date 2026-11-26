@@ -144,14 +144,15 @@ PanelWindow {
             id: cardField
             anchors.fill: parent
             focus: true
+            opacity: deckScene.active ? 0 : 1
             source: pickerState.view
             settings: Settings
-            mode: pickerState.mode
+            mode: deckScene.active ? pickerState.mode : (pickerState.mode === "deck" ? "slices" : pickerState.mode)
             active: picker.shown
             previewAllowed: picker.shown && pickerState.sheet === "" && !pickerState.searchOpen
                 && !pickerState.multipickerOpen && !pickerState.helpOpen
                 && !pickerState.themeBarOpen && !pickerState.riceWorkshopOpen
-                && pickerState.riceShare === ""
+                && pickerState.riceShare === "" && !deckScene.active
             interactive: pickerState.sheet === "" && !pickerState.multipickerOpen
                 && !pickerState.helpOpen && !pickerState.riceWorkshopOpen
                 && pickerState.riceShare === ""
@@ -167,6 +168,14 @@ PanelWindow {
             onActivated: (row) => keymap.mouseGesture(false, Qt.NoModifier, row)
             onContextRequested: (row, pos) => keymap.mouseGesture(true, Qt.NoModifier, row)
             onBackgroundClicked: () => pickerState.goBack()
+        }
+
+        DeckScene {
+            id: deckScene
+            anchors.fill: parent
+            controller: pickerState
+            field: cardField
+            keymap: keymap
         }
 
         WorkshopCardChrome { anchors.fill: parent; state: pickerState }

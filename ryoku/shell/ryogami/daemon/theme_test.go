@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -149,6 +151,73 @@ func TestIsStaticImageFile(t *testing.T) {
 	}
 	if isStaticImageFile(dir) || isStaticImageFile("") || isStaticImageFile(filepath.Join(dir, "nope.png")) {
 		t.Error("a directory, empty path, or missing file must not count as a still image")
+	}
+}
+
+func TestPalettePreviewColorsReturnsFullRoles(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	oldGenerator := previewColorGenerator
+	t.Cleanup(func() { previewColorGenerator = oldGenerator })
+	previewColorGenerator = func(img string) (map[string]string, error) {
+		switch {
+		case strings.HasSuffix(img, "a.png"):
+			return map[string]string{
+				"primary": "#89b4fa", "secondary": "#a6e3a1", "tertiary": "#f5c2e7",
+				"primary_container": "#313244", "surface_container_highest": "#45475a",
+				"on_primary": "#11111b", "on_surface": "#cdd6f4", "source_color": "#89b4fa",
+			}, nil
+		case strings.HasSuffix(img, "b.png"):
+			return map[string]string{"primary": "#f38ba8", "surface_container": "#181825"}, nil
+		}
+		return nil, fmt.Errorf("no palette for %q", img)
+	}
+	previewMu.Lock()
+	oldCache := previewCache
+	previewCache = map[string]cachedPreview{}
+	previewMu.Unlock()
+	t.Cleanup(func() {
+		previewMu.Lock()
+		previewCache = oldCache
+		previewMu.Unlock()
+	})
+
+	d := previewTestDaemon(t)
+	previewTestStill(t, d, "a.png")
+	previewTestStill(t, d, "b.png")
+
+	res, err := d.palettePreviewColors(map[string]interface{}{
+		"keys": []interface{}{"a.png", "b.png", "missing.png"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	colors, ok := res["colors"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("colors has type %T", res["colors"])
+	}
+	a, ok := colors["a.png"].(map[string]string)
+	if !ok {
+		t.Fatalf("a.png colours have type %T", colors["a.png"])
+	}
+	for role, want := range map[string]string{
+		"primary": "#89b4fa", "primary_container": "#313244",
+		"surface_container_highest": "#45475a", "source_color": "#89b4fa",
+	} {
+		if a[role] != want {
+			t.Errorf("a.png[%q]=%q want %q", role, a[role], want)
+		}
+	}
+	if len(colors) != 2 {
+		t.Errorf("got %d palettes, want 2: %v", len(colors), colors)
+	}
+	if _, exists := colors["missing.png"]; exists {
+		t.Error("an unknown key must not produce a palette")
+	}
+	if _, err := d.palettePreviewColors(map[string]interface{}{}); err == nil {
+		t.Error("an empty batch must error")
+	}
+	if _, err := d.palettePreviewColors(map[string]interface{}{"keys": []interface{}{"missing.png"}}); err == nil {
+		t.Error("a batch with no readable wallpapers must error")
 	}
 }
 
