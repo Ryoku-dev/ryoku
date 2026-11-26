@@ -512,7 +512,8 @@ func asyncRPCMethod(method string) bool {
 		"effects.preview",
 		"grade.preview",
 		"theme.previews",
-		"palette.preview":
+		"palette.preview",
+		"palette.previewColors":
 		return true
 	}
 	return false
@@ -520,7 +521,7 @@ func asyncRPCMethod(method string) bool {
 
 func serialAsyncRPCMethod(method string) bool {
 	switch method {
-	case "semantic.query", "effects.preview", "grade.preview", "theme.previews", "palette.preview":
+	case "semantic.query", "effects.preview", "grade.preview", "theme.previews", "palette.preview", "palette.previewColors":
 		return true
 	}
 	return false
@@ -528,7 +529,7 @@ func serialAsyncRPCMethod(method string) bool {
 
 func (d *daemon) dispatchAsyncJSON(cmd, method string, connectionID uint64) string {
 	switch method {
-	case "effects.preview", "grade.preview", "theme.previews", "palette.preview":
+	case "effects.preview", "grade.preview", "theme.previews", "palette.preview", "palette.previewColors":
 		d.previewRPCMu.Lock()
 		defer d.previewRPCMu.Unlock()
 	}

@@ -23,6 +23,7 @@ file(GLOB_RECURSE picker_sources CONFIGURE_DEPENDS
     src/*.cpp src/*.h)
 set(picker_test_sources
     "src/tests/cardinstancesanitize_test.cpp"
+    "src/tests/decklayout_test.cpp"
     "src/tests/hexlayout_test.cpp"
     "src/tests/previewyuv_test.cpp"
     "src/tests/thumbdecoder_test.cpp")
@@ -95,6 +96,12 @@ if(RYOGAMI_PICKER_TESTS)
         src/render/previewyuv.cpp)
     target_link_libraries(ryogami-previewyuv-test PRIVATE Qt6::Gui)
     add_test(NAME ryogami-previewyuv COMMAND ryogami-previewyuv-test)
+    add_executable(ryogami-decklayout-test
+        src/tests/decklayout_test.cpp
+        src/layouts/decklayout.cpp)
+    target_include_directories(ryogami-decklayout-test PRIVATE src/layouts src/render src/scene)
+    target_link_libraries(ryogami-decklayout-test PRIVATE Qt6::Gui)
+    add_test(NAME ryogami-decklayout COMMAND ryogami-decklayout-test)
     add_executable(ryogami-hexlayout-test
         src/tests/hexlayout_test.cpp
         src/layouts/hexlayout.cpp

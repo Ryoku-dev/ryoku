@@ -61,6 +61,7 @@ public:
         BadgesRole,
         FillRole,
         AppliedRole,
+        FileSizeRole,
     };
     Q_ENUM(Role)
 
@@ -156,6 +157,7 @@ private:
         int sat = 0;
         int richness = 0;
         qint64 mtime = 0;
+        qint64 filesize = 0;
         int applyCount = 0;
         int favourite = 0;
         int width = 0;

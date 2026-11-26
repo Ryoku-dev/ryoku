@@ -261,6 +261,7 @@ void LibraryView::buildRows()
             r.sat = e.sat;
             r.richness = e.richness;
             r.mtime = e.mtime;
+            r.filesize = e.filesize;
             r.applyCount = e.applyCount;
             r.favourite = e.favourite;
             r.width = e.width;
@@ -458,6 +459,7 @@ QVariant LibraryView::data(const QModelIndex &index, int role) const
     case BadgesRole: return cardBadges(index.row());
     case FillRole: return r.fill;
     case AppliedRole: return appliedOf(r);
+    case FileSizeRole: return static_cast<qlonglong>(r.filesize);
     default: return {};
     }
 }
@@ -485,6 +487,7 @@ QHash<int, QByteArray> LibraryView::roleNames() const
         {BadgesRole, "badges"},
         {FillRole, "fill"},
         {AppliedRole, "applied"},
+        {FileSizeRole, "filesize"},
     };
 }
 

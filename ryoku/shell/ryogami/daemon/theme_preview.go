@@ -98,6 +98,40 @@ func (d *daemon) palettePreview(p map[string]interface{}) (map[string]interface{
 	return map[string]interface{}{"palette": nineFromColors(colors)}, nil
 }
 
+// The deck's cards wear the full matugen scheme, not the nine roles the
+// desktop preview needs. Batch the request so sweeping the hand is one RPC.
+func (d *daemon) palettePreviewColors(p map[string]interface{}) (map[string]interface{}, error) {
+	keys := strsParam(p, "keys")
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("palette.previewColors requires keys")
+	}
+	const maxKeys = 64
+	if len(keys) > maxKeys {
+		return nil, fmt.Errorf("palette.previewColors accepts at most %d keys", maxKeys)
+	}
+	colors := make(map[string]interface{}, len(keys))
+	failed := map[string]string{}
+	for _, key := range keys {
+		generated, err := d.previewColorsFor(key)
+		if err != nil {
+			failed[key] = err.Error()
+			continue
+		}
+		colors[key] = generated
+	}
+	if len(colors) == 0 {
+		return nil, fmt.Errorf("no preview colours: %s", firstError(failed))
+	}
+	return map[string]interface{}{"colors": colors}, nil
+}
+
+func firstError(errors map[string]string) string {
+	for _, message := range errors {
+		return message
+	}
+	return "unknown error"
+}
+
 // One preview at a time; the saved palette returns on hover end, hide, disconnect or timeout.
 type hoverPreviewState struct {
 	mu       sync.Mutex

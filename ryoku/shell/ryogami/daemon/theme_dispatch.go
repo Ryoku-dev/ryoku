@@ -32,6 +32,12 @@ func (d *daemon) dispatchPalette(req *request, p map[string]interface{}) (respon
 			return errResp(req.ID, 3, err.Error()), true
 		}
 		return ok(req.ID, res), true
+	case "palette.previewColors":
+		res, err := d.palettePreviewColors(p)
+		if err != nil {
+			return errResp(req.ID, 3, err.Error()), true
+		}
+		return ok(req.ID, res), true
 	case "palette.hover":
 		res, err := d.paletteHover(p)
 		if err != nil {
