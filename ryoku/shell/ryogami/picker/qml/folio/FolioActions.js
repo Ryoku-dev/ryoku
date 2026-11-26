@@ -79,6 +79,11 @@ function setMapField(settings, key, field, value) {
     settings.set(key, copy);
 }
 
+function comingSoon(action) {
+    var id = idOf(action);
+    return id === "OpenScheduleEditor" || id === "OpenThemeDesigner";
+}
+
 function run(action, args, settings, state, host) {
     var id = idOf(action);
     args = args || ({});

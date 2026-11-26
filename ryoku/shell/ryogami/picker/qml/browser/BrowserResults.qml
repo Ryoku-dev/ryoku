@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic as Lc
 import Ryoku.Ui.Singletons
 import "KeyChord.js" as KeyChord
 
@@ -20,6 +21,7 @@ Item {
     property bool cancellable: false
     property string emptyText: ""
     property bool autoLoad: true
+    property bool live: false
 
     property bool pendingApply: false
     property var applyItem: null
@@ -33,7 +35,7 @@ Item {
     signal searchSubmitted(string text)
 
     readonly property alias field: cardField
-    readonly property alias searchEditing: searchInput.editing
+    readonly property bool searchEditing: searchInput.editing
 
     property int active: 0
     property int queued: 0
@@ -105,124 +107,93 @@ Item {
     }
 
 
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: Theme.withAlpha(Theme.background, 0.3)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.3)
         clip: true
 
         Column {
             anchors.fill: parent
             spacing: 0
 
-            Rectangle {
+            Item {
                 id: header
                 width: parent.width
-                height: 68 * Theme.scale
-                color: Theme.withAlpha(Theme.surface, 0.92)
+                height: 54 * Theme.scale
 
-                Row {
-                    anchors.fill: parent
-                    anchors.leftMargin: 18 * Theme.scale
-                    anchors.rightMargin: 18 * Theme.scale
-                    spacing: 14 * Theme.scale
+                Lc.CutRect {
+                    id: searchBox
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - (sortPlate.visible ? sortPlate.width + 10 * Theme.scale : 0)
+                    height: 44 * Theme.scale
+                    cut: Lc.LithicTokens.cut.small * Theme.scale
+                    fill: Lc.Lithic.field
+                    strokeWidth: searchInput.editing ? 2 : 1
+                    strokeColor: searchInput.editing ? Lc.Lithic.sel : Lc.Lithic.alpha(Lc.Lithic.fg, 0.1)
+                    Behavior on strokeColor { ColorAnimation { duration: Theme.fast } }
 
-                    Column {
-                        width: Math.min(190 * Theme.scale, parent.width * 0.24)
+                    Lc.Glyph {
+                        id: lens
+                        x: 14 * Theme.scale
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2 * Theme.scale
-                        Text {
-                            width: parent.width
-                            text: I18n.tr(results.sourceLabel)
-                            elide: Text.ElideRight
-                            color: Theme.surfaceText
-                            font.family: Theme.display
-                            font.pixelSize: Theme.fontHead
-                            renderType: Text.NativeRendering
-                        }
-                        Text {
-                            text: results.source && results.source.count === 1
-                                ? I18n.tr("1 result")
-                                : I18n.tr("%1 results").arg(results.source ? results.source.count : 0)
-                            color: Theme.withAlpha(Theme.surfaceText, 0.48)
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.fontTiny
-                            font.letterSpacing: 0.8
-                            renderType: Text.NativeRendering
-                        }
+                        name: "search"
+                        size: 20
+                        ink: searchInput.editing ? Lc.Lithic.fg : Lc.Lithic.fg3
                     }
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - x - sortPlate.width
-                               - (sortPlate.visible ? 12 * Theme.scale : 0)
-                        height: 36 * Theme.scale
-                        radius: Theme.radius
-                        color: searchInput.activeFocus
-                            ? Theme.withAlpha(Theme.surfaceText, 0.08)
-                            : Theme.withAlpha(Theme.surfaceText, 0.04)
-                        border.width: 1
-                        border.color: Theme.withAlpha(Theme.outline, searchInput.activeFocus ? 0.65 : 0.32)
-
-                        TextField {
-                            id: searchInput
-                            visible: results.searchable
-                            anchors.fill: parent
-                            anchors.leftMargin: 2 * Theme.scale
-                            anchors.rightMargin: 2 * Theme.scale
-                            variant: "ghost"
-                            glyph: "\uf002"
-                            placeholder: results.searchPlaceholder
-                            text: results.query
-                            onEdited: function(t) { results.queryEdited(t) }
-                            onCommitted: function(t) { results.searchSubmitted(t) }
-                        }
-                        Text {
-                            visible: !results.searchable
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: 12 * Theme.scale
-                            text: I18n.tr("Curated daily")
-                            color: Theme.withAlpha(Theme.surfaceText, 0.56)
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.fontBody
-                            renderType: Text.NativeRendering
-                        }
+                    TextField {
+                        id: searchInput
+                        visible: results.searchable
+                        anchors.left: lens.right
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: 4 * Theme.scale
+                        variant: "ghost"
+                        placeholder: results.searchPlaceholder
+                        text: results.query
+                        onEdited: function(t) { results.queryEdited(t) }
+                        onCommitted: function(t) { results.searchSubmitted(t) }
                     }
-
-                    Rectangle {
-                        id: sortPlate
-                        visible: results.sortText.length > 0
+                    Text {
+                        visible: !results.searchable
+                        anchors.left: lens.right
+                        anchors.leftMargin: 12 * Theme.scale
                         anchors.verticalCenter: parent.verticalCenter
-                        width: visible ? Math.min(138 * Theme.scale, sortLabel.implicitWidth + 24 * Theme.scale) : 0
-                        height: 30 * Theme.scale
-                        radius: Theme.radius
-                        color: Theme.withAlpha(Theme.surfaceText, 0.05)
-                        border.width: 1
-                        border.color: Theme.withAlpha(Theme.outline, 0.32)
+                        text: I18n.tr("Picked fresh every day")
+                        color: Lc.Lithic.fg3
+                        font.family: Lc.Lithic.font.sans
+                        font.pixelSize: Theme.fs(14)
+                        renderType: Text.NativeRendering
+                    }
+                }
+
+                Lc.CutRect {
+                    id: sortPlate
+                    visible: results.sortText.length > 0
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: visible ? sortRow.implicitWidth + 26 * Theme.scale : 0
+                    height: 44 * Theme.scale
+                    cut: Lc.LithicTokens.cut.small * Theme.scale
+                    fill: Lc.Lithic.alpha(Lc.Lithic.fg, 0.05)
+                    Row {
+                        id: sortRow
+                        anchors.centerIn: parent
+                        spacing: 8 * Theme.scale
+                        Lc.Glyph { name: "sort"; size: 16; ink: Lc.Lithic.fg3; anchors.verticalCenter: parent.verticalCenter }
                         Text {
                             id: sortLabel
-                            anchors.centerIn: parent
-                            text: I18n.tr("Sort: %1").arg(results.sortText)
-                            color: Theme.withAlpha(Theme.surfaceText, 0.68)
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.fontSmall
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: results.sortText
+                            color: Lc.Lithic.fg2
+                            font.family: Lc.Lithic.font.sans
+                            font.pixelSize: Theme.fs(13)
                             font.weight: Font.Medium
                             renderType: Text.NativeRendering
                         }
                     }
                 }
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: 1
-                    color: Theme.withAlpha(Theme.outline, 0.28)
-                }
             }
-
 
             Item {
                 id: gridArea
@@ -292,6 +263,14 @@ Item {
                     anchors.fill: cardField
                     clip: true
                     z: 2
+
+                    BrowserCardBadges {
+                        anchors.fill: parent
+                        field: cardField
+                        source: results.source
+                        live: results.live
+                        columns: results.columns
+                    }
 
                     Item {
                         id: actionAnchor
@@ -381,53 +360,41 @@ Item {
                 }
             }
 
-            Rectangle {
+            Item {
                 id: footer
                 width: parent.width
-                height: 50 * Theme.scale
-                color: Theme.withAlpha(Theme.surface, 0.94)
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: 1
-                    color: Theme.withAlpha(Theme.outline, 0.28)
-                }
-
+                height: 34 * Theme.scale
+                readonly property bool more: !!results.source && results.source.page < results.source.lastPage
+                readonly property bool loading: !!results.source && results.source.loading && results.source.count > 0
                 Row {
-                    anchors.centerIn: parent
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
                     spacing: 8 * Theme.scale
-
-                    FolioAction {
-                        label: I18n.tr("Previous")
-                        enabled: cardField.scrollPosition > 1
-                        onTriggered: cardField.scrollBy(-Math.max(120, gridArea.height * 0.8))
+                    BrowserSpinner {
+                        visible: footer.loading
+                        anchors.verticalCenter: parent.verticalCenter
+                        size: 16
+                        color: Lc.Lithic.fg2
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: I18n.tr("Page %1 of %2").arg(results.source ? results.source.page : 1)
-                            .arg(results.source ? Math.max(results.source.lastPage, 1) : 1)
-                        color: Theme.withAlpha(Theme.surfaceText, 0.64)
-                        font.family: Theme.sans
-                        font.pixelSize: Theme.fontBody
-                        font.weight: Font.Medium
+                        text: footer.loading ? I18n.tr("Loading more")
+                            : !results.source || results.source.count === 0 ? ""
+                            : footer.more ? I18n.tr("%1 shown, more as you scroll").arg(results.source.count)
+                            : I18n.tr("All %1 shown").arg(results.source.count)
+                        color: Lc.Lithic.fg3
+                        font.family: Lc.Lithic.font.sans
+                        font.pixelSize: Theme.fs(12.5)
                         renderType: Text.NativeRendering
                     }
-                    FolioAction {
-                        label: I18n.tr("Next")
-                        enabled: !!results.source && !results.source.loading
-                                 && results.source.page < results.source.lastPage
-                        onTriggered: results.loadNext("next")
-                    }
-                    FolioAction {
-                        label: results.source && results.source.loading
-                            ? I18n.tr("Loading") : I18n.tr("Load more")
-                        active: true
-                        enabled: !!results.source && !results.source.loading
-                                 && results.source.page < results.source.lastPage
-                        onTriggered: results.loadNext("button")
-                    }
+                }
+                FolioAction {
+                    visible: !results.autoLoad && footer.more
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    label: I18n.tr("Load more")
+                    enabled: !footer.loading
+                    onTriggered: results.loadNext("button")
                 }
             }
         }

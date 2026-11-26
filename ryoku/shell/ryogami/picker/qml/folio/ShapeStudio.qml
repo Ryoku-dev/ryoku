@@ -29,6 +29,7 @@ Item {
     onJumpControlIdChanged: if (studio.jumpControlId.length > 0) Qt.callLater(function () { studio.scrollToControl(studio.jumpControlId); })
 
     signal closeRequested()
+    property bool showClose: true
 
     readonly property var section: (studio.tab && studio.tab.sections && studio.sectionIndex >= 0
         && studio.sectionIndex < studio.tab.sections.length) ? studio.tab.sections[studio.sectionIndex] : null
@@ -84,14 +85,17 @@ Item {
                     anchors.rightMargin: 16 * Theme.scale
                     anchors.verticalCenter: parent.verticalCenter
                     text: studio.section ? studio.section.title : ""
-                    font.family: Theme.display
-                    font.pixelSize: Theme.fontStudio
+                    font.family: Theme.sans
+                    font.weight: Font.Bold
+                    font.pixelSize: Theme.fs(28)
                     color: Theme.withAlpha(Theme.surfaceText, studio._reveal)
                     elide: Text.ElideRight
                     renderType: Text.NativeRendering
                 }
                 FolioAction {
                     id: closeBtn
+                    visible: studio.showClose
+                    width: studio.showClose ? implicitWidth : 0
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     label: "\u00d7"

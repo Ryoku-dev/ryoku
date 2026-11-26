@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
 // kind: "plain", "order" or "swatch".
@@ -19,57 +20,31 @@ Item {
     readonly property bool _order: chip.kind === "order"
     readonly property bool hovered: hoverArea.containsMouse
 
-    implicitHeight: _swatch ? 18 * Theme.scale : (_order ? 20 * Theme.scale : 22 * Theme.scale)
+    implicitHeight: _swatch ? 18 * Theme.scale : 28 * Theme.scale
     implicitWidth: _swatch
         ? 18 * Theme.scale
-        : labelText.implicitWidth + (_order ? 20 : 16) * Theme.scale
+        : labelText.implicitWidth + 22 * Theme.scale
 
-    Rectangle {
+    CutRect {
         anchors.fill: parent
         visible: !chip._swatch
-        radius: Theme.radius
-        color: chip.active
-            ? (chip._order ? "transparent" : Theme.withAlpha(Theme.surfaceText, 0.06))
-            : chip.hovered
-                ? Theme.withAlpha(Theme.surfaceText, chip._order ? 0.07 : 0.09)
-                : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
-
-        // A bone underline marks the chosen plain chip.
-        Rectangle {
-            visible: !chip._order
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: chip.active ? 2 * Theme.scale : 1
-            color: chip.active
-                ? Theme.surfaceText
-                : Theme.withAlpha(Theme.outline, 0.22)
-            Behavior on height { NumberAnimation { duration: Theme.fast; easing.type: Theme.revealEasing } }
-        }
-        // A bone marker runs down the chosen order chip.
-        Rectangle {
-            visible: chip._order && chip.active
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: 2 * Theme.scale
-            color: Theme.surfaceText
-        }
+        cut: 4 * Theme.scale
+        fill: chip.active ? Lithic.container
+            : Lithic.alpha(Lithic.fg, chip.hovered ? 0.09 : 0.04)
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
     }
-
     Text {
         id: labelText
         visible: !chip._swatch
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
-        anchors.leftMargin: (chip._order ? 8 : 7) * Theme.scale
+        anchors.leftMargin: 11 * Theme.scale
         text: chip.label
         font.family: Theme.sans
         font.weight: chip.active ? Font.DemiBold : Font.Medium
         font.pixelSize: Theme.fontBase
         color: chip.active
-            ? Theme.surfaceText
+            ? Lithic.containerInk
             : chip.hovered
                 ? Theme.withAlpha(Theme.surfaceText, chip._order ? 0.88 : 0.90)
                 : Theme.withAlpha(Theme.surfaceText, chip._order ? 0.54 : 0.64)

@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
 // The search surface: one focused panel that drops from the masthead search line. A text field
@@ -35,19 +36,27 @@ Item {
     readonly property real _padX: 16 * Theme.scale
     readonly property real _padY: 13 * Theme.scale
 
-    // The masthead sits at the top of the screen; these mirror FilterBar's slab so the panel
-    // hangs off the search line on the slab's right edge.
-    readonly property real _mastheadTop: 22 * Theme.scale
-    readonly property real _mastheadHeight: (58 + 1 + 44) * Theme.scale
+    readonly property rect _island: root.state ? root.state.searchIsland : Qt.rect(0, 0, 0, 0)
+    readonly property real _mastheadTop: root._island.y
+    readonly property real _mastheadHeight: root._island.height
     readonly property real _mastheadWidth: Math.min(root.width - 96 * Theme.scale, 1320 * Theme.scale)
-    readonly property real _mastheadRight: (root.width + root._mastheadWidth) * 0.5
+    readonly property real _mastheadRight: root._island.x + root._island.width
 
     readonly property real panelWidth: Math.max(360 * Theme.scale,
         Math.min(root._num(svWidth, 760) * Theme.scale, root._mastheadWidth))
 
     property real reveal: 0
     states: State { name: "open"; when: root.shown; PropertyChanges { target: root; reveal: 1 } }
-    Behavior on reveal { NumberAnimation { duration: Theme.standard; easing.type: Theme.revealEasing } }
+    Behavior on reveal { NumberAnimation { duration: Theme.standard * 1.5; easing.type: Easing.OutCubic } }
+    readonly property rect _now: {
+        var p = root.reveal, bud = 56 * Theme.scale
+        var pw = Math.min(1, p * 1.3)
+        var ax = root._island.x + 120 * Theme.scale
+        function mix(a, b, k) { return a + (b - a) * k }
+        return Qt.rect(mix(ax - bud / 2, panel.x, pw), panel.y, mix(bud, panel.width, pw), mix(0, panel.height, p))
+    }
+    Binding { when: root.state !== null; target: root.state; property: "searchPanelNow"; value: root._now }
+    Binding { when: root.state !== null; target: root.state; property: "searchProgress"; value: root.reveal }
     visible: reveal > 0.01
 
     // ── tag histogram ───────────────────────────────────────────────────────
@@ -283,21 +292,12 @@ Item {
         id: panel
         width: root.panelWidth
         height: Math.max(root._num(svHeight, 168) * Theme.scale, body.y + body.implicitHeight + root._padY)
-        x: Math.max(8 * Theme.scale,
-            Math.min(root._mastheadRight - width + Number(root.svOffX.value || 0), root.width - width - 8 * Theme.scale))
-        y: root._mastheadTop + root._mastheadHeight + 8 * Theme.scale + Number(root.svOffY.value || 0)
+        x: Math.max(24 * Theme.scale,
+            Math.min(root._island.x + Number(root.svOffX.value || 0), root.width - width - 24 * Theme.scale))
+        y: root._mastheadTop + root._mastheadHeight + 14 * Theme.scale + Number(root.svOffY.value || 0)
 
-        radius: Theme.radius
-        color: Theme.withAlpha(Theme.surface, 0.97)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.5)
-
-        opacity: root.reveal
-        transformOrigin: Item.Top
-        transform: [
-            Translate { y: (1 - root.reveal) * -14 * Theme.scale },
-            Scale { origin.x: panel.width; origin.y: 0; xScale: 0.98 + 0.02 * root.reveal; yScale: 0.94 + 0.06 * root.reveal }
-        ]
+        color: "transparent"
+        opacity: Math.max(0, (root.reveal - 0.5) * 2)
 
         // Keeps clicks and hover on the panel: an empty click on the scene closes the picker, and
         // hover reaching the cards below recolours the desktop through the live palette preview.
@@ -389,18 +389,18 @@ Item {
             }
 
             // ── the field, shared by both modes ───────────────────────────────
-            Rectangle {
+            CutRect {
                 id: fieldBox
                 visible: root.describeFieldShown
                 width: parent.width
                 height: 46 * Theme.scale
-                radius: Theme.radius
-                color: Theme.withAlpha(Theme.surfaceText, 0.05)
-                border.width: 1
-                border.color: queryInput.activeFocus
+                cut: LithicTokens.cut.small * Theme.scale
+                fill: Theme.withAlpha(Theme.surfaceText, 0.05)
+                strokeWidth: 1
+                strokeColor: queryInput.activeFocus
                     ? Theme.withAlpha(Theme.surfaceText, 0.55)
                     : Theme.withAlpha(Theme.outline, 0.4)
-                Behavior on border.color { ColorAnimation { duration: Theme.fast } }
+                Behavior on strokeColor { ColorAnimation { duration: Theme.fast } }
 
                 Text {
                     id: fieldGlyph
@@ -591,20 +591,20 @@ Item {
         implicitHeight: 32 * Theme.scale
         implicitWidth: msRow.implicitWidth + 6 * Theme.scale
 
-        Rectangle {
+        CutRect {
             anchors.fill: parent
-            radius: Theme.radius
-            color: Theme.withAlpha(Theme.surfaceText, 0.06)
-            border.width: 1
-            border.color: Theme.withAlpha(Theme.outline, 0.35)
+            cut: LithicTokens.cut.small * Theme.scale
+            fill: Theme.withAlpha(Theme.surfaceText, 0.06)
+            strokeWidth: 1
+            strokeColor: Theme.withAlpha(Theme.outline, 0.35)
         }
-        Rectangle {
+        CutRect {
             x: ms.plateX
             width: ms.plateW
             anchors.verticalCenter: parent.verticalCenter
             height: parent.height - 6 * Theme.scale
-            radius: Theme.radius - 1
-            color: Theme.surfaceText
+            cut: LithicTokens.cut.small * Theme.scale
+            fill: Theme.surfaceText
             Behavior on x { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
             Behavior on width { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic } }
         }
@@ -666,20 +666,20 @@ Item {
 
         Repeater {
             model: seg.options
-            delegate: Rectangle {
+            delegate: CutRect {
                 id: cell
                 required property var modelData
                 readonly property bool active: seg.current === modelData.v
                 readonly property bool hovered: cellMouse.containsMouse
                 height: 24 * Theme.scale
                 width: cellText.implicitWidth + 18 * Theme.scale
-                radius: Theme.radius
-                color: cell.active ? Theme.surfaceText
+                cut: LithicTokens.cut.small * Theme.scale
+                fill: cell.active ? Theme.surfaceText
                      : cell.hovered ? Theme.withAlpha(Theme.surfaceText, 0.09)
                      : Theme.withAlpha(Theme.surfaceText, 0.045)
-                border.width: 1
-                border.color: cell.active ? Theme.surfaceText : Theme.withAlpha(Theme.outline, 0.35)
-                Behavior on color { ColorAnimation { duration: Theme.fast } }
+                strokeWidth: 1
+                strokeColor: cell.active ? Theme.surfaceText : Theme.withAlpha(Theme.outline, 0.35)
+                Behavior on fill { ColorAnimation { duration: Theme.fast } }
                 Text {
                     id: cellText
                     anchors.centerIn: parent
@@ -702,7 +702,7 @@ Item {
     }
 
     // ── one tag chip: quiet by default, a bone plate when included, an outline when excluded ──
-    component QuietChip: Rectangle {
+    component QuietChip: CutRect {
         id: qc
         property string chipTag: ""
         property int chipCount: 0
@@ -714,16 +714,16 @@ Item {
         height: 28 * Theme.scale
         implicitWidth: qcRow.implicitWidth + 20 * Theme.scale
         width: implicitWidth
-        radius: Theme.radius
-        color: qc.included ? Theme.surfaceText
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: qc.included ? Theme.surfaceText
              : qc.excluded ? Theme.withAlpha(Theme.tertiary, 0.14)
              : qc.hovered ? Theme.withAlpha(Theme.surfaceText, 0.09)
              : Theme.withAlpha(Theme.surfaceText, 0.045)
-        border.width: 1
-        border.color: qc.included ? Theme.surfaceText
+        strokeWidth: 1
+        strokeColor: qc.included ? Theme.surfaceText
                     : qc.excluded ? Theme.withAlpha(Theme.tertiary, 0.7)
                     : Theme.withAlpha(Theme.outline, 0.38)
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
 
         Row {
             id: qcRow
@@ -777,7 +777,7 @@ Item {
     }
 
     // ── a small text button, inversion on hover ──
-    component TinyButton: Rectangle {
+    component TinyButton: CutRect {
         id: tb
         property string label: ""
         signal triggered()
@@ -785,11 +785,11 @@ Item {
         height: 22 * Theme.scale
         implicitWidth: tbText.implicitWidth + 16 * Theme.scale
         width: implicitWidth
-        radius: Theme.radius
-        color: tb.hovered ? Theme.surfaceText : Theme.withAlpha(Theme.surfaceText, 0.06)
-        border.width: 1
-        border.color: tb.hovered ? Theme.surfaceText : Theme.withAlpha(Theme.outline, 0.35)
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: tb.hovered ? Theme.surfaceText : Theme.withAlpha(Theme.surfaceText, 0.06)
+        strokeWidth: 1
+        strokeColor: tb.hovered ? Theme.surfaceText : Theme.withAlpha(Theme.outline, 0.35)
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
         Text {
             id: tbText
             anchors.centerIn: parent
@@ -853,7 +853,7 @@ Item {
     }
 
     // ── the primary setup action: a bone plate that inverts, with a small pop ──
-    component SetupButton: Rectangle {
+    component SetupButton: CutRect {
         id: sb
         property string label: ""
         property string glyph: ""
@@ -862,8 +862,8 @@ Item {
         height: 32 * Theme.scale
         implicitWidth: sbRow.implicitWidth + 26 * Theme.scale
         width: implicitWidth
-        radius: Theme.radius
-        color: sb.hovered ? Theme.withAlpha(Theme.surfaceText, 0.92) : Theme.surfaceText
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: sb.hovered ? Theme.withAlpha(Theme.surfaceText, 0.92) : Theme.surfaceText
         scale: sbMouse.pressed ? 0.95 : 1
         Behavior on scale { NumberAnimation { duration: Theme.fast; easing.type: Easing.OutBack; easing.overshoot: 2.2 } }
         Row {

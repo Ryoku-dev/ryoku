@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 
 Rectangle {
     id: scrim
@@ -9,7 +10,7 @@ Rectangle {
 
     signal dismissed()
 
-    color: "black"
+    color: Lithic.scrim
     opacity: scrim.alpha * scrim.reveal
 
     MouseArea {

@@ -2,26 +2,46 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Lithic
 
 // Every surface reads these tokens; no component hardcodes a colour, size or duration.
 QtObject {
     id: theme
 
-    property var wall: ({})
-    property FileView colorFile: FileView {
+    // Lithic reads the desktop's look itself; the picker only says when a file changed.
+    readonly property string _configDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/"
+    readonly property string _cacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/ryoku/"
+    property list<FileView> lookFiles: [
+        FileView { path: theme._configDir + "shell.json"; watchChanges: true; onFileChanged: Lithic.reload() },
+        FileView { path: theme._configDir + "theme.json"; watchChanges: true; onFileChanged: Lithic.reload() },
+        FileView { path: theme._configDir + "matugen.json"; watchChanges: true; onFileChanged: Lithic.reload() },
         // The daemon creates this directory before starting the picker: a missing parent cannot be watched.
-        path: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/ryoku/colors.json"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: theme._parseWall()
-        onLoadFailed: theme.wall = ({})
-    }
-    function _parseWall() {
-        var t = colorFile.text().trim()
+        FileView {
+            path: theme._cacheDir + "colors.json"
+            watchChanges: true
+            onFileChanged: { Lithic.reload(); reload() }
+            onLoaded: theme._parseWall(text())
+            onLoadFailed: theme.wall = ({})
+        }
+    ]
+    property var wall: ({})
+    function _parseWall(t) {
+        t = String(t || "").trim()
         if (!t) { theme.wall = ({}); return }
         try { theme.wall = JSON.parse(t) || ({}) }
         catch (e) { theme.wall = ({}) }
     }
+
+    readonly property string design: Lithic.shape.id
+    readonly property bool lithic: theme.design === "lithic"
+    readonly property bool material: theme.design === "material"
+    readonly property bool adwaita: theme.design === "adwaita"
+    readonly property bool fluent: theme.design === "fluent"
+    readonly property bool cut: Lithic.shape.corner === "cut"
+    function cutPx(base) { return base * theme.scale }
+    function corner(cut, w, h) { return Lithic.cornerRadius(cut, w, h) }
+    readonly property real smoothing: (theme.material ? 16 : theme.adwaita ? 13 : theme.fluent ? 9 : 12) * theme.scale
+    readonly property var planes: Lithic.planes()
 
     function _usable(v) { return typeof v === "string" && v.length > 0 }
 
@@ -61,22 +81,17 @@ QtObject {
         "ayu-mirage": { primary:"#ffcc66", primaryText:"#171b24", surface:"#1f2430", surfaceText:"#cccac2", surfaceVariant:"#242936", surfaceContainer:"#2d3444", background:"#171b24", outline:"#707a8c", tertiary:"#5ccfe6" }
     })
 
-    // Each role falls back to the dark-coral constant until the desktop writes it.
-    readonly property var wallPalette: {
-        var w = theme.wall, f = theme.fallbackPalette
-        function pick(k, fb) { return theme._usable(w[k]) ? w[k] : fb }
-        return {
-            primary: pick("primary", f.primary),
-            primaryText: pick("onPrimary", f.primaryText),
-            surface: pick("surface", f.surface),
-            surfaceText: pick("onSurface", f.surfaceText),
-            surfaceVariant: pick("surfaceVariant", f.surfaceVariant),
-            surfaceContainer: pick("surfaceContainer", f.surfaceContainer),
-            background: pick("background", f.background),
-            outline: pick("outline", f.outline),
-            tertiary: pick("tertiary", f.tertiary)
-        }
-    }
+    readonly property var wallPalette: ({
+        primary: String(Lithic.sel),
+        primaryText: String(Lithic.onSel),
+        surface: String(Lithic.stone2),
+        surfaceText: String(Lithic.fg),
+        surfaceVariant: String(Lithic.stone3),
+        surfaceContainer: String(Lithic.field),
+        background: String(Lithic.ground),
+        outline: String(Lithic.edge),
+        tertiary: String(Lithic.jasper)
+    })
 
     // null wears the desktop's palette; any role the candidate omits falls through.
     property var previewPalette: null
@@ -164,7 +179,8 @@ QtObject {
     readonly property real spaceXl: space(20)
     readonly property real spaceXxl: space(28)
 
-    readonly property real radius: 6 * theme.scale
+    // A plain Rectangle cannot cut, so Lithic keeps a hair of rounding there.
+    readonly property real radius: theme.cut ? 2 * theme.scale : Lithic.cornerRadius(7, 200, 40) * theme.scale
     readonly property real panelSkew: 14 * theme.scale
 
     // Folio sheet geometry (base px; components clamp to the viewport).
@@ -200,4 +216,5 @@ QtObject {
     readonly property string display: Fonts.display
     readonly property string sans: Fonts.sans
     readonly property string jp: Fonts.jp
+    readonly property string mono: Fonts.mono
 }

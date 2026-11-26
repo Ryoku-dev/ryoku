@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 
 // variant: "workbench" (default), "field" or "ghost"; committed fires on Enter or focus-out.
 // A focus scope, so forceActiveFocus() on the field lands in the text input.
@@ -29,15 +30,15 @@ FocusScope {
     readonly property color _placeholder: Theme.withAlpha(Theme.surfaceText, 0.42)
     readonly property color _selection: Theme.withAlpha(Theme.surfaceText, 0.24)
 
-    Rectangle {
+    CutRect {
         anchors.fill: parent
-        radius: Theme.radius
-        color: field._bg
-        border.width: input.activeFocus ? 2 : 1
-        border.color: input.activeFocus ? Theme.withAlpha(Theme.surfaceText, 0.7)
-                    : field.enabled ? field._border
-                    : Theme.withAlpha(Theme.outline, 0.18)
-        Behavior on border.color { ColorAnimation { duration: Theme.fast } }
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: field._ghost ? "transparent" : Lithic.field
+        strokeWidth: input.activeFocus ? 2 : (field._ghost ? 0 : 1)
+        strokeColor: input.activeFocus ? Lithic.sel
+                   : field.enabled ? Lithic.alpha(Lithic.fg, 0.12)
+                   : Lithic.alpha(Lithic.fg, 0.06)
+        Behavior on strokeColor { ColorAnimation { duration: Theme.fast } }
     }
 
     Text {

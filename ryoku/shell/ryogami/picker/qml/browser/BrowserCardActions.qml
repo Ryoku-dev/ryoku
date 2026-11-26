@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
 Item {
@@ -21,7 +22,7 @@ Item {
     readonly property bool _queued: !!sources && sources.isQueued(item)
 
     Rectangle {
-        visible: actions._downloaded || actions._queued
+        visible: actions._queued
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.rightMargin: 6 * Theme.scale
@@ -50,17 +51,15 @@ Item {
         }
     }
 
-    Rectangle {
+    CutRect {
         id: bar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 6 * Theme.scale
-        height: Math.min(34 * Theme.scale, parent.height)
-        radius: Theme.radius
-        color: Theme.withAlpha(Theme.surface, 0.9 * actions.reveal)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.5 * actions.reveal)
+        anchors.margins: 8 * Theme.scale
+        height: Math.min(40 * Theme.scale, parent.height)
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: Theme.withAlpha(Lithic.stone4, 0.92 * actions.reveal)
 
         Row {
             id: buttons
@@ -73,20 +72,17 @@ Item {
 
             readonly property bool compact: width < 138 * Theme.scale
 
-            Rectangle {
+            CutRect {
                 id: saveBtn
                 width: buttons.compact
                     ? Math.max(0, Math.min(26 * Theme.scale, buttons.width * 0.34))
                     : Math.max(46 * Theme.scale, buttons.width - buttons.spacing - 64 * Theme.scale)
-                height: 24 * Theme.scale
-                radius: Theme.radius
-                color: saveHover.containsMouse
-                    ? Theme.withAlpha(Theme.surfaceText, 0.14 * actions.reveal)
-                    : Theme.withAlpha(Theme.surfaceText, 0.06 * actions.reveal)
-                border.width: 1
-                border.color: Theme.withAlpha(Theme.outline, 0.34 * actions.reveal)
-
-                Behavior on color { ColorAnimation { duration: Theme.fast } }
+                height: 30 * Theme.scale
+                cut: 4 * Theme.scale
+                fill: saveHover.containsMouse
+                    ? Lithic.alpha(Lithic.fg, 0.16 * actions.reveal)
+                    : Lithic.alpha(Lithic.fg, 0.07 * actions.reveal)
+                Behavior on fill { ColorAnimation { duration: Theme.fast } }
 
                 Text {
                     anchors.centerIn: parent
@@ -120,16 +116,14 @@ Item {
                 }
             }
 
-            Rectangle {
+            CutRect {
                 id: applyBtn
                 width: Math.max(0, buttons.width - saveBtn.width - buttons.spacing)
-                height: 24 * Theme.scale
-                radius: Theme.radius
-                color: applyHover.containsMouse
-                    ? Theme.withAlpha(Theme.surfaceText, 0.84 * actions.reveal)
-                    : Theme.withAlpha(Theme.surfaceText, 0.97 * actions.reveal)
-
-                Behavior on color { ColorAnimation { duration: Theme.fast } }
+                height: 30 * Theme.scale
+                cut: 4 * Theme.scale
+                fill: applyHover.containsMouse ? Qt.lighter(Lithic.gold, 1.08) : Lithic.gold
+                opacity: actions.reveal
+                Behavior on fill { ColorAnimation { duration: Theme.fast } }
 
                 Text {
                     anchors.centerIn: parent
@@ -144,7 +138,7 @@ Item {
                     font.family: Theme.sans
                     font.weight: Font.DemiBold
                     font.pixelSize: buttons.compact ? Theme.fontTiny : Theme.fontSmall
-                    color: Theme.withAlpha(Theme.surface, (actions.applying ? 0.62 : 1.0) * actions.reveal)
+                    color: Theme.withAlpha(Lithic.onGold, actions.applying ? 0.62 : 1.0)
                     renderType: Text.NativeRendering
                 }
                 MouseArea {

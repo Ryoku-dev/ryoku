@@ -17,10 +17,9 @@ FocusScope {
     // A request for another tab can arrive while the folio is already open.
     onArgsChanged: if (folio.shown) folio._applyArgs()
 
-    // Escape leaves an open search before it closes the sheet.
+    // Escape leaves an open search before it closes the drawer.
     Keys.onEscapePressed: (e) => {
-        if (folio.searchOpen) {
-            folio.searchOpen = false
+        if (folio.query.length > 0) {
             folio.query = ""
             folio.forceActiveFocus()
         } else {
@@ -29,8 +28,21 @@ FocusScope {
         e.accepted = true
     }
     Keys.onPressed: (e) => {
-        if (e.key === Qt.Key_F && (e.modifiers & Qt.ControlModifier)) {
-            folio.searchOpen = true
+        var ctrl = (e.modifiers & Qt.ControlModifier) !== 0
+        if (ctrl && e.key === Qt.Key_F) {
+            drawer.focusSearch()
+            e.accepted = true
+        } else if (ctrl && e.key >= Qt.Key_1 && e.key <= Qt.Key_9 && e.key - Qt.Key_1 < folio.tabs.length) {
+            folio.query = ""
+            folio._selectTab(e.key - Qt.Key_1)
+            e.accepted = true
+        } else if ((e.modifiers & Qt.AltModifier) && (e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
+            folio.query = ""
+            drawer.stepSection(e.key === Qt.Key_Up ? -1 : 1)
+            e.accepted = true
+        } else if (!ctrl && e.text.length === 1 && e.text.trim().length === 1 && folio.capturingKey.length === 0) {
+            drawer.focusSearch()
+            folio.query = e.text
             e.accepted = true
         }
     }
@@ -213,38 +225,14 @@ FocusScope {
         if (arr.indexOf(name) < 0) { arr.push(name); Settings.set("playback.processes", arr); }
     }
 
-    property real reveal: folio.shown ? 1 : 0
-    Behavior on reveal { NumberAnimation { duration: Theme.standard; easing.type: Theme.revealEasing } }
-    visible: folio.reveal > 0.001
-
-    FolioSheet {
-        id: sheet
-        reveal: folio.reveal
-        // the index carries the title, so an empty masthead would only be a band above the page
-        showMasthead: false
-        // a design section keeps the scene in view behind a surface plate that still carries the text
-        pageOpacity: folio.isDesign ? 0.8 : 0.965
-        scrimAlpha: folio.isDesign ? 0.2 : 0.68
-        onDismissed: folio.closeRequested()
-
-        FolioIndex {
-            parent: sheet.indexArea
-            anchors.fill: parent
-            reveal: folio.reveal
-            tabs: folio.tabs
-            activeTabIndex: folio.activeTabIndex
-            activeSectionIndex: folio.activeSectionIndex
-            searchOpen: folio.searchOpen
-            query: folio.query
-            onSelectTab: (i) => folio._selectTab(i)
-            onSelectSection: (t, s) => folio._selectSection(t, s)
-            onOpenResult: (t, s, cid) => folio._openResult(t, s, cid)
-            onSearchToggled: (open) => folio.searchOpen = open
-            onQueryEdited: (t) => folio.query = t
-        }
+    SettingsDrawer {
+        id: drawer
+        state: folio.state
+        folio: folio
+        shown: folio.shown
 
         Loader {
-            parent: sheet.readingArea
+            parent: drawer.pageArea
             anchors.fill: parent
             sourceComponent: folio.isDesign ? studioComp : pageComp
         }
@@ -261,6 +249,7 @@ FocusScope {
             condCtx: folio.condCtx
             rev: folio.rev
             jumpControlId: folio.jumpControlId
+            showClose: false
             onCloseRequested: folio.closeRequested()
         }
     }
@@ -275,6 +264,7 @@ FocusScope {
             condCtx: folio.condCtx
             rev: folio.rev
             jumpControlId: folio.jumpControlId
+            showClose: false
             onCloseRequested: folio.closeRequested()
         }
     }

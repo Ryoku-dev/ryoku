@@ -1,7 +1,7 @@
 import QtQuick
+import Lithic
 
 // moved fires while dragging; released fires once on let-go.
-// A hairline track fills bone to a round knob; the knob springs a touch under the pointer.
 Item {
     id: slider
 
@@ -38,32 +38,33 @@ Item {
         return slider._snap(slider.from + t * slider._span)
     }
 
-    Rectangle {
-        height: 2
-        radius: height
+    CutRect {
+        height: 6 * Theme.scale
         width: slider._trackW
         x: slider._inset
         y: (slider.height - height) / 2
-        color: Theme.withAlpha(Theme.surfaceText, slider.enabled ? 0.18 : 0.1)
+        cut: 2 * Theme.scale
+        fill: Lithic.alpha(Lithic.fg, slider.enabled ? 0.12 : 0.06)
     }
 
-    Rectangle {
-        height: 2
-        radius: height
+    CutRect {
+        height: 6 * Theme.scale
         width: Math.max(0, slider._knobX - slider._inset)
         x: slider._inset
         y: (slider.height - height) / 2
-        color: Theme.withAlpha(Theme.surfaceText, slider.enabled ? 0.9 : 0.35)
+        cut: 2 * Theme.scale
+        fill: slider.enabled ? Lithic.sel : Lithic.alpha(Lithic.fg, 0.3)
     }
 
-    Rectangle {
-        width: slider._knob
-        height: slider._knob
-        radius: slider._knob / 2
+    CutRect {
+        width: slider._knob + 4 * Theme.scale
+        height: width
         x: slider._knobX - width / 2
         y: (slider.height - height) / 2
-        antialiasing: true
-        color: slider.enabled ? Theme.surfaceText : Theme.withAlpha(Theme.surfaceText, 0.4)
+        cut: 4 * Theme.scale
+        fill: slider.enabled ? Lithic.sel : Lithic.alpha(Lithic.fg, 0.4)
+        strokeWidth: 2 * Theme.scale
+        strokeColor: Lithic.stone2
         scale: slider.dragging ? 1.25 : slider.focused ? 1.15 : 1
         Behavior on scale { NumberAnimation { duration: Theme.fast; easing.type: Easing.OutBack; easing.overshoot: 2.4 } }
     }

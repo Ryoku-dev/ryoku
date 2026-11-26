@@ -73,6 +73,7 @@ Item {
         id: plainBtn
         FolioAction {
             enabled: row.enabled
+            soon: Actions.comingSoon(row.control.action)
             confirm: !Actions.isImmediate(row.control.action)
             glyph: row._labelText.length === 0 ? "\uf021" : ""
             label: row._labelText

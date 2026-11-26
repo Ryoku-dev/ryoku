@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
 // A blank field means Auto and reads as null.
@@ -38,15 +39,14 @@ Item {
         numberField.committed(n)
     }
 
-    Rectangle {
+    CutRect {
         anchors.fill: parent
-        radius: Theme.radius
-        color: Theme.withAlpha(Theme.surfaceText, 0.05)
-        border.width: input.activeFocus ? 2 : 1
-        border.color: input.activeFocus ? Theme.withAlpha(Theme.surfaceText, 0.7)
-                    : numberField.enabled ? Theme.withAlpha(Theme.outline, 0.4)
-                    : Theme.withAlpha(Theme.outline, 0.18)
-        Behavior on border.color { ColorAnimation { duration: Theme.fast } }
+        cut: LithicTokens.cut.small * Theme.scale
+        fill: Lithic.field
+        strokeWidth: input.activeFocus ? 2 : 1
+        strokeColor: input.activeFocus ? Lithic.sel
+                   : Lithic.alpha(Lithic.fg, numberField.enabled ? 0.12 : 0.06)
+        Behavior on strokeColor { ColorAnimation { duration: Theme.fast } }
     }
 
     // Fraunces sets the numeral; a number is a value, not a word.

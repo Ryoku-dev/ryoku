@@ -1,8 +1,9 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
 // Owns no state; every edit is reported to the panel.
-Rectangle {
+CutRect {
     id: drawer
 
     property string provider: ""
@@ -24,9 +25,10 @@ Rectangle {
     }
     Keys.onReturnPressed: function(event) { drawer.submitManual(event) }
     Keys.onEnterPressed: function(event) { drawer.submitManual(event) }
-    color: Theme.withAlpha(Theme.surfaceVariant, 0.3)
-    border.width: 1
-    border.color: Theme.withAlpha(Theme.outline, 0.34)
+    cut: LithicTokens.cut.mid * Theme.scale
+    fill: Theme.planes.card
+    strokeWidth: Qt.colorEqual(Theme.planes.cardStroke, "transparent") ? 0 : 1
+    strokeColor: Theme.planes.cardStroke
 
     readonly property real _innerW: width - 28 * Theme.scale
 

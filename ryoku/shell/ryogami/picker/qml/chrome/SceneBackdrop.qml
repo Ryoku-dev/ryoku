@@ -8,6 +8,7 @@ Item {
     required property PickerState state
 
     readonly property bool wanted: root.state.sheet !== "" && !root.state.sceneThrough
+        && root.state.sheet !== "settings" && root.state.sheet !== "browser"
     property real reveal: root.wanted ? 1 : 0
     Behavior on reveal { NumberAnimation { duration: Theme.standard; easing.type: Theme.revealEasing } }
     visible: root.reveal > 0.001 && img.status === Image.Ready

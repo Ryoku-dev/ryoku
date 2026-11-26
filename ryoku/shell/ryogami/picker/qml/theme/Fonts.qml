@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Lithic
 
 // Bundled so the chrome renders the same whether or not the host has these faces.
 QtObject {
@@ -18,9 +19,8 @@ QtObject {
 
     readonly property string icon: iconLoader.status === FontLoader.Ready ? iconLoader.name : "Symbols Nerd Font"
 
-    // Ryoku's brand stack (docs/ui-ux.md), installed system-wide by the desktop packages:
-    // Fraunces for numerals and titles, Geologica for words, Noto CJK for kanji seals.
-    readonly property string display: "Fraunces"
-    readonly property string sans: "Geologica"
+    readonly property string display: Lithic.font.sans
+    readonly property string sans: Lithic.font.sans
+    readonly property string mono: Lithic.font.mono
     readonly property string jp: "Noto Sans CJK JP"
 }

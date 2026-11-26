@@ -46,7 +46,7 @@ function _addAliases(haystack) {
     return h;
 }
 
-function search(query, tabs) {
+function search(query, tabs, limit) {
     var q = normalize(query);
     if (q.length === 0)
         return [];
@@ -107,5 +107,5 @@ function search(query, tabs) {
         if (a.title !== b.title) return a.title < b.title ? -1 : 1;
         return a.tabLabel < b.tabLabel ? -1 : (a.tabLabel > b.tabLabel ? 1 : 0);
     });
-    return results.slice(0, 6);
+    return results.slice(0, limit > 0 ? limit : 6);
 }

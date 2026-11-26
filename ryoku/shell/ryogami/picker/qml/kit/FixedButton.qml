@@ -1,9 +1,8 @@
 import QtQuick
+import Lithic
 import Ryoku.Ui.Singletons
 
-// A pressable control in the masthead language: emphasis is inversion, so a held or
-// confirmed control flips to a bone plate with dark ink rather than taking an accent fill.
-// Idle is bare paper with a hairline; hover lifts a faint wash; press gives one small spring.
+// A held or chosen control wears the selection wash, and confirm arms on the first press.
 Item {
     id: btn
 
@@ -13,6 +12,8 @@ Item {
     property string mode: "toggle"
     property bool active: false
     property bool destructive: false
+    property bool gold: false
+    property bool soon: false
     property bool focused: false
     // Arm-then-confirm: first press arms, second within the window triggers.
     property bool confirm: false
@@ -33,8 +34,8 @@ Item {
         : Math.max(btn.minWidth * Theme.scale,
                    Math.min(btn.maxWidth * Theme.scale, content.implicitWidth + btn.hpad * 2 * Theme.scale))
 
-    readonly property color plate: btn.destructive ? Theme.tertiary : Theme.surfaceText
-    readonly property color plateInk: btn.destructive ? Theme.background : Theme.surface
+    readonly property color plate: btn.destructive ? Lithic.jasper : Lithic.container
+    readonly property color plateInk: btn.destructive ? Lithic.ground : Lithic.containerInk
     readonly property bool hovered: hoverArea.containsMouse
     readonly property bool hot: btn.active || btn.holdFill || btn.armState
 
@@ -46,7 +47,7 @@ Item {
     function flash() { btn.holdFill = true; flashTimer.restart() }
 
     function _activate() {
-        if (!btn.enabled)
+        if (!btn.enabled || btn.soon)
             return
         if (btn.confirm) {
             if (btn.armState) {
@@ -66,38 +67,37 @@ Item {
         btn.clicked()
     }
 
-    Rectangle {
+    readonly property bool _pressed: hoverArea.pressed && btn.enabled
+    CutRect {
         id: box
         anchors.fill: parent
-        radius: Theme.radius
-        scale: hoverArea.pressed && btn.enabled ? 0.94 : 1
-        color: !btn.enabled ? Theme.withAlpha(Theme.surfaceText, 0.05)
+        readonly property real scale: 1
+        cut: (LithicTokens.cut.small + (btn._pressed ? Lithic.pressCutGrow : 0)) * Theme.scale
+        fill: !btn.enabled ? Theme.withAlpha(Lithic.fg, 0.04)
+             : btn.gold ? (btn.hovered ? Qt.lighter(Lithic.gold, 1.08) : Lithic.gold)
              : btn.hot ? btn.plate
-             : btn.hovered ? Theme.withAlpha(Theme.surfaceText, 0.09)
-             : Theme.withAlpha(Theme.surfaceText, 0)
-        border.width: btn.focused ? 2 : 1
-        border.color: !btn.enabled ? Theme.withAlpha(Theme.outline, 0.18)
-             : btn.focused ? Theme.withAlpha(Theme.surfaceText, 0.7)
-             : btn.hot ? "transparent"
-             : btn.hovered ? Theme.withAlpha(Theme.surfaceText, 0.24)
-             : btn.destructive ? Theme.withAlpha(Theme.tertiary, 0.5)
-             : Theme.withAlpha(Theme.outline, 0.4)
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
-        Behavior on scale { NumberAnimation { duration: Theme.fast; easing.type: Easing.OutBack; easing.overshoot: 2.2 } }
+             : btn.hovered ? Theme.withAlpha(Lithic.fg, 0.11)
+             : Theme.withAlpha(Lithic.fg, 0.06)
+        strokeWidth: btn.focused ? 2 : (btn.destructive && !btn.hot ? 1 : 0)
+        strokeColor: btn.focused ? Lithic.fg2 : Theme.withAlpha(Lithic.jasper, 0.55)
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
+        Behavior on cut { NumberAnimation { duration: 90 } }
     }
 
     Row {
         id: content
         anchors.centerIn: parent
+        opacity: btn.soon ? 0.55 : 1
         spacing: 6 * Theme.scale
-        scale: box.scale
+        anchors.verticalCenterOffset: btn._pressed ? 1 : 0
 
         readonly property color textColor: !btn.enabled
             ? Theme.withAlpha(Theme.surfaceText, 0.3)
+            : btn.gold ? Lithic.onGold
             : btn.hot ? btn.plateInk
-            : btn.destructive ? Theme.tertiary
-            : btn.hovered ? Theme.surfaceText
-            : Theme.withAlpha(Theme.surfaceText, 0.82)
+            : btn.destructive ? Lithic.jasper
+            : btn.hovered ? Lithic.fg
+            : Lithic.fg2
 
         Text {
             visible: btn.glyph.length > 0
@@ -108,6 +108,17 @@ Item {
             color: content.textColor
             renderType: Text.NativeRendering
             Behavior on color { ColorAnimation { duration: Theme.fast } }
+        }
+        Text {
+            visible: btn.soon
+            anchors.verticalCenter: parent.verticalCenter
+            text: I18n.tr("Soon")
+            font.family: Lithic.font.mono
+            font.pixelSize: Theme.fs(9)
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 1
+            color: Lithic.fg3
+            renderType: Text.NativeRendering
         }
         Text {
             visible: btn.label.length > 0 || btn.armState
@@ -127,7 +138,7 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         enabled: btn.enabled
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: btn.soon ? Qt.ArrowCursor : Qt.PointingHandCursor
         onClicked: btn._activate()
     }
 }

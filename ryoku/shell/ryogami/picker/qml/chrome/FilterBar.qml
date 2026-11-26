@@ -1,11 +1,8 @@
 import QtQuick
-import QtQuick.Effects
+import Lithic
 import Ryoku.Ui.Singletons
 
-// The picker's masthead, set like the head of a printed page: the 力 seal, the four
-// libraries named in Latin and Japanese, a search line and the count. Under a hairline,
-// a second line carries only what the open library needs. Emphasis is inversion, colour
-// appears only as data (the hue swatches) and in the seal.
+// The islands and the state they share; each island draws itself.
 Item {
     id: root
 
@@ -48,20 +45,25 @@ Item {
         return false
     }
 
-    readonly property bool revealed: (root.state ? root.state.filterBarShown : false)
+    readonly property bool drawerSheet: root.state !== null && (root.state.sheet === "settings" || root.state.sheet === "browser")
+    readonly property bool revealed: (root.state ? (root.state.filterBarShown || root.drawerSheet) : false)
         && !(root.field && root.field.flippedIndex >= 0)
-    // The wall grid centres itself in the space below the masthead while it shows.
-    readonly property bool obscured: root.state !== null && root.state.sheet !== "" && !root.state.sceneThrough
+    // The wall grid centres itself in the space below the islands while they show.
+    readonly property bool obscured: root.state !== null && root.state.sheet !== "" && !root.state.sceneThrough && !root.drawerSheet
     // a see-through design sheet keeps the bar's room so the preview stays true, but not the bar itself
-    readonly property bool behindSheet: root.state !== null && root.state.sheet !== "" && root.state.sceneThrough
-    readonly property real edge: 22 * Theme.scale
+    readonly property bool behindSheet: root.state !== null && root.state.sheet !== "" && root.state.sceneThrough && !root.drawerSheet
+    readonly property bool shown: root.revealed && !root.obscured && !root.behindSheet
+    readonly property real s: Theme.scale
+    readonly property real edge: 18 * Theme.scale
     readonly property real gap: 14 * Theme.scale
+    readonly property real islandH: 54 * Theme.scale
+    readonly property real islandGap: 30 * Theme.scale
     Binding {
         when: root.field !== null
         target: root.field
         property: "barReserve"
         value: root.revealed && !root.obscured
-            ? Qt.size(slab.width, root.edge + slab.height + root.gap)
+            ? Qt.size(root.totalW, root.edge + root.islandH + root.gap)
             : Qt.size(0, 0)
     }
 
@@ -128,6 +130,28 @@ Item {
         if (p.orientation === "wide") root.view.orientation = "wide"
         else if (p.orientation === "tall") root.view.orientation = "tall"
     }
+    function pickResolution(i) {
+        if (!root.view) return
+        var presets = root.resPresets()
+        root.resIndex = i >= 0 && i < presets.length ? i - 1 : presets.length
+        root.cycleResolution()
+    }
+    function clearResolution() { root.pickResolution(-1) }
+
+    readonly property int filtersInPlay: {
+        var v = root.view
+        if (!v) return 0
+        return (v.typeFilter !== "" ? 1 : 0) + (v.folder !== "*" && v.folder !== undefined ? 1 : 0)
+            + (v.hueFilter !== -1 ? 1 : 0) + (v.favouritesOnly ? 1 : 0)
+            + (root.shapeLabel !== "" ? 1 : 0) + (root.resIndex >= 0 ? 1 : 0)
+    }
+    function clearFilters() {
+        var v = root.view
+        if (!v) return
+        v.typeFilter = ""; v.folder = "*"; v.hueFilter = -1; v.favouritesOnly = false; v.orientation = ""
+        root.clearResolution()
+    }
+
     function resLabel() {
         var presets = root.resPresets()
         if (root.resIndex >= 0 && root.resIndex < presets.length && presets[root.resIndex].label)
@@ -176,337 +200,172 @@ Item {
         function onFavouritesOnlyChanged() { root.save("favourites", root.view.favouritesOnly) }
     }
 
-    // The seal stamps in each time the picker opens: the one moment the masthead performs.
+    readonly property real leftW: leftIsland.implicitWidth + 16 * root.s
+    readonly property real rightW: rightIsland.implicitWidth + 16 * root.s
+    readonly property real midW: Math.max(300 * root.s, Math.min(700 * root.s,
+        root.width - 48 * root.s - root.leftW - root.rightW - 2 * root.islandGap))
+    readonly property real totalW: root.leftW + root.midW + root.rightW + 2 * root.islandGap
+    readonly property real x0: Math.round((root.width - root.totalW) / 2)
+    readonly property rect leftRect: Qt.rect(root.x0, root.edge, root.leftW, root.islandH)
+    readonly property rect midRect: Qt.rect(root.x0 + root.leftW + root.islandGap, root.edge, root.midW, root.islandH)
+    readonly property rect rightRect: Qt.rect(root.midRect.x + root.midW + root.islandGap, root.edge, root.rightW, root.islandH)
+
+    property real reveal: root.shown ? 1 : 0
+    Behavior on reveal {
+        enabled: !Lithic.reduceMotion
+        NumberAnimation { duration: Theme.slow; easing.type: root.shown ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.15 }
+    }
+    property real weld: root.shown && root.reveal > 0.9 ? 1 : 0
+    Behavior on weld {
+        enabled: !Lithic.reduceMotion
+        NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
+    }
+    readonly property real lift: (1 - root.reveal) * -(root.islandH + 40 * root.s)
+
+    Binding { target: root.state; property: "chromeBottom"; value: root.edge + root.islandH; when: root.state !== null }
+    Binding { target: root.state; property: "searchIsland"; value: root.midRect; when: root.state !== null }
+    Binding { target: root.state; property: "chromeRight"; value: root.rightRect.x + root.rightRect.width; when: root.state !== null }
+    Binding {
+        target: root.state; property: "settingsAnchorX"; when: root.state !== null
+        value: rightContent.x + rightIsland.settingsButton.x + rightIsland.settingsButton.width / 2
+    }
+    Binding {
+        target: root.state; property: "downloadAnchorX"; when: root.state !== null
+        value: rightContent.x + rightIsland.downloadButton.x + rightIsland.downloadButton.width / 2
+    }
+
+    readonly property bool walls: root.collection === "wallpapers" || root.collection === "workshop"
+    readonly property bool sheetWanted: root.state !== null && root.state.filtersOpen && root.shown && root.walls
+        && root.state.sheet === ""
+    onWallsChanged: if (!root.walls && root.state) root.state.filtersOpen = false
     Connections {
         target: root.state
-        function onShownChanged() { if (root.state.shown) stamp.restart() }
+        function onSheetChanged() { if (root.state.sheet !== "") root.state.filtersOpen = false }
+    }
+    property real sheetProgress: root.sheetWanted ? 1 : 0
+    Behavior on sheetProgress {
+        enabled: !Lithic.reduceMotion
+        NumberAnimation { duration: Theme.standard * 1.5; easing.type: Easing.OutCubic }
+    }
+    readonly property real sheetAnchorX: midContent.x + searchIsland.tuneCenterX
+    readonly property real sheetW: Math.min(900 * root.s, root.width - 48 * root.s)
+    readonly property rect sheetTarget: Qt.rect(
+        Math.max(24 * root.s, Math.min(root.width - root.sheetW - 24 * root.s, root.sheetAnchorX - root.sheetW + 140 * root.s)),
+        root.edge + root.islandH + root.gap, root.sheetW, filterSheetLoader.item ? filterSheetLoader.item.implicitHeight : 420 * root.s)
+    readonly property rect sheetNow: {
+        var p = root.sheetProgress, t = root.sheetTarget, bud = 56 * root.s
+        var pw = Math.min(1, p * 1.3)
+        function mix(a, b, k) { return a + (b - a) * k }
+        return Qt.rect(mix(root.sheetAnchorX - bud / 2, t.x, pw), t.y, mix(bud, t.width, pw), mix(0, t.height, p))
     }
 
-    // The second line fades across when the library changes, so its controls never pop.
-    property string lineCollection: root.collection
-    property real lineSwap: 1
-    onCollectionChanged: swapAnim.restart()
-    SequentialAnimation {
-        id: swapAnim
-        NumberAnimation { target: root; property: "lineSwap"; to: 0; duration: Theme.fast * 0.6; easing.type: Easing.InQuad }
-        ScriptAction { script: root.lineCollection = root.collection }
-        NumberAnimation { target: root; property: "lineSwap"; to: 1; duration: Theme.standard; easing.type: Easing.OutCubic }
+    // A click outside an open sheet only closes it; it never reaches the cards.
+    MouseArea {
+        anchors.fill: parent
+        visible: root.sheetWanted
+        onClicked: root.state.filtersOpen = false
+        onWheel: (w) => w.accepted = true
     }
-
     Rectangle {
-        id: slab
-        width: Math.min(root.width - 96 * Theme.scale, 1320 * Theme.scale)
-        height: head.height + 1 + line.height
-        x: (root.width - width) * 0.5
-        y: root.edge
-        radius: Theme.radius
-        color: Theme.withAlpha(Theme.surface, 0.95)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.5)
-        enabled: root.revealed && !root.behindSheet
-        opacity: root.revealed && !root.behindSheet ? 1 : 0
+        anchors.fill: parent
+        color: Lithic.scrim
+        opacity: root.state && root.state.drawerKey !== "" ? (root.state.sceneThrough ? 0.12 : 0.6) * root.state.drawerProgress : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.standard } }
         visible: opacity > 0.01
-        transform: Translate { y: (1 - slab.opacity) * -10 * Theme.scale }
-        Behavior on opacity { NumberAnimation { duration: Theme.standard; easing.type: Theme.revealEasing } }
-        // Clicks and hover in a gap of the masthead stay on it: an empty click on the scene
-        // closes the picker, and hover reaching the cards below recoloured the whole desktop
-        // through the hover palette preview as the pointer crossed the bar.
-        MouseArea { anchors.fill: parent; hoverEnabled: true }
-
-        // ── head: seal, libraries, search, count ─────────────────────────────
-        Item {
-            id: head
-            width: parent.width
-            height: 58 * Theme.scale
-
-            // Ryoku's mark, the one on the README. On a light theme its bone strokes would
-            // vanish, so it takes the ink colour there.
-            Item {
-                id: seal
-                anchors.left: parent.left
-                anchors.leftMargin: 16 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30 * Theme.scale
-                height: 26 * Theme.scale
-                Image {
-                    id: mark
-                    anchors.fill: parent
-                    source: Qt.resolvedUrl("brand/logo-mark.png")
-                    fillMode: Image.PreserveAspectFit
-                    sourceSize.height: 64
-                    smooth: true
-                    mipmap: true
-                    visible: Theme.isDark
-                }
-                MultiEffect {
-                    anchors.fill: mark
-                    source: mark
-                    visible: !Theme.isDark
-                    colorization: 1
-                    colorizationColor: Theme.surfaceText
-                }
-                ParallelAnimation {
-                    id: stamp
-                    NumberAnimation { target: seal; property: "scale"; from: 0.7; to: 1; duration: Theme.slow; easing.type: Easing.OutBack; easing.overshoot: 1.8 }
-                    NumberAnimation { target: seal; property: "opacity"; from: 0; to: 1; duration: Theme.standard; easing.type: Easing.OutQuad }
-                }
-            }
-            Rectangle {
-                id: sealRule
-                anchors.left: seal.right
-                anchors.leftMargin: 14 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                width: 1
-                height: 30 * Theme.scale
-                color: Theme.withAlpha(Theme.surfaceText, 0.18)
-            }
-
-            CollectionTabs {
-                id: tabsBlock
-                anchors.left: sealRule.right
-                anchors.leftMargin: 10 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                state: root.state
-            }
-
-            Row {
-                id: headRight
-                anchors.right: parent.right
-                anchors.rightMargin: 12 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4 * Theme.scale
-
-                Item {
-                    id: countMark
-                    visible: root.view !== null
-                    width: countCol.implicitWidth + 18 * Theme.scale
-                    height: 44 * Theme.scale
-                    property real shown: root.view ? root.view.count : 0
-                    Behavior on shown { NumberAnimation { duration: Theme.slow; easing.type: Easing.OutCubic } }
-                    Column {
-                        id: countCol
-                        anchors.centerIn: parent
-                        spacing: -2 * Theme.scale
-                        Text {
-                            anchors.right: parent.right
-                            text: String(Math.round(countMark.shown))
-                            font.family: Theme.display
-                            font.pixelSize: Theme.fs(24)
-                            font.weight: Font.Normal
-                            font.features: { "tnum": 1, "lnum": 1 }
-                            color: Theme.surfaceText
-                            renderType: Text.NativeRendering
-                        }
-                        Text {
-                            anchors.right: parent.right
-                            text: root.collection === "themes" ? I18n.tr("themes")
-                                : root.collection === "rices" ? I18n.tr("rices")
-                                : root.collection === "workshop" ? I18n.tr("scenes")
-                                : I18n.tr("walls")
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.fs(9)
-                            font.letterSpacing: 1.6
-                            font.capitalization: Font.AllUppercase
-                            color: Theme.withAlpha(Theme.surfaceText, 0.5)
-                            renderType: Text.NativeRendering
-                        }
-                    }
-                }
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 1
-                    height: 30 * Theme.scale
-                    color: Theme.withAlpha(Theme.surfaceText, 0.18)
-                }
-                // Wallpaper colours: matugen derives the desktop palette from each wallpaper
-                // you apply. Off holds the current colours; a theme tile picks a fixed one.
-                BarButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    glyph: "\u{f020a}"
-                    tooltip: root.followWall ? I18n.tr("Colours follow the wallpaper") : I18n.tr("Take colours from the wallpaper")
-                    active: root.followWall
-                    hpad: 9
-                    onTriggered: Settings.set("theme.policy", root.followWall ? "off" : "wallpaper")
-                }
-                BarButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: root.show("filterBar.show.theme")
-                    glyph: root.light ? "\u{f0599}" : "\u{f0594}"
-                    tooltip: root.light ? I18n.tr("Switch to dark") : I18n.tr("Switch to light")
-                    hpad: 9
-                    onTriggered: Settings.set("theme.mode", root.light ? "dark" : "light")
-                }
-                BarButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    glyph: "\u{f0493}"
-                    tooltip: I18n.tr("Settings")
-                    spinOnHover: true
-                    hpad: 9
-                    active: root.state && root.state.sheet === "settings"
-                    onTriggered: if (root.state) root.state.openSheet("settings", undefined)
-                }
-            }
-
-            SearchTrigger {
-                visible: root.show("filterBar.show.tagcloud")
-                anchors.right: headRight.left
-                anchors.rightMargin: 18 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(Math.min(headRight.x - 18 * Theme.scale - (tabsBlock.x + tabsBlock.width + 32 * Theme.scale), 360 * Theme.scale), 120 * Theme.scale)
-                state: root.state
-            }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.state.closeSheet()
+            onWheel: (w) => w.accepted = true
         }
+    }
 
-        Rectangle {
-            anchors.top: head.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: 1
-            anchors.rightMargin: 1
-            height: 1
-            color: Theme.withAlpha(Theme.outline, 0.4)
+    IslandLiquid {
+        anchors.fill: parent
+        state: root.state
+        leftRect: root.leftRect
+        midRect: root.midRect
+        rightRect: root.rightRect
+        reveal: root.reveal
+        weld: root.weld
+        readonly property bool searching: root.state !== null && root.state.searchProgress > root.sheetProgress
+        sheetRect: searching ? root.state.searchPanelNow : root.sheetNow
+        sheetAnchorX: searching ? root.midRect.x + 120 * root.s : root.sheetAnchorX
+        sheetProgress: searching ? root.state.searchProgress : root.sheetProgress
+    }
+
+    // An empty click on the scene closes the picker, and hover there previews a palette.
+    component Catch: MouseArea {
+        property rect r
+        x: r.x; y: r.y + root.lift; width: r.width; height: r.height
+        hoverEnabled: true
+        visible: root.reveal > 0.01
+    }
+    Catch { r: root.leftRect }
+    Catch { r: root.midRect }
+    Catch { r: root.rightRect }
+
+    Item {
+        id: leftContent
+        x: root.leftRect.x + 8 * root.s
+        y: root.leftRect.y + root.lift
+        width: root.leftRect.width - 16 * root.s
+        height: root.islandH
+        opacity: Math.min(1, root.reveal * 1.4)
+        visible: opacity > 0.01
+        LibraryIsland {
+            id: leftIsland
+            anchors.verticalCenter: parent.verticalCenter
+            state: root.state
         }
+    }
+    Item {
+        id: midContent
+        x: root.midRect.x
+        y: root.midRect.y + root.lift
+        width: root.midRect.width
+        height: root.islandH
+        opacity: Math.min(1, root.reveal * 1.4)
+        visible: opacity > 0.01
+        SearchIsland {
+            id: searchIsland
+            anchors.fill: parent
+            state: root.state
+            bar: root
+        }
+    }
+    Item {
+        id: rightContent
+        x: root.rightRect.x + 8 * root.s
+        y: root.rightRect.y + root.lift
+        width: root.rightRect.width - 16 * root.s
+        height: root.islandH
+        opacity: Math.min(1, root.reveal * 1.4)
+        visible: opacity > 0.01
+        ActionIsland {
+            id: rightIsland
+            anchors.verticalCenter: parent.verticalCenter
+            state: root.state
+            bar: root
+        }
+    }
 
-        // ── line: what the open library needs ────────────────────────────────
-        Item {
-            id: line
-            y: head.height + 1
-            width: parent.width
-            height: 44 * Theme.scale
-
-            Row {
-                id: lineLeft
-                anchors.left: parent.left
-                anchors.leftMargin: 10 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2 * Theme.scale
-                opacity: root.lineSwap
-                transform: Translate { x: (1 - root.lineSwap) * 10 * Theme.scale }
-
-                readonly property bool walls: root.lineCollection === "wallpapers" || root.lineCollection === "workshop"
-
-                TypeSegment {
-                    visible: root.lineCollection === "wallpapers"
-                    view: root.view
-                    shown: root.show
-                }
-                BarRule { visible: root.lineCollection === "wallpapers" }
-                FolderMenu {
-                    id: folderMenu
-                    visible: lineLeft.walls && root.show("filterBar.show.folder") && folderMenu.hasFolders
-                    view: root.view
-                }
-                SortMenu {
-                    id: sortMenu
-                    visible: lineLeft.walls && sortMenu.shownCount > 0
-                    view: root.view
-                    shown: root.show
-                }
-                BarRule { visible: lineLeft.walls && root.show("filterBar.show.colors") }
-                BarSwatches {
-                    visible: lineLeft.walls && root.show("filterBar.show.colors")
-                    view: root.view
-                    compact: slab.width < 1300 * Theme.scale || root.audioActive || Tasks.bar.length > 0
-                }
-                BarRule { visible: lineLeft.walls }
-                BarButton {
-                    visible: lineLeft.walls && root.show("filterBar.show.favourites")
-                    glyph: root.view && root.view.favouritesOnly ? "\u{f02d1}" : "\u{f02d5}"
-                    tooltip: I18n.tr("Favourites only")
-                    active: root.view && root.view.favouritesOnly
-                    onTriggered: if (root.view) root.view.favouritesOnly = !root.view.favouritesOnly
-                }
-                BarButton {
-                    visible: lineLeft.walls && root.show("filterBar.show.orient")
-                    glyph: "\u{f065f}"
-                    label: root.shapeLabel
-                    tooltip: I18n.tr("Shape: any, wide, tall")
-                    active: root.shapeLabel !== ""
-                    onTriggered: root.cycleShape()
-                }
-                BarButton {
-                    visible: lineLeft.walls && root.show("filterBar.show.resolution") && root.resPresets().length > 0
-                    glyph: "\u{f0a24}"
-                    label: root.resLabel()
-                    tooltip: I18n.tr("Size")
-                    active: root.resIndex >= 0
-                    onTriggered: root.cycleResolution()
-                }
-                BarButton {
-                    visible: lineLeft.walls && root.show("filterBar.show.random")
-                    glyph: "\u{f049d}"
-                    tooltip: root.rotationActive ? I18n.tr("Stop auto-rotate") : I18n.tr("Auto-rotate through random wallpapers")
-                    active: root.rotationActive
-                    onTriggered: root.toggleRotation()
-                }
-
-                BarButton {
-                    visible: root.lineCollection === "themes"
-                    glyph: "\u{f03d8}"
-                    label: I18n.tr("Design a theme")
-                    active: root.state && root.state.sheet === "themeDesigner"
-                    onTriggered: if (root.state) root.state.openSheet("themeDesigner", ({}))
-                }
-
-                BarButton {
-                    visible: root.lineCollection === "rices"
-                    glyph: "\u{f0193}"
-                    label: I18n.tr("Save look")
-                    tooltip: I18n.tr("Save this desktop as a rice")
-                    active: root.state && root.state.riceShare === "save"
-                    onTriggered: if (root.state) root.state.openRiceShare("save", null)
-                }
-                BarButton {
-                    visible: root.lineCollection === "rices"
-                    glyph: "\u{f02fa}"
-                    label: I18n.tr("Import")
-                    tooltip: I18n.tr("Import a rice someone shared")
-                    active: root.state && root.state.riceShare === "import"
-                    onTriggered: if (root.state) root.state.openRiceShare("import", null)
-                }
-            }
-
-            Row {
-                id: lineRight
-                anchors.right: parent.right
-                anchors.rightMargin: 10 * Theme.scale
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2 * Theme.scale
-
-                Repeater {
-                    model: Tasks.bar
-                    delegate: TaskChip {
-                        required property var modelData
-                        task: modelData
-                    }
-                }
-                BarRule { visible: Tasks.bar.length > 0 }
-
-                // Shown while a display plays a video or scene, the only wallpapers with sound.
-                BarButton {
-                    visible: root.audioActive
-                    glyph: root.muted ? "\u{f075f}" : "\u{f057e}"
-                    tooltip: root.muted ? I18n.tr("Unmute wallpapers") : I18n.tr("Mute wallpapers")
-                    onTriggered: Settings.set("wallpaperMute", !root.muted)
-                }
-                BarButton {
-                    visible: root.audioActive
-                    glyph: "\u{f062e}"
-                    tooltip: I18n.tr("Audio mixer")
-                    active: root.state && root.state.sheet === "audio"
-                    onTriggered: if (root.state) root.state.openSheet("audio", undefined)
-                }
-                BarButton {
-                    visible: root.show("filterBar.show.playlists")
-                    glyph: "\u{f0cb8}"
-                    tooltip: I18n.tr("Playlists")
-                    active: root.state && root.state.sheet === "playlists"
-                    onTriggered: if (root.state) root.state.openSheet("playlists", undefined)
-                }
-                DownloadMenu {
-                    visible: root.show("filterBar.show.download")
-                    state: root.state
-                }
+    Item {
+        x: root.sheetNow.x
+        y: root.sheetNow.y
+        width: root.sheetNow.width
+        height: root.sheetNow.height
+        clip: true
+        visible: root.sheetProgress > 0.001
+        MouseArea { anchors.fill: parent; hoverEnabled: true; onWheel: (w) => w.accepted = true }
+        Loader {
+            id: filterSheetLoader
+            x: root.sheetTarget.x - root.sheetNow.x
+            width: root.sheetTarget.width
+            active: root.sheetWanted || root.sheetProgress > 0.001
+            opacity: Math.max(0, (root.sheetProgress - 0.5) * 2)
+            sourceComponent: FilterSheet {
+                state: root.state
+                bar: root
             }
         }
     }

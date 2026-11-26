@@ -1,6 +1,25 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Ryogami wears the desktop's style and colours, and its chrome is one liquid
+  body.** The picker draws through Lithic, so Settings › Style reaches it live
+  in all four styles, with Ryoku's colours or the wallpaper's, light or dark.
+  The masthead becomes three islands welded by Ryoku.Blobs; the filters open as
+  a sheet out of the search island and show in the search line as tokens you
+  can drop; the tag search grows out of the same island
+  (`ryogami/picker/qml/chrome/islands/`, `theme/Theme.qml`).
+- **Ryogami settings is a drawer built for finding things.** Quick switches,
+  a category rail, sections that count what you changed, a breadcrumb, search
+  across every setting (or just start typing), Ctrl 1 to 5 and Alt Up/Down.
+  Sections that preview on the cards slim the drawer so the scene stays in view
+  (`folio/SettingsDrawer.qml`).
+- **Discover replaces the download browser.** Stills and live walls as two
+  groups, suggestions to start from, a lock that explains a source that is off
+  and opens its setting, LIVE, length, resolution and Saved on every card, and
+  more results as you scroll (`browser/`).
+- **The theme designer, playlists, schedule and effects editors show Soon.**
+  They are being rebuilt for the new picker; their entry points no longer open
+  them (`PickerState.qml`).
 - **The Orpheus launcher's highlight stays on the row you picked.** Once the
   list scrolled, the selection sat a few rows away from the selected app, over
   rows it did not mean; it now lives in the list's content and follows the

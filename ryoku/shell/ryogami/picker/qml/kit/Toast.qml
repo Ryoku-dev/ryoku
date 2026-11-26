@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 
 Item {
     id: toast
@@ -46,13 +47,13 @@ Item {
     }
     visible: opacity > 0.01
 
-    Rectangle {
+    CutRect {
         id: box
         anchors.fill: parent
-        radius: Theme.radius
-        color: Theme.withAlpha(Theme.surfaceContainer, 0.96)
-        border.width: 1
-        border.color: Theme.withAlpha(Theme.outline, 0.40)
+        cut: LithicTokens.cut.placard * Theme.scale
+        fill: Lithic.stone4
+        strokeWidth: 1
+        strokeColor: Lithic.vein
         implicitWidth: row.implicitWidth + 26 * Theme.scale
         implicitHeight: row.implicitHeight + 16 * Theme.scale
 

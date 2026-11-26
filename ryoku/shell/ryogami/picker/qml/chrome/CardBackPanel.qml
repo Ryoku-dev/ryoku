@@ -235,6 +235,7 @@ Item {
                     FolioAction {
                         visible: back.isStatic
                         label: I18n.tr("Effects")
+                        soon: true
                         onTriggered: back.state.openSheet("effects", { mode: "studio", row: back.flipped })
                     }
                     FolioAction {
@@ -254,6 +255,7 @@ Item {
                     }
                     FolioAction {
                         label: I18n.tr("Add to playlist")
+                        soon: true
                         onTriggered: back.state.openSheet("playlists", { addKey: back.cardKey, addName: back.meta.name || "" })
                     }
                     FolioAction {

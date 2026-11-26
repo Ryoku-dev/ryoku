@@ -1,4 +1,5 @@
 import QtQuick
+import Lithic
 import QtMultimedia
 import Ryoku.Ui.Singletons
 
@@ -313,7 +314,7 @@ Rectangle {
                                 ? preview.sources.progressLabel(I18n.tr("Applying"), preview.item)
                                 : I18n.tr("Applying"))
                             : I18n.tr("Apply")
-                        active: true
+                        gold: true
                         enabled: !preview.applying
                         onTriggered: preview.apply()
                     }

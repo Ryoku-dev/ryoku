@@ -1,7 +1,6 @@
 import QtQuick
+import Lithic
 
-// A true binary. On flips the track to a bone plate and slides the knob across; off is a
-// hairline track with a muted knob. The knob springs as it lands, the one bit of motion.
 Item {
     id: sw
 
@@ -13,33 +12,32 @@ Item {
     implicitHeight: 24 * Theme.scale
 
     readonly property bool hovered: area.containsMouse
-    readonly property real _pad: 3 * Theme.scale
+    readonly property real _pad: 4 * Theme.scale
     readonly property real _knob: height - sw._pad * 2
 
-    Rectangle {
+    CutRect {
         id: track
         anchors.fill: parent
-        radius: height / 2
-        color: sw.checked ? Theme.withAlpha(Theme.surfaceText, sw.enabled ? 1 : 0.4)
-             : sw.hovered && sw.enabled ? Theme.withAlpha(Theme.surfaceText, 0.12)
-             : Theme.withAlpha(Theme.surfaceText, 0.05)
-        border.width: 1
-        border.color: sw.checked ? "transparent"
-             : Theme.withAlpha(Theme.surfaceText, sw.enabled ? 0.3 : 0.16)
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        cut: LithicTokens.cut.toggleTrack * Theme.scale
+        fill: sw.checked ? Theme.withAlpha(Lithic.sel, sw.enabled ? 1 : 0.45)
+             : sw.hovered && sw.enabled ? Lithic.alpha(Lithic.fg, 0.14)
+             : Lithic.field
+        strokeWidth: sw.checked ? 0 : 1
+        strokeColor: Lithic.alpha(Lithic.fg, sw.enabled ? 0.28 : 0.14)
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
     }
 
-    Rectangle {
+    CutRect {
         id: knob
-        width: sw._knob
-        height: sw._knob
-        radius: sw._knob / 2
-        y: sw._pad
-        x: sw.checked ? sw.width - width - sw._pad : sw._pad
-        color: sw.checked ? Theme.surface
-             : Theme.withAlpha(Theme.surfaceText, sw.enabled ? 0.7 : 0.35)
-        Behavior on x { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutBack; easing.overshoot: 2 } }
-        Behavior on color { ColorAnimation { duration: Theme.fast } }
+        width: sw.checked ? sw._knob + 2 * Theme.scale : sw._knob - 2 * Theme.scale
+        height: width
+        y: (sw.height - height) / 2
+        x: sw.checked ? sw.width - width - sw._pad : sw._pad + 1
+        cut: LithicTokens.cut.toggleKnob * Theme.scale
+        fill: sw.checked ? Lithic.onSel : Lithic.alpha(Lithic.fg, sw.enabled ? 0.62 : 0.3)
+        Behavior on x { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutBack; easing.overshoot: 1.6 } }
+        Behavior on width { NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic } }
+        Behavior on fill { ColorAnimation { duration: Theme.fast } }
     }
 
     MouseArea {

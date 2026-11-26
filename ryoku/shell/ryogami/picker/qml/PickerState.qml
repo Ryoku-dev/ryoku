@@ -29,6 +29,33 @@ QtObject {
     // True while an open sheet wants the card scene visible through it (a folio design section).
     property bool sceneThrough: false
 
+    property bool filtersOpen: false
+
+    // Shared with the island layer, which draws every sheet and drawer in one blob field.
+    property real chromeBottom: 0
+    property real chromeRight: 0
+    property real settingsAnchorX: 0
+    property real downloadAnchorX: 0
+    property string drawerKey: ""
+    property real drawerAnchorX: 0
+    property rect drawerTarget: Qt.rect(0, 0, 0, 0)
+    property real drawerProgress: 0
+    readonly property real drawerGap: 14
+    readonly property rect drawerNow: {
+        var p = Math.max(0, Math.min(1, state.drawerProgress))
+        var t = state.drawerTarget
+        var bud = 56
+        var x0 = state.drawerAnchorX - bud / 2
+        var y0 = state.chromeBottom + state.drawerGap
+        function mix(a, b, k) { return a + (b - a) * k }
+        var pw = Math.min(1, p * 1.25)
+        return Qt.rect(mix(x0, t.x, pw), mix(y0, t.y, p), mix(bud, t.width, pw), mix(0, t.height, p))
+    }
+
+    property rect searchIsland: Qt.rect(0, 0, 0, 0)
+    property rect searchPanelNow: Qt.rect(0, 0, 0, 0)
+    property real searchProgress: 0
+
     property bool themeBarOpen: false
     property bool riceWorkshopOpen: false
     property var riceEntry: null
@@ -102,7 +129,15 @@ QtObject {
             state.view.collection = name
     }
 
+    // Editors still being rebuilt for the new picker. Their entry points show Soon.
+    readonly property var comingSoon: ["themeDesigner", "playlists", "schedule", "effects"]
+    function isComingSoon(name) { return state.comingSoon.indexOf(name) >= 0 }
+
     function openSheet(name, args) {
+        if (state.isComingSoon(name)) {
+            state.toast(I18n.tr("Coming soon"), "info")
+            return
+        }
         state.sheetArgs = args || ({})
         state.sheet = name
     }
@@ -218,6 +253,7 @@ QtObject {
 
     function closeTopLayer() {
         if (state.sheet !== "") { state.closeSheet(); return true }
+        if (state.filtersOpen) { state.filtersOpen = false; return true }
         if (state.multipickerOpen) { state.multipickerOpen = false; return true }
         if (state.riceShare !== "") { state.closeRiceShare(); return true }
         if (state.riceWorkshopOpen) { state.riceWorkshopOpen = false; return true }

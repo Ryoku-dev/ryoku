@@ -101,6 +101,7 @@ Item {
                     FixedButton {
                         mode: "action"
                         label: I18n.tr("Designer")
+                        soon: true
                         onTriggered: if (root.state) root.state.openSheet("themeDesigner", undefined)
                     }
                     FixedButton {

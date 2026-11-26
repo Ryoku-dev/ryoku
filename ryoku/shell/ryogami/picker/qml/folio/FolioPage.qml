@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Lithic
 import Ryoku.Ui.Singletons
 import "FolioLayout.js" as Layout
 import "FolioActions.js" as Actions
@@ -16,6 +17,7 @@ Item {
     property int rev: 0
     property string jumpControlId: ""
     property var expandedGroups: ({})
+    property bool showClose: true
 
     function setGroupExpanded(id, expanded) {
         var next = Object.assign({}, page.expandedGroups);
@@ -109,9 +111,9 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 38 * Theme.scale
-        anchors.rightMargin: 38 * Theme.scale
-        anchors.topMargin: 34 * Theme.scale
+        anchors.leftMargin: 32 * Theme.scale
+        anchors.rightMargin: 32 * Theme.scale
+        anchors.topMargin: 26 * Theme.scale
         height: headCol.implicitHeight
 
         Column {
@@ -130,8 +132,9 @@ Item {
                     anchors.rightMargin: 16 * Theme.scale
                     anchors.top: parent.top
                     text: page.section ? page.section.title : ""
-                    font.family: Theme.display
-                    font.pixelSize: Theme.fontSection
+                    font.family: Lithic.font.sans
+                    font.weight: Font.Bold
+                    font.pixelSize: Theme.fs(28)
                     lineHeight: 1.0
                     color: Theme.withAlpha(Theme.surfaceText, page._reveal)
                     wrapMode: Text.WordWrap
@@ -139,6 +142,8 @@ Item {
                 }
                 FolioAction {
                     id: closeBtn
+                    visible: page.showClose
+                    width: page.showClose ? implicitWidth : 0
                     anchors.right: parent.right
                     anchors.top: parent.top
                     label: "\u00d7"
@@ -158,7 +163,7 @@ Item {
                 wrapMode: Text.WordWrap
                 renderType: Text.NativeRendering
             }
-            FolioRule { width: parent.width; alpha: 0.58; reveal: page._reveal }
+            Rectangle { width: parent.width; height: 1; color: Lithic.vein; opacity: page._reveal }
         }
     }
 
@@ -169,9 +174,9 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 38 * Theme.scale
-        anchors.rightMargin: 38 * Theme.scale
-        anchors.bottomMargin: 48 * Theme.scale
+        anchors.leftMargin: 32 * Theme.scale
+        anchors.rightMargin: 32 * Theme.scale
+        anchors.bottomMargin: 20 * Theme.scale
         contentWidth: width
         contentHeight: body.height
         clip: true
@@ -181,7 +186,7 @@ Item {
         Column {
             id: body
             width: flick.width
-            spacing: 28 * Theme.scale
+            spacing: 22 * Theme.scale
             opacity: page._reveal
             y: (1 - page._reveal) * 10 * Theme.scale
 
@@ -198,12 +203,20 @@ Item {
                     visible: !dele.modelData.group || !!page.expandedGroups[dele.modelData.group]
 
                     Rectangle {
+                        visible: dele.y > 0 && dele.modelData.type === "control"
+                        y: -11 * Theme.scale
+                        width: parent.width
+                        height: 1
+                        color: Lithic.vein
+                    }
+
+                    CutRect {
                         anchors.fill: parent
                         anchors.margins: -10 * Theme.scale
-                        radius: Theme.radius
-                        color: Theme.withAlpha(Theme.primary, 0.14)
-                        border.width: 1
-                        border.color: Theme.withAlpha(Theme.primary, 0.5)
+                        cut: LithicTokens.cut.small * Theme.scale
+                        fill: Theme.withAlpha(Theme.primary, 0.14)
+                        strokeWidth: 1
+                        strokeColor: Theme.withAlpha(Theme.primary, 0.5)
                         opacity: page.flashId.length > 0 && page.flashId === dele.cid ? 1 : 0
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: Theme.standard } }

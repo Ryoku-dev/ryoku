@@ -1,6 +1,6 @@
 import QtQuick
+import Lithic
 
-// A section heading: accent tick, spaced caps, and a hairline running to the edge.
 Item {
     id: label
 
@@ -8,32 +8,25 @@ Item {
 
     implicitHeight: Math.max(caption.implicitHeight, 14 * Theme.scale)
 
-    Rectangle {
-        id: tick
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        width: 2 * Theme.scale
-        height: caption.implicitHeight
-        color: Theme.withAlpha(Theme.surfaceText, 0.85)
-    }
     Text {
         id: caption
-        anchors.left: tick.right
-        anchors.leftMargin: 8 * Theme.scale
+        anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        text: label.text.toUpperCase()
-        font.family: Theme.sans
-        font.weight: Font.DemiBold
-        font.pixelSize: Theme.fontFine
-        font.letterSpacing: 1.6
-        color: Theme.withAlpha(Theme.surfaceText, 0.78)
+        text: label.text
+        font.family: Theme.lithic ? Lithic.font.mono : Lithic.font.sans
+        font.weight: Theme.lithic ? Font.Normal : Font.DemiBold
+        font.pixelSize: Theme.fs(Theme.lithic ? 9.5 : 12)
+        font.letterSpacing: Theme.lithic ? 1.6 : 0
+        font.capitalization: Theme.lithic ? Font.AllUppercase : Font.MixedCase
+        color: Lithic.fg3
         renderType: Text.NativeRendering
     }
-    FolioRule {
+    Rectangle {
         anchors.left: caption.right
         anchors.leftMargin: 12 * Theme.scale
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        alpha: 0.4
+        height: 1
+        color: Lithic.vein
     }
 }

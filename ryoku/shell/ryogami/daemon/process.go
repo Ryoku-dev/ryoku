@@ -373,7 +373,10 @@ func pickerImportDirs() string {
 // NVIDIA boxes hardware-decoded frames (NVDEC, shared into GL through CUDA)
 // tore the whole picker into shards while the download browser played live
 // wallpaper previews. The previews are small loops, so software decode is cheap.
+// Lithic reads the desktop's look through file:// requests, which Qt refuses
+// unless the process allows them.
 var pickerDiskCacheEnv = []string{
+	"QML_XHR_ALLOW_FILE_READ=1",
 	"QSG_RHI_DISABLE_DISK_CACHE=1",
 	"QT_DISABLE_SHADER_DISK_CACHE=1",
 	"QT_MEDIA_BACKEND=ffmpeg",
