@@ -51,7 +51,13 @@ Item {
     function inkOn(color) {
         const q = Qt.color(color)
         const l = 0.2126 * q.r + 0.7152 * q.g + 0.0722 * q.b
-        return l > 0.5 ? Theme.withAlpha(Theme.background, 0.82) : Theme.withAlpha(Theme.surfaceText, 0.92)
+        const darkRole = Qt.color(Theme.background)
+        const lightRole = Qt.color(Theme.surfaceText)
+        const darkL = 0.2126 * darkRole.r + 0.7152 * darkRole.g + 0.0722 * darkRole.b
+        const lightL = 0.2126 * lightRole.r + 0.7152 * lightRole.g + 0.0722 * lightRole.b
+        const darkInk = darkL <= lightL ? Theme.background : Theme.surfaceText
+        const lightInk = darkL <= lightL ? Theme.surfaceText : Theme.background
+        return l > 0.5 ? Theme.withAlpha(darkInk, 0.82) : Theme.withAlpha(lightInk, 0.92)
     }
 
     function pick(s, a, b, fallback) {
