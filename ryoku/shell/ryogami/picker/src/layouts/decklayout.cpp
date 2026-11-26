@@ -43,8 +43,17 @@ int DeckLayout::hitTest(QPointF point) const
 
 QRectF DeckLayout::cardRect(int row) const
 {
-    Q_UNUSED(row)
-    return {};
+    return m_rects.value(row);
+}
+
+void DeckLayout::setExternalRect(int row, const QRectF &rect)
+{
+    if (row < 0)
+        return;
+    if (rect.isEmpty())
+        m_rects.remove(row);
+    else
+        m_rects.insert(row, rect);
 }
 
 int DeckLayout::step(const LayoutContext &ctx, int dx, int dy) const

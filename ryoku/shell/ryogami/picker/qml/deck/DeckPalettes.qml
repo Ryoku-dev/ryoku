@@ -18,6 +18,7 @@ QtObject {
 
     property int _pending: 0
     property var _specs: ({})
+    property var _pendingKeys: ({})
 
     signal changed
 
@@ -161,6 +162,9 @@ QtObject {
             palettes._specs[item.key] = item
             const found = palettes.entryFor(item)
             const mtime = Number(item.mtime || 0)
+            const pendingMtime = palettes._pendingKeys[item.key]
+            if (pendingMtime !== undefined && (mtime <= 0 || pendingMtime === mtime))
+                continue
             if (!found || !found.c || (mtime > 0 && found.m !== mtime))
                 missing.push(item.key)
         }
@@ -169,9 +173,13 @@ QtObject {
         const size = 12
         for (let at = 0; at < missing.length; at += size) {
             const chunk = missing.slice(at, at + size)
+            for (const key of chunk)
+                palettes._pendingKeys[key] = Number((palettes._specs[key] || ({})).mtime || 0)
             palettes._pending++
             Daemon.call("palette.previewColors", { keys: chunk }, function (result, error) {
                 palettes._pending--
+                for (const key of chunk)
+                    delete palettes._pendingKeys[key]
                 if (error || !result)
                     return
                 palettes._apply(result, chunk)

@@ -65,7 +65,7 @@ Item {
             width: Math.max(2, Math.min(ribbon.seg - 1, 3 * ribbon.u))
             height: 3 * ribbon.u
             radius: width / 2
-            color: "#ff7a93"
+            color: Theme.primary
         }
     }
 
@@ -87,7 +87,7 @@ Item {
         width: Math.max(6 * ribbon.u, (to - from) * ribbon.seg + 6 * ribbon.u)
         y: track.y - 4 * ribbon.u
         height: track.height + 8 * ribbon.u
-        radius: 5 * ribbon.u
+        radius: Theme.radius
         color: "transparent"
         border.width: Math.max(1, 1.3 * ribbon.u)
         border.color: Theme.withAlpha(ribbon.ink, 0.55)
@@ -136,7 +136,7 @@ Item {
         y: ribbon.height + 8 * ribbon.u
         width: 176 * ribbon.u
         height: glimpseCol.implicitHeight + 12 * ribbon.u
-        radius: 12 * ribbon.u
+        radius: Theme.radius * 2
         color: Theme.surfaceContainer
         border.width: 1
         border.color: Theme.withAlpha(ribbon.ink, 0.16)
@@ -160,7 +160,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: Math.round(width * 10 / 16)
-                radius: 6 * ribbon.u
+                radius: Theme.radius
                 color: Theme.surfaceVariant
                 clip: true
 

@@ -80,6 +80,12 @@ public:
         Q_UNUSED(row)
         return {};
     }
+    // QML-driven layouts (deck) report card geometry for overlays such as CardBackPanel.
+    virtual void setExternalRect(int row, const QRectF &rect)
+    {
+        Q_UNUSED(row)
+        Q_UNUSED(rect)
+    }
     // Row an arrow key leads to (dx, dy in -1..1); current row when inert.
     virtual int step(const LayoutContext &ctx, int dx, int dy) const = 0;
     virtual int page(const LayoutContext &ctx, int dir) const { return dir * 5; }

@@ -69,6 +69,17 @@ Item {
 
     readonly property int frontIndex: count > 0 ? deck.clamp(Math.round(deck.pos), 0, count - 1) : -1
 
+    // view.get() returns a copied map, so bindings need an explicit model revision.
+    property int _rev: 0
+    Connections {
+        target: deck.view
+        function onModelReset() { deck._rev++ }
+        function onDataChanged() { deck._rev++ }
+        function onLayoutChanged() { deck._rev++ }
+        function onCountChanged() { deck._rev++ }
+        function onCollectionChanged() { deck._rev++ }
+    }
+
     function baseName(path) {
         if (!path)
             return ""
@@ -129,7 +140,7 @@ Item {
     }
 
     function requestPalettes() {
-        if (!view || count <= 0)
+        if (!deck.active || !view || count <= 0)
             return
         const low = Math.max(0, Math.floor(pos) - side - 2)
         const high = Math.min(count - 1, Math.ceil(pos) + side + 2)
@@ -195,6 +206,7 @@ Item {
     }
 
     readonly property var ribbonColors: {
+        deck._rev
         DeckPalettes.revision
         const out = []
         if (!view)
@@ -205,6 +217,7 @@ Item {
     }
 
     readonly property var ribbonFavourites: {
+        deck._rev
         if (!view)
             return []
         const out = []
@@ -217,6 +230,7 @@ Item {
     }
 
     readonly property var ribbonThumbs: {
+        deck._rev
         if (!view)
             return []
         const out = []
@@ -226,6 +240,7 @@ Item {
     }
 
     readonly property var ribbonNames: {
+        deck._rev
         if (!view)
             return []
         const out = []
@@ -235,6 +250,7 @@ Item {
     }
 
     readonly property int ribbonActive: {
+        deck._rev
         if (!view)
             return -1
         for (let i = 0; i < count; ++i) {
@@ -287,7 +303,10 @@ Item {
             readonly property real d: idx - deck.pos
             readonly property real ad: Math.abs(d)
             readonly property bool live: idx >= 0 && idx < deck.count && ad < deck.side + 1
-            readonly property var entry: live ? deck.view.get(idx) : null
+            readonly property var entry: {
+                deck._rev
+                return live ? deck.view.get(idx) : null
+            }
             readonly property real near: Math.max(0, 1 - ad)
             readonly property real dealt: {
                 const t = Math.max(0, Math.min(1, deck.deal * (1 + 0.09 * deck.side) - 0.09 * ad))
@@ -311,6 +330,33 @@ Item {
 
             Behavior on hoverLift {
                 NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
+
+            function maybeReportRect() {
+                if (!deck.field || !slot.live || idx < 0)
+                    return
+                if (idx !== deck.frontIndex && idx !== deck.field.flippedIndex)
+                    return
+                const vw = slot.width * slot.scale
+                const vh = slot.height * slot.scale
+                deck.field.setCardRect(idx, Qt.rect(slot.x + (slot.width - vw) / 2,
+                                                     slot.y + (slot.height - vh) / 2,
+                                                     vw, vh))
+            }
+
+            onXChanged: maybeReportRect()
+            onYChanged: maybeReportRect()
+            onWidthChanged: maybeReportRect()
+            onHeightChanged: maybeReportRect()
+            onScaleChanged: maybeReportRect()
+            onIdxChanged: maybeReportRect()
+            onLiveChanged: maybeReportRect()
+            Component.onCompleted: maybeReportRect()
+
+            Connections {
+                target: deck.field
+                function onFlippedIndexChanged() { slot.maybeReportRect() }
+                function onCurrentIndexChanged() { slot.maybeReportRect() }
             }
 
             DeckCard {
@@ -341,7 +387,10 @@ Item {
     DeckActions {
         id: actions
         row: deck.frontIndex
-        entry: deck.frontIndex >= 0 && deck.view ? deck.view.get(deck.frontIndex) : null
+        entry: {
+            deck._rev
+            return deck.frontIndex >= 0 && deck.view ? deck.view.get(deck.frontIndex) : null
+        }
         u: deck.u
         reveal: deck.deal
         dress: DeckPalettes.dressOf(deck.schemeOf(entry))

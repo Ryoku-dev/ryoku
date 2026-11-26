@@ -2,6 +2,7 @@
 
 #include "../scene/layout.h"
 
+#include <QHash>
 #include <QString>
 
 // Deck is drawn by the QML DeckScene so it can render the paint-chip cards
@@ -20,6 +21,7 @@ public:
 
     int hitTest(QPointF point) const override;
     QRectF cardRect(int row) const override;
+    void setExternalRect(int row, const QRectF &rect) override;
     int step(const LayoutContext &ctx, int dx, int dy) const override;
     int wheel(const LayoutContext &ctx, QPointF angle, QPointF pixels) override;
 
@@ -27,4 +29,5 @@ public:
 
 private:
     int m_scrollAccum = 0;
+    QHash<int, QRectF> m_rects;
 };

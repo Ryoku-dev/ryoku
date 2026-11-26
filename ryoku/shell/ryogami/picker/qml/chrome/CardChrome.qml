@@ -45,6 +45,7 @@ Item {
     }
 
     visible: !!(chrome.field && chrome.field.flippedIndex < 0
+        && chrome.state && chrome.state.mode !== "deck"
         && chrome.cardRect.width > 4 && chrome.cardRect.height > 4
         && (chrome.entry.name || chrome.entry.key))
 

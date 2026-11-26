@@ -29,7 +29,7 @@ Item {
     signal dragged(real dx, real dy, bool released)
 
     readonly property real pad: 9 * u
-    readonly property real radius: 16 * u
+    readonly property real radius: Theme.radius * 2
     readonly property real thumbRadius: 10 * u
     readonly property real chipHeight: 22 * u
 
@@ -159,7 +159,7 @@ Item {
             visible: card.current
             width: currentRow.implicitWidth + 12 * card.u
             height: 19 * card.u
-            radius: 9.5 * card.u
+            radius: Theme.radius
             antialiasing: true
             color: card.dress.accent
             transformOrigin: Item.Left
@@ -224,7 +224,7 @@ Item {
                 text: "\u{f02d1}"
                 font.family: Theme.icon
                 font.pixelSize: 14 * card.u
-                color: "#ff5c7a"
+                color: Theme.primary
             }
         }
 
@@ -350,11 +350,12 @@ Item {
             if (pressed)
                 card.dragged(mouseX - origin.x, mouseY - origin.y, false)
         }
-        onReleased: {
-            if (pressed)
-                card.dragged(mouseX - origin.x, mouseY - origin.y, true)
+        onReleased: card.dragged(mouseX - origin.x, mouseY - origin.y, true)
+        onCanceled: card.dragged(0, 0, true)
+        onWheel: event => {
+            card.wheeled(event.angleDelta.y, event.pixelDelta.y)
+            event.accepted = true
         }
-        onWheel: event => card.wheeled(event.angleY, event.pixelY)
     }
 
     onCurrentChanged: if (current) pop.restart()

@@ -508,6 +508,14 @@ QRectF CardField::rectOf(int row) const
     return m_layout ? m_layout->cardRect(row) : QRectF();
 }
 
+void CardField::setCardRect(int row, const QRectF &rect)
+{
+    if (m_layout)
+        m_layout->setExternalRect(row, rect);
+    if (row == m_current)
+        publishRects(rect, m_currentShear, m_stageRect);
+}
+
 bool CardField::action(const QString &name)
 {
     if (!m_layout)

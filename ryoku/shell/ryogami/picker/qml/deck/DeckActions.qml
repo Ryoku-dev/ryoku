@@ -50,7 +50,7 @@ Item {
                 text: actions.favourite ? "\u{f02d1}" : "\u{f02d5}"
                 font.family: Theme.icon
                 font.pixelSize: 20 * actions.u
-                color: actions.favourite ? "#ff5c7a" : actions.dress && actions.dress.ink ? actions.dress.ink : Theme.surfaceText
+                color: actions.favourite ? Theme.primary : actions.dress && actions.dress.ink ? actions.dress.ink : Theme.surfaceText
             }
 
             MouseArea {
@@ -66,7 +66,7 @@ Item {
             id: setButton
             implicitWidth: setRow.implicitWidth + 32 * actions.u
             implicitHeight: 40 * actions.u
-            radius: height / 2
+            radius: Theme.radius * 3
             clip: true
             color: actions.active ? Theme.withAlpha(actions.surface, 0.82)
                 : setMouse.containsMouse ? Qt.lighter(actions.accent, 1.08)
@@ -102,7 +102,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: enterKey.implicitWidth + 10 * actions.u
                     height: 20 * actions.u
-                    radius: 6 * actions.u
+                    radius: Theme.radius
                     color: Theme.withAlpha(actions.accentInk, 0.14)
 
                     Text {
