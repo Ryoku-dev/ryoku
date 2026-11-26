@@ -52,9 +52,6 @@ PanelWindow {
     // number/countdown shown in the header: weekly when reported, else primary.
     readonly property int    cxPct:       cxReset7dTs > 0 ? cxPct7d : cxPrimaryPct
     readonly property int    cxResetTs:   cxReset7dTs > 0 ? cxReset7dTs : cxPrimaryResetTs
-    readonly property var    cxBars:      cxWindows.filter(function(w) {
-        return w && (w.minutes === 300 || w.minutes === 10080)
-    })
 
     // ── OpenCode ──
     readonly property bool   ocHas:       root.aiOcHas
@@ -511,7 +508,7 @@ PanelWindow {
                     logo: Qt.resolvedUrl("../assets/codex-cli.svg"); logoSize: Qt.size(36, 36)
                     has: aiPanel.cxHas; fresh: aiPanel.cxFresh; plan: aiPanel.cxPlan
                     pct: aiPanel.cxPct; resetTs: aiPanel.cxResetTs; paceTs: aiPanel.cxReset7dTs
-                    recent: aiPanel.cxRecent; bars: aiPanel.cxBars
+                    recent: aiPanel.cxRecent; bars: aiPanel.cxWindows
                 }
 
                 Rectangle { visible: aiPanel.cxShow && aiPanel.ocShow; width: parent.width; height: 1; color: root.sep }

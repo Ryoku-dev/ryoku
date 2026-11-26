@@ -802,7 +802,10 @@ def main():
 
     buckets = normalize_buckets(data)
     recent_tok, today_tok, session_windows, recent_days_list = scan_activity()
-    supplement_missing_general_windows_from_sessions(buckets, session_windows)
+    # Codex rollout history can belong to a different account than the OpenCode
+    # login; filling a missing account window from it would mix two quotas.
+    if data["source"] != "opencode":
+        supplement_missing_general_windows_from_sessions(buckets, session_windows)
     general = general_bucket(buckets)
     windows = general.get("windows") or []
     max_util, quota_bucket, quota_window_label = quota_window(general)

@@ -124,16 +124,27 @@ assert data["_source"] == "stale", data.get("_source")
 print("  ok: no credential falls back to stale cache")
 PY
 
-# --- 4. the service guard selects codex-usage for an OpenCode-only box ---
-mkdir -p "$work/guard/bin"
+# --- 4. the service guard actually dispatches codex-usage on an OpenCode-only box ---
+mkdir -p "$work/guard/bin" "$work/nocodex" "$work/guard/home"
 cp "$work/bin/opencode" "$work/guard/bin/opencode"
-mkdir -p "$work/nocodex"
-if PATH="$work/guard/bin" CODEX_HOME="$work/nocodex" \
-  RYOKU_AI_USAGE_BIN_DIR="$here/../ryoku/rashin/usage" \
-  "$here/../ryoku/rashin/usage/ryoku-ai-usage" --available; then
-  echo "  ok: OpenCode alone runs the Codex collector"
+cat > "$work/guard/bin/codex-usage" <<'SH'
+#!/bin/sh
+printf '%s\n' called > "$CODEX_CALLED"
+SH
+cat > "$work/guard/bin/opencode-usage" <<'SH'
+#!/bin/sh
+printf '%s\n' called > "$OPENCODE_CALLED"
+SH
+chmod +x "$work/guard/bin/codex-usage" "$work/guard/bin/opencode-usage"
+HOME="$work/guard/home" PATH="$work/guard/bin" CODEX_HOME="$work/nocodex" \
+  CODEX_CALLED="$work/guard/codex-called" \
+  OPENCODE_CALLED="$work/guard/opencode-called" \
+  RYOKU_AI_USAGE_BIN_DIR="$work/guard/bin" \
+  "$here/../ryoku/rashin/usage/ryoku-ai-usage"
+if [[ -f "$work/guard/codex-called" ]]; then
+  echo "  ok: OpenCode alone dispatches the Codex collector"
 else
-  echo "  FAIL: OpenCode alone did not select the Codex collector" >&2
+  echo "  FAIL: OpenCode alone did not dispatch the Codex collector" >&2
   fail=1
 fi
 
