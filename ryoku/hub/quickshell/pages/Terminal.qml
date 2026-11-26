@@ -59,7 +59,7 @@ Item {
         { name: "Needle", path: root.picsRoot + "/ryodecors/needle.png" },
         { name: "Microphone", path: root.picsRoot + "/ryodecors/mic.png" },
         { name: "Camera", path: root.picsRoot + "/ryodecors/camera.png" },
-        { name: "Rashin", path: root.picsRoot + "/ryodecors/rashin-hero.png" }
+        { name: "Samurai", path: root.picsRoot + "/ryodecors/rashin-hero.png" }
     ]
     readonly property var readyArt: root.brandArt.concat((root.store ? root.store.installedArt : []).map(file => {
         var stem = file.replace(/\.png$/i, "");
