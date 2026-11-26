@@ -285,6 +285,19 @@ test("chord search folds case, spacing, order and modifier aliases", () => {
     assert.equal(chordMatches("super+,", "SUPER + comma"), true);
 });
 
+test("a mouse chord answers to the button name the legend shows", () => {
+    // the legend renders these as LMB, RMB and Scroll Up, not the wire token, so
+    // a search has to answer to the name or the keys nobody can type are lost.
+    assert.equal(chordMatches("super lmb", "SUPER + mouse:272"), true);
+    assert.equal(chordMatches("super+lmb", "SUPER + mouse:272"), true);
+    assert.equal(chordMatches("super rmb", "SUPER + mouse:273"), true);
+    assert.equal(chordMatches("super scroll up", "SUPER + mouse_up"), true);
+    assert.equal(chordMatches("super+scroll down", "SUPER + mouse_down"), true);
+    assert.equal(chordMatches("super scroll", "SUPER + mouse_up"), false, "a wheel key is its own direction");
+    assert.equal(chordMatches("super lmb", "SUPER + mouse:273"), false, "the other button is another key");
+    assert.equal(chordMatches("super left", "SUPER + SHIFT + Left"), false, "a chord query stays exact");
+});
+
 test("two custom rows on one chord clash with each other", () => {
     const cats = [{ name: "Windows", binds: [{ combo: "SUPER + Q", kind: "wm" }] }];
     const keys = conflictKeys(cats, {}, [{ keys: "SUPER + Z" }, { keys: "super + z" }], []);

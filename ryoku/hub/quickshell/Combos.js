@@ -62,7 +62,11 @@ var searchAliases = {
     ",": "comma", "-": "minus", "=": "equal",
     "[": "bracketleft", "]": "bracketright", "`": "grave",
     "\\": "backslash", "/": "slash", ";": "semicolon",
-    "'": "apostrophe", ".": "period"
+    "'": "apostrophe", ".": "period",
+    // the mouse chords no one types: the legend shows them as the button names
+    // wm.DisplayKeys gives them, so a search answers to those names.
+    "mouse:272": "lmb", "mouse:273": "rmb",
+    "mouse_up": "scroll_up", "mouse_down": "scroll_down"
 };
 
 // fold the multi-word spellings before splitting, so "page up" and "num 3"
@@ -73,6 +77,8 @@ function foldChordText(s) {
         .replace(/page\s*down/g, "next")
         .replace(/\bpgup\b/g, "prior")
         .replace(/\bpgdn\b/g, "next")
+        .replace(/\bscroll\s*up/g, "scroll_up")
+        .replace(/\bscroll\s*down/g, "scroll_down")
         .replace(/\bnum(?:pad)?\s*([0-9])\b/g, "kp$1");
 }
 

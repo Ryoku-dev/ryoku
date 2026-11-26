@@ -14,7 +14,9 @@
   shortcut, and typing "super" lists the Super family. A chord names exactly the
   chord: "super left" finds Super + Left and not Super + Shift + Left, while free
   text such as "close" or "num 3" still searches labels. A bind another config
-  wrote with its own modifier words is found by the Ryoku names too
+  wrote with its own modifier words is found by the Ryoku names too, and the
+  mouse keys answer to the button names the legend shows, so "super lmb" and
+  "super scroll up" find their rows
   (`quickshell/pages/KeybindsPage.qml`, `quickshell/Combos.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
   Connections > VPN.** Both get auto-connect and what they connect to; a
