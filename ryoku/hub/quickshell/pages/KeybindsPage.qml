@@ -854,11 +854,17 @@ Item {
     function bindScore(bind, q) {
         if (!q)
             return 0;
+        // a chord-shaped query answers to the chord alone. Falling through to the
+        // fuzzy scorer over a row's own keycaps would let "super left" find
+        // Super + Shift + Left, which is the imprecision the chord path exists to
+        // avoid; free text, including "num 3" and "workspace 3", keeps going to
+        // the scorer.
         if (Combos.isChordQuery(q)) {
             var chords = Combos.expandFamily(pg.bindCombo(bind));
             for (var c = 0; c < chords.length; c++)
                 if (Combos.chordMatches(q, chords[c]))
                     return 1;
+            return -1;
         }
         var keyStr = (bind.keys ? bind.keys.join(" ") : "");
         var fam = pg.familyExpand(bind);

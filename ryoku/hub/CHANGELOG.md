@@ -11,7 +11,9 @@
   the search field, not as a category in the rail, and a search inside it
   stays within the conflicts. The search field also accepts a chord the way
   someone writes one, so "ctrl+l", "CTRL + L" and "Control+l" land on the same
-  shortcut, and typing "super" lists the Super family. A bind another config
+  shortcut, and typing "super" lists the Super family. A chord names exactly the
+  chord: "super left" finds Super + Left and not Super + Shift + Left, while free
+  text such as "close" or "num 3" still searches labels. A bind another config
   wrote with its own modifier words is found by the Ryoku names too
   (`quickshell/pages/KeybindsPage.qml`, `quickshell/Combos.js`).
 - **A WireGuard tunnel's or VPN profile's settings open under its row in
