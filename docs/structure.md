@@ -28,7 +28,8 @@ Start with the guide that matches the job:
   [development](development.md), [Ryoku Settings](hub.md), [internationalization](i18n.md),
   [compositors](compositors.md), [adding a window
   manager](adding-a-window-manager.md), [Hyprland
-  plugins](hyprland-plugins.md) and [dictation](dictation.md).
+  plugins](hyprland-plugins.md), [dictation](dictation.md)
+  and [card system security](card-security.md).
 
 The rest of this page maps those guides to the source tree.
 

@@ -66,7 +66,19 @@ func badgeDeviceSeed() ([]byte, error) {
 	if !os.IsExist(e) {
 		return nil, e
 	}
-	f, e = os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	return badgeReadDeviceSeed(path)
+}
+
+func badgeExistingDeviceSeed() ([]byte, error) {
+	dir, e := badgeDataDir()
+	if e != nil {
+		return nil, e
+	}
+	return badgeReadDeviceSeed(filepath.Join(dir, "device.key"))
+}
+
+func badgeReadDeviceSeed(path string) ([]byte, error) {
+	f, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if e != nil {
 		return nil, e
 	}

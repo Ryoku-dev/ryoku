@@ -9,7 +9,7 @@ import "../../Singletons"
 // Farnese, drawn as it is; a gallery figure is inked in one colour so it reads on either
 // ground. The reader's own picture is framed (zoom, position, fill or fit), adjusted
 // (brightness, contrast, colour) and shown as a photo, in black and white, or as a 1-bit
-// dither in the ink. A badge holder's picture may move (GIF, WebP, a short video): it plays
+// dither in the ink. Local GIF/WebP pictures may move; video retains its badge rule. Motion plays
 // only while `live` (the card pointed at) and Settings' ambient motion runs, and rests on
 // its first frame. The system card, Home and the card studio draw the same one
 Item {
@@ -40,18 +40,24 @@ Item {
         ? Ryodecors.dir + hero.galleryName + (/\.gif$/.test(hero.src) ? ".gif" : ".png") : ""
     // a picture file is rewritten in place when it changes, and Qt would keep showing the one it
     // loaded first: the URL carries the picture's revision so a new one loads
-    readonly property string ownFile: !hero.override && hero.kind === "custom"
-        && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif|mp4|webm|mkv)$/.test(hero.src) ? hero.configDir + "/profile/" + hero.src : ""
+    readonly property string ownFile: !hero.override && hero.kind === "custom" ? CardMedia.file : hero.tradedMotionFile
+    readonly property string tradedMotionFile: {
+        if (!hero.override || !hero.recordPicture || !/^[0-9a-f]{16}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
+            return "";
+        var sha = String(hero.override.motionSha || "");
+        var path = String(hero.override.motionFile || "");
+        var base = hero.cardsStoreRoot + "/" + hero.tradedId + "-approved-" + sha;
+        return /^[0-9a-f]{64}$/.test(sha) && (path === base + ".webp" || path === base + ".gif" || path === base + ".png") ? path : "";
+    }
     readonly property bool video: /\.(mp4|webm|mkv)$/.test(hero.ownFile)
-    // a video rests on the first frame ryoku-hub kept beside it; a GIF or WebP is its own
-    readonly property string stillFile: hero.video ? hero.ownFile.replace(/hero\.(\w+)$/, "hero-$1.png") : hero.ownFile
-    readonly property bool mayMove: /\.(gif|webp|mp4|webm|mkv)$/.test(hero.ownFile) && !!Badge.ownBadge
+    readonly property string stillFile: !hero.override && hero.kind === "custom" ? CardMedia.poster : ""
+    readonly property bool mayMove: /\.(gif|webp)$/.test(hero.ownFile) || (hero.video && !!Badge.ownBadge)
     readonly property bool playing: hero.mayMove && hero.live && hero.visible && Ambient.on
     readonly property string customSource: {
         if (hero.kind !== "custom")
             return "";
         if (!hero.override)
-            return hero.stillFile !== "" ? hero.fileUrl(hero.stillFile) + "?v=" + ProfileStore.pictureRevision : "";
+            return hero.stillFile !== "" ? hero.fileUrl(hero.stillFile) + "?v=" + CardMedia.digest : "";
         // Never treat a card's embedded file field as an image URL or a store root.
         if (!/^[0-9a-f]{16}$/.test(hero.tradedId) || hero.cardsStoreRoot.charAt(0) !== "/")
             return "";
@@ -75,10 +81,20 @@ Item {
     readonly property real contrast: hero.config.contrast || 0
     readonly property real saturation: hero.config.saturation || 0
     readonly property bool ready: hero.stock ? stockImage.status === Image.Ready
-        : hero.kind === "custom" ? (hero.customSource === "" || customImage.status === Image.Ready)
+        : hero.kind === "custom" ? (hero.customSource !== "" && customImage.status === Image.Ready)
         : hero.kind === "gallery" ? (hero.gallerySource === "" || inked.status === Image.Ready) : true
 
     clip: true
+    Text {
+        anchors.fill: parent
+        anchors.margins: 12
+        visible: !hero.override && hero.kind === "custom" && CardMedia.error !== ""
+        text: CardMedia.error
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        color: Lithic.fg
+        font.pixelSize: 13
+    }
 
     // "Caracalla MAN Napoli Inv6033 n01" by Marie-Lan Nguyen, CC BY 2.5: see the root NOTICE
     Image {
@@ -129,7 +145,7 @@ Item {
             when: motion.status === Loader.Ready
             target: motion.item
             property: "url"
-            value: hero.fileUrl(hero.ownFile)
+            value: hero.fileUrl(hero.ownFile) + "?v=" + (hero.override ? String(hero.override.motionSha || "") : CardMedia.digest)
         }
         Binding {
             when: motion.status === Loader.Ready

@@ -3,3 +3,5 @@ CardEditor 1.0 CardEditor.qml
 CardFigure 1.0 CardFigure.qml
 CardStore 1.0 CardStore.qml
 SystemCard 1.0 SystemCard.qml
+CardAccountPanel 1.0 CardAccountPanel.qml
+CardSubmissionPanel 1.0 CardSubmissionPanel.qml

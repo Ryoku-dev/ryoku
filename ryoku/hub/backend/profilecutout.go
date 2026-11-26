@@ -56,7 +56,7 @@ func cutoutImage(raw []byte) ([]byte, image.Rectangle, error) {
 	}
 	img, err := decodePicture(raw)
 	if err != nil {
-		return nil, image.Rectangle{}, errCutoutNotPNG
+		return nil, image.Rectangle{}, fmt.Errorf("cutout validation: %w", err)
 	}
 	if !cutoutHasClearGround(img) {
 		return nil, image.Rectangle{}, errCutoutNoGround
@@ -175,19 +175,19 @@ func runCutout(args []string) error {
 	return printJSON(saved)
 }
 
-// packedCutout is a .ryoprofile's cutout re-checked as if chosen here, or nil when it isn't one;
-// the badge and shape rules stay with the machine that cut it.
-func packedCutout(packed *ryoHero) []byte {
-	if packed == nil || packed.Name != profileCutoutName || len(packed.B64) > base64.StdEncoding.EncodedLen(maxCutoutBytes) {
-		return nil
+// Missing optional cutouts may be omitted, but a supplied invalid cutout or
+// decoder failure is an import error, never a silently claimed safe fallback.
+func packedCutout(packed *ryoHero) ([]byte, error) {
+	if packed == nil {
+		return nil, nil
+	}
+	if packed.Name != profileCutoutName || len(packed.B64) > base64.StdEncoding.EncodedLen(maxCutoutBytes) {
+		return nil, errors.New("invalid packed cutout name or size")
 	}
 	raw, err := base64.StdEncoding.DecodeString(packed.B64)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("cutout base64: %w", err)
 	}
 	clean, _, err := cutoutImage(raw)
-	if err != nil {
-		return nil
-	}
-	return clean
+	return clean, err
 }

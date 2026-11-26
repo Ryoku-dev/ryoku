@@ -268,6 +268,9 @@ func designCheck(path string) (designCheckResult, error) {
 	result := designCheckResult{Errors: []string{}, Files: []string{}}
 	p, err := designReadPack(path)
 	if err == nil {
+		p, err = canonicalDesignPack(p, true)
+	}
+	if err == nil {
 		result.Files = p.names
 		result.Bytes = p.bytes
 		var s designSpec

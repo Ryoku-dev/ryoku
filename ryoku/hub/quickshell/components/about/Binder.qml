@@ -126,6 +126,13 @@ Item {
     function verification(entry) {
         if (!entry)
             return "";
+        if (entry.publication && entry.signed === true) {
+            return entry.approvalState === "historical"
+                ? I18n.tr("Signed animation kept on this machine. Its online approval is no longer current.")
+                : entry.approvalState === "last-known"
+                ? I18n.tr("Signed animation kept on this machine. Online approval could not be refreshed.")
+                : I18n.tr("Signed animation · inspected and approved for this card. Playback keeps the complete package signature.");
+        }
         if (root.badgeVerified(entry)) {
             var badge = entry.badge;
             var role = badge.role.charAt(0).toUpperCase() + badge.role.slice(1);
@@ -158,6 +165,8 @@ Item {
     }
     function refusal(err, code, action) {
         var e = String(err || "");
+        if (/media inspection|media validation|GIF:|WebP:|requires bubblewrap|card media runtime/i.test(e))
+            return e;
         if (/your own card/i.test(e))
             return I18n.tr("That is your own card; your binder holds your friends'.");
         if (/no picture|clipboard.*empty/i.test(e))
@@ -211,14 +220,6 @@ Item {
     function add(file) {
         if (root.job !== "")
             return;
-        if (file && !/\.(png|jpe?g|gif)$/i.test(file)) {
-            root.error = "";
-            root.job = "convert";
-            convert.source = "";
-            convert.pending = file;
-            convert.source = chooser.urlOf(file);
-            return;
-        }
         root.addPicture(file);
     }
     function addPicture(file) {
@@ -290,48 +291,9 @@ Item {
         duration: Lithic.duration(260)
         easing.type: Easing.OutCubic
     }
-    Item {
-        id: conversionFrame
-        width: 0
-        height: 0
-        clip: true
-    }
-    Image {
-        id: convert
-        property string pending: ""
-        parent: conversionFrame
-        asynchronous: true
-        // Both axes must be bounded before Qt decodes a foreign image or grabs its conversion.
-        sourceSize.width: 2048
-        sourceSize.height: 2861
-        width: Math.min(2048, implicitWidth)
-        height: Math.min(2861, implicitHeight)
-        fillMode: Image.PreserveAspectFit
-        onStatusChanged: {
-            if (convert.pending === "" || status === Image.Loading || status === Image.Null)
-                return;
-            convert.pending = "";
-            if (status !== Image.Ready) {
-                root.job = "";
-                root.error = root.refusal("", 1, "add");
-                return;
-            }
-            var file = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-binder-open.png";
-            var grabbed = convert.grabToImage(function (result) {
-                root.job = "";
-                if (result.saveToFile(file))
-                    root.addPicture(file);
-                else
-                    root.error = root.refusal("", 1, "add");
-            }, Qt.size(convert.width, convert.height));
-            if (!grabbed) {
-                root.job = "";
-                root.error = root.refusal("", 1, "add");
-            }
-        }
-    }
     ImageChooser {
         id: chooser
+        inspectImages: true
         overlayParent: root.parent
         title: I18n.tr("Open a card")
         onAccepted: root.add(chooser.localPath(chooser.selectedFile))
@@ -398,6 +360,7 @@ Item {
             anchors.top: pulseLine.visible ? pulseLine.bottom : heading.bottom
             anchors.margins: LithicTokens.space.s5
             text: root.error || root.message || (root.job === "list" ? I18n.tr("Reading your binder…") : "")
+            textFormat: Text.PlainText
             visible: text !== ""
             typeRole: "detail"
             ink: root.error !== "" ? Lithic.jasper : Lithic.fg2
@@ -564,6 +527,16 @@ Item {
                         text: root.verification(root.selected)
                         typeRole: "detail"
                         ink: root.badgeVerified(root.selected) ? Lithic.gold : Lithic.fg2
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    }
+                    Label {
+                        width: parent.width
+                        visible: String(root.selected.designError || "") !== ""
+                        text: String(root.selected.designError || "")
+                        typeRole: "detail"
+                        ink: Lithic.jasper
+                        textFormat: Text.PlainText
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
                     }

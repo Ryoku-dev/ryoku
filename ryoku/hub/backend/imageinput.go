@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -24,7 +25,7 @@ func readPictureFile(path string) ([]byte, error) {
 }
 
 func readBoundedFile(path string, limit int64) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,11 @@ func readLimitedCommand(cmd *exec.Cmd, limit int64) ([]byte, error) {
 	raw, readErr := readBounded(stdout, limit)
 	if readErr != nil {
 		// Waiting before killing lets a clipboard writer block forever on its pipe.
-		_ = cmd.Process.Kill()
+		if cmd.Cancel != nil {
+			_ = cmd.Cancel()
+		} else {
+			_ = cmd.Process.Kill()
+		}
 	}
 	stdout.Close()
 	waitErr := cmd.Wait()
@@ -81,6 +86,16 @@ func validPictureSize(w, h int) bool {
 }
 
 func decodePicture(raw []byte) (image.Image, error) {
+	canonical, err := inspectMedia(context.Background(), raw, false)
+	if err != nil {
+		return nil, err
+	}
+	return decodePictureLocal(canonical.Poster)
+}
+
+// decodePictureLocal is restricted to the isolated worker or canonical output
+// received from our own worker pipe, never an imported stream.
+func decodePictureLocal(raw []byte) (image.Image, error) {
 	if len(raw) > maxPictureBytes {
 		return nil, errPictureTooLarge
 	}

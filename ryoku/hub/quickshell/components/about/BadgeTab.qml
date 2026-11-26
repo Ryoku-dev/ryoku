@@ -14,8 +14,6 @@ Column {
     property bool live: false
     property string folder: ""
     property string copyError: ""
-    // every badge, tester to founder, may have its own card design
-    readonly property bool holder: !!Badge.badge
     readonly property bool idle: Badge.job === ""
     readonly property var roles: ["tester", "contributor", "nixos", "core", "founder"]
     readonly property var emblemSpec: Badge.ownDesign && Badge.ownDesign.spec ? Badge.ownDesign.spec.badge : null
@@ -109,19 +107,19 @@ Column {
 
     Column {
         width: parent.width
-        visible: root.holder
         spacing: LithicTokens.space.s3
         Label { text: I18n.tr("Your card design"); typeRole: "section" }
         Note {
             text: Badge.design ? I18n.tr("Approved design: %1. Friends see it on your card.").replace("%1", Badge.design.name)
-                : Badge.worn ? I18n.tr("Wearing %1 on this machine. Friends see your classic card until nero approves it.").replace("%1", Badge.worn.name)
-                : I18n.tr("No design yet. Wear one on this machine now, and send it to Mika so friends see it too.")
+                : Badge.worn ? I18n.tr("Wearing %1 on this machine. This local design is not published to friends.").replace("%1", Badge.worn.name)
+                : I18n.tr("Wear your own design locally, without a badge or account. Online publication is a separate approval and entitlement.")
         }
         Note {
             visible: Badge.wornError !== ""
             text: I18n.tr("The design you wear no longer passes the check, so your card is classic: %1").replace("%1", Badge.wornError)
             ink: Lithic.jasper
         }
+        Note { visible: Badge.designError !== ""; text: Badge.designError; ink: Lithic.jasper }
         Note { text: I18n.tr("A design folder holds design.json and its pictures, including animated WebP. It cannot contain QML, shaders or scripts.") }
         Plaque { kind: "line"; text: I18n.tr("Load design folder"); enabled: root.idle; busy: Badge.job === "check"; onClicked: folderPick.open() }
         Note { visible: root.folder !== ""; text: root.folder }
@@ -165,9 +163,9 @@ Column {
             width: parent.width
             spacing: LithicTokens.space.s2
             Plaque { small: true; kind: "quiet"; text: I18n.tr("Choose save folder"); onClicked: savePick.open() }
-            Plaque { kind: "gold"; text: I18n.tr("Save for Mika"); enabled: root.idle && !!Badge.checked && Badge.checked.ok && root.folder !== "" && output.text.charAt(0) === "/"; busy: Badge.job === "pack"; onClicked: Badge.saveDesign(root.folder, output.text) }
+            Plaque { kind: "gold"; text: I18n.tr("Save design pack"); enabled: root.idle && !!Badge.checked && Badge.checked.ok && root.folder !== "" && output.text.charAt(0) === "/"; busy: Badge.job === "pack"; onClicked: Badge.saveDesign(root.folder, output.text) }
         }
-        Note { text: I18n.tr("To have friends see it, use /card submit in the claim-badge channel to send the zip to Mika. nero approves it first.") }
+        Note { text: I18n.tr("Saving a pack does not approve or publish it. Friends receive custom motion only through the online review and entitlement checks.") }
     }
     Column {
         width: parent.width
@@ -193,6 +191,7 @@ Column {
         Plaque { kind: "line"; text: I18n.tr("Revoke"); enabled: root.idle && revoked.text.trim() !== ""; busy: Badge.job === "revoke"; onClicked: Badge.revoke(revoked.text) }
     }
     component Note: Label {
+        textFormat: Text.PlainText
         width: root.width
         typeRole: "detail"
         inkRole: "fg2"

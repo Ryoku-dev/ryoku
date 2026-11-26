@@ -1,14 +1,13 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"image/jpeg"
 	"maps"
 	"net/http"
 	"os"
@@ -266,8 +265,11 @@ func (s *pullState) fold(ids []string, answer pullReply, known map[string]int64)
 	}
 	for _, r := range answer.Records {
 		if _, asked := known[r.ID]; asked && r.Updated > known[r.ID] {
-			// a record that fails here leaves the copy held, and is asked for again next time
-			_ = pullStoreRecord(r, list)
+			// A refused replacement never makes the retained approved copy
+			// current. It remains a local historical snapshot and is retried.
+			if err := pullStoreRecord(r, list); err != nil && r.V == 5 && !slices.Contains(s.Gone, r.ID) {
+				s.Gone = append(s.Gone, r.ID)
+			}
 		}
 	}
 }
@@ -277,6 +279,9 @@ func (s *pullState) fold(ids []string, answer pullReply, known map[string]int64)
 func pullStoreRecord(r cardRecord, list teamVerifiedList) error {
 	if _, e := recordVerifyFor(r, list); e != nil {
 		return e
+	}
+	if r.V == 5 {
+		return cardAnimationStore(r)
 	}
 	dir, e := teamCacheDir()
 	if e != nil {
@@ -298,8 +303,10 @@ func pullStoreRecord(r cardRecord, list teamVerifiedList) error {
 		if pictureSHA(picture) != r.Picture {
 			return errors.New("card picture digest mismatch")
 		}
-		cfg, e := jpeg.DecodeConfig(bytes.NewReader(picture))
-		if e != nil || cfg.Width > 1120 || cfg.Height > 780 || cfg.Width < 1 || cfg.Height < 1 {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		media, e := inspectMedia(ctx, picture, false)
+		cancel()
+		if e != nil || media.Extension != "jpg" || media.Width > 1120 || media.Height > 780 || media.Width < 1 || media.Height < 1 {
 			return errors.New("invalid record JPEG")
 		}
 		if e = atomicWrite(picturePath, picture, 0600); e != nil {
@@ -337,6 +344,10 @@ func recordCached(id string, list teamVerifiedList) (cardRecord, codedDesign, []
 	d, e := recordVerifyFor(r, list)
 	if e != nil || r.Picture == "" {
 		return r, d, nil, e
+	}
+	if r.V == 5 {
+		_, _, poster, err := cardAnimationCached(r)
+		return r, d, poster, err
 	}
 	picture, e := readBoundedFile(filepath.Join(dir, "record-"+id+".jpg"), recordPictureLimit)
 	if e != nil {

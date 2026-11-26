@@ -54,6 +54,7 @@ func listCards(refresh bool) (binderView, error) {
 // gate vouched for
 func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) binderCard {
 	entry.Badge, entry.Design, entry.Verified, entry.BadgeCheck, entry.Style, entry.StandName = nil, nil, false, "none", "", ""
+	entry.Signed, entry.Publication, entry.ApprovalState = false, "", ""
 	if s.Checked == 0 {
 		entry.BadgeCheck = "offline"
 		return entry
@@ -64,6 +65,9 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 	}
 	r, d, picture, e := recordCached(entry.ID, list)
 	if e != nil {
+		if r.V == 5 {
+			entry.DesignError = e.Error()
+		}
 		return entry
 	}
 	levels, e := encodeLevels(d)
@@ -75,7 +79,7 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 	if d.kind == 1 {
 		safe.Hero = cardHero{Kind: "gallery", Source: d.gallerySrc + ".png"}
 	}
-	if len(picture) > 0 {
+	if len(picture) > 0 && r.V != 5 {
 		path, e := recordStorePicture(entry.ID, picture)
 		if e != nil {
 			return entry
@@ -83,16 +87,33 @@ func recordEnrichCard(entry binderCard, s pullState, list teamVerifiedList) bind
 		// the file is rewritten in place, so its revision tells Settings to load it again
 		safe.Hero = cardHero{Kind: "custom", File: path, Rev: r.Picture[:12]}
 	}
+	safe.Signed = true
+	if r.V == 5 {
+		if err := cardAnimationEnrich(&safe, r); err != nil {
+			entry.DesignError = err.Error()
+			return entry
+		}
+	}
 	safe.Record, safe.RecordUpdated = "live", r.Updated
 	if slices.Contains(s.Gone, entry.ID) {
 		safe.Record = "kept"
+	}
+	if r.V == 5 && safe.Record == "kept" {
+		safe.ApprovalState = "historical"
+	}
+	if r.V == 5 && safe.ApprovalState == "current" && (s.Paused == "offline" || s.now() >= s.Next) {
+		safe.ApprovalState = "last-known"
 	}
 	if !badged {
 		return safe
 	}
 	safe.Badge = badgeViewFor(b, false)
-	if design := badgeDesignFor(list, b); design != nil {
-		safe.Design = &badgeCardDesign{SHA: design.SHA, Dir: design.Dir, Name: design.Name, Spec: design.Spec}
+	if r.V != 5 {
+		if design, err := badgeDesignFor(list, b); err != nil {
+			safe.DesignError = err.Error()
+		} else if design != nil {
+			safe.Design = &badgeCardDesign{SHA: design.SHA, Dir: design.Dir, Name: design.Name, Spec: design.Spec}
+		}
 	}
 	safe.Verified = true
 	safe.BadgeCheck = "ok"

@@ -127,7 +127,9 @@ test('approved designs require an active badge of any role and a pack, honor ord
   assert.equal((await call(state.env, 'POST', '/v1/designs', approval)).status, 200);
   assert.ok(await state.env.BUCKET.head(`designs/neur0map.txt`));
   assert.deepEqual(new Uint8Array(await (await call(state.env, 'GET', `/v1/packs/${sha}.zip`)).arrayBuffer()), packBytes);
-  assert.equal((await call(state.env, 'GET', `/v1/pending/${sha}.zip`)).status, 200);
+  assert.equal((await call(state.env, 'GET', `/v1/pending/${sha}.zip`)).status, 400);
+  const pendingPath = `/v1/pending/${sha}.zip`;
+  assert.equal((await call(state.env, 'GET', pendingPath, undefined, { 'X-Ryoku-Upload': await uploadHeader(state.owner, 1, pendingPath, packBytes, now(), 'GET') })).status, 200);
   assert.deepEqual((await (await call(state.env, 'GET', '/v1/list')).json()).designs, [approval]);
   assert.equal((await call(state.env, 'POST', '/v1/designs', approval)).status, 200);
   const older = await code('RYD', state.owner, { sha, approvedAt: 1794697199 });

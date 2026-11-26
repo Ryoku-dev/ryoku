@@ -84,7 +84,7 @@ export class Bucket {
     const current = this.metadata.get(key);
     if (options.onlyIf?.etagMatches !== undefined && current?.etag !== options.onlyIf.etagMatches) return null;
     if (options.onlyIf?.etagDoesNotMatch === '*' && current) return null;
-    const metadata = { etag: String(++this.serial), customMetadata: options.customMetadata ?? {} };
+    const metadata = { etag: String(++this.serial), uploaded: new Date(Date.now()), size: bytes.length, customMetadata: options.customMetadata ?? {} };
     this.data.set(key, bytes);
     this.metadata.set(key, metadata);
     return { key, ...metadata };

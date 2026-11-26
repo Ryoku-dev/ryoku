@@ -6,6 +6,8 @@
   "workers_dev": false,
   "routes": [{ "pattern": "team.ryoku.dev", "custom_domain": true }],
   "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "ryoku-team" }],
+  "durable_objects": { "bindings": [{ "name": "INSPECTION_QUEUE", "class_name": "InspectionQueue" }] },
+  "migrations": [{ "tag": "private-inspection-v1", "new_sqlite_classes": ["InspectionQueue"] }],
   "triggers": { "crons": ["17 3 * * *"] },
   "ratelimits": [
     { "name": "READ_LIMITER", "namespace_id": "2026111501", "simple": { "limit": 120, "period": 60 } },

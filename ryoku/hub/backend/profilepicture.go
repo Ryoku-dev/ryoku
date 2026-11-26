@@ -1,10 +1,8 @@
 package main
 
-// The card's own picture. Settings hands over the file the reader chose and this
-// decides, by its bytes and not its name, what it is and how it is kept beside
-// profile.json as hero.<ext>. A badge holder's picture may move: an animated GIF
-// or WebP, or a short video, up to maxMovingBytes. Everyone else keeps a still,
-// so a moving GIF or WebP is kept as its first frame and a video is refused.
+// Local GIF/WebP authoring needs no account or badge. Video retains its existing
+// badge requirement. All kinds are decoded and re-encoded in the one-shot
+// sandbox; Qt never receives the chosen stream.
 
 import (
 	"bytes"
@@ -19,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 const (
@@ -27,7 +24,7 @@ const (
 	maxMovingSeconds = 60
 )
 
-var errMovingNeedsBadge = errors.New("moving pictures come with a team badge")
+var errMovingNeedsBadge = errors.New("video pictures come with a team badge")
 
 // pictureKind is what a picture's bytes say it is.
 type pictureKind struct {
@@ -81,58 +78,8 @@ func sniffPicture(raw []byte) (pictureKind, error) {
 // gifFrames counts a GIF's frames by walking its blocks, without decoding any:
 // a small file can unpack into far more pixels than it holds.
 func gifFrames(raw []byte) (int, error) {
-	bad := fmt.Errorf("this GIF is damaged")
-	if len(raw) < 13 {
-		return 0, bad
-	}
-	at := 13
-	if flags := raw[10]; flags&0x80 != 0 {
-		at += 3 << (flags&7 + 1)
-	}
-	skipBlocks := func() bool {
-		for at < len(raw) {
-			n := int(raw[at])
-			at++
-			if n == 0 {
-				return true
-			}
-			at += n
-		}
-		return false
-	}
-	frames := 0
-	for at < len(raw) {
-		switch raw[at] {
-		case 0x3b:
-			return frames, nil
-		case 0x21:
-			at += 2
-			if !skipBlocks() {
-				return 0, bad
-			}
-		case 0x2c:
-			if at+10 > len(raw) {
-				return 0, bad
-			}
-			flags := raw[at+9]
-			at += 10
-			if flags&0x80 != 0 {
-				at += 3 << (flags&7 + 1)
-			}
-			at++ // LZW minimum code size
-			if !skipBlocks() {
-				return 0, bad
-			}
-			frames++
-		default:
-			return 0, bad
-		}
-	}
-	// a file cut short after whole frames still shows them
-	if frames == 0 {
-		return 0, bad
-	}
-	return frames, nil
+	g, err := inspectGIF(raw)
+	return len(g.frames), err
 }
 
 // webpAnimated reads the extended header's animation flag and checks its canvas size.
@@ -183,12 +130,16 @@ func mediaTool(ctx context.Context, name string, args ...string) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("moving pictures need %s, which Ryoku installs; reinstall it and try again", name)
 	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.CommandContext(ctx, path, args...)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	// Metadata and decoder diagnostics are foreign bytes, not safe log text.
+	cmd.Stderr = nil
 	out, err := readLimitedCommand(cmd, 64<<10)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v %s", name, err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("%s could not decode this media: %w", name, err)
 	}
 	return out, nil
 }
@@ -196,7 +147,7 @@ func mediaTool(ctx context.Context, name string, args ...string) ([]byte, error)
 // probeVideo checks what the container holds: one picture stream, sound at most
 // beside it (never played), and no longer than maxMovingSeconds.
 func probeVideo(ctx context.Context, path string, kind pictureKind) error {
-	out, err := mediaTool(ctx, "ffprobe", "-v", "error", "-show_entries",
+	out, err := mediaTool(ctx, "ffprobe", "-v", "error", "-max_alloc", "268435456", "-protocol_whitelist", "file", "-show_entries",
 		"format=format_name,duration:stream=codec_type,width,height", "-of", "json", "file:"+path)
 	if err != nil {
 		return err
@@ -245,38 +196,11 @@ func probeVideo(ctx context.Context, path string, kind pictureKind) error {
 	return nil
 }
 
-// firstFrame has ffmpeg draw a moving picture's first frame as a PNG.
-func firstFrame(ctx context.Context, src string) ([]byte, error) {
-	f, err := os.CreateTemp(filepath.Dir(src), ".poster-*.png")
-	if err != nil {
-		return nil, err
-	}
-	dst := f.Name()
-	f.Close()
-	defer os.Remove(dst)
-	if _, err := mediaTool(ctx, "ffmpeg", "-nostdin", "-v", "error", "-y", "-i", "file:"+src,
-		"-frames:v", "1", "-an", "-f", "image2", "-c:v", "png", "file:"+dst); err != nil {
-		return nil, err
-	}
-	raw, err := readPictureFile(dst)
-	if err != nil {
-		return nil, err
-	}
-	img, err := decodePicture(raw)
-	if err != nil {
-		return nil, fmt.Errorf("the first frame: %w", err)
-	}
-	var clean bytes.Buffer
-	if err := png.Encode(&clean, img); err != nil {
-		return nil, err
-	}
-	return clean.Bytes(), nil
-}
 
 // readChosenFile reads the file the reader chose whole, naming its size when it is over limit;
 // what names the kind of file in that message, e.g. "a picture"
 func readChosenFile(path string, limit int64, what string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -297,8 +221,6 @@ func readChosenFile(path string, limit int64, what string) ([]byte, error) {
 type savedPicture struct {
 	Source string `json:"source"`
 	Moving bool   `json:"moving"`
-	// Still is set when a moving picture was kept as its first frame
-	Still bool `json:"still,omitempty"`
 }
 
 // savePicture validates the file at src and keeps it as the card's picture.
@@ -323,80 +245,27 @@ func savePicture(src string) (savedPicture, error) {
 			return savedPicture{}, fmt.Errorf("this file is named as a picture but holds a video")
 		}
 	}
-	holder := kind.moving && badgeHolder()
-	if kind.moving && holder && len(raw) > maxMovingBytes {
+	if kind.moving && len(raw) > maxMovingBytes {
 		return savedPicture{}, movingTooLarge(int64(len(raw)))
 	}
-	if kind.video && !holder {
+	if kind.video && !badgeHolder() {
 		return savedPicture{}, errMovingNeedsBadge
 	}
+	canonical, err := inspectMedia(context.Background(), raw, kind.video)
+	if err != nil {
+		return savedPicture{}, err
+	}
 	dir := profileHeroDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return savedPicture{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	// tools read the very bytes that are kept, never the chosen file again
-	f, err := os.CreateTemp(dir, ".hero-*")
-	if err != nil {
-		return savedPicture{}, err
-	}
-	tmp := f.Name()
-	defer os.Remove(tmp)
-	_, err = f.Write(raw)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(tmp, 0o644)
-	}
-	if err != nil {
-		return savedPicture{}, err
-	}
-
-	switch {
-	case kind.moving && !holder:
-		// the first frame, as a still; a GIF Go reads itself, a WebP needs ffmpeg
-		var still []byte
-		if kind.ext == "gif" {
-			img, err := decodePicture(raw)
-			if err != nil {
-				return savedPicture{}, err
-			}
-			var clean bytes.Buffer
-			if err := png.Encode(&clean, img); err != nil {
-				return savedPicture{}, err
-			}
-			still = clean.Bytes()
-		} else if still, err = firstFrame(ctx, tmp); err != nil {
-			return savedPicture{}, err
-		}
-		if err := atomicWrite(filepath.Join(dir, "hero.png"), still, 0o644); err != nil {
-			return savedPicture{}, err
-		}
-		return savedPicture{Source: "hero.png", Still: true}, nil
-	case kind.video:
-		if err := probeVideo(ctx, tmp, kind); err != nil {
-			return savedPicture{}, err
-		}
-	case kind.ext == "png" || kind.ext == "jpg" || kind.ext == "gif":
-		if _, err := decodePicture(raw); err != nil {
-			return savedPicture{}, err
-		}
-	}
-	name := "hero." + kind.ext
+	name := "hero." + canonical.Extension
 	if poster := heroPoster(name); poster != "" {
-		still, err := firstFrame(ctx, tmp)
-		if err == nil {
-			err = atomicWrite(filepath.Join(dir, poster), still, 0o644)
-		}
-		// a still WebP needs its poster only to travel in a .ryoprofile, so an ffmpeg that
-		// cannot read it costs that and no more; a stale poster must not stand in for it
-		if err != nil && (kind.moving || removeIfPresent(filepath.Join(dir, poster)) != nil) {
+		if err := atomicWrite(filepath.Join(dir, poster), canonical.Poster, 0o600); err != nil {
 			return savedPicture{}, err
 		}
 	}
-	if err := os.Rename(tmp, filepath.Join(dir, name)); err != nil {
+	if err := atomicWrite(filepath.Join(dir, name), canonical.Data, 0o600); err != nil {
 		return savedPicture{}, err
 	}
 	return savedPicture{Source: name, Moving: kind.moving}, nil

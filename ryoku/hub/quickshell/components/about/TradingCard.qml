@@ -27,14 +27,17 @@ Item {
     property var traded: null
     property string cardsStoreRoot: ""
     readonly property bool badgeVerified: !!card.traded && card.traded.verified === true && card.traded.badgeCheck === "ok"
-    // a verified record carries the friend's picture whether or not they hold a badge; the seal and
-    // a team design still need the badge
+    readonly property bool approvedPublication: !!card.traded && card.traded.signed === true
+        && /^[0-9a-f-]{36}$/.test(String(card.traded.publication || ""))
+        && (card.traded.approvalState === "current" || card.traded.approvalState === "historical" || card.traded.approvalState === "last-known")
+    // The device signature authenticates a record; a restricted publication
+    // authenticates its whole design. Neither grants a team badge.
     readonly property bool recordPicture: card.badgeVerified || (!!card.traded && (card.traded.record === "live" || card.traded.record === "kept"))
     property var badge: card.traded ? (card.badgeVerified ? card.traded.badge || null : null) : Badge.ownBadge
     // the seal overlaps the figure's corner: the still a record's picture is cut from leaves it
     // off, or a friend's binder shows a clipped copy under (or, unverified, instead of) the seal
     property bool sealed: true
-    property var design: card.traded ? (card.badgeVerified ? card.traded.design || null : null) : Badge.ownDesign
+    property var design: card.traded ? (card.badgeVerified || card.approvedPublication ? card.traded.design || null : null) : Badge.ownDesign
     readonly property var designSpec: card.design ? card.design.spec || card.design : null
     readonly property var cardSpec: card.designSpec && card.designSpec.card ? card.designSpec.card : null
     readonly property var palette: card.cardSpec ? card.cardSpec.palette : null

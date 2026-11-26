@@ -141,7 +141,7 @@ func TestSniffPictureReadsContentNotName(t *testing.T) {
 	}
 }
 
-func TestMovingPictureNeedsBadge(t *testing.T) {
+func TestLocalAnimationNeedsNoBadgeVideoStillDoes(t *testing.T) {
 	pictureMachine(t, false)
 	video := testVideo(t, "clip.mp4", "2")
 	if _, err := savePicture(writeChosen(t, "clip.mp4", video)); err == nil || err != errMovingNeedsBadge {
@@ -150,17 +150,17 @@ func TestMovingPictureNeedsBadge(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(profileHeroDir(), "hero.mp4")); !os.IsNotExist(err) {
 		t.Fatal("a refused video left a file", err)
 	}
-	// a moving GIF is kept as its first frame, as a still
+	// Every GIF frame stays local, including for a machine without a badge.
 	saved, err := savePicture(writeChosen(t, "loop.gif", testGIF(t, 3)))
-	if err != nil || saved.Source != "hero.png" || saved.Moving || !saved.Still {
+	if err != nil || saved.Source != "hero.gif" || !saved.Moving {
 		t.Fatal(saved, err)
 	}
-	raw, err := os.ReadFile(filepath.Join(profileHeroDir(), "hero.png"))
+	raw, err := os.ReadFile(filepath.Join(profileHeroDir(), "hero.gif"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if kind, _ := sniffPicture(raw); kind.ext != "png" {
-		t.Fatal("first frame not kept as PNG", kind)
+	if n, err := gifFrames(raw); err != nil || n != 3 {
+		t.Fatal("local frames were lost", n, err)
 	}
 	// stills are anyone's
 	if saved, err = savePicture(writeChosen(t, "me.png", sampleHero)); err != nil || saved.Source != "hero.png" || saved.Moving {
@@ -221,14 +221,14 @@ func TestMovingPictureContentValidation(t *testing.T) {
 	}
 
 	saved, err := savePicture(writeChosen(t, "clip.mp4", video))
-	if err != nil || saved.Source != "hero.mp4" || !saved.Moving {
+	if err != nil || saved.Source != "hero.webm" || !saved.Moving {
 		t.Fatal(saved, err)
 	}
-	kept, _ := os.ReadFile(filepath.Join(profileHeroDir(), "hero.mp4"))
-	if !bytes.Equal(kept, video) {
-		t.Fatal("the kept video differs from the chosen one")
+	kept, _ := os.ReadFile(filepath.Join(profileHeroDir(), "hero.webm"))
+	if bytes.Equal(kept, video) {
+		t.Fatal("the original video bypassed canonicalization")
 	}
-	poster, err := readPictureFile(filepath.Join(profileHeroDir(), "hero-mp4.png"))
+	poster, err := readPictureFile(filepath.Join(profileHeroDir(), "hero-webm.png"))
 	if err != nil {
 		t.Fatal(err)
 	}

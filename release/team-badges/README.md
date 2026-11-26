@@ -1,16 +1,18 @@
 # Team badges gate
 
-Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed25519 badges, revocations, approved card designs, and device-signed system-card records for anyone who turns live cards on. Public issuer keys are in `wrangler.jsonc`; no private key belongs in the Worker. All writes require signatures, not a shared password.
+Cloudflare Worker for `https://team.ryoku.dev`. It publishes machine-bound Ed25519 badges, revocations, approved card designs, and device-signed system-card records for anyone who turns live cards on. Public issuer keys are in `wrangler.jsonc`; no issuer private key belongs in the Worker. The private candidate adds Account-authenticated intake and separately scoped inspector/reviewer credentials, without changing the deployed gate.
 
 ## Layout
 
 - `src/codec.js`: Crockford text encoding, request CRC, signed-code (badge v2 and v3, revocation and design approval), card (classic v2, styled v3 and worded v4, with the style allowlist and the words rule), card-delete and holder-proof verification, upload authorization, JPEG frame limits.
 - `src/index.js`: HTTPS routes, bounded streaming reads, rate limits, the 60-second Cache API response for the list, and the daily cleanup entry point.
 - `src/storage.js`: conditional R2 writes for badges, designs, card records, the card index and badge holders' early-refresh counters, plus the cleanups (90-day expiry, styled or worded records without an active badge).
+- `src/inspection-protocol.js`: detached canonical device manifests, inspector certificates and restricted design approval v3 envelopes
+- `src/inspection-queue.js`: one Durable Object for private admission, immutable R2 objects, leases, review claims, decisions and design withdrawals
 - `test/*.test.js`: Node WebCrypto tests using fresh test-only signing keys. Optional `test/vectors.json` runs Go cross-language vectors too.
 - `wrangler.jsonc`: custom domain, public keys, `BUCKET` binding to `ryoku-team`, rate limiters, the cleanup cron, the card limits and the holders' early refreshes.
 
-R2 keys: `badges/<id>.txt`, `revoked/<id>.txt`, `designs/<lowercase-login>.txt`, `cards/<fp>.json`, `cards/<fp>/<uuid>/<sha>.jpg`, `cards/index.json`, `holders/<badge id>.json`, `pending/<sha>.zip`, `packs/<sha>.zip`. Publishing a design copies its authenticated pending pack into `packs/`. The pending copy remains available for review. Replacing a card picture deletes the old object. Revoked badges remain in the list alongside the signed revocations so clients can verify the history.
+R2 keys: `badges/<id>.txt`, `revoked/<id>.txt`, `designs/<lowercase-login>.txt`, `cards/<fp>.json`, `cards/<fp>/<uuid>/<sha>.jpg`, `cards/index.json`, `holders/<badge id>.json`, `pending/<sha>.zip`, `packs/<sha>.zip`. Publishing a legacy design copies its authenticated pending pack into `packs/`. Pending reads now need an issuer-signed GET proof, they are not public. Private candidate originals and outputs use `private-inspection/<job-id>/...`, and exact-hash withdrawals use `design-revocations/<sha>.json`. These prefixes must never be exposed through a public R2 bucket or custom domain. Replacing a card picture deletes the old object. Revoked badges remain in the list alongside the signed revocations so clients can verify the history.
 
 ## Badge codes
 
@@ -70,7 +72,7 @@ Workers rate-limit bindings allow approximately 120 reads and 20 writes per minu
 
 Every write needs an explicit `Content-Length`; chunked-only uploads are rejected before consuming their bodies. Card records must be within 600 seconds of server time and strictly newer than stored records. Upload authorization allows a 300-second clock difference and signs the method, exact path, time and body hash. ZIP structure/design-schema validation is performed by the signing `ryoku-hub` CLI before uploading; this gate authenticates issuers and pack digests, and never executes pack contents.
 
-Read individual records at `/v1/cards/<fp>`, pictures at `/v1/cards/<fp>/<sha>.jpg`, review packs at `/v1/pending/<sha>.zip`, and published packs at `/v1/packs/<sha>.zip`. Fingerprints and SHA-256 hashes are lowercase hexadecimal, 16 and 64 characters respectively. Other paths return JSON 404 errors. Rejected writes return JSON 400, 403 (styled or worded card without its active badge, or a style its badge's login doesn't own), 404 (missing design pack or card), 413 (size), 415 (content type), 429 (rate limit), or 507 (card service full), without stack traces.
+Read individual records at `/v1/cards/<fp>`, pictures at `/v1/cards/<fp>/<sha>.jpg`, and published legacy packs at `/v1/packs/<sha>.zip`. Review packs at `/v1/pending/<sha>.zip` require `X-Ryoku-Upload` signed for `GET`, the exact `.zip` path, current time and pack hash, using the existing `ryoku-upload-v1` domain. An unauthenticated pending read is refused. Explicit design withdrawal blocks direct pending/published pack URLs too. Fingerprints and SHA-256 hashes are lowercase hexadecimal, 16 and 64 characters respectively. Other paths return JSON 404 errors.
 
 ## Live cards
 
@@ -110,8 +112,103 @@ Words must be well-formed Unicode in NFC with no space (`\p{Zs}`) at either end,
 
 Only the badge decides, as for styles: `PUT /v1/cards/<fp>` stores a v4 record only for an active badge on that card id signed by that badge's device key, else 403 `Card words need an active team badge on this machine` (no badge) or 403 `Invalid card signature` (another key). Serving, revocation and the cron treat it as they treat a styled record: withheld at once once the badge is revoked, deleted by `POST /v1/revoke`, swept by the 03:17 cron. Deploy the Worker before clients that send v4: an older gate refuses v4 with 400 `Invalid record fields`. Binders from before v4 keep the last v2 or v3 copy they verified of a card that moved to v4.
 
-Everything else a non-holder can upload stays as before: a still JPEG picture (400 KiB, 1120×780, hash bound into the signed record; moving pictures never reach the Worker), and no card design: approvals need an owner or Mika signature, packs need a signed upload header, and designs are listed and served only for logins with an active badge.
+The existing live-card routes still accept only still JPEG pictures from non-holders. Legacy design approvals remain issuer-signed and badge-bound. The private candidate below also admits verified Account users with active Creator, but does not add animated live-record or binder transport.
 
 ## Bot Fight Mode stays off
 
 The ryoku.dev zone's Bot Fight Mode is off. It challenged Ryoku's own Go client (`Go-http-client`) from some networks with a browser page, so card sync and binder pulls failed; on the Free plan it can't be skipped for one hostname. The Worker does its own checking: signatures on every write, rate limiters, and size caps.
+
+## Private inspection candidate
+
+This source is not a deployment. Use a separate private bucket, Durable Object namespace and HTTPS staging hostname, never the production bucket for smoke tests. Existing card record v2/v3/v4 and legacy RYD v2 layouts are unchanged, including the owner-only Stand style.
+
+### Required configuration
+
+`INSPECTION_QUEUE` binds `InspectionQueue`, with the `private-inspection-v1` SQLite Durable Object migration. `BUCKET` must be private. Missing queue or Account authority returns 503, never in-memory or unauthenticated fallback.
+
+| Setting | Meaning |
+| --- | --- |
+| `ACCOUNTS_URL` | HTTPS Account service origin, without path/query/userinfo |
+| `CARD_GATE_TOKEN` | Separate Account bridge secret, at least 32 characters |
+| `CARD_GATE_AUDIENCE` | Exact Account bridge audience sent as `X-Ryoku-Audience` |
+| `SUBMISSION_AUDIENCE` | Exact signed manifest audience, normally the staging team origin |
+| `ACCOUNT_WEB_ORIGINS` | JSON array of exact allowed HTTPS review app origins, empty denies browser origins |
+| `INSPECTOR_WORKER_TOKEN` | Separate worker-only secret, at least 32 characters |
+| `MIKA_REVIEW_TOKEN` | Separate restricted Mika review secret, never in the browser |
+| `INSPECTOR_KEYS` | JSON map `keyId -> {publicKey,revoked:false}`, base64 raw Ed25519 public keys |
+| `INSPECTOR_PIPELINE_VERSION` | Exact trusted pipeline version required in certificates |
+| `INSPECTOR_POLICY_VERSION` | Exact trusted inspection/content policy version |
+| `MIKA_REVIEW_MODELS` | Exact allowlist JSON array of operator-reviewed local model IDs |
+| `DESIGN_APPROVAL_KEYS` | JSON map `keyId -> {publicKey,revoked:false,role:"owner"|"mika"}` |
+| `DESIGN_SIGNER_URL`, `DESIGN_SIGNER_TOKEN` | Optional HTTPS restricted signer endpoint and separate bearer secret |
+
+All service credentials must differ. No general owner/Mika issuer seed belongs in the gate, inspector, web app or reviewer. Restricted approval keys only authorize the new exact-hash approval format. An absent signer leaves `awaiting_signature`; it does not approve anything.
+
+The Account bridge receives `POST /internal/cards/authorize` with `{token,action:"submit"|"own"|"review",cardId?}`. It verifies real account identity, linked device and current terms/attestation. Submit additionally requires active Creator or an independently verified active badge. The gate does not accept a caller-provided account id. Serving a new publication rechecks the badge or Account `/internal/cards/eligibility` for the linked account/card and `animated-share`.
+
+### Submission and worker transport
+
+`POST /v1/submissions` takes `{manifest:{payload,sig}}`, domain `ryoku-submit-v1`, and returns `{id,state:"uploading",uploadPath,expiresAt}`. The payload is the version 1 detached manifest from the shared product contract. It binds device/card, original ZIP digest, sorted per-file inventory, current terms/attestation and three explicit consent booleans, nonce, server-time window, audience and kind. Design archives contain `design.json` plus flat supported images, hero archives contain exactly one supported image. No video or executable content is admitted.
+
+`PUT uploadPath` takes exact `application/zip`, explicit length, at most 8 MiB and the authenticated submitting account. Reads count actual streamed bytes before the immutable object is accepted, and SHA-256 must match the signed manifest. A successful upload returns 202 queued, not approval. GET `/v1/submissions/<id>` gives owner/reviewer status, DELETE cancels only an owned unclaimed upload/queued job.
+
+Admission is serialized durably: at most 20 waiting jobs globally, one inspecting job globally, two waiting plus one running per account, 464 MiB charged original/output/reservation bytes plus 48 MiB crash headroom, and 2,000 retained job records, with a 100 KiB admission-index limit and 100 KiB per-job metadata limit, so published content still consumes real capacity rather than disappearing to make room
+
+Each eligible account gets eight new reservations per rolling 24 hours, measured by server time, cancellation does not refund them and 429 gives the exact earliest admission retry in seconds, other capacity failures return 503 with `Retry-After: 60`
+
+Cancelled, expired, failed, rejected, changes-requested and withdrawn jobs lose their private objects immediately, failed object deletion stays charged and the alarm retries it, their full metadata and audit stay private for 24 hours after the terminal transition and are then removed from durable storage and the index
+
+Nonce markers last through the signed manifest's final accepted second, freshness is checked before replay lookup so an expired signed manifest can never reopen after cleanup, account admission records expire after their rolling window and exact-hash withdrawal/revocation tombstones remain indefinitely, approved publications and live review jobs are not garbage-collected
+
+Service authentication and bounded body reads happen before the mutation queue, Account authorization also runs outside it with its existing ten-second outbound deadline, every request body has a ten-second total deadline that cancels a stalled reader, MIME and explicit byte-length limits remain unchanged and state, ownership and leases are checked again before mutation
+
+Read-only requests run outside mutation serialization too, so a slow public eligibility lookup cannot block worker heartbeats or alarms, publication state and revocations are checked again after that lookup before anything is served
+
+Worker-only routes:
+
+| Route | Body/authentication |
+| --- | --- |
+| `POST /internal/inspection/claim` | `{}` -> `{jobId,lease,inputPath,manifest,expiresAt}`, 204 if no work |
+| `GET /internal/inspection/<id>/input` | `X-Ryoku-Lease`, exact leased original only |
+| `POST /internal/inspection/<id>/heartbeat` | `{lease}` -> `{expiresAt}`, 5-minute lease, 30-minute hard deadline |
+| `PUT /internal/inspection/<id>/objects/<name>` | `X-Ryoku-Lease`, immutable bounded raw object |
+| `POST /internal/inspection/<id>/result` | `{lease,certificate}` |
+| `POST /internal/inspection/<id>/failure` | `{lease,reason}`, reason at most 256 characters |
+
+Every worker route requires `INSPECTOR_WORKER_TOKEN`. Fixed output names are `canonical` (ZIP, 8 MiB), `poster` (PNG, 8 MiB), `preview` (GIF/WebP, 24 MiB) and `report` (JSON, 8 MiB). All four are required. Only SHA-256 of the secret lease is stored or signed as `leaseSha`, raw capabilities never enter certificates, reports, R2 keys or audit records.
+
+The version 1 `ryoku-inspect-v1` certificate binds job, lease hash, manifest payload digest, original ZIP digest, exact output inventory/digests, pipeline/policy versions, inspection time, all four technical passes and moderation status. Missing/partial stages, revoked keys, wrong leases and changed bytes cannot enter review. The trusted certificate's moderation may remain `unreviewed`, never fabricate a clean classifier.
+
+### Content review, decision and signing
+
+Owner review uses Account-verified owner identity; Mika uses only the restricted review credential. List/search at `GET /v1/review/submissions?state=&q=&cursor=0&limit=25` returns `{items,nextCursor}`. Detail `/v1/review/submissions/<id>` includes manifest, certificate, payload digest `certificateSha`, report, content reviews, optional signing request and fixed authenticated asset paths. `/poster`, `/preview`, `/report`, `/canonical`, `/input` are authenticated object reads. ZIPs are explicit attachments, never auto-decoded by the review web page.
+
+POST `/claim` with `{}` claims a job for that reviewer for 600 seconds, POST `/content-review` accepts `{verdict,reason,idempotencyKey,model,coverage:{frames,totalFrames,durationMs,composition?},policyVersion,reviewVersion,canonicalSha,previewSha,reportSha,certificateSha}`, verdict is `clear`, `flagged` or `uncertain` and each receipt binds the reviewer, model, actual coverage, policy and certified hashes without changing the technical certificate
+
+Owner clear still requires explicit `model:"manual"` and every canonical frame, Mika clear requires `reviewVersion:"mika-local-card-review-v2"`, an allowed local model, every source-frame index from the signed report's complete review set of at most eight frames, and `coverage.composition:true`
+
+The final signed report's `composition` binds the exact canonical ZIP, full rendered poster and preview hashes, its small composed PNG and all five canonical human-text fields, hero-only reports have no custom text, source and composed PNG hashes, dimensions and formats are checked before automatic clear
+
+Flagged or uncertain receipts keep the actual visited source-frame indices, an uncertain escalation without inference uses `frames:[]` and `composition:false`, neither can approve and every non-clear receipt releases the claim immediately for the owner
+
+Mika can append a non-clear escalation after its own clear, including while awaiting signature, this preserves the old receipt and approval decision in `decisionHistory`, returns the job to owner review and invalidates the old signing request, Mika cannot clear an existing hold and owner review appends a new receipt and decision
+
+POST `/decision` accepts `{verdict:"approve"|"reject"|"changes",reason,idempotencyKey}`. It requires the current reviewer claim and valid exact certified bytes. Approval also requires that reviewer's current separate clear content review. Neither owner nor Mika can turn technical failure into pass. Decisions and content reviews are immutable and exact-idempotent; conflicting concurrent decisions return 409. Approve initially returns `awaiting_signature`.
+
+New approvals use domain `ryoku-design-approval-v3`, not an extension to legacy binary RYD v2. The exact payload is `{v:3,keyId,jobId,accountId,cardId,canonicalSha,posterSha,previewSha,certificateSha,contentReviewSha,decisionId,reviewerRole,approvedAt}`. The public key must be trusted, not revoked and scoped to the decision role. `certificateSha` is SHA-256 of decoded canonical certificate payload bytes, not its envelope JSON. The content review digest covers `{v,jobId,actor,role,at,submitted}` before adding outer `sha` and `idempotencyKey`.
+
+POST `/signature` accepts `{approval:{payload,sig}}` from an owner or Mika completing its own exact decision, it checks the genuine restricted signature, current technical authority and current clear-review predicate before entering `approved`, the same content predicate runs at approval decisions, signer invocation, signature completion and published serving so retained Mika-v1 or composition-omitting clear receipts cannot bypass the policy, an owner may POST `{}` to invoke the optional restricted signer and an unavailable signer never fabricates success
+
+Only `approved` publications are served at `/v1/published-designs/<id>/{canonical|poster|preview}`. The exact certified objects stay private behind the gate; originals have no public path. POST `/v1/submissions/<id>/withdraw` lets the author withdraw, and owner reviewers use `/v1/review/submissions/<id>/withdraw`; both take `{reason,idempotencyKey}`. Owner-only `/v1/design-revocations` takes `{sha,reason,idempotencyKey}` for legacy exact-hash takedown too. Tombstones are checked on every direct read. Badge `RYX` remains a badge revocation, not a design withdrawal.
+
+### Protocol fixtures and integrated checks
+
+`test/inspection-vectors.json` contains stable synthetic RFC 8032 public-key fixtures for submission, inspection, approval v3 and Unicode canonical JSON. Each binds exact canonical hex, domain-separated message hex, payload SHA-256 and signature. Object keys are ASCII protocol keys, recursively sorted, compact JSON, arrays in original order, safe integer numbers only, no lone surrogates or duplicate/noncanonical fields. Envelopes use standard padded base64. These hooks do not claim parity until the integration owner runs them:
+
+```sh
+node --test release/team-badges/test/*.test.js
+python3 release/team-badges/test/verify-inspection-vectors.py
+go run release/team-badges/test/verify-inspection-vectors.go
+```
+
+The Python check needs `cryptography`, use the inspector's isolated Python environment if the host does not provide it. `test/inspection.test.js` uses synthetic signing keys and in-memory storage/Account fixtures only, never real accounts or R2. Staging proof additionally needs the real Account bridge, isolated inspector runtime, actual local review worker, registered restricted signer and private Cloudflare bindings. This queue alone does not finish animated friend sync.

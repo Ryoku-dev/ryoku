@@ -1,5 +1,9 @@
 import { CARD_ID, InputError, base64, cardId, cardPayload, digest, jpegDimensions, styleOwnedBy, unbase64, verifyCard, verifyCode, verifyDelete, verifyDeviceCard, verifyHolder, verifyUpload } from './codec.js';
 import { admitRecord, cardIndex, claimHolderRefresh, deleteRecord, dropStyledRecords, expireCards, objects, reconcileIndex, reserveBadge, storeDesign, storeRecord, storedRecord } from './storage.js';
+import { inspectionPath, inspectionRoute } from './inspection-queue.js';
+import { animatedPayload, authorizeAnimatedRecord, storeAnimatedRecord } from './animated-record.js';
+import { assertCardWriteAllowed, cardContentWithdrawn } from './card-safety.js';
+export { InspectionQueue } from './inspection-queue.js';
 
 const TEXT_CAP = 2400; // At most 600 characters, including Unicode whitespace.
 const CARD_CAP = 600 * 1024;
@@ -8,7 +12,7 @@ const PACK_CAP = 8 * 1024 * 1024;
 const DELETE_CAP = 1024;
 const BATCH_CAP = 16 * 1024;
 const BATCH_IDS = 200;
-const json = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+const json = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
 const fail = (message, status = 400) => { throw new InputError(message, status); };
 const seconds = () => Math.floor(Date.now() / 1000);
 const setting = (value, fallback) => { const number = Number(value); return Number.isSafeInteger(number) && number > 0 ? number : fallback; };
@@ -123,7 +127,7 @@ async function loadInventory(env) {
   const active = badges.filter(b => !revokedIds.has(b.id));
   for await (const object of objects(env.BUCKET, 'designs/')) {
     const design = await parseStoredCode(env.BUCKET, object.key, 'RYD', env);
-    if (design && object.key === `designs/${design.login.toLowerCase()}.txt` && active.some(b => b.login.toLowerCase() === design.login.toLowerCase()) && await env.BUCKET.head(`packs/${design.sha}.zip`)) designs.push(design);
+    if (design && object.key === `designs/${design.login.toLowerCase()}.txt` && active.some(b => b.login.toLowerCase() === design.login.toLowerCase()) && !await env.BUCKET.head(`design-revocations/${design.sha}.json`) && await env.BUCKET.head(`packs/${design.sha}.zip`)) designs.push(design);
   }
   return { badges, revoked, active, designs };
 }
@@ -161,11 +165,19 @@ async function listedBy(record, active) {
 // styled and worded records stand only while an active badge holds their id, and a style only
 // while that badge's login owns it; revocation calls this at once, the cron daily
 async function withdrawStyles(env, data, ids, now) {
-  await dropStyledRecords(env, [...new Set(ids)], now, record => data.active.some(b => b.cardId === record.id) && ownsStyle(record, data.active));
+  await dropStyledRecords(env, [...new Set(ids)], now, record => record.v === 5 || (data.active.some(b => b.cardId === record.id) && ownsStyle(record, data.active)));
 }
 async function trustedRecord(env, id, active, trusts = trustedBy) {
   const stored = await env.BUCKET.get(`cards/${id}.json`), record = await storedRecord(stored);
-  try { if (record?.id === id && await trusts(record, active)) return { record, pictureKey: stored.customMetadata?.pictureKey }; }
+  try {
+    if (record?.id !== id) return null;
+    if (await cardContentWithdrawn(env, record)) return null;
+    if (record.v === 5) {
+      await authorizeAnimatedRecord(env, record);
+      return { record };
+    }
+    if (await trusts(record, active)) return { record, pictureKey: stored.customMetadata?.pictureKey };
+  }
   catch { /* Invalid persisted records are never served as trusted data. */ }
   return null;
 }
@@ -177,9 +189,12 @@ async function putCard(request, env, id) {
   const input = await jsonBody(request, CARD_CAP);
   if (!isMap(input) || Object.keys(input).some(k => !['record', 'picture'].includes(k))) fail('Invalid card upload');
   const record = input.record, now = seconds();
-  cardPayload(record);
+  if (record?.v === 5) animatedPayload(record); else cardPayload(record);
   if (record.id !== id || Math.abs(now - record.updated) > 600) fail('Invalid card id or timestamp');
-  if (record.v >= 3) {
+  if (record.v === 5) {
+    if (input.picture !== undefined) fail('Animated cards use the certified publication PNG poster');
+    await authorizeAnimatedRecord(env, record, request);
+  } else if (record.v >= 3) {
     if (!await authorizedInventory(env, active => styledBy(record, active))) {
       fail((await inventory(env)).active.some(b => b.cardId === id) ? 'Invalid card signature' : record.v === 4 ? WORDS_REFUSED : STYLE_REFUSED, 403);
     }
@@ -187,6 +202,8 @@ async function putCard(request, env, id) {
   } else if (record.device !== undefined) {
     if (!await trustedBy(record, (await inventory(env)).active)) fail('Invalid card signature');
   } else if (!await authorizedInventory(env, active => trustedBy(record, active))) fail('No active badge verifies this record');
+  await assertCardWriteAllowed(env, id);
+  if (await cardContentWithdrawn(env, record)) fail('This hosted card content was withdrawn', 403);
   let picture;
   if (input.picture !== undefined) {
     picture = unbase64(input.picture);
@@ -195,7 +212,7 @@ async function putCard(request, env, id) {
     if (!record.picture || await digest(picture) !== record.picture) fail('Picture hash mismatch');
   }
   const loaded = await admitRecord(env, record, setting(env.CARD_LIMIT, 20000));
-  await storeRecord(env, record, picture);
+  if (record.v === 5) await storeAnimatedRecord(env, record); else await storeRecord(env, record, picture);
   await reconcileIndex(env, [id], now, { loaded });
   return json({ id });
 }
@@ -236,14 +253,21 @@ async function pullCards(request, env) {
   if (!early?.granted && (await limited(request, env.READ_LIMITER) || await limited(request, env.PULL_LIMITER))) return refused(true, early);
   const { active, designs } = await inventory(env);
   const index = await cardIndex(env);
-  const changed = ids.filter(id => Object.hasOwn(index.cards, id) && index.cards[id] > known[id]);
-  const records = (await Promise.all(changed.map(id => trustedRecord(env, id, active, listedBy)))).filter(t => t && t.record.updated > known[t.record.id]).map(t => t.record);
+  // v5 authority can disappear without changing a record's timestamp. Inspect
+  // every requested persisted v5, including unchanged records, before saying current.
+  const resolved = await Promise.all(ids.map(async id => {
+    const stored = await env.BUCKET.get(`cards/${id}.json`), record = await storedRecord(stored);
+    if (record && await cardContentWithdrawn(env, record)) return { id, animated: record.v === 5, withdrawn: true, trusted: null };
+    if (record?.v === 5) return { id, animated: true, trusted: await trustedRecord(env, id, active, listedBy) };
+    return { id, animated: false, trusted: Object.hasOwn(index.cards, id) && index.cards[id] > known[id] ? await trustedRecord(env, id, active, listedBy) : null };
+  }));
+  const records = resolved.filter(entry => entry.trusted && entry.trusted.record.updated > known[entry.id]).map(entry => entry.trusted.record);
   const badges = active.filter(b => Object.hasOwn(known, b.cardId));
   const holders = new Set(badges.map(b => b.login.toLowerCase()));
   const now = seconds();
   return json({
     v: 1, now, next: early?.granted ? now : now + setting(env.PULL_SECONDS, 900), records,
-    gone: ids.filter(id => !Object.hasOwn(index.cards, id)),
+    gone: resolved.filter(entry => entry.withdrawn || (entry.animated ? !entry.trusted : !Object.hasOwn(index.cards, entry.id))).map(entry => entry.id),
     badges: badges.map(b => b.code),
     designs: designs.filter(d => holders.has(d.login.toLowerCase())).map(d => d.code),
     ...(early ? { holderLeft: early.left } : {}),
@@ -259,6 +283,7 @@ async function route(request, env, ctx) {
   const batch = method === 'POST' && path === '/v1/cards/batch';
   // a batch takes its read limit once it knows whether a holder spent an early refresh on it
   if (!batch && await limited(request, method === 'GET' || method === 'HEAD' ? env.READ_LIMITER : env.WRITE_LIMITER)) return refused(false);
+  if (inspectionPath(path)) return inspectionRoute(request, env);
   if (batch) return pullCards(request, env);
   if (method === 'GET' && path === '/v1/list') return cachedResponse(request, ctx, async () => {
     const data = await inventory(env);
@@ -293,7 +318,13 @@ async function route(request, env, ctx) {
     if (method === 'DELETE') return deleteCard(request, env, id);
     const { active } = await inventory(env);
     const trusted = await trustedRecord(env, id, active);
-    return trusted ? json(trusted.record) : json({ error: 'Not found' }, 404);
+    return trusted ? json(trusted.record, 200, { 'Cache-Control': 'no-store' }) : json({ error: 'Not found' }, 404, { 'Cache-Control': 'no-store' });
+  }
+  const poster = /^\/v1\/cards\/([0-9a-f]{16})\/([0-9a-f]{64})\.png$/.exec(path);
+  if (method === 'GET' && poster) {
+    const trusted = await trustedRecord(env, poster[1], []);
+    if (trusted?.record.v !== 5 || trusted.record.picture !== poster[2]) return json({ error: 'Not found' }, 404, { 'Cache-Control': 'no-store' });
+    return inspectionRoute(new Request(`${url.origin}/v1/published-designs/${trusted.record.publication}/poster`), env);
   }
   const picture = /^\/v1\/cards\/([0-9a-f]{16})\/([0-9a-f]{64})\.jpg$/.exec(path);
   if (method === 'GET' && picture) {
@@ -312,9 +343,15 @@ async function route(request, env, ctx) {
     return json({ sha: pending[1] });
   }
   const pack = /^\/v1\/(pending|packs)\/([0-9a-f]{64})\.zip$/.exec(path);
-  if (method === 'GET' && pack) return serveObject(env, `${pack[1]}/${pack[2]}.zip`, 'application/zip');
+  if (method === 'GET' && pack) {
+    if (pack[1] === 'pending') await verifyUpload(request.headers.get('X-Ryoku-Upload'), method, path, pack[2], env, seconds());
+    if (await env.BUCKET.head(`design-revocations/${pack[2]}.json`)) fail('Design withdrawn', 404);
+    if (pack[1] === 'packs' && await env.BUCKET.head(`published-canonical/${pack[2]}.json`)) fail('Published designs require current publication authority', 404);
+    return serveObject(env, `${pack[1]}/${pack[2]}.zip`, 'application/zip');
+  }
   if (method === 'POST' && path === '/v1/designs') {
     const design = await verifyCode('RYD', await textBody(request), env);
+    if (await env.BUCKET.head(`design-revocations/${design.sha}.json`)) fail('Design withdrawn', 403);
     if (!await authorizedInventory(env, active => active.some(b => b.login.toLowerCase() === design.login.toLowerCase()))) fail('Design requires an active badge');
     await storeDesign(env, design);
     await refreshInventory(env, request);

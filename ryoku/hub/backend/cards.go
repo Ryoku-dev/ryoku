@@ -25,6 +25,10 @@ type cardHero struct {
 	Source string `json:"source"`
 	File   string `json:"file"`
 	Rev    string `json:"rev,omitempty"`
+	// Only independently verified, locally canonicalized approved publications
+	// populate these whole-stream playback fields.
+	MotionFile string `json:"motionFile,omitempty"`
+	MotionSHA  string `json:"motionSha,omitempty"`
 }
 
 func pictureRev(picture []byte) string {
@@ -50,18 +54,22 @@ type cardHardware struct {
 }
 
 type binderCard struct {
-	ID         string           `json:"id"`
-	Added      time.Time        `json:"added"`
-	Name       string           `json:"name"`
-	Tagline    string           `json:"tagline"`
-	Epithet    string           `json:"epithet"`
-	Hero       cardHero         `json:"hero"`
-	HW         cardHardware     `json:"hw"`
-	Levels     [][]int          `json:"levels"`
-	Badge      *badgeView       `json:"badge"`
-	Design     *badgeCardDesign `json:"design"`
-	Verified   bool             `json:"verified"`
-	BadgeCheck string           `json:"badgeCheck"`
+	ID            string           `json:"id"`
+	Added         time.Time        `json:"added"`
+	Name          string           `json:"name"`
+	Tagline       string           `json:"tagline"`
+	Epithet       string           `json:"epithet"`
+	Hero          cardHero         `json:"hero"`
+	HW            cardHardware     `json:"hw"`
+	Levels        [][]int          `json:"levels"`
+	Badge         *badgeView       `json:"badge"`
+	Design        *badgeCardDesign `json:"design"`
+	Verified      bool             `json:"verified"`
+	BadgeCheck    string           `json:"badgeCheck"`
+	DesignError   string           `json:"designError,omitempty"`
+	Signed        bool             `json:"signed"`
+	Publication   string           `json:"publication,omitempty"`
+	ApprovalState string           `json:"approvalState,omitempty"`
 	// Record is "live" for the owner's verified record from the team service, "kept" for the
 	// last one verified after the service let it go, and empty for the shared picture alone
 	Record        string `json:"record"`

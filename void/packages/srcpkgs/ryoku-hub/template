@@ -8,6 +8,7 @@ maintainer="Ryoku <releases@ryoku.dev>"
 license="GPL-3.0-or-later"
 homepage="https://ryoku.dev"
 hostmakedepends="go"
+depends="bubblewrap libwebp-tools ffmpeg6 libsecret"
 distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"

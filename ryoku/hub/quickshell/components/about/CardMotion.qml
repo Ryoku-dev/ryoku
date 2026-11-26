@@ -1,7 +1,7 @@
 import QtQuick
 import QtMultimedia
 
-// a badge holder's card picture, moving: an animated GIF or WebP, or a short video looping
+// a local card picture, moving: an animated GIF or WebP, or a badge holder's short video looping
 // without sound. CardFigure loads it by URL only while the card is pointed at, so at rest
 // nothing here exists and nothing decodes; it is framed and filled like the still under it
 Item {

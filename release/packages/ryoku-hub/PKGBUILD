@@ -1,8 +1,6 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
-# Ryoku Hub backend (Go). A standalone helper the Hub's Quickshell config shells
-# out to for the keybind legend and the Hub's TOML config. It parses config
-# files and prints results, so it has no runtime dependencies of its own.
+# Ryoku Hub backend (Go), including sandboxed card media and account sign-in
 #
 # Built from the in-repo source at ryoku/hub/backend; no tarball is fetched.
 # go build reads the committed vendor/ tree (-mod=vendor), so the signed-repo CI
@@ -15,7 +13,7 @@ pkgdesc="Ryoku Hub backend: keybind legend and config service"
 arch=('x86_64')
 url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
-depends=()
+depends=('bubblewrap' 'libwebp-utils' 'ffmpeg' 'libsecret')
 makedepends=('go')
 optdepends=('python: Redux dictation adapter (Python 3.11+)'
             'git: build the Redux native runtime during installation'

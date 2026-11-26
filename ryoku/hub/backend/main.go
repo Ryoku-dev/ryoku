@@ -22,6 +22,16 @@ func main() {
 	}
 
 	switch args[0] {
+	case "account":
+		if err := runCardAccount(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
+	case "media":
+		if err := runCardMedia(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
 	case "keybinds":
 		b, err := json.Marshal(keybinds())
 		if err != nil {
@@ -205,6 +215,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub keybinds")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config get <key>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config set <key> <value>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub account status|signin|poll|cancel|signout|website|link|unlink|submission")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub badge status|activate|sync|issue|revoke|inspect|holder|list")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub design check|pack|upload-pending|fetch|approve")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub shell get|set|loaders <fish|bash|zsh>")

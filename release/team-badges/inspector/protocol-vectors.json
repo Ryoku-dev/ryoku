@@ -1,0 +1,10 @@
+{
+  "purpose": "public synthetic protocol vector only, archive is deliberately not an actual pack",
+  "domain": "ryoku-submit-v1",
+  "seedHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "publicKey": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "canonicalUtf8": "{\"attestationVersion\":\"cards-2026-11\",\"audience\":\"https://team.ryoku.dev\",\"cardId\":\"7d5e4b3be39c5bb0\",\"consentToReview\":true,\"device\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"files\":[{\"bytes\":2,\"name\":\"design.json\",\"sha\":\"44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a\"}],\"kind\":\"design\",\"nonce\":\"golden-fixture-not-production-0001\",\"originalSha\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"ownOrLicensed\":true,\"policyAccepted\":true,\"submittedAt\":1795132800,\"termsVersion\":\"cards-2026-11\",\"v\":1}",
+  "payload": "eyJhdHRlc3RhdGlvblZlcnNpb24iOiJjYXJkcy0yMDI2LTExIiwiYXVkaWVuY2UiOiJodHRwczovL3RlYW0ucnlva3UuZGV2IiwiY2FyZElkIjoiN2Q1ZTRiM2JlMzljNWJiMCIsImNvbnNlbnRUb1JldmlldyI6dHJ1ZSwiZGV2aWNlIjoiQTZFSHYvUE9FTDRkY04wWTUwdkFtV2ZrMWpDYnBRMWZIZHlHWkJKVk1iZz0iLCJmaWxlcyI6W3siYnl0ZXMiOjIsIm5hbWUiOiJkZXNpZ24uanNvbiIsInNoYSI6IjQ0MTM2ZmEzNTViMzY3OGExMTQ2YWQxNmY3ZTg2NDllOTRmYjRmYzIxZmU3N2U4MzEwYzA2MGY2MWNhYWZmOGEifV0sImtpbmQiOiJkZXNpZ24iLCJub25jZSI6ImdvbGRlbi1maXh0dXJlLW5vdC1wcm9kdWN0aW9uLTAwMDEiLCJvcmlnaW5hbFNoYSI6IjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJvd25PckxpY2Vuc2VkIjp0cnVlLCJwb2xpY3lBY2NlcHRlZCI6dHJ1ZSwic3VibWl0dGVkQXQiOjE3OTUxMzI4MDAsInRlcm1zVmVyc2lvbiI6ImNhcmRzLTIwMjYtMTEiLCJ2IjoxfQ==",
+  "sig": "Lg1AvFw9sK4+dh3UieBLnvoNCQUsyRnRtIIPDc5oZ7kzkMY4bZd1l4eCXfuei4DnVTZgPNSNe//lZy2066fZDQ==",
+  "payloadSha": "c772f88601bb9c45a7003284313c97a7d370b39529ef6cc50bbd3444045864d7"
+}

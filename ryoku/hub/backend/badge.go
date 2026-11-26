@@ -56,7 +56,8 @@ type badgeStatusResult struct {
 	Design *badgeDesign `json:"design"`
 	Worn   *badgeDesign `json:"worn"`
 	// WornError says why the worn design no longer passes the pack checks, so it is not drawn
-	WornError string `json:"wornError,omitempty"`
+	WornError   string `json:"wornError,omitempty"`
+	DesignError string `json:"designError,omitempty"`
 	// Online is whether this machine keeps its card on the team service for friends' binders
 	Online bool `json:"online"`
 	// Styles are the built-in card styles this badge's login owns, and so the only ones the
@@ -65,16 +66,16 @@ type badgeStatusResult struct {
 }
 
 // badgeDesignFor is the approved design of a badge's login; any active badge may have one
-func badgeDesignFor(list teamVerifiedList, b badgeInfo) *badgeDesign {
+func badgeDesignFor(list teamVerifiedList, b badgeInfo) (*badgeDesign, error) {
 	approval, ok := teamApproval(list, b.Login)
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	pack, e := designFetch(approval.SHA, false)
+	pack, e := designFetch(approval.SHA, false, "", "")
 	if e != nil {
-		return nil
+		return nil, e
 	}
-	return &badgeDesign{SHA: approval.SHA, Dir: pack.Dir, Name: pack.Design.Name, Approved: true, Spec: pack.Design}
+	return &badgeDesign{SHA: approval.SHA, Dir: pack.Dir, Name: pack.Design.Name, Approved: true, Spec: pack.Design}, nil
 }
 
 // ownBadge is this machine's activated badge unless the team list has revoked it, and whether
@@ -126,17 +127,20 @@ func badgeStatus(refresh bool) (badgeStatusResult, error) {
 		out.Styles = stylesOwnedBy(b.Login)
 		out.Published = published
 		if published {
-			out.Design = badgeDesignFor(list, b)
-		}
-		if out.Design != nil {
-			if e := designUnwear(); e != nil {
-				return out, e
+			out.Design, e = badgeDesignFor(list, b)
+			if e != nil {
+				out.DesignError = e.Error()
 			}
-		} else if worn, e := designWorn(); e != nil {
-			out.WornError = e.Error()
-		} else {
-			out.Worn = worn
 		}
+	}
+	if out.Design != nil {
+		if e := designUnwear(); e != nil {
+			return out, e
+		}
+	} else if worn, e := designWorn(); e != nil {
+		out.WornError = e.Error()
+	} else {
+		out.Worn = worn
 	}
 	return out, nil
 }

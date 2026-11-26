@@ -405,7 +405,7 @@ Item {
             Image {
                 id: cutoutImage
                 visible: false
-                source: stand.cutoutShown ? figure.fileUrl(stand.configDir + "/profile/hero-cutout.png") + "?v=" + ProfileStore.pictureRevision : ""
+                source: stand.cutoutShown && CardMedia.cutout !== "" ? figure.fileUrl(CardMedia.cutout) + "?v=" + ProfileStore.pictureRevision : ""
                 sourceSize.width: 1600
                 smooth: true
                 mipmap: true

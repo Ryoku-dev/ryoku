@@ -11,6 +11,10 @@ BuildRequires:  bash
 BuildRequires:  coreutils
 BuildRequires:  findutils
 BuildRequires:  golang >= 1.26.4
+Requires:       bubblewrap
+Requires:       libwebp-tools
+Requires:       ffmpeg-free
+Requires:       libsecret
 Suggests:       python3
 Suggests:       git
 Suggests:       cmake

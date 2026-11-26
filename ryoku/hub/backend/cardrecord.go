@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -45,8 +46,12 @@ type cardRecord struct {
 	// v2 and carries none, so binders that predate styles keep verifying it
 	Style string `json:"style,omitempty"`
 	// Tagline and StandName are a v4 record's own words, signed with the rest
-	Tagline   string `json:"tagline,omitempty"`
-	StandName string `json:"standName,omitempty"`
+	Tagline        string `json:"tagline,omitempty"`
+	StandName      string `json:"standName,omitempty"`
+	Publication    string `json:"publication,omitempty"`
+	CanonicalSHA   string `json:"canonicalSha,omitempty"`
+	ApprovalSHA    string `json:"approvalSha,omitempty"`
+	CertificateSHA string `json:"certificateSha,omitempty"`
 }
 
 func recordDomain(r cardRecord) string {
@@ -56,6 +61,9 @@ func recordDomain(r cardRecord) string {
 // recordHeader checks what a version may carry: v2 nothing, v3 a known-shaped style, v4 an
 // optional style and at least one of the words, each within the gate's rule
 func recordHeader(r cardRecord) bool {
+	if r.V != 5 && (r.Publication != "" || r.CanonicalSHA != "" || r.ApprovalSHA != "" || r.CertificateSHA != "") {
+		return false
+	}
 	styled := recordStyleID.MatchString(r.Style)
 	switch r.V {
 	case 2:
@@ -66,6 +74,11 @@ func recordHeader(r cardRecord) bool {
 		return (r.Style == "" || styled) && (r.Tagline != "" || r.StandName != "") &&
 			(r.Tagline == "" || cardWordsValid(r.Tagline, recordTaglineLimit)) &&
 			(r.StandName == "" || cardWordsValid(r.StandName, recordStandNameLimit))
+	case 5:
+		return r.Style == "" && r.Tagline == "" && r.StandName == "" &&
+			cardAnimationUUID.MatchString(r.Publication) && cardAnimationDigest(r.Picture) &&
+			cardAnimationDigest(r.CanonicalSHA) && cardAnimationDigest(r.ApprovalSHA) &&
+			cardAnimationDigest(r.CertificateSHA) && r.Device != ""
 	}
 	return false
 }
@@ -102,11 +115,18 @@ func recordPayload(r cardRecord) ([]byte, error) {
 	out = binary.BigEndian.AppendUint16(out, uint16(len(body)))
 	out = append(out, body...)
 	out = append(out, picture...)
-	if r.V >= 3 {
+	if r.V == 3 || r.V == 4 {
 		out = appendPrefixed(out, r.Style)
 	}
 	if r.V == 4 {
 		out = appendPrefixed(appendPrefixed(out, r.Tagline), r.StandName)
+	}
+	if r.V == 5 {
+		out = appendPrefixed(appendPrefixed(out, r.Device), r.Publication)
+		for _, digest := range []string{r.CanonicalSHA, r.ApprovalSHA, r.CertificateSHA} {
+			raw, _ := hex.DecodeString(digest)
+			out = append(out, raw...)
+		}
 	}
 	return out, nil
 }
@@ -179,14 +199,17 @@ func recordPicturePNG(path string) ([]byte, error) {
 	if e != nil {
 		return nil, e
 	}
-	config, e := png.DecodeConfig(bytes.NewReader(raw))
-	if e != nil {
-		return nil, errors.New("card picture must be PNG")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	media, e := inspectMedia(ctx, raw, false)
+	cancel()
+	if e != nil || media.Extension != "png" {
+		return nil, errors.New("card picture must be a safely decoded PNG")
 	}
-	if !validPictureSize(config.Width, config.Height) || math.Abs(float64(config.Width)/float64(config.Height)-cardW/cardH) > .02 {
+	if !validPictureSize(media.Width, media.Height) || math.Abs(float64(media.Width)/float64(media.Height)-cardW/cardH) > .02 {
 		return nil, errors.New("picture must contain the whole rendered card")
 	}
-	img, e := decodePicture(raw)
+	// Only the sandbox's freshly encoded poster reaches the host PNG decoder.
+	img, e := png.Decode(bytes.NewReader(media.Poster))
 	if e != nil {
 		return nil, e
 	}
@@ -235,6 +258,9 @@ func recordSync(args []string) (bool, error) {
 	}
 	if online, e := recordOnline(); e != nil || !online {
 		return false, e
+	}
+	if handled, synced, err := cardAnimationSync(d, picturePath); handled {
+		return synced, err
 	}
 	var picture []byte
 	if picturePath != "" {

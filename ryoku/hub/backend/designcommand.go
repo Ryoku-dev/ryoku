@@ -25,17 +25,33 @@ func designSHA(s string) ([32]byte, error) {
 	return sum, nil
 }
 
-func designFetch(sha string, pending bool) (designResult, error) {
+func designFetch(sha string, pending bool, issuer, keyFile string) (designResult, error) {
 	var out designResult
 	sum, err := designSHA(sha)
 	if err != nil {
 		return out, err
 	}
+	header := make(http.Header)
 	path := "/v1/packs/" + sha + ".zip"
 	if pending {
 		path = "/v1/pending/" + sha + ".zip"
+		if issuer != "owner" && issuer != "mika" {
+			return out, fmt.Errorf("pending fetch requires --issuer owner|mika and its signing key")
+		}
+		seed, e := loadIssuerSeed(issuer, keyFile)
+		if e != nil {
+			return out, e
+		}
+		defer clear(seed)
+		id := 1
+		if issuer == "mika" {
+			id = 2
+		}
+		seconds := strconv.FormatInt(time.Now().Unix(), 10)
+		payload := []byte(http.MethodGet + "\n" + path + "\n" + seconds + "\n" + sha)
+		header.Set("X-Ryoku-Upload", strconv.Itoa(id)+"."+seconds+"."+base64.StdEncoding.EncodeToString(signDomain(seed, "ryoku-upload-v1", payload)))
 	}
-	raw, status, err := teamGet(path, designZipLimit)
+	raw, status, err := teamSend(http.MethodGet, path, "", nil, header, designZipLimit)
 	if err != nil {
 		return out, err
 	}
@@ -64,6 +80,10 @@ func designFetch(sha string, pending bool) (designResult, error) {
 	}
 	target := filepath.Join(root, sha)
 	p, err := designReadZip(raw, target)
+	if err != nil {
+		return out, err
+	}
+	p, err = canonicalDesignPack(p, false)
 	if err != nil {
 		return out, err
 	}
@@ -155,6 +175,10 @@ func designCommand(args []string) error {
 		if err != nil {
 			return err
 		}
+		p, err = canonicalDesignPack(p, false)
+		if err != nil {
+			return err
+		}
 		if _, err = designValidate(p); err != nil {
 			return err
 		}
@@ -190,6 +214,8 @@ func designCommand(args []string) error {
 		fs := flag.NewFlagSet("design fetch", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
 		pending := fs.Bool("pending", false, "")
+		issuer := fs.String("issuer", "", "")
+		key := fs.String("key-file", "", "")
 		// The documented positional SHA precedes --pending.
 		rest := args[1:]
 		if len(rest) > 0 && rest[0] != "--pending" {
@@ -201,7 +227,10 @@ func designCommand(args []string) error {
 		if fs.NArg() != 1 {
 			return fmt.Errorf("usage: design fetch <sha> [--pending]")
 		}
-		r, err := designFetch(fs.Arg(0), *pending)
+		if !*pending && (*issuer != "" || *key != "") {
+			return fmt.Errorf("issuer proof is only used with --pending")
+		}
+		r, err := designFetch(fs.Arg(0), *pending, *issuer, *key)
 		if err != nil {
 			return err
 		}
@@ -233,6 +262,9 @@ func designCommand(args []string) error {
 			}
 			p, err := designReadZip(raw, "")
 			if err != nil {
+				return err
+			}
+			if _, err = canonicalDesignPack(p, false); err != nil {
 				return err
 			}
 			if _, err = designValidate(p); err != nil {

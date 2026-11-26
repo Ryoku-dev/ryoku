@@ -26,6 +26,14 @@ Item {
     property var extraFilters: []
     // list short videos too (a badge holder's card picture); shown with a mark and their size
     property bool videos: false
+    // Card consumers opt into backend-only decoding, including hover/thumbnail
+    // paths. No failure ever falls back to the original file URL.
+    property bool inspectImages: false
+    property var inspectedPreviews: ({})
+    property string inspectionError: ""
+    property bool inspecting: false
+    property int inspectionGeneration: 0
+    onShownChanged: if (host.inspectImages && host.showing) host.inspectPreview(host.shown)
     readonly property bool showing: dialog.visible
 
     signal accepted()
@@ -52,6 +60,9 @@ Item {
         host.took = false;
         host.chosen = "";
         host.resting = "";
+        host.inspectionGeneration++;
+        host.inspectedPreviews = ({});
+        host.inspectionError = "";
         var p = host.localPath(host.currentFolder);
         host.path = p !== "" ? p : host.home;
         dialog.open();
@@ -86,12 +97,59 @@ Item {
         host.chosen = "";
         host.resting = "";
         grid.contentY = 0;
+        host.inspectionGeneration++;
+        host.inspectedPreviews = ({});
+        host.inspectionError = "";
     }
     function take(p): void {
         host.took = true;
         host.selectedFile = host.urlOf(p);
         dialog.close();
         host.accepted();
+    }
+    function previewURL(p): string {
+        if (!host.inspectImages)
+            return host.urlOf(p);
+        var checked = host.inspectedPreviews[p];
+        return checked && checked.path ? host.urlOf(checked.path) : "";
+    }
+    function inspectPreview(p): void {
+        host.inspectionError = "";
+        if (p === "" || !/\.(png|jpe?g|webp|gif|bmp)$/i.test(p))
+            return;
+        var cached = host.inspectedPreviews[p];
+        if (cached) {
+            host.inspectionError = cached.error || "";
+            return;
+        }
+        // Only the hovered/chosen file is inspected, one job at a time; a
+        // folder with thousands of files cannot create thousands of decoders.
+        if (host.inspecting)
+            return;
+        host.inspecting = true;
+        var generation = host.inspectionGeneration;
+        Changes.run(["ryoku-hub", "media", "preview", p], function(ok, out, err) {
+            host.inspecting = false;
+            if (generation === host.inspectionGeneration) {
+                var result = null;
+                if (ok) {
+                    try { result = JSON.parse(out); }
+                    catch (e) { err = I18n.tr("The media inspector returned an unreadable answer."); }
+                }
+                var entry = result && /^\/.*\/[0-9a-f]{64}\.png$/.test(String(result.path || ""))
+                    ? { path: result.path, frames: result.frames, sourceSha: result.sourceSha }
+                    : { error: String(err || I18n.tr("This picture did not pass media inspection.")).trim() };
+                var next = Object.assign({}, host.inspectedPreviews);
+                if (Object.keys(next).length >= 64)
+                    next = ({});
+                next[p] = entry;
+                host.inspectedPreviews = next;
+                if (host.shown === p)
+                    host.inspectionError = entry.error || "";
+            }
+            if (host.showing && (generation !== host.inspectionGeneration || host.shown !== p))
+                host.inspectPreview(host.shown);
+        }, { timeout: 35000 });
     }
 
     FolderListModel {
@@ -155,6 +213,7 @@ Item {
             Label {
                 width: parent.width
                 text: host.shortPath(host.path)
+                textFormat: host.inspectImages ? Text.PlainText : Text.AutoText
                 typeRole: "detail"
                 inkRole: "fg2"
                 elide: Text.ElideMiddle
@@ -204,9 +263,9 @@ Item {
                             clip: true
 
                             Glyph {
-                                visible: !cell.picture
+                                visible: !cell.picture || (host.inspectImages && host.previewURL(cell.filePath) === "")
                                 anchors.centerIn: parent
-                                name: cell.fileIsDir ? "folder" : cell.video ? "movie" : "description"
+                                name: cell.fileIsDir ? "folder" : cell.video ? "movie" : cell.picture ? "image" : "description"
                                 size: 34
                                 ink: Lithic.fg3
                             }
@@ -214,7 +273,7 @@ Item {
                                 visible: cell.picture
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                source: cell.picture ? host.urlOf(cell.filePath) : ""
+                                source: cell.picture ? host.previewURL(cell.filePath) : ""
                                 sourceSize.width: 240
                                 sourceSize.height: 240
                                 fillMode: Image.PreserveAspectCrop
@@ -231,6 +290,7 @@ Item {
                             width: parent.width - 12
                             text: !cell.video ? cell.fileName : cell.fileName + " · " + (cell.fileSize < 1048576
                                 ? Math.max(1, Math.round(cell.fileSize / 1024)) + " KB" : (cell.fileSize / 1048576).toFixed(1) + " MB")
+                            textFormat: host.inspectImages ? Text.PlainText : Text.AutoText
                             typeRole: "caption"
                             ink: cell.isChosen ? Lithic.fg : Lithic.fg2
                             elide: Text.ElideMiddle
@@ -278,7 +338,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 12
                         anchors.bottomMargin: 44
-                        source: /\.(png|jpe?g|webp|gif|bmp)$/i.test(host.shown) ? host.urlOf(host.shown) : ""
+                        source: /\.(png|jpe?g|webp|gif|bmp)$/i.test(host.shown) ? host.previewURL(host.shown) : ""
                         sourceSize.width: 720
                         sourceSize.height: 720
                         fillMode: Image.PreserveAspectFit
@@ -293,10 +353,11 @@ Item {
                     }
                     Label {
                         anchors.centerIn: big
-                        visible: host.shown === ""
+                        visible: host.shown === "" || (host.inspectImages && (host.inspecting || host.inspectionError !== ""))
                         width: parent.width - 40
                         horizontalAlignment: Text.AlignHCenter
-                        text: I18n.tr("Rest on a picture to see it here. Click to choose it, or double-click to use it.")
+                        text: host.inspectionError !== "" ? host.inspectionError : host.inspecting ? I18n.tr("Inspecting picture safely…") : I18n.tr("Rest on a picture to see it here. Click to choose it, or double-click to use it.")
+                        textFormat: Text.PlainText
                         typeRole: "detail"
                         inkRole: "fg3"
                         wrapMode: Text.Wrap
@@ -309,6 +370,7 @@ Item {
                         anchors.margins: 12
                         visible: host.shown !== ""
                         text: host.nameOf(host.shown)
+                        textFormat: host.inspectImages ? Text.PlainText : Text.AutoText
                         typeRole: "monoSm"
                         inkRole: "fg2"
                         elide: Text.ElideMiddle

@@ -8,12 +8,13 @@ import (
 	wm "ryoku-wm"
 )
 
-// harmless utilities the tests' own scripts run, linked from the system directories
-// rather than looked up on PATH, so nothing else on the machine is reachable; ffmpeg and
-// ffprobe only read and write the files a test names
+// The suite keeps live actuators out of PATH. WebP tools may come from an
+// explicit private fixture prefix; other utilities remain system-owned.
+// ffmpeg and ffprobe only read and write files named by a test.
 var testUtilities = []string{
 	"sh", "bash", "env", "cat", "cp", "mv", "rm", "mkdir", "install", "chmod", "ln",
 	"touch", "dirname", "basename", "awk", "sed", "grep", "sleep", "luac", "ffmpeg", "ffprobe",
+	"bwrap", "cwebp", "dwebp",
 }
 
 // TestMain keeps the suite off this machine: PATH holds only testUtilities, so no
@@ -31,7 +32,14 @@ func TestMain(m *testing.M) {
 		}
 	}
 	for _, name := range testUtilities {
-		for _, dir := range []string{"/usr/bin", "/bin"} {
+		dirs := []string{"/usr/bin", "/bin"}
+		if prefix := os.Getenv("RYOKU_TEST_MEDIA_TOOLS"); prefix != "" && (name == "cwebp" || name == "dwebp") {
+			if !filepath.IsAbs(prefix) {
+				panic("RYOKU_TEST_MEDIA_TOOLS must be absolute")
+			}
+			dirs = append([]string{prefix}, dirs...)
+		}
+		for _, dir := range dirs {
 			if real := filepath.Join(dir, name); isFile(real) {
 				if err := os.Symlink(real, filepath.Join(bin, name)); err != nil {
 					panic(err)

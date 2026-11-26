@@ -20,6 +20,7 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
+bubblewrap	bubblewrap	desktop	
 calf	calf	desktop	
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	repo=ryoku
 cava	cava	desktop	
@@ -121,10 +122,12 @@ libnotify	libnotify	desktop
 libpulse	libpulseaudio pulseaudio-utils	desktop	
 libqalculate	libqalculate	desktop	
 librsvg	librsvg	desktop	
+libsecret	libsecret	desktop	
 libstdc++	-	hyprland	Hyprland is not packaged on Void.
 libusb	libusb	optional	
 libva	libva	desktop	
 libvirt	libvirt	optional	
+libwebp-utils	libwebp-tools	desktop	
 libxcb	libxcb	desktop	
 libxkbcommon	libxkbcommon	desktop	
 libyuv	libyuv	desktop	

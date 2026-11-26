@@ -56,6 +56,53 @@ over the design. `ryoku/ui` Tokens rounds the shell's own surfaces with the
 design. Settings once had colours of its own (`hub.colours`, `hub.contrast`,
 `hub.tint`, under Customise on Home); `ryoku doctor` carries them into these.
 
+## Card studio Account
+
+The card studio's **Account** tab handles browser sign-in, current online-card
+disclosures, linking this device, Creator status and signed submissions. The
+existing offline picture and design tools stay independent of it.
+
+Set `RYOKU_ACCOUNTS_URL` to the registered Account server origin, sign in through
+the system browser, then read and accept the current disclosures on the website.
+Linking shows the account, device card ID, service and expiry before asking for
+the exact `LINK <cardID>` confirmation, and unlinking leaves offline cards alone
+
+Submissions start with a local design folder or ZIP, or a PNG, JPEG, GIF or WebP.
+The local sandbox checks every asset before a preview is shown, then the separate
+rights, policy and review confirmations authorize a detached signature over the
+original archive hash, complete inventory, current policy version and fresh nonce.
+The signature asserts assent and exact bytes, not proof that a local check happened.
+The job UUID and service state stay visible, with immutable upload retry and cancel
+for eligible jobs, and queued or awaiting signature never means approved
+
+Selecting an approved publication does not enable live-card sync, and the existing
+sharing toggle stays off by default. Publication still needs current entitlement,
+independent technical inspection and authorized review, not just a local preview
+
+The native commands all start with `ryoku-hub account`:
+
+```text
+status | signin | poll | cancel | signout | website
+link
+link <displayed challengeID> "LINK <cardID>"
+unlink <displayed accountID> <displayed cardID>
+submission prepare <design|hero> <path>
+submission submit <displayed nonce> <displayed originalSha> rights policy review
+submission <upload|status|cancel|select> <displayed job UUID>
+submission clear
+```
+
+They need an unlocked Secret Service keyring and `secret-tool`, keep bearer and
+refresh tokens out of QML, argv and local state files, and use a cross-process lock
+for rotating refresh tokens rather than adding an account daemon
+
+Each configured server needs its derived `ryoku-server-<origin hash>` scope created
+and assigned to the public device-grant OAuth application in Clerk's dashboard.
+Unknown scopes are refused, not replaced with an unscoped sign-in. Account, Clerk,
+the Gate bridge and its inspection/restricted approval keys must be configured
+separately before submissions can run, and these private-test sources do not
+authorize a public launch or live billing
+
 ## How it opens
 
 Everything opens Settings through the shell daemon, which keeps one instance.

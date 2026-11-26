@@ -7,12 +7,9 @@ import (
 	"path/filepath"
 )
 
-// A badge holder may wear their own card design on this machine before nero approves it. The pack
-// is copied beside profile.json and checked again, with the limits of a submitted pack, every time
-// it is read. It stays on this machine: the card record, the team service and friends' binders
-// never carry it, so friends see the classic card until an approved design takes its place.
-
-var errWearNeedsBadge = errors.New("wearing a design needs an active badge on this machine")
+// A local design is private creative work, not a badge or online entitlement.
+// Wear reads only canonical assets and never makes the seal verified. An
+// existing approved design retains its authority and takes precedence.
 
 func designWornDir() string { return filepath.Join(profileHeroDir(), "design") }
 
@@ -42,25 +39,29 @@ func designWorn() (*badgeDesign, error) {
 	if e != nil {
 		return nil, e
 	}
+	p, e = canonicalDesignPack(p, true)
+	if e != nil {
+		return nil, e
+	}
 	spec, e := designWearable(p)
 	if e != nil {
 		return nil, e
 	}
-	return &badgeDesign{Dir: dir, Name: spec.Name, Worn: true, Spec: spec}, nil
+	return &badgeDesign{Dir: p.root, Name: spec.Name, Worn: true, Spec: spec}, nil
 }
 
-// designWear keeps a checked design folder or zip as this machine's worn design, replacing the
-// one worn before. It needs this machine's own active badge, and an approved design already on
-// the card leaves nothing to wear.
+// designWear keeps a canonical data-only pack locally. No online entitlement
+// is required; publication and badge authority remain separate server checks.
 func designWear(path string) error {
-	b, held, published, list := ownBadge(false)
-	if !held {
-		return errWearNeedsBadge
-	}
+	b, _, published, list := ownBadge(false)
 	if _, approved := teamApproval(list, b.Login); published && approved {
 		return errors.New("your approved design is already on your card")
 	}
 	p, e := designReadPack(path)
+	if e != nil {
+		return e
+	}
+	p, e = canonicalDesignPack(p, false)
 	if e != nil {
 		return e
 	}

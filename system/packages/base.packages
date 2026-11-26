@@ -139,6 +139,11 @@ gst-plugins-ugly
 # gst-plugins-{good,bad} cannot demux or decode on their own.
 gst-libav
 
+# Card imports decode pictures in a bubblewrap sandbox with the WebP tools
+bubblewrap
+libwebp-utils
+libsecret
+
 # Wayland tools
 # matugen: the material-you palette engine the shell daemon runs on every
 # wallpaper / scheme change to author colors.json and fan it into app configs.

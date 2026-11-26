@@ -57,6 +57,12 @@ pkgs.stdenv.mkDerivation {
     makeWrapper \
       "$out/libexec/ryoku-hub" \
       "$out/bin/ryoku-hub" \
+      --prefix PATH : ${pkgs.lib.makeBinPath [
+        pkgs.bubblewrap
+        pkgs.libwebp
+        pkgs.ffmpeg
+        pkgs.libsecret
+      ]} \
       --set RYOKU_XKB_RULES_DIR "${pkgs.xkeyboard_config}/share/X11/xkb/rules" \
       --set XKB_CONFIG_ROOT "${pkgs.xkeyboard_config}/share/X11/xkb" \
       --set-default RYOKU_SYSTEM_RICES_DIR "${desktopData}/share/ryoku/rices"

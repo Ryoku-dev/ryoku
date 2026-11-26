@@ -12,6 +12,8 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
   own PKGBUILD; the only package that is not built from the source tree.)
 - `ryoku-shell` -- the shell IPC daemon (Go), to `/usr/bin/ryoku-shell`.
 - `ryoku-hub` -- the Hub backend (Go), to `/usr/bin/ryoku-hub`.
+  Its card sandbox and account sign-in require `bubblewrap`, the WebP CLI tools
+  (`cwebp`, `dwebp`), `ffmpeg` with `libvpx-vp9`, `ffprobe` and `secret-tool`.
 - `ryoku` -- the control CLI (update / rollback / snapshots / materialize / ...),
   to `/usr/bin/ryoku`.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
@@ -76,6 +78,34 @@ makedepends across the set include `go` (the Ryoku Go tools),
 `cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), Gio's Wayland,
 xkbcommon, EGL and Vulkan headers, and `rust` + `git`
 (hyprland-preview-share-picker, asusctl), on top of the assumed `base-devel`.
+
+## Hub runtime dependencies
+
+| Edition | Sandbox | WebP CLI | Media CLI | Secret Service CLI |
+| --- | --- | --- | --- | --- |
+| Arch / CachyOS | `bubblewrap` | `libwebp-utils` | `ffmpeg` | `libsecret` |
+| Fedora 44 / 45 | `bubblewrap` | `libwebp-tools` | `ffmpeg-free` | `libsecret` |
+| Void | `bubblewrap` | `libwebp-tools` | `ffmpeg6` | `libsecret` |
+| Nix | `bubblewrap` | `libwebp` | `ffmpeg` | `libsecret` |
+
+These are hard dependencies of `ryoku-hub`, and the shared package
+set carries them for source installs too. Nix adds their executable outputs to
+the Hub wrapper's `PATH`. No service is added or enabled. Account storage still
+needs the session's existing Secret Service provider and an unlocked collection.
+
+The library package alone does not supply `cwebp` and `dwebp` on
+[Arch](https://archlinux.org/packages/extra/x86_64/libwebp-utils/files/),
+[Fedora](https://packages.fedoraproject.org/pkgs/libwebp/libwebp-tools/) or
+[Void](https://github.com/void-linux/void-packages/blob/master/srcpkgs/libwebp/template).
+The [Nix derivation](https://github.com/NixOS/nixpkgs/blob/56c02bc00adcf003215cc4bd996d6efaf4cff188/pkgs/by-name/li/libwebp/package.nix)
+keeps the tools in `libwebp`. Package metadata is not an installation or sandbox
+proof: check the packed Hub, all six executables, VP9 encoding,
+and real sandboxed imports on each supported edition and compositor.
+
+No public card-authority registry is installed by these recipes.
+`/usr/share/ryoku/card-authorities.json` remains absent until approved public
+keys are supplied, so online animation verification fails closed. Never fill
+it with test keys or enable a fallback.
 
 ## Configs and materialize
 

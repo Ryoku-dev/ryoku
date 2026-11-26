@@ -1,0 +1,200 @@
+Private card inspector
+
+This is a private candidate, not a deployed service or permission to publish it
+
+The foreground supervisor leases one job, verifies the device-signed manifest and original ZIP, runs a decoder container, checks its canonical archive, runs a separate real Qt renderer container, checks the exact outputs and signs a ryoku-inspect-v1 certificate with a narrow inspection key
+
+No image decoder runs in the trusted supervisor, no signer or service credential enters either container, no original bytes reach the renderer, and no missing classifier becomes a clean result
+
+Files
+  policy.py                 data-only schema, ZIP layout and image budgets
+  worker.py                 credential-free decode and real-render entrypoints
+  supervisor.py             HTTPS lease client, bounded subprocess I/O and signer
+  Dockerfile                private worker image, requires explicit base image
+  ProfileStore.qml          inspector data seam for the real card's own-profile path
+  Quickshell.qml            inspector-only paths, no desktop/session access
+  prepare_renderer.py       verifies private dependency and records the two seam overlays
+  fixtures.py               disposable signed valid and hostile ZIPs
+  test_security.py          archive, signature, canonical JSON and output boundaries
+  runtime_proof.py          real two-container proof with a clearly synthetic transport/key
+  protocol-vectors.json     shared deterministic signing vector, not an actual valid ZIP
+
+Private renderer prerequisite
+  Existing copied artifact is outside the product repository at
+  /home/nero/.local/share/ryoku/inspector-ops/renderer
+
+  Its renderer/ directory is the installed real Mika card bundle
+  card-render-3420ea9be993-6f46063b, Ryoku source commit
+  3420ea9be993335771ef2f96c6379fb594a41a30
+
+  Its manifest hashes every original QML, JS, shader, image and font, the worker checks those hashes before loading the real TradingCard.qml
+
+  The build overlays only the ProfileStore, Quickshell and Ambient data seams, records the original manifest SHA and new seam hashes, and leaves TradingCard, DesignImage, CardFigure, shaders and the capture driver unchanged
+  Ambient enables motion only for the sanitized hero under review; the original design-only renderer disables ambient hero playback, which would otherwise leave the real CardFigure animation unloaded
+
+  The copied source generator, stage, driver and singleton source files are retained beside the private artifact, the generator can rebuild from an explicit Ryoku commit when that is separately approved
+
+  There is no Pillow card collage, simplified fallback, pack QML execution, FFmpeg URL handling or model call in this service
+
+Dependencies
+  Worker Python 3.13, Pillow 12.0.0, PySide6 6.12.0
+  Those Pillow/Qt versions match the actual existing Ally renderer
+  Mesa llvmpipe, Xvfb, xcb/xkb libraries and fontconfig come from the pinned Debian base image's package set
+  Supervisor Python 3.12 or newer with cryptography 50.0.2; the actual private VPS uses Python3.12.3 and checks canonical ZIP bytes produced by the Python3.13 worker without rewriting them
+  Runtime fixed root-only ryoku-inspector-run with the --renderer profile
+  Docker built-in seccomp and docker-default AppArmor must remain enabled
+
+Private image build, parent only after source review
+  Set BASE_IMAGE to an inspected python:3.13-slim-trixie@sha256 reference
+  Set PRIVATE_RENDERER to the private prerequisite directory above
+  Run from this source directory on a trusted builder with accounted dependency-network access
+
+  docker buildx build --build-arg BASE_IMAGE="$BASE_IMAGE" \
+    --build-context private_renderer="$PRIVATE_RENDERER" \
+    --metadata-file /private/evidence/inspector-build.json \
+    --load --tag ryoku-inspector:private .
+
+  Do not weaken the runtime network-none policy for a dependency build
+  Set IMAGE to the actual full sha256: immutable local ID from docker image inspect .Id, a parent-approved transfer may docker save/load the private image without a registry, the same immutable ID must resolve afterward
+  The fixed launcher verifies that literal ID against the inspected .Id and never pulls it; Docker29 with the containerd image store may expose the OCI index digest as .Id rather than the image config digest, so preserve the observed Descriptor and RepoDigests without inventing config-ID evidence, and never count an inert containment image as worker proof
+  No image push, remote product deployment or service enablement is performed by these sources
+
+  Read the prepared renderer manifest through the pinned image in a containment command and SHA256 its exact bytes, that actual digest becomes rendererManifestSha in the supervisor config
+
+  /usr/local/sbin/ryoku-inspector-run --renderer "$IMAGE" \
+    /var/lib/ryoku-inspector/incoming/inert \
+    /usr/local/bin/python -c \
+    'from pathlib import Path; import hashlib; print(hashlib.sha256(Path("/opt/ryoku-inspector/renderer/manifest.json").read_bytes()).hexdigest())'
+
+Containment
+  The supervisor runs as the trusted root control process, not as the untrusted inspector UID
+  /var/lib/ryoku-inspector/incoming is root:root0700, this ownership must remain in bootstrap desired state
+  The fixed launcher privately stages one immutable input and binds only that regular file at /input/submission
+  No home, incoming directory, host socket, host device, Docker socket or signer mount reaches the job
+  Worker UID is the unprivileged inspector UID, network none, private IPC, read-only root, all capabilities dropped, no-new-privileges, built-in seccomp, docker-default AppArmor, 2 CPUs, 1,258,291,200bytes (1200MiB) memory with no extra swap, PIDs64, /tmp64MiB, /work512MiB, /dev/shm16MiB, 180-second wall deadline, 64MiB per-file limit
+  BOTH decode and render use this --renderer profile, the separate nominal512MiB media profile is not the actual supervisor pipeline budget
+  The supervisor separately caps stdout at 48MiB plus framing and stderr at64KiB and kills the owned process group on cancellation, timeout or output overflow
+  No nested bubblewrap, privileged container, cap-add, host PID namespace or seccomp-unconfined escape is used
+
+Supervisor installation, parent only
+  Install this source and a supervisor venv in a root-owned /opt/ryoku-inspector directory
+  Create a fresh Ed25519 inspection-only seed as a raw32-byte root:root0600 file and register only its public key under the chosen keyId at the gate
+  Never reuse OWNER, MIKA, badge issuer, publication or user device keys
+  Store the distinct gate worker service token in a separate root:root0600 file, never in an environment printed by a command or in the worker image
+  Store a root:root0600 JSON config with exactly these fields
+
+    gateOrigin           exact HTTPS gate origin, no path/query/userinfo
+    audience             exact HTTPS submission audience checked by the gate
+    tokenFile            absolute root-private worker service-token path
+    signingKeyFile       absolute root-private raw32-byte narrow seed path
+    keyId                registered inspection key ID
+    image                actual full sha256: config ID or preloaded repository@sha256
+    rendererManifestSha  actual prepared manifest digest from the built image
+    launcher             /usr/local/sbin/ryoku-inspector-run
+    stateDir             /var/lib/ryoku-inspector/incoming
+
+  Gate config must require pipelineVersion card-inspector-1 and policyVersion card-data-1
+  Start supervisor.py --config with that real private file for one job, or add --loop under an init-system supervisor
+  The foreground command is the same for systemd and runit, no init-specific product assumption is required
+  Missing config, key, token, immutable image or renderer digest denies work
+
+Object and certificate contract
+  Claim POST /internal/inspection/claim, no work204
+  Input GET /internal/inspection/JOB/input with X-Ryoku-Lease
+  Heartbeat POST /internal/inspection/JOB/heartbeat {lease}, response {expiresAt}
+  Raw PUT /internal/inspection/JOB/objects/canonical|poster|preview|report with X-Ryoku-Lease
+  Result POST /internal/inspection/JOB/result {lease,certificate}
+  Failure POST /internal/inspection/JOB/failure {lease,reason}
+  Every call requires the distinct Bearer worker credential, redirects are refused
+  Output limits canonical ZIP8MiB, poster PNG8MiB, whole-card GIF24MiB, report JSON8MiB
+  Inventory is ASCII sorted [{name,sha,bytes}], all four objects are mandatory
+  Certificate stores only leaseSha, never the raw lease capability
+  Lease loss, cancellation, decode/render failure, partial output or a missing stage never creates a pass certificate
+  Cleanup removes only the owned private job directory, restart removes only prior inspection-* directories while holding the single-supervisor lock, gate lease expiry owns crash recovery and attempt limits
+
+Coverage and moderation
+  Canonical images are lossless PNG or animated lossless WebP, all frames are composited using original disposal/blending before encoding
+  Each full-canvas frame uses the still WebP encoder's exact lossless mode, the bounded ANMF container preserves every frame, timing and no-blend alpha replacement because Pillow's animated encoder ignores exact=True
+  The decoder compares exact RGBA timelines, timing and total-play semantics after re-encoding, it refuses unrepresentable changes
+  Every canonical frame of every asset is then decoded by Pillow and Qt in the separate render container, unused assets are covered too
+  Preview profile data is labelled Inspection preview with uniform sample hardware, role and non-restorable sample ruler levels, it is not a claim about the submitter's account, badge or device
+  The real whole-card preview is an explicitly bounded3-8second12fps sample, not evidence that a classifier or person saw every source frame
+
+  report.coverage is
+    {assets:[{name,frames,durations,durationMs}],totalFrames,durationMs,previewFrames,previewDurationMs}
+  Asset entries are canonical filenames sorted ASCII, totalFrames sums canonical frames and durationMs is the maximum asset loop duration
+
+  report.review is generated only inside the original decoder sandbox
+    {complete,totalFrames,images:[{mime,sha256,base64,sourceAsset,frameIndex}]}
+  PNG thumbnails are stripped and at most384px per side, at most8 images are included
+  complete is true only when all original source frames fit, totalFrames<=8
+  Larger packs get deterministic representatives with complete=false and must escalate to owner review
+  sourceAsset uses original manifest filenames and frameIndex is local to that asset, totalFrames counts original source frames
+  report.totalFrames equals report.review.totalFrames, report.durationMs is the longest original source timeline
+  Review images, canonical bytes and sampled preview all have exact report/certificate digest bindings
+
+  report.composition is produced only after the real Qt poster and preview exist
+    {v:1,canonicalSha,posterSha,previewSha,text:[{field,value}],image:{mime,sha256,base64},coverage:"poster-and-canonical-text"}
+  The image is a stripped RGB/RGBA PNG thumbnail of the actual composed poster, never a source-asset collage, with maximum384px sides and768KiB bytes
+  The typed canonical ZIP supplies every human-readable design string in fixed order: name, badge.title, badge.kanji, card.words.tagline, card.words.epithet
+  Missing optional kanji has an explicit empty value, hero-only inputs have text:[], and no uploader metadata is accepted
+  The host independently re-parses canonical typed text, rejects decoder text changes, verifies exact canonical/poster/preview hashes, then binds composition through the whole final report hash and certificate
+  Host PNG validation uses no native image decoder: exact stripped chunks, CRCs, 8-bit RGB/RGBA non-interlaced headers, bounded zlib scanlines, valid filter bytes, no extra compressed stream or trailing data
+  This proves bounded composed-poster evidence plus all canonical text, not continuous composed-render coverage or moderation safety
+  Mika v2 must actually consume this image AND all text as untrusted data before claiming composition coverage; that later review is not performed by the inspector
+  Certificate moderation remains unreviewed and classificationPerformed remains false, a later actual local-model or owner review needs its own immutable hash-bound authority
+
+Operator verification commands, isolated host and fresh fixture authorities only
+  Install Pillow12.0.0 and cryptography50.0.2 in an isolated proof venv, PySide6 belongs only inside the worker image
+  From this directory run
+    python -m unittest test_security
+    python fixtures.py --out /private/evidence/inspector-fixtures
+
+  On the isolated root-controlled runtime host with the reviewed image preloaded run
+    python runtime_proof.py --image "$IMAGE" \
+      --renderer-manifest-sha "$RENDERER_MANIFEST_SHA" \
+      --out /private/evidence/inspector-runtime --include-hostile
+
+  This exercises actual decode and real TradingCard containers for GIF design, a benign-art canonical-text sentinel design, GIF hero, WebP hero and a9-frame partial-review hero, writes PNG/GIF/canonical/report and a synthetic-key certificate, and submits each hostile fixture to the actual decoder container
+  The proof transport is deliberately local fixture transport, not evidence of HTTPS authentication, GateIntake's integration tests must separately exercise lease authentication, stale lease rejection, output hash matching, cancellation and needs_review storage
+  Open the generated real poster, composition.png, composition-text.json and animated preview; verify expected art/frame changes, the exact neutral tagline UNREVIEWED TEXT MUST BE PRESENT, all five canonical text fields and the explicit empty hero text array
+  runtime-proof.json records each composition image hash and canonical text; use the shared protocol vector for JS/Python/Go equivalence
+  The unit tests use only neutral sentinel text and synthetic images, make no model calls, and distinguish evidence-plumbing tests from actual Qt/runtime proof
+
+Observed private smoke
+  The five functional fixtures passed both real container stages and ten hostile inputs were rejected, the earlier serial smoke took142.174151s with observed368.24MiB/15PIDs, not a load/p95 result
+  Pinned image ID/RepoDigest sha256:41c99c7e87e644dbc5e7ca452adf7844ffe9b6ab0dc382d45b737eb871be1722
+  Renderer manifest SHA256 72b4024e14eeb1028c2b4bcfd3e92f26239ee835614188aceba86638f1beed26
+  The actual private host still has cloud-init bootcmd and network-wait boot failures, no network repair/reset was attempted, do not call it fully healthy
+
+Capacity fixture proof, after the functional smoke
+  On the same reviewed isolated runtime host with that immutable image preloaded
+    python runtime_proof.py --image "$IMAGE" \
+      --renderer-manifest-sha "$RENDERER_MANIFEST_SHA" \
+      --out /private/evidence/inspector-capacity --capacity --include-hostile
+
+  --capacity replaces the small valid set with96frames816x816 (63,922,176decoded pixels over19.2s) and a separate2frames2048x2048canvas, --include-hostile still runs the ten hostile inputs
+  This option is implemented in runtime_proof.py with capacity_fixtures() from fixtures.py, it is not an option on fixtures.py
+  Both valid capacity fixtures passed actual decode AND render under the1200MiB profile and all ten hostile inputs refused
+  Observed aggregate115.538504s, maximum743,366,656bytes (708.9296875MiB),15PIDs, source evidence actual-capacity-v2-proof.json and actual-capacity-v2-observer.json in the private operations evidence directory
+  The96-frame fixture exceeds Mika's eight-frame review budget and remains incomplete/unreviewed, no capacity certificate grants publication
+  Fixture transport is not HTTPS Gate authentication, real Clerk enrollment, native OAuth, high-volume throughput or p95 evidence, keep one worker and bounded admission
+  Private HTTP signed submission, restricted approval and native recipient motion were exercised separately with website Clerk identity, never relabel them native OAuth
+
+Separate private lifecycle acceptance
+  Real website closure on a disposable linked Account returned200 only after fresh password sign-in, both real TEST Creator/Starter subscriptions canceled, Clerk/static card/raw quarantine became404, job remainedwithdrawn and local key/card identity/mode0600 survived, original gallery Account stayed200/110Ember credits
+  Real private Clerk TEST user.deleted producer delivery passed through a temporary deletion-only development Svix endpoint and official Clerk CLI relay, unchanged handler200 then still-unexpired frontend-bound credential403account_closed, invalid HMAC400 leftAccount200
+  See private evidence actual-closure-{response,after,clerk-deleted}.json and actual-clerk-provider-deletion.json, these are separate actual HTTP proofs, not the fixture-only runtime transport above
+  BAPI JWT withoutazp was401refused, fixture then genuinely signed in through hosted UI, ordinary second signup was bot-blocked rather than claimed passed
+  Enduring public/production webhook enrollment, native OAuth scope, unrun202recovery branches, clean-host breach recovery, owner acceptance and public activation remain separate gates
+  A new independently self-signed static card PUT succeeded200 after closure with no Account/Creator/Ember, temporary real provider endpoint was removed204 and relay/owned proof credentials/portal session cleaned, no active public/production endpoint remains
+  Private final services are stack-v19 ready8789/18791 and web-v7 ready3102 with persisted private DB and fallback synthetic verifier, no live desktop/Mika/model change
+
+Licensing and publication blocker
+  The private dependency includes Mika's proprietary source-available renderer under its original LICENSE, copying it here does not grant permission to redistribute or relicense it
+  Keep that artifact and any image containing it private unless the owner grants the required license permission
+  Ryoku TradingCard/Lithic QML and shaders retain GNU GPLv3, root LICENSE.Ryoku and NOTICE.Ryoku are copied into the private image
+  The stock Caracalla photograph is Marie-Lan Nguyen's CC BY2.5 image, its credit remains in CardFigure.qml and NOTICE.Ryoku
+  Geologica and Martian Mono retain their bundled SIL OFL texts, Noto CJK retains the installed package copyright/OFL text, Material Symbols retains Google's Apache2.0 license
+  Python packages and system libraries retain their installed package license files, PySide6/Qt use LGPLv3/GPLv3/commercial terms, Pillow uses its HPND-style license and cryptography uses Apache2.0/BSD3 terms
+  No Hub/root NOTICE/package manifests are changed in this ownership slice because no copied proprietary code is added to product sources or shipped to users

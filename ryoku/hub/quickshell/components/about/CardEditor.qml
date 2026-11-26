@@ -24,7 +24,7 @@ Dialog {
     property var binderOpener: null
     // the tab to open on
     property string tab: "picture"
-    readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge"]
+    readonly property var tabs: ["picture", "adjust", "words", "layout", "share", "badge", "account"]
     // what the preview shows; Share always shows the card it copies
     property string view: "card"
     readonly property string shownView: root.tab === "share" || root.tab === "badge" ? "card" : root.view
@@ -32,8 +32,6 @@ Dialog {
     readonly property real bodyHeight: Math.max(380, (root.parent ? root.parent.height : 800) - 2 * LithicTokens.size.dialogMargin
                                                      - root.topPadding - root.bottomPadding - 140)
     property string imageError: ""
-    // the line under the pictures is a note, not a refusal
-    property bool imageNote: false
     // a tier the Share tab's ladder previews on the card, or -1
     property int previewTier: -1
 
@@ -57,9 +55,8 @@ Dialog {
     readonly property var hero: Object.assign({}, root.heroFallback, root.val("hero", root.heroFallback) || {})
     readonly property bool custom: root.hero.kind === "custom"
     // a video's tile shows the first frame ryoku-hub kept beside it
-    readonly property string customPicture: root.custom && /^hero\.(png|jpg|jpeg|webp|gif|bmp|avif|mp4|webm|mkv)$/.test(String(root.hero.source || ""))
-        ? imagePick.urlOf(root.configDir + "/profile/" + String(root.hero.source).replace(/^hero\.(mp4|webm|mkv)$/, "hero-$1.png")) : ""
-    // moving pictures are a badge holder's, the rule the backend keeps too
+    readonly property string customPicture: root.custom && CardMedia.poster !== "" ? imagePick.urlOf(CardMedia.poster) + "?v=" + CardMedia.digest : ""
+    // GIF/WebP authoring is offline and open to everyone; video remains badge-only.
     readonly property bool movingAllowed: !!Badge.ownBadge
     // a card style is one badge holder's own look, set up for them rather than picked here: the
     // studio offers no choice of style, only the controls of a style the card already wears and
@@ -121,7 +118,6 @@ Dialog {
         if (path === "" || root.adopting)
             return;
         root.imageError = "";
-        root.imageNote = false;
         root.adopting = true;
         Changes.run(["ryoku-hub", "profile", "picture", path], function (ok, out, err) {
             root.adopting = false;
@@ -136,12 +132,7 @@ Dialog {
                 Changes.run(["ryoku-hub", "profile", "cutout", "--clear"], function () {});
             root.setHero({ kind: "custom", source: saved.source, style: "photo", fit: false, zoom: 1, focalX: 0.5, focalY: 0.5,
                            brightness: 0, contrast: 0, saturation: 0, cutout: false }, I18n.tr("Card figure"));
-            if (saved.still) {
-                root.imageError = I18n.tr("Moving pictures come with a team badge, so the card keeps the first frame.");
-                root.imageNote = true;
-            } else {
-                root.tab = "adjust";
-            }
+            root.tab = "adjust";
         }, { timeout: 60000 });
     }
     // a badge holder's cutout: the figure cut from the card picture on a clear ground, which the
@@ -197,7 +188,7 @@ Dialog {
         if ((m = /video is (\d+) seconds long; a moving picture can be up to (\d+) seconds/.exec(s)))
             return I18n.tr("This video is %1 seconds long. A moving picture can be up to %2 seconds.").replace("%1", m[1]).replace("%2", m[2]);
         if (/come with a team badge/.test(s))
-            return I18n.tr("Moving pictures come with a team badge.");
+            return I18n.tr("Video pictures come with a team badge.");
         if (/named as a video|named as a picture|not what its first bytes say/.test(s))
             return I18n.tr("This file is not what its name says. Choose another.");
         if (/need (ffprobe|ffmpeg)/.test(s))
@@ -216,6 +207,7 @@ Dialog {
     // the body takes its size from its first child, so the choosers live beside it
     ImageChooser {
         id: imagePick
+        inspectImages: true
         parent: root.parent
         overlayParent: root.hub ? root.hub.overlayItem : null
         title: I18n.tr("Choose a picture for the card")
@@ -225,6 +217,7 @@ Dialog {
     }
     ImageChooser {
         id: cutPick
+        inspectImages: true
         parent: root.parent
         overlayParent: root.hub ? root.hub.overlayItem : null
         title: I18n.tr("Choose a cutout of your picture's figure")
@@ -386,7 +379,7 @@ Dialog {
             Segmented {
                 id: tabChoice
                 width: parent.width
-                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share"), I18n.tr("Badge")]
+                model: [I18n.tr("Picture"), I18n.tr("Adjust"), I18n.tr("Words"), I18n.tr("Layout"), I18n.tr("Share"), I18n.tr("Badge"), I18n.tr("Account")]
                 Binding on currentIndex {
                     value: root.tabs.indexOf(root.tab)
                 }
@@ -416,6 +409,12 @@ Dialog {
                         width: parent.width
                         hub: root.hub
                         live: root.opened && root.tab === "badge"
+                    }
+                    CardAccountPanel {
+                        visible: root.tab === "account"
+                        width: parent.width
+                        hub: root.hub
+                        live: root.opened && root.tab === "account"
                     }
 
                     // Picture: the figure
@@ -451,13 +450,12 @@ Dialog {
                                 }
                             }
                         }
-                        // moving pictures: a badge holder's, with the live wallpaper offered when
-                        // it is a video within the size; everyone else is told where they come from
+                        // Local animation is independent of online publication entitlement.
                         Label {
                             width: parent.width
                             text: root.movingAllowed
                                 ? I18n.tr("Your picture may move: a GIF, an animated WebP or a video up to %1 seconds and 10 MB. It plays while you point at the card.").replace("%1", 60)
-                                : I18n.tr("Moving pictures come with a team badge.")
+                                : I18n.tr("Your picture may move: a GIF or animated WebP up to 60 seconds and 10 MB. Local animation needs no badge or account.")
                             typeRole: "detail"
                             inkRole: "fg2"
                             wrapMode: Text.Wrap
@@ -484,10 +482,11 @@ Dialog {
                         }
                         Label {
                             width: parent.width
-                            visible: root.imageError.length > 0
-                            text: root.imageError
+                            visible: root.imageError.length > 0 || CardMedia.error !== ""
+                            text: root.imageError || CardMedia.error
                             typeRole: "detail"
-                            ink: root.imageNote ? Lithic.fg2 : Lithic.jasper
+                            ink: Lithic.jasper
+                            textFormat: Text.PlainText
                             wrapMode: Text.Wrap
                             elide: Text.ElideNone
                         }
@@ -530,6 +529,7 @@ Dialog {
                             text: root.cutoutError
                             typeRole: "detail"
                             ink: Lithic.jasper
+                            textFormat: Text.PlainText
                             wrapMode: Text.Wrap
                             elide: Text.ElideNone
                         }

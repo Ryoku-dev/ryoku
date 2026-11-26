@@ -140,7 +140,7 @@ func TestCutoutRefusals(t *testing.T) {
 	}{
 		"jpeg":       {raw: photo.Bytes(), want: "a cutout is a PNG with a clear ground"},
 		"gif":        {raw: testGIF(t, 1), want: "a cutout is a PNG with a clear ground"},
-		"damaged":    {raw: testCutout(t, 200, 100, 20)[:60], want: "a cutout is a PNG with a clear ground"},
+		"damaged":    {raw: testCutout(t, 200, 100, 20)[:60], want: "cutout validation:"},
 		"opaque":     {raw: testCutout(t, 200, 100, 0), want: "this picture has no clear ground; a cutout keeps only the figure"},
 		"empty":      {raw: testCutout(t, 200, 100, 200), want: "this picture has no clear ground; a cutout keeps only the figure"},
 		"barely cut": {raw: testCutout(t, 200, 100, 3), want: "this picture has no clear ground; a cutout keeps only the figure"},
@@ -160,7 +160,7 @@ func TestCutoutRefusals(t *testing.T) {
 			}
 			continue
 		}
-		if err == nil || err.Error() != tc.want {
+		if err == nil || !strings.HasPrefix(err.Error(), tc.want) {
 			t.Fatalf("%s: got %v, want %q", name, err, tc.want)
 		}
 	}
@@ -244,7 +244,8 @@ func TestProfileCarriesCutout(t *testing.T) {
 		t.Fatal("cutout not restored")
 	}
 
-	// a cutout missing at export, or packed broken, leaves the card without one
+	// A genuinely missing optional cutout may be omitted; supplied invalid
+	// media must be rejected instead of being silently downgraded.
 	os.Remove(cutoutPath)
 	if err := exportProfile(share); err != nil {
 		t.Fatal(err)
@@ -258,7 +259,7 @@ func TestProfileCarriesCutout(t *testing.T) {
 	broken.Cutout = &ryoHero{Name: "hero-cutout.png", B64: base64.StdEncoding.EncodeToString(testCutout(t, 200, 100, 0))}
 	renamed := env
 	renamed.Cutout = &ryoHero{Name: "../hero-cutout.png", B64: base64.StdEncoding.EncodeToString(cutout)}
-	for _, sent := range []ryoEnvelope{env, broken, renamed} {
+	for _, sent := range []ryoEnvelope{env} {
 		out, _ := json.Marshal(sent)
 		if err := os.WriteFile(share, out, 0o644); err != nil {
 			t.Fatal(err)
@@ -275,6 +276,20 @@ func TestProfileCarriesCutout(t *testing.T) {
 		json.Unmarshal([]byte(strings.Replace(profile, `"cutout":true`, `"cutout":false`, 1)), &want)
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("profile.json should only lose its cutout: %s", restored)
+		}
+	}
+	before, _ := os.ReadFile(profileConfigPath())
+	for _, sent := range []ryoEnvelope{broken, renamed} {
+		out, _ := json.Marshal(sent)
+		if err := os.WriteFile(share, out, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := importProfile(share); err == nil {
+			t.Fatal("supplied invalid cutout was silently discarded")
+		}
+		after, _ := os.ReadFile(profileConfigPath())
+		if !bytes.Equal(before, after) {
+			t.Fatal("rejected cutout modified the existing profile")
 		}
 	}
 

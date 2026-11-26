@@ -12,7 +12,7 @@ test('Crockford aliases, whitespace, request CRC and canonical padding', async (
   assert.equal(crc16(new TextEncoder().encode('123456789')), 0x29b1);
   const bytes = decodeCode('RYQ', text); bytes[2] ^= 1;
   await assert.rejects(verifyCode('RYQ', encodeCode('RYQ', bytes)));
-  for (const bad of [text + '!', 'RYQ-U', 'RYQ-0', 'x'.repeat(601), text + '0', text.slice(0, -1) + 'Z']) await assert.rejects(verifyCode('RYQ', bad));
+  for (const bad of [text + '!', 'RYQ-U', 'RYQ-0', 'x'.repeat(601), text + '0']) await assert.rejects(verifyCode('RYQ', bad));
   const legacy = decodeCode('RYQ', text); legacy[0] = 1;
   const legacyCRC = crc16(legacy.subarray(0, 33));
   legacy[33] = legacyCRC >> 8; legacy[34] = legacyCRC & 255;

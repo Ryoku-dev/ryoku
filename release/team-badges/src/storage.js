@@ -28,7 +28,7 @@ export async function storedRecord(object) {
   if (!object) return null;
   try {
     const record = JSON.parse(await object.text());
-    return isMap(record) && Number.isSafeInteger(record.updated) ? record : null;
+    return isMap(record) && record.deleted !== true && Number.isSafeInteger(record.updated) ? record : null;
   } catch { return null; }
 }
 async function removeRecord(env, id, object) {

@@ -73,7 +73,7 @@ func designTestPack(t *testing.T) designPack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return designPack{files: map[string][]byte{"design.json": raw, "emblem.webp": designTestRIFF(designTestVP8(256, 256)), "art.webp": designTestAnimated(560, 390, 2, 0)}, names: []string{"art.webp", "design.json", "emblem.webp"}, root: "/sample"}
+	return designPack{files: map[string][]byte{"design.json": raw, "emblem.webp": realTestWebP(t, 256, 256, 1), "art.webp": realTestWebP(t, 560, 390, 2)}, names: []string{"art.webp", "design.json", "emblem.webp"}, root: "/sample"}
 }
 
 func TestDesignWebP(t *testing.T) {
@@ -338,7 +338,7 @@ func TestDesignFetch(t *testing.T) {
 	t.Setenv("RYOKU_TEAM_URL", server.URL)
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
-	result, err := designFetch(sha, false)
+	result, err := designFetch(sha, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,14 +357,14 @@ func TestDesignFetch(t *testing.T) {
 	if !reflect.DeepEqual(spec, result.Design) {
 		t.Fatal("normalized spec differs")
 	}
-	if _, err = designFetch(sha, true); err != nil {
-		t.Fatal(err)
+	if _, err = designFetch(sha, true, "", ""); err == nil {
+		t.Fatal("pending fetch accepted without issuer proof")
 	}
 	body = []byte("wrong sha")
-	if _, err = designFetch(sha, false); err == nil {
+	if _, err = designFetch(sha, false, "", ""); err == nil {
 		t.Fatal("accepted sha mismatch")
 	}
-	if _, err = designFetch("../outside", false); err == nil {
+	if _, err = designFetch("../outside", false, "", ""); err == nil {
 		t.Fatal("accepted sha path")
 	}
 	hostile := designTestZip(t, []string{"../outside"}, zip.Store, []byte("escape"))
@@ -372,7 +372,7 @@ func TestDesignFetch(t *testing.T) {
 	hostileSHA := hex.EncodeToString(sum[:])
 	body = hostile
 	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(body) })
-	if _, err = designFetch(hostileSHA, false); err == nil {
+	if _, err = designFetch(hostileSHA, false, "", ""); err == nil {
 		t.Fatal("accepted traversal")
 	}
 	if _, err = os.Stat(filepath.Join(cache, "ryoku", "team", "outside")); !os.IsNotExist(err) {
@@ -386,11 +386,50 @@ func TestDesignFetch(t *testing.T) {
 	if err = os.Symlink(outside, expected); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = designFetch(sha, false); err == nil {
+	if _, err = designFetch(sha, false, "", ""); err == nil {
 		t.Fatal("accepted symlink cache")
 	}
 	entries, err := os.ReadDir(outside)
 	if err != nil || len(entries) != 0 {
 		t.Fatal("wrote through symlink")
+	}
+}
+
+func TestDesignPendingFetchIssuerProof(t *testing.T) {
+	owner, _, _ := badgeTestKeys(t)
+	key := filepath.Join(t.TempDir(), "issuer.key")
+	if err := os.WriteFile(key, []byte(base64.StdEncoding.EncodeToString(owner)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	pack, err := designZip(designTestPack(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(pack)
+	sha := hex.EncodeToString(sum[:])
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		proof := strings.Split(r.Header.Get("X-Ryoku-Upload"), ".")
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/pending/"+sha+".zip" || len(proof) != 3 || proof[0] != "1" {
+			http.Error(w, "issuer proof required", http.StatusForbidden)
+			return
+		}
+		sig, err := base64.StdEncoding.DecodeString(proof[2])
+		payload := []byte("GET\n" + r.URL.Path + "\n" + proof[1] + "\n" + sha)
+		if err != nil || !verifyDomain(badgeDevicePublic(owner), "ryoku-upload-v1", payload, sig) {
+			http.Error(w, "invalid issuer proof", http.StatusForbidden)
+			return
+		}
+		w.Write(pack)
+	}))
+	defer server.Close()
+	t.Setenv("RYOKU_TEAM_URL", server.URL)
+	if _, err = designFetch(sha, true, "", key); err == nil || calls != 0 {
+		t.Fatal("missing issuer was not refused before network", err, calls)
+	}
+	if _, err = designFetch(sha, true, "owner", key); err != nil || calls != 1 {
+		t.Fatal("issuer-authenticated pending fetch failed", err, calls)
 	}
 }

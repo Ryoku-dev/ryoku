@@ -354,12 +354,19 @@ func exportProfile(dstPath string) error {
 			}
 		}
 		env.Hero = &ryoHero{Name: name, B64: base64.StdEncoding.EncodeToString(img)}
-		// a cutout that can't be read stays home, and the importer draws the card without one
+		// An absent optional cutout may stay home. A decoder/sandbox failure
+		// must remain a real error rather than silently exporting a "safe" copy.
 		if m.Hero.Cutout {
-			if cutout, err := readPictureFile(filepath.Join(profileHeroDir(), profileCutoutName)); err == nil {
-				if clean, _, err := cutoutImage(cutout); err == nil {
-					env.Cutout = &ryoHero{Name: profileCutoutName, B64: base64.StdEncoding.EncodeToString(clean)}
+			cutout, err := readPictureFile(filepath.Join(profileHeroDir(), profileCutoutName))
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("custom cutout: %w", err)
+			}
+			if err == nil {
+				clean, _, err := cutoutImage(cutout)
+				if err != nil {
+					return fmt.Errorf("custom cutout validation: %w", err)
 				}
+				env.Cutout = &ryoHero{Name: profileCutoutName, B64: base64.StdEncoding.EncodeToString(clean)}
 			}
 		}
 	}
@@ -431,7 +438,10 @@ func importProfile(srcPath string) error {
 	cutoutBytes, cutoutPath := []byte(nil), ""
 	if model.Hero.Cutout {
 		if model.Hero.Kind == "custom" {
-			cutoutBytes = packedCutout(env.Cutout)
+			cutoutBytes, err = packedCutout(env.Cutout)
+			if err != nil {
+				return fmt.Errorf(".ryoprofile cutout validation: %w", err)
+			}
 		}
 		if cutoutBytes == nil {
 			if profile, err = profileWithHero(profile, "cutout", false); err != nil {

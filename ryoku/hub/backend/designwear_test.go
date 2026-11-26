@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -140,9 +139,9 @@ func TestBadgeDesignForEveryRole(t *testing.T) {
 			if e != nil || len(list.Designs) != 1 {
 				t.Fatal("approval dropped for role", role, list.Designs, e)
 			}
-			design := badgeDesignFor(list, b)
-			if design == nil || !design.Approved || design.Worn || design.Name != "Approved" {
-				t.Fatal("no approved design for role", role, design)
+			design, err := badgeDesignFor(list, b)
+			if err != nil || design == nil || !design.Approved || design.Worn || design.Name != "Approved" {
+				t.Fatal("no approved design for role", role, design, err)
 			}
 			status := designWearStatus(t)
 			if status.Badge == nil || status.Badge.RoleID != role || status.Design == nil || status.Design.Name != "Approved" {
@@ -161,26 +160,30 @@ func TestBadgeDesignForEveryRole(t *testing.T) {
 	}
 }
 
-// A badge holder wears a checked design privately: it needs this machine's own active badge and a
-// pack that passes every check, is checked again on each read, and stops with the badge
-func TestDesignWearNeedsOwnBadgeAndValidPack(t *testing.T) {
+// Offline local wear is independent of badge authority, but never weakens the
+// complete schema, archive or canonical media checks.
+func TestDesignWearWithoutBadgeAndValidPack(t *testing.T) {
 	owner, _, _ := badgeTestKeys(t)
 	setCardMachine(t)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	folder := designWearFolder(t, "Worn")
-	if e := designWear(folder); !errors.Is(e, errWearNeedsBadge) {
-		t.Fatal("worn without a badge", e)
+	if e := designWear(folder); e != nil {
+		t.Fatal("offline local wear failed", e)
+	}
+	status := designWearStatus(t)
+	if status.Badge != nil || status.Worn == nil || status.Worn.Approved {
+		t.Fatal("local design gained badge authority", status)
 	}
 	// a badge made for another machine does not activate here, so it cannot be worn under either
 	other := badgeTestCode(t, 1, 1, owner, bytes.Repeat([]byte{7}, 32), "member")
 	if e := badgeActivate(other); e == nil {
 		t.Fatal("activated another machine's badge")
 	}
-	if e := designWear(folder); !errors.Is(e, errWearNeedsBadge) {
-		t.Fatal("worn with another machine's badge", e)
+	if e := designWear(folder); e != nil {
+		t.Fatal("an unrelated badge must not prevent local wear", e)
 	}
-	if _, e := os.Lstat(designWornDir()); !os.IsNotExist(e) {
-		t.Fatal("kept a design without a badge", e)
+	if e := designUnwear(); e != nil {
+		t.Fatal(e)
 	}
 
 	gate, b, owner := designWearMachine(t, 1)
@@ -203,9 +206,9 @@ func TestDesignWearNeedsOwnBadgeAndValidPack(t *testing.T) {
 	if e := designWear(folder); e != nil {
 		t.Fatal(e)
 	}
-	status := designWearStatus(t)
+	status = designWearStatus(t)
 	if status.Design != nil || status.Worn == nil || !status.Worn.Worn || status.Worn.Approved || status.Worn.Name != "Worn" ||
-		status.Worn.Dir != designWornDir() || status.Worn.Spec.Badge.Emblem != filepath.Join(designWornDir(), "emblem.webp") {
+		status.Worn.Dir == "" || status.Worn.Spec.Badge.Emblem == filepath.Join(folder, "emblem.webp") {
 		t.Fatal(status.Worn, status.Design)
 	}
 	// a zip wears the same and replaces the folder worn before
@@ -257,20 +260,20 @@ func TestDesignWearNeedsOwnBadgeAndValidPack(t *testing.T) {
 		t.Fatal("still worn after unwear", status.Worn)
 	}
 
-	// losing the badge stops wearing it
+	// Revoking a badge withdraws online authority, not local creative work.
 	if e := designWear(folder); e != nil {
 		t.Fatal(e)
 	}
 	rev, _ := revokeSign(1, owner, b.ID, 320)
 	gate.set(func(w *teamWireList) { w.Revoked = append(w.Revoked, rev) })
-	if status = designWearStatus(t); status.Badge != nil || status.Worn != nil {
-		t.Fatal("a revoked badge still wears its design", status)
+	if status = designWearStatus(t); status.Badge != nil || status.Worn == nil || status.Worn.Approved {
+		t.Fatal("revocation removed local wear or retained authority", status)
 	}
 	if _, e := teamList(true); e != nil {
 		t.Fatal(e)
 	}
-	if e := designWear(folder); !errors.Is(e, errWearNeedsBadge) {
-		t.Fatal("wore a design with a revoked badge", e)
+	if e := designWear(folder); e != nil {
+		t.Fatal("revoked badge blocked offline local design", e)
 	}
 }
 

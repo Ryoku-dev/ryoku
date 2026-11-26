@@ -15,3 +15,5 @@ singleton Tone Tone.qml
 singleton Ambient Ambient.qml
 singleton CardCode CardCode.qml
 singleton Badge Badge.qml
+singleton CardMedia CardMedia.qml
+singleton CardAccount CardAccount.qml

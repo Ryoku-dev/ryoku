@@ -21,6 +21,7 @@ Singleton {
     // card only, never on the published record or in friends' binders
     readonly property var worn: status.worn || null
     readonly property string wornError: status.wornError || ""
+    readonly property string designError: status.designError || ""
     // the built-in card styles this badge's login owns: a style is one holder's own look
     readonly property var ownStyles: root.badge && Array.isArray(status.styles) ? status.styles : []
     property var preview: null
@@ -152,7 +153,7 @@ Singleton {
         });
     }
     function previewPending(sha) {
-        root.run("fetch", ["ryoku-hub", "design", "fetch", String(sha).trim(), "--pending"], function(result) {
+        root.run("fetch", ["ryoku-hub", "design", "fetch", String(sha).trim(), "--pending", "--issuer", "owner"], function(result) {
             root.candidate = { dir: result.dir, name: result.design.name, spec: result.design, approved: false };
             root.preview = root.candidate;
             root.message = I18n.tr("Preview only. This design has not been approved.");
