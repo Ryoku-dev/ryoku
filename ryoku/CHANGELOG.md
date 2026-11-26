@@ -6,6 +6,12 @@
   downloads; its ask view, recent asks and the pinned answer bubble are gone,
   and doctor strips the retired `ask.bubble` keys from `shell.json` and removes
   a leftover `ryoku-rashin` package.
+- **Updating clears Hyakki and Rashin away without losing anything.** Once,
+  doctor stops their services, removes the `hyakki` and `ryoku-rashin`
+  packages and moves their settings, sessions, memory, models, caches and any
+  local builds into `~/.local/share/ryoku/retired/hyakki-rashin-<time>/`, each
+  at its old path under the home, with a README. A Hyakki installed again later
+  is left alone.
 - **Hyakki replaces Rashin and Theia.** One native app, the Oni daemon and Oni
   Vision handle the assistant and its optional desktop features. The Hub and
   shortcuts open Hyakki rather than keeping the old assistant alongside it.
