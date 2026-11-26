@@ -510,6 +510,8 @@ QRectF CardField::rectOf(int row) const
 
 void CardField::setCardRect(int row, const QRectF &rect)
 {
+    if (m_mode != QStringLiteral("deck"))
+        return;
     if (m_layout)
         m_layout->setExternalRect(row, rect);
     if (row == m_current)

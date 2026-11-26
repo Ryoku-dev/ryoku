@@ -152,7 +152,7 @@ PanelWindow {
             previewAllowed: picker.shown && pickerState.sheet === "" && !pickerState.searchOpen
                 && !pickerState.multipickerOpen && !pickerState.helpOpen
                 && !pickerState.themeBarOpen && !pickerState.riceWorkshopOpen
-                && pickerState.riceShare === ""
+                && pickerState.riceShare === "" && !deckScene.active
             interactive: pickerState.sheet === "" && !pickerState.multipickerOpen
                 && !pickerState.helpOpen && !pickerState.riceWorkshopOpen
                 && pickerState.riceShare === ""

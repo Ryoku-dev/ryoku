@@ -71,6 +71,7 @@ Item {
 
     // view.get() returns a copied map, so bindings need an explicit model revision.
     property int _rev: 0
+    property int wheelAccum: 0
     Connections {
         target: deck.view
         function onModelReset() { deck._rev++ }
@@ -179,9 +180,18 @@ Item {
         if (!field || count <= 0)
             return
         const amount = pixelY !== 0 ? pixelY / 50 : angleY / 120
-        const steps = Math.round(amount)
+        deck.wheelAccum += Math.round(amount * 100)
+        let steps = 0
+        while (deck.wheelAccum >= 100) {
+            ++steps
+            deck.wheelAccum -= 100
+        }
+        while (deck.wheelAccum <= -100) {
+            --steps
+            deck.wheelAccum += 100
+        }
         if (steps !== 0)
-            field.currentIndex = clamp(field.currentIndex + steps, 0, count - 1)
+            field.currentIndex = clamp(field.currentIndex - steps, 0, count - 1)
     }
 
     function applyDrag(dx, released) {
@@ -333,7 +343,7 @@ Item {
             }
 
             function maybeReportRect() {
-                if (!deck.field || !slot.live || idx < 0)
+                if (!deck.active || !deck.field || !slot.live || idx < 0)
                     return
                 if (idx !== deck.frontIndex && idx !== deck.field.flippedIndex)
                     return
@@ -415,7 +425,7 @@ Item {
         pos: deck.pos
         span: deck.side
         accent: Theme.primary
-        ink: "white"
+        ink: Theme.surfaceText
         colors: deck.ribbonColors
         favourites: deck.ribbonFavourites
         thumbs: deck.ribbonThumbs

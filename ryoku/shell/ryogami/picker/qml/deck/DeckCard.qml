@@ -51,7 +51,7 @@ Item {
     function inkOn(color) {
         const q = Qt.color(color)
         const l = 0.2126 * q.r + 0.7152 * q.g + 0.0722 * q.b
-        return l > 0.5 ? Qt.rgba(0, 0, 0, 0.78) : Qt.rgba(1, 1, 1, 0.9)
+        return l > 0.5 ? Theme.withAlpha(Theme.background, 0.82) : Theme.withAlpha(Theme.surfaceText, 0.92)
     }
 
     function pick(s, a, b, fallback) {
@@ -63,7 +63,7 @@ Item {
     function placeholder(index) {
         return {
             label: "",
-            fill: mix(dress.raised, "#ffffff", 0.02 + 0.025 * (4 - index))
+            fill: mix(dress.raised, Theme.surfaceText, 0.02 + 0.025 * (4 - index))
         }
     }
 
@@ -90,7 +90,7 @@ Item {
         offset.y: (8 + 10 * card.front) * card.u
         blur: (22 + 18 * card.front) * card.u
         radius: body.radius
-        color: Qt.rgba(0, 0, 0, 0.42 + 0.18 * card.front)
+        color: Theme.withAlpha(Theme.background, 0.42 + 0.18 * card.front)
     }
 
     Rectangle {
@@ -147,7 +147,7 @@ Item {
             height: thumbBase.height + body.border.width * 2
             radius: card.thumbRadius + body.border.width
             antialiasing: true
-            color: "transparent"
+            color: Theme.withAlpha(Theme.background, 0)
             border.width: 5 * card.u
             border.color: card.dress.surface
         }
@@ -216,7 +216,7 @@ Item {
             height: width
             radius: width / 2
             antialiasing: true
-            color: Qt.rgba(0, 0, 0, 0.42)
+            color: Theme.withAlpha(Theme.background, 0.42)
 
             Text {
                 anchors.centerIn: parent
@@ -236,14 +236,14 @@ Item {
             height: width
             radius: width / 2
             antialiasing: true
-            color: Qt.rgba(0, 0, 0, 0.5)
+            color: Theme.withAlpha(Theme.background, 0.5)
 
             Text {
                 anchors.centerIn: parent
                 text: "\uf0193"
                 font.family: Theme.icon
                 font.pixelSize: 14 * card.u
-                color: "white"
+                color: Theme.withAlpha(Theme.surfaceText, 0.95)
             }
         }
 
@@ -331,7 +331,7 @@ Item {
             opacity: card.hovered ? 0 : card.dim
             radius: parent.radius
             antialiasing: true
-            color: "black"
+            color: Theme.background
         }
     }
 

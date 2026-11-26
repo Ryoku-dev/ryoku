@@ -88,7 +88,7 @@ Item {
         y: track.y - 4 * ribbon.u
         height: track.height + 8 * ribbon.u
         radius: Theme.radius
-        color: "transparent"
+        color: Theme.withAlpha(Theme.background, 0)
         border.width: Math.max(1, 1.3 * ribbon.u)
         border.color: Theme.withAlpha(ribbon.ink, 0.55)
     }
@@ -102,7 +102,7 @@ Item {
         radius: width / 2
         color: ribbon.accent
         border.width: 1
-        border.color: Theme.withAlpha("black", 0.35)
+        border.color: Theme.withAlpha(Theme.background, 0.35)
     }
 
     MouseArea {
