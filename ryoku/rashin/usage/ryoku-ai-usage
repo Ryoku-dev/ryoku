@@ -16,7 +16,9 @@ wants_claude() {
 }
 
 wants_codex() {
-	command -v codex >/dev/null 2>&1 || [ -d "$CODEX_DATA" ]
+	command -v codex >/dev/null 2>&1 ||
+		[ -d "$CODEX_DATA" ] ||
+		command -v opencode >/dev/null 2>&1
 }
 
 wants_opencode() {

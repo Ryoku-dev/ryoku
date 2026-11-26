@@ -139,6 +139,8 @@ usage, Phone and VPN are available in the Layout editor but stay out of the
 default layout.
 When shown, AI usage marks a pace trend beside the five-hour total and lists
 five-hour and weekly pace details in its tooltip when reset times are available.
+The Codex card shows the 5-hour and weekly limits as two bars when OpenCode
+reports them through its ChatGPT login; the Codex CLI remains the fallback.
 
 Its settings use the `orpheus` namespace in `shell.json`:
 

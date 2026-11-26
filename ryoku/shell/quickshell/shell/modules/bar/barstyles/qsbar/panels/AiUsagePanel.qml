@@ -52,15 +52,9 @@ PanelWindow {
     // number/countdown shown in the header: weekly when reported, else primary.
     readonly property int    cxPct:       cxReset7dTs > 0 ? cxPct7d : cxPrimaryPct
     readonly property int    cxResetTs:   cxReset7dTs > 0 ? cxReset7dTs : cxPrimaryResetTs
-    readonly property var    cxExtras: {
-        var a = []
-        for (var i = 0; i < cxWindows.length; i++) {
-            var w = cxWindows[i] || {}
-            if (w.minutes !== 10080)
-                a.push({ label: String(w.label || "window"), pct: w.pct || 0, resetTs: w.resetTs || 0 })
-        }
-        return a
-    }
+    readonly property var    cxBars:      cxWindows.filter(function(w) {
+        return w && (w.minutes === 300 || w.minutes === 10080)
+    })
 
     // ── OpenCode ──
     readonly property bool   ocHas:       root.aiOcHas
@@ -90,6 +84,49 @@ PanelWindow {
         onClicked: root.aiUsageVisible = false
     }
 
+    // ── one limit window, drawn as a labeled meter ─────────────────────
+    component LimitBar: Column {
+        id: limitBar
+        property string label: ""
+        property int pct: 0
+        property int resetTs: 0
+        property bool behind: false
+
+        width: parent ? parent.width : 0
+        spacing: 4
+
+        Item {
+            width: parent.width
+            height: 14
+            UiText {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr(limitBar.label)
+                color: aiPanel.root.sumiHi
+                font.family: aiPanel.root.mono; font.pixelSize: 11
+            }
+            UiText {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("%1% used").arg(limitBar.pct)
+                      + (limitBar.resetTs > 0 ? " · " + aiPanel.root.aiFmtReset(limitBar.resetTs) : "")
+                color: aiPanel.root.sumi
+                font.family: aiPanel.root.mono; font.pixelSize: 11
+            }
+        }
+
+        Rectangle {
+            width: parent.width; height: 6; radius: 3
+            color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
+            Rectangle {
+                width: parent.width * Math.max(0, Math.min(100, limitBar.pct)) / 100
+                height: parent.height; radius: parent.radius
+                color: limitBar.behind ? aiPanel.root.sealRaw : aiPanel.root.seal
+                Behavior on width { NumberAnimation { duration: 300 } }
+            }
+        }
+    }
+
     // ── one provider card ──────────────────────────────────────────────
     component ProviderCard: Column {
         id: pcard
@@ -108,6 +145,7 @@ PanelWindow {
         property string emptyText: I18n.tr("no data")
         property var recent: []
         property var extras: []      // [{label, pct, resetTs}] of the other windows
+        property var bars: []        // [{label, pct, resetTs}] full-width meters
 
         readonly property bool behind: aiPanel.root.aiBehindPace(pct, paceTs)
         readonly property color hi:  behind ? aiPanel.root.sealRaw : aiPanel.root.ink
@@ -164,9 +202,9 @@ PanelWindow {
             }
         }
 
-        // weekly meter
+        // weekly meter, or one labeled meter per reported window
         Rectangle {
-            visible: pcard.has
+            visible: pcard.has && pcard.bars.length === 0
             width: parent.width; height: 6; radius: 3
             color: Qt.rgba(aiPanel.root.seal.r, aiPanel.root.seal.g, aiPanel.root.seal.b, 0.15)
             Rectangle {
@@ -174,6 +212,18 @@ PanelWindow {
                 height: parent.height; radius: parent.radius
                 color: pcard.behind ? aiPanel.root.sealRaw : aiPanel.root.seal
                 Behavior on width { NumberAnimation { duration: 300 } }
+            }
+        }
+
+        Repeater {
+            model: pcard.bars
+            delegate: LimitBar {
+                required property var modelData
+                width: pcard.width
+                label: String(modelData.label || "window")
+                pct: parseInt(modelData.pct) || 0
+                resetTs: parseInt(modelData.resetTs) || 0
+                behind: modelData.minutes === 10080 && pcard.behind
             }
         }
 
@@ -461,7 +511,7 @@ PanelWindow {
                     logo: Qt.resolvedUrl("../assets/codex-cli.svg"); logoSize: Qt.size(36, 36)
                     has: aiPanel.cxHas; fresh: aiPanel.cxFresh; plan: aiPanel.cxPlan
                     pct: aiPanel.cxPct; resetTs: aiPanel.cxResetTs; paceTs: aiPanel.cxReset7dTs
-                    recent: aiPanel.cxRecent; extras: aiPanel.cxExtras
+                    recent: aiPanel.cxRecent; bars: aiPanel.cxBars
                 }
 
                 Rectangle { visible: aiPanel.cxShow && aiPanel.ocShow; width: parent.width; height: 1; color: root.sep }
