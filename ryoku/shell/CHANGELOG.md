@@ -1,6 +1,13 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **An incoming notification no longer freezes the shell (#985).** On the Orpheus
+  bar style, the notification face of the centre voice drop sized its text from
+  the room the scene had left for it, which the bar's own overflow set, so the
+  two chased each other and the scene never settled, pinning a core and
+  freezing every shell surface until a restart. The face now sizes from the
+  notification's own text, so a crowded layout clips the text instead of
+  hanging the desktop.
 - **Shima's weather matches the launcher (#885).** Shima read wttr.in, whose
   reading can be degrees and an hour off; it now asks Open-Meteo like the
   launcher and keeps wttr.in only as the fallback.

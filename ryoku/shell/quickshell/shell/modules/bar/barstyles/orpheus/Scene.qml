@@ -28,6 +28,10 @@ Item {
     readonly property real cardMaxHeight: Math.max(0, Math.min(M.cardMaxH,
         (screen ? screen.height : M.cardMaxH + K.Style.barH + 48)
             - K.Style.barH - 48))
+    // Text room is for registered text modules only: laneNeeded measures those
+    // from layoutFixedWidth plus layoutPreferredTextWidth, so their live width
+    // can follow this without feeding win.overflow back into it. An unregistered
+    // slot that sizes from textRoom closes that loop and never settles.
     readonly property real textRoom: Math.max(64,
         Math.max(Number(prefs.mediaWidth) || 220,
             Number(prefs.windowWidth) || 240) - win.overflow)
