@@ -22,16 +22,29 @@ QtObject {
         return undefined;
     }
 
+    // Changes keeps undo entries in the value space of the store. Keep the full
+    // policy there, so undoing Ryoku restores a fixed scheme instead of turning
+    // it into follow-wallpaper.
+    function changeValue(key, value, before) {
+        if (key !== "family")
+            return value;
+        if (value === "ryoku")
+            return "off";
+        if (value === "wallpaper")
+            return store.policy === "fixed" ? "fixed" : "wallpaper";
+        return value; // already a full policy, coming back from undo
+    }
+
     function write(key, v, done) {
         if (key !== "family") {
             done(false, "");
             return;
         }
-        var before = store.policy;
-        var want = v === "wallpaper" ? "wallpaper" : "off";
+        var before = store.policy || "off";
+        var want = v === "ryoku" ? "off" : v;
         // A fixed scheme is still the desktop palette family. Do not replace it
         // just because the Hub chose Wallpaper again.
-        if (want === "wallpaper" && (before === "wallpaper" || before === "fixed")) {
+        if (want === before || (want === "wallpaper" && before === "fixed")) {
             done(true, "");
             return;
         }

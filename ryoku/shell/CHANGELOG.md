@@ -9,7 +9,8 @@
   matching Ryoku's shipped colours, and `theme.colours` stays a one-way shadow
   in `shell.json` for file readers
   (`hub/quickshell/components/style/ColourStore.qml`,
-  `ryogami/daemon/theme_policy.go`).
+  `ryogami/daemon/theme_policy.go`). Undoing a colour change restores the exact
+  policy, so a fixed scheme comes back instead of follow-wallpaper.
 - **Ryogami wears the desktop's style and colours, and its chrome is one liquid
   body.** The picker draws through Lithic, so Settings › Style reaches it live
   in all four styles, with Ryoku's colours or the wallpaper's, light or dark.
