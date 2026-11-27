@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -10,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -46,6 +51,10 @@ type scanned struct {
 	filesize    int64
 	thumbPath   string
 	thumbSmPath string
+	// we marks a Steam Workshop source: Steam revalidation moves its
+	// mtime at every login, so preview staleness keys on the size record
+	// beside the clip instead of the file's timestamps.
+	we bool
 }
 
 // ScanDirs walks the wallpaper and video dirs and returns fresh entries merged
@@ -539,16 +548,133 @@ func ensureAnimatedMp4(it scanned) string {
 	return animPath
 }
 
+// previewRenderLocks serializes the render and publication of one clip at a
+// time per preview path: a forced reset can overlap a running scan, and two
+// writers for the same clip would otherwise publish clip and identity record
+// in crossed order, leaving an old clip described by a new identity. Entries
+// are refcounted and released when idle, so a library that churns does not
+// grow the registry.
+type previewLockEntry struct {
+	mu   sync.Mutex
+	refs int
+}
+
+var previewLocksMu sync.Mutex
+var previewLocks = map[string]*previewLockEntry{}
+
+// lockPreviewRender holds the render lock for one clip path; the returned
+// func releases it and drops the registry entry when nothing waits on it.
+func lockPreviewRender(prev string) func() {
+	previewLocksMu.Lock()
+	e, ok := previewLocks[prev]
+	if !ok {
+		e = &previewLockEntry{}
+		previewLocks[prev] = e
+	}
+	e.refs++
+	previewLocksMu.Unlock()
+	e.mu.Lock()
+	return func() {
+		e.mu.Unlock()
+		previewLocksMu.Lock()
+		e.refs--
+		if e.refs == 0 && previewLocks[prev] == e {
+			delete(previewLocks, prev)
+		}
+		previewLocksMu.Unlock()
+	}
+}
+
+// previewSourceIdentity is the content marker a workshop clip records beside
+// itself: the source's byte size and a hex prefix of its sha256 digest. The
+// whole file is streamed through the hash, so a same-size update that changes
+// bytes anywhere in the source moves the identity. Mtimes are deliberately
+// not part of it: Steam revalidation rewrites them at every login, and a
+// redownload can restore an old one, while the source bytes are the contract.
+func previewSourceIdentity(src string, size int64) string {
+	f, err := os.Open(src)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return strconv.FormatInt(size, 10) + ":" + hex.EncodeToString(h.Sum(nil)[:8])
+}
+
+// cachedPreviewSourceIdentity reuses the full-content identity computed on an
+// earlier scan when the source's cheap stat signature (size and mtime) is
+// unchanged. Hashing every workshop clip on every warm rescan is wasted work
+// when the bytes were not touched. Any size or timestamp change drops the
+// memo and forces a fresh full-content hash, so a same-size rewrite is still
+// detected by previewSourceIdentity.
+type previewIdentityMemo struct {
+	size     int64
+	mtime    int64
+	identity string
+}
+
+var (
+	previewIdentityMu    sync.Mutex
+	previewIdentityMemos = map[string]previewIdentityMemo{}
+)
+
+func cachedPreviewSourceIdentity(it scanned) string {
+	previewIdentityMu.Lock()
+	memo, ok := previewIdentityMemos[it.src]
+	previewIdentityMu.Unlock()
+	if ok && memo.identity != "" && memo.size == it.filesize && memo.mtime == it.mtime {
+		return memo.identity
+	}
+	identity := previewSourceIdentity(it.src, it.filesize)
+	if identity != "" {
+		previewIdentityMu.Lock()
+		previewIdentityMemos[it.src] = previewIdentityMemo{
+			size: it.filesize, mtime: it.mtime, identity: identity,
+		}
+		previewIdentityMu.Unlock()
+	}
+	return identity
+}
+
 // ensureVideoPreview builds the small clip the picker's hover/selection
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
 // card, which froze the whole selector. 640w/24fps H.264 decodes for free.
-// Regenerated when missing or older than the source; "" on failure, which
-// callers treat as "no preview" (the delegate falls back to the still thumb).
+// Regenerated when missing or older than the source; workshop clips
+// instead reuse purely by recorded source identity (size plus a full-content
+// hash), because Steam revalidation moves their mtimes at every login, a
+// redownload can restore an old one, and a same-size update must not wear
+// the previous clip forever; "" on failure, which callers treat as "no
+// preview" (the delegate falls back to the still thumb).
 func ensureVideoPreview(it scanned) string {
 	prev := strings.TrimSuffix(it.thumbPath, ".webp") + "-prev.mp4"
-	if fi, err := os.Stat(prev); err == nil && fi.ModTime().Unix() >= it.mtime {
-		return prev
+	unlock := lockPreviewRender(prev)
+	defer unlock()
+	// A workshop clip is reusable only when both the source identity and the
+	// record beside the clip are readable; two empty strings are not a match.
+	var identity string
+	if it.we {
+		identity = cachedPreviewSourceIdentity(it)
+		if identity == "" {
+			return ""
+		}
+	}
+	if fi, err := os.Stat(prev); err == nil {
+		if it.we {
+			// Workshop sources sit under Steam's control: validation
+			// moves their mtimes at every login, and a redownload can
+			// carry the manifest's old one back, so the recorded
+			// identity decides whether the clip is current, not the
+			// timestamps.
+			if prevSourceIdentity(prev) == identity {
+				return prev
+			}
+		} else if fi.ModTime().Unix() >= it.mtime {
+			return prev
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(prev), 0o755); err != nil {
 		return ""
@@ -561,9 +687,108 @@ func ensureVideoPreview(it scanned) string {
 		fmt.Fprintf(os.Stderr, "ryogami: preview failed for %s: %v\n", it.name, err)
 		return ""
 	}
+	if it.we {
+		// Drop the old record before the rename: a daemon killed between
+		// the rename and the record write must leave either the new record
+		// or none, never a stale record describing a clip that is gone.
+		// An unremovable record makes publication unsafe, so skip it.
+		if err := os.Remove(prev + ".meta"); err != nil && !errors.Is(err, os.ErrNotExist) {
+			os.Remove(tmp)
+			fmt.Fprintf(os.Stderr, "ryogami: cannot drop stale preview record for %s: %v\n", it.name, err)
+			return ""
+		}
+	}
 	if os.Rename(tmp, prev) != nil {
 		os.Remove(tmp)
 		return ""
 	}
+	if it.we {
+		if err := writePrevSourceIdentity(prev, identity); err != nil {
+			// The clip is published but unrecorded; clear any partial
+			// record so the next scan re-renders instead of reusing it.
+			_ = os.Remove(prev + ".meta")
+			fmt.Fprintf(os.Stderr, "ryogami: preview record failed for %s: %v\n", it.name, err)
+		}
+	}
 	return prev
+}
+
+// prevSourceIdentity reads the identity recorded when the clip beside it was
+// rendered; "" when no record exists.
+func prevSourceIdentity(prev string) string {
+	b, err := os.ReadFile(prev + ".meta")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// writePrevSourceIdentity records the identity through a temp sibling and an
+// atomic rename, so a killed writer never leaves a partial record that could
+// mark the wrong clip as current.
+func writePrevSourceIdentity(prev, identity string) error {
+	meta := prev + ".meta"
+	tmp := tmpPath(meta)
+	if err := os.WriteFile(tmp, []byte(identity+"\n"), 0o644); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, meta); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// isTmpArtifact reports whether name is a temp sibling produced by tmpPath:
+// a ".tmp.<pid>-<unixnano>" infix immediately before the destination's
+// extension. A finished artifact whose stem merely contains ".tmp." (e.g.
+// "photo.tmp.png.webp") is not a temp and must survive the startup sweep.
+func isTmpArtifact(name string) bool {
+	i := strings.LastIndex(name, ".tmp.")
+	if i < 0 {
+		return false
+	}
+	stamp := name[i+len(".tmp."):]
+	dash := strings.IndexByte(stamp, '-')
+	if dash < 1 {
+		return false
+	}
+	for _, c := range stamp[:dash] {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	tail := stamp[dash+1:]
+	digits := strings.TrimSuffix(tail, filepath.Ext(tail))
+	if digits == "" {
+		return false
+	}
+	for _, c := range digits {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// sweepTmpFiles removes the temp artifacts a previous daemon lost mid-run: a
+// killed transcode or thumb job never cleans up after itself, and a login's
+// double start makes that routine. Callers must run it at startup, before any
+// watcher, restore or rescan can create a new temp -- a broad ".tmp." match
+// here would delete a live job's output.
+func sweepTmpFiles(cacheDir string) {
+	for _, sub := range []string{"wallpaper/thumbs", "wallpaper/thumbs-sm", "wallpaper/video-thumbs", "wallpaper/anim"} {
+		dir := filepath.Join(cacheDir, sub)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !isTmpArtifact(e.Name()) {
+				continue
+			}
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }

@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"image"
 	"image/color"
 	"image/png"
@@ -327,4 +330,149 @@ func keys(m map[string]Entry) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// Startup sweeps only the temp siblings tmpPath creates, never finished
+// artifacts whose stem happens to contain ".tmp." (photo.tmp.png.webp).
+func TestSweepTmpFilesRemovesOnlyTempSuffixes(t *testing.T) {
+	dir := t.TempDir()
+	vids := filepath.Join(dir, "wallpaper", "video-thumbs")
+	thumbs := filepath.Join(dir, "wallpaper", "thumbs")
+	for _, d := range []string{vids, thumbs} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := []string{
+		filepath.Join(vids, "we--2215418014-prev.mp4"),
+		filepath.Join(thumbs, "photo.tmp.webp"),
+		filepath.Join(thumbs, "photo.tmp.png.webp"),
+		filepath.Join(thumbs, "photo.tmp.1234.webp"),
+		filepath.Join(thumbs, "photo.tmp.1234-abc.webp"),
+	}
+	remove := []string{
+		filepath.Join(vids, "we--2215418014-prev.tmp.4938-1795126831842862467.mp4"),
+		filepath.Join(vids, "we--2215418014-prev.meta.tmp.4938-1795126831842862467.meta"),
+		filepath.Join(thumbs, "photo.tmp.4938-1795126831842862467.webp"),
+		filepath.Join(thumbs, "photo.tmp.png.tmp.4938-1795126831842862467.webp"),
+	}
+	for _, p := range append(append([]string{}, keep...), remove...) {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sweepTmpFiles(dir)
+	for _, p := range keep {
+		if !fileExists(p) {
+			t.Fatalf("sweep removed a finished artifact: %s", p)
+		}
+	}
+	for _, p := range remove {
+		if fileExists(p) {
+			t.Fatalf("sweep left an orphan temp behind: %s", p)
+		}
+	}
+}
+
+// Warm rescans reuse the identity hashed on an earlier scan while the source's
+// cheap stat signature is unchanged, and rehash as soon as it moves. A fresh
+// hash of a removed source is empty, so the memo is observable without timing.
+func TestCachedPreviewSourceIdentitySkipsUnchangedSource(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "clip.bin")
+	if err := os.WriteFile(src, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := scanned{src: src, filesize: st.Size(), mtime: st.ModTime().Unix()}
+
+	first := cachedPreviewSourceIdentity(it)
+	if first == "" {
+		t.Fatal("first identity is empty")
+	}
+	if err := os.Remove(src); err != nil {
+		t.Fatal(err)
+	}
+	if second := cachedPreviewSourceIdentity(it); second != first {
+		t.Fatalf("unchanged source was rehashed: %q -> %q", first, second)
+	}
+
+	// A moved timestamp drops the memo and forces a fresh full-content hash.
+	it.mtime++
+	if third := cachedPreviewSourceIdentity(it); third != "" {
+		t.Fatalf("stale identity survived a stat change: %q", third)
+	}
+	if err := os.WriteFile(src, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A different recorded size also misses the memo (and the identity itself
+	// changes because the size is part of it).
+	it.filesize++
+	if fourth := cachedPreviewSourceIdentity(it); fourth == "" || fourth == first {
+		t.Fatalf("size change did not produce a fresh identity: %q", fourth)
+	}
+}
+
+// The startup temp sweep must run before any watcher, restore or rescan can
+// start a generator; running it inside the restore goroutine let watchers
+// create live temps that the sweep then deleted.
+func TestStartupSweepPrecedesGenerators(t *testing.T) {
+	src, err := os.ReadFile("daemon.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), "daemon.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run *ast.FuncDecl
+	for _, d := range f.Decls {
+		if fn, ok := d.(*ast.FuncDecl); ok && fn.Name.Name == "runDaemon" {
+			run = fn
+			break
+		}
+	}
+	if run == nil {
+		t.Fatal("runDaemon not found")
+	}
+	tracked := map[string]bool{
+		"sweepTmpFiles":           true,
+		"rescan":                  true,
+		"restoreActiveWorkspaces": true,
+		"startLibraryWatch":       true,
+		"watch":                   true,
+	}
+	positions := map[string]token.Pos{}
+	ast.Inspect(run, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		var name string
+		switch fun := call.Fun.(type) {
+		case *ast.Ident:
+			name = fun.Name
+		case *ast.SelectorExpr:
+			name = fun.Sel.Name
+		}
+		if tracked[name] {
+			if _, seen := positions[name]; !seen {
+				positions[name] = call.Pos()
+			}
+		}
+		return true
+	})
+	sweep, ok := positions["sweepTmpFiles"]
+	if !ok {
+		t.Fatal("runDaemon never sweeps temp files")
+	}
+	for _, generator := range []string{"rescan", "restoreActiveWorkspaces", "startLibraryWatch", "watch"} {
+		p, ok := positions[generator]
+		if ok && p < sweep {
+			t.Fatalf("%s starts before the startup temp sweep", generator)
+		}
+	}
 }
