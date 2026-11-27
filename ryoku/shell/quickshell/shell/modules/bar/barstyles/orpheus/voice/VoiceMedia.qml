@@ -15,8 +15,10 @@ Item {
     readonly property string artist: player
         ? Theme.joinArtists(player.trackArtists, player.trackArtist) : ""
     readonly property url art: Music.coverFor(player)
-    readonly property real titleRoom: Math.max(1, Math.min(
-        S.Prefs.mediaWidth * K.Style.scale, scene.textRoom,
+    // Same contract as VoiceNotice: this face feeds the voice slot width, which
+    // laneNeeded reads live, so it must not depend on scene.textRoom.
+    readonly property real titleWidth: Math.max(1, Math.min(
+        S.Prefs.mediaWidth * K.Style.scale,
         Math.max(titleMeasure.implicitWidth, artistMeasure.implicitWidth)))
 
     implicitWidth: content.implicitWidth
@@ -51,7 +53,7 @@ Item {
 
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            width: root.titleRoom
+            width: root.titleWidth
             spacing: 0
 
             K.Label {

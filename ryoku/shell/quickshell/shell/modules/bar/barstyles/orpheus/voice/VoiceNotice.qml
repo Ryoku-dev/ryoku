@@ -26,8 +26,11 @@ Item {
         const body = notification ? String(notification.body || "") : "";
         return body.split(/\r?\n/)[0].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     }
-    readonly property real textRoom: Math.max(1, Math.min(
-        220 * K.Style.scale, scene.textRoom,
+    // The voice slot is not a registered text module, so laneNeeded measures it
+    // from this live width. Clamping to scene.textRoom would feed that straight
+    // back into win.overflow and scene.textRoom, and the two never settle.
+    readonly property real textWidth: Math.max(1, Math.min(
+        220 * K.Style.scale,
         Math.max(summaryMeasure.implicitWidth, bodyMeasure.implicitWidth)))
 
     implicitWidth: content.implicitWidth
@@ -80,7 +83,7 @@ Item {
 
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            width: root.textRoom
+            width: root.textWidth
             spacing: 0
 
             K.Label {
