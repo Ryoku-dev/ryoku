@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"ryoku-cli/internal/sys"
@@ -69,5 +70,49 @@ printf '%s\n' "$*" > "` + home + `/called"
 	}
 	if string(called) != "colours wallpaper\n" {
 		t.Fatalf("called = %q", called)
+	}
+}
+
+func TestThemeColoursPolicyWarnsOnMalformedShellSettings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("PATH", t.TempDir())
+	path := filepath.Join(sys.ConfigHome(), "ryoku", "shell.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := reconcileThemeColoursPolicy(true); got.status != recWarn {
+		t.Fatalf("status = %v, detail = %s", got.status, got.detail)
+	}
+}
+
+func TestThemeColoursPolicyWarnsOnRyogamiFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	ryogami := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryogami"), []byte(ryogami), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(sys.ConfigHome(), "ryoku", "shell.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(map[string]any{"theme": map[string]any{"colours": "ryoku"}})
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := reconcileThemeColoursPolicy(true)
+	if got.status != recWarn {
+		t.Fatalf("status = %v, detail = %s", got.status, got.detail)
+	}
+	if strings.Contains(got.detail, "not installed") {
+		t.Fatalf("detail = %q, should not report a missing binary", got.detail)
 	}
 }

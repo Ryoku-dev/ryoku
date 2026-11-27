@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,20 +24,26 @@ import (
 func reconcileThemeColoursPolicy(checkOnly bool) recResult {
 	shellPath := filepath.Join(sys.ConfigHome(), "ryoku", "shell.json")
 	raw, err := os.ReadFile(shellPath)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return okRes(i18n.T("no shell settings yet"))
+	}
+	if err != nil {
+		return warnRes("could not read shell settings: %s", err)
 	}
 	var shell struct {
 		Theme struct {
 			Colours string `json:"colours"`
 		} `json:"theme"`
 	}
-	if json.Unmarshal(raw, &shell) != nil {
-		return okRes(i18n.T("shell settings are not readable yet"))
+	if err := json.Unmarshal(raw, &shell); err != nil {
+		return warnRes("could not parse shell settings: %s", err)
 	}
 	out, err := exec.Command("ryogami", "settings", "get", "theme.policy").Output()
-	if err != nil {
+	if errors.Is(err, exec.ErrNotFound) {
 		return okRes(i18n.T("Ryogami is not installed yet"))
+	}
+	if err != nil {
+		return warnRes("could not ask Ryogami for the colour policy: %s", err)
 	}
 	policy := strings.Trim(strings.TrimSpace(string(out)), `"`)
 	var want string
