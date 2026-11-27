@@ -1,6 +1,15 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The colour controls stay in sync.** The Hub's Colours switch and the
+  Ryogami toggle used to write only their own setting, so changing one left
+  the other showing the old state and you had to switch away and back before
+  the colours changed. The Hub and the picker now read one state, Ryogami's
+  `theme.policy`, so neither can show a stale choice. Its default is `off`,
+  matching Ryoku's shipped colours, and `theme.colours` stays a one-way shadow
+  in `shell.json` for file readers
+  (`hub/quickshell/components/style/ColourStore.qml`,
+  `ryogami/daemon/theme_policy.go`).
 - **Ryogami wears the desktop's style and colours, and its chrome is one liquid
   body.** The picker draws through Lithic, so Settings › Style reaches it live
   in all four styles, with Ryoku's colours or the wallpaper's, light or dark.

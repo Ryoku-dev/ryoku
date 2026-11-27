@@ -419,7 +419,7 @@ var settingsSchema = []settingSpec{
 	{Key: "theme.gnomeAccent", Type: "bool", Default: true, Store: "theme"},
 	{Key: "theme.gtkTheme", Type: "enum", Default: "adw", Options: []string{"adw", "adwaita", "system"}, Store: "theme"},
 	{Key: "theme.mode", Type: "enum", Default: "smart", Options: []string{"dark", "light", "smart", "sun"}, Store: "matugen"},
-	{Key: "theme.policy", Type: "enum", Default: "wallpaper", Options: []string{"wallpaper", "fixed", "off"}},
+	{Key: "theme.policy", Type: "enum", Default: "off", Options: []string{"wallpaper", "fixed", "off"}},
 	{Key: "theme.staticTheme", Type: "string", Default: "nord"},
 	{Key: "theme.themeApps", Type: "bool", Default: true, Store: "theme"},
 	{Key: "transition.durationMs", Type: "number", Default: float64(900), Min: fp(50.0), Max: fp(10000.0), Step: fp(1.0)},

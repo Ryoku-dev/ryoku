@@ -1,6 +1,10 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku doctor` repairs colour settings that drifted apart.** When the
+  Hub's Colours switch and the Ryogami wallpaper toggle disagree, doctor
+  aligns them through the shell's own command
+  (`internal/doctor/reconcile_theme_colours_policy.go`).
 - **`ryoku doctor` moves the launcher to Orpheus, the new default, once.** A
   `launcher.json` whose `variant` is exactly `hero`, the old default Settings
   wrote as if picked, becomes `orpheus`; any other launcher stays, a later pick

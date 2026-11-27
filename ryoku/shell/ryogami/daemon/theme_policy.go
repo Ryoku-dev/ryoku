@@ -30,6 +30,7 @@ func (d *daemon) applyThemePolicy() {
 	switch d.settingString("theme.policy") {
 	case "wallpaper":
 		shellTheme("Wallpaper")
+		shellColours("wallpaper")
 	case "fixed":
 		name := d.settingString("theme.staticTheme")
 		if name == "custom" {
@@ -41,7 +42,9 @@ func (d *daemon) applyThemePolicy() {
 			name = id
 		}
 		shellTheme(name)
+		shellColours("wallpaper")
 	case "off":
+		shellColours("ryoku")
 		setThemeFollow(false)
 	}
 }
