@@ -167,6 +167,7 @@ func runDaemon() error {
 	d.workshop = newWorkshopLib(d)
 	d.migrateLegacyConfig()
 	d.migratePickerState()
+	d.migrateImplicitThemePolicy()
 	cfg = d.config()
 	// A finished pipeline replaced sources on disk, so the catalog rescans;
 	// every pipeline event also reaches subscribed clients untouched.

@@ -580,3 +580,58 @@ func TestPerOutputSettingRoundTrip(t *testing.T) {
 		t.Fatal("an unknown placement must still be rejected")
 	}
 }
+
+func TestMigrateImplicitThemePolicyKeepsOldDefault(t *testing.T) {
+	d := newSettingsDaemon(t)
+	tree := map[string]interface{}{
+		"general": map[string]interface{}{"randomInterval": 60},
+	}
+	b, _ := json.MarshalIndent(tree, "", "  ")
+	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d.migrateImplicitThemePolicy()
+	resetSettingsState()
+
+	got := readJSONFile(t, configPath())
+	if value, _ := lookupDotted(got, "theme.policy"); value != "wallpaper" {
+		t.Errorf("theme.policy = %v, want wallpaper", value)
+	}
+	if value, _ := lookupDotted(got, "general.randomInterval"); value != float64(60) {
+		t.Errorf("general.randomInterval = %v, want 60", value)
+	}
+	// the written key marks the migration, so a second run leaves it alone
+	d.migrateImplicitThemePolicy()
+	got = readJSONFile(t, configPath())
+	if value, _ := lookupDotted(got, "theme.policy"); value != "wallpaper" {
+		t.Errorf("second run changed theme.policy to %v", value)
+	}
+}
+
+func TestMigrateImplicitThemePolicyLeavesFreshInstallAlone(t *testing.T) {
+	d := newSettingsDaemon(t)
+	d.migrateImplicitThemePolicy()
+	if _, err := os.Stat(configPath()); !os.IsNotExist(err) {
+		t.Fatalf("fresh install gained a config file: %v", err)
+	}
+}
+
+func TestMigrateImplicitThemePolicyKeepsExplicitChoice(t *testing.T) {
+	d := newSettingsDaemon(t)
+	tree := map[string]interface{}{
+		"theme": map[string]interface{}{"policy": "off"},
+	}
+	b, _ := json.MarshalIndent(tree, "", "  ")
+	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d.migrateImplicitThemePolicy()
+	resetSettingsState()
+
+	got := readJSONFile(t, configPath())
+	if value, _ := lookupDotted(got, "theme.policy"); value != "off" {
+		t.Errorf("theme.policy = %v, want off", value)
+	}
+}

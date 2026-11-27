@@ -101,6 +101,34 @@ func (d *daemon) migratePickerState() {
 	}
 }
 
+// migrateImplicitThemePolicy keeps the old effective default for installs that
+// already have settings but never saved theme.policy. A fresh install has no
+// config file yet, so it keeps the new off default. Writing the key also marks
+// the migration done, so it runs only once.
+func (d *daemon) migrateImplicitThemePolicy() {
+	path := configPath()
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	tree := loadRyogamiTree()
+	if tree == nil {
+		return
+	}
+	if _, exists := lookupDotted(tree, "theme.policy"); exists {
+		return
+	}
+	setDotted(tree, "theme.policy", "wallpaper")
+	out, err := json.MarshalIndent(tree, "", "  ")
+	if err != nil {
+		return
+	}
+	if err := settingsAtomicWrite(path, out); err != nil {
+		return
+	}
+	setSettingsBaseline(flattenSettings(tree))
+	d.reloadConfig()
+}
+
 // The old strip's card shape and saved presets stay behind so the rebuilt picker opens on its own look.
 var legacyLook = []string{
 	"components.wallpaperSelector.corner",
