@@ -381,6 +381,7 @@ func reconcilers() []reconciler {
 		{i18n.T("orphaned theme.lua"), reconcileThemeLua},
 		{i18n.T("follow-mouse default"), reconcileFollowMouseDefault},
 		{i18n.T("follow-wallpaper default"), reconcileThemeFollowDefault},
+		{i18n.T("colour controls agree"), reconcileThemeColoursPolicy},
 		{i18n.T("quickshell runtime"), reconcileQuickshell},
 		{i18n.T("QML disk cache size"), reconcileQMLCache},
 		{i18n.T("compositor desktop variants"), reconcileCompositorVariants},

@@ -36,7 +36,7 @@ var rows = [
     { id: "colours", section: "colours", label: "Colours",
       detail: "Ryoku's own colours, or the desktop's from your wallpaper or a colour scheme",
       keywords: ["colours", "colors", "palette", "theme", "follow wallpaper", "wallpaper colours", "ryoku colours", "accent"],
-      control: "segmented", bind: s("theme.colours", "ryoku"), "default": "ryoku",
+      control: "segmented", bind: { store: "colours", key: "family" }, "default": "ryoku",
       options: [{ value: "ryoku", label: "Ryoku" }, { value: "wallpaper", label: "Wallpaper" }] },
     { id: "mode", section: "colours", label: "Light or dark",
       detail: "For the whole desktop. Automatic follows the wallpaper's brightness, Sun the time of day",
@@ -57,7 +57,7 @@ var rows = [
       keywords: ["tint", "hue", "tone", "colourful"],
       control: "segmented", bind: s("theme.tint", "off"), "default": "off",
       options: [{ value: "off", label: "Off" }, { value: "low", label: "Low" }, { value: "medium", label: "Medium" }],
-      when: { bind: s("theme.colours", "ryoku"), is: ["wallpaper"] } },
+      when: { bind: { store: "colours", key: "family" }, is: ["wallpaper"] } },
 
     { id: "colour-scheme", section: "scheme", label: "Change the colour scheme",
       detail: "Your wallpaper's colours or a fixed scheme, set with the wallpaper",

@@ -13,6 +13,8 @@ Item {
 
     required property var hub
 
+    Component.onCompleted: Changes.ensureStore("colours", Qt.resolvedUrl("../components/style/ColourStore.qml"))
+
     readonly property var designRow: Schema.rows.find(r => r.id === "design")
     readonly property string chosen: {
         Changes.revision;

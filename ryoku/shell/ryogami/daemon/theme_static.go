@@ -35,6 +35,36 @@ func shellTheme(name string) {
 	go func() { _ = exec.Command("ryoku-shell", "theme", name).Run() }()
 }
 
+// shellColours writes the palette family through the shell's own verb. The
+// setting store is the sole writer of shell.json, so we never touch that file
+// from here. A value already in place is a no-op, which keeps the two colour
+// controls from writing each other in a loop.
+func shellColours(value string) {
+	if value == "" {
+		return
+	}
+	if cur := shellColoursName(); cur == value {
+		return
+	}
+	_ = exec.Command("ryoku-shell", "colours", value).Run()
+}
+
+func shellColoursName() string {
+	b, err := os.ReadFile(filepath.Join(ryokuConfigDir(), "shell.json"))
+	if err != nil {
+		return ""
+	}
+	var s struct {
+		Theme struct {
+			Colours string `json:"colours"`
+		} `json:"theme"`
+	}
+	if json.Unmarshal(b, &s) != nil {
+		return ""
+	}
+	return s.Theme.Colours
+}
+
 func setThemeFollow(follow bool) {
 	path := filepath.Join(ryokuConfigDir(), "theme.json")
 	doc := map[string]interface{}{}

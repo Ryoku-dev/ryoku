@@ -1608,6 +1608,21 @@ func (d *daemon) dispatch(line string) string {
 			return "ok"
 		}
 		return "err stage: unknown verb " + args[0]
+	case "colours":
+		// Set the palette family the shell surfaces wear. Ryogami owns the
+		// user's choice and writes this only as a shadow for file readers;
+		// doctor uses it to repair drift. It never writes back.
+		if len(args) != 1 || (args[0] != "ryoku" && args[0] != "wallpaper") {
+			return "err colours: expected ryoku or wallpaper"
+		}
+		if d.settings == nil {
+			return "err colours: settings not ready"
+		}
+		v, _ := json.Marshal(args[0])
+		if err := d.settings.patch("theme.colours", v); err != nil {
+			return "err colours: " + err.Error()
+		}
+		return "ok"
 	case "theme":
 		// Apply a colour scheme by writing theme.theme through the settings store
 		// (the sole writer of shell.json), which validates the name, persists,

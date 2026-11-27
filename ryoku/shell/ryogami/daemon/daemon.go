@@ -165,8 +165,12 @@ func runDaemon() error {
 	d.paper = newPaperClient(d)
 	d.scenePointer = newScenePointerFeed(d.paper.workers)
 	d.workshop = newWorkshopLib(d)
+	_, configErr := os.Stat(configPath())
+	_, legacyErr := os.Stat(filepath.Join(ryogamiWallConfigDir(), "config.json"))
+	preexisting := configErr == nil || legacyErr == nil
 	d.migrateLegacyConfig()
 	d.migratePickerState()
+	d.migrateImplicitThemePolicy(preexisting)
 	cfg = d.config()
 	// A finished pipeline replaced sources on disk, so the catalog rescans;
 	// every pipeline event also reaches subscribed clients untouched.
