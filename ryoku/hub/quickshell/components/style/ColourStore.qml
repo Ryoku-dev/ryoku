@@ -8,6 +8,7 @@ QtObject {
     id: store
 
     property string policy: ""
+    property int writeGeneration: 0
 
     function family() {
         var p = store.policy;
@@ -48,9 +49,16 @@ QtObject {
             done(true, "");
             return;
         }
+        var generation = ++store.writeGeneration;
         store.policy = want;
         Changes.touch();
         Changes.run(["ryogami", "settings", "set", "theme.policy", want], function (ok) {
+            // A newer click owns the displayed policy now. Letting an older
+            // failure restore its own before value would undo that choice.
+            if (generation !== store.writeGeneration) {
+                done(true, "");
+                return;
+            }
             if (!ok) {
                 store.policy = before;
                 Changes.touch();

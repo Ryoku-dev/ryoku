@@ -12,7 +12,8 @@
   `ryogami/daemon/theme_policy.go`). Undoing a colour change restores the exact
   policy, so a fixed scheme comes back instead of follow-wallpaper. Installs
   that already had Ryogami settings keep their old implicit wallpaper-following
-  choice through a one-time migration.
+  choice through a one-time migration. A late write failure no longer restores
+  an older colour choice.
 - **Ryogami wears the desktop's style and colours, and its chrome is one liquid
   body.** The picker draws through Lithic, so Settings › Style reaches it live
   in all four styles, with Ryoku's colours or the wallpaper's, light or dark.
