@@ -582,6 +582,7 @@ func TestPerOutputSettingRoundTrip(t *testing.T) {
 }
 
 func TestMigrateImplicitThemePolicyKeepsOldDefault(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
 	d := newSettingsDaemon(t)
 	tree := map[string]interface{}{
 		"general": map[string]interface{}{"randomInterval": 60},
@@ -591,7 +592,7 @@ func TestMigrateImplicitThemePolicyKeepsOldDefault(t *testing.T) {
 	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d.migrateImplicitThemePolicy()
+	d.migrateImplicitThemePolicy(true)
 	resetSettingsState()
 
 	got := readJSONFile(t, configPath())
@@ -602,7 +603,7 @@ func TestMigrateImplicitThemePolicyKeepsOldDefault(t *testing.T) {
 		t.Errorf("general.randomInterval = %v, want 60", value)
 	}
 	// the written key marks the migration, so a second run leaves it alone
-	d.migrateImplicitThemePolicy()
+	d.migrateImplicitThemePolicy(true)
 	got = readJSONFile(t, configPath())
 	if value, _ := lookupDotted(got, "theme.policy"); value != "wallpaper" {
 		t.Errorf("second run changed theme.policy to %v", value)
@@ -610,14 +611,16 @@ func TestMigrateImplicitThemePolicyKeepsOldDefault(t *testing.T) {
 }
 
 func TestMigrateImplicitThemePolicyLeavesFreshInstallAlone(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
 	d := newSettingsDaemon(t)
-	d.migrateImplicitThemePolicy()
+	d.migrateImplicitThemePolicy(false)
 	if _, err := os.Stat(configPath()); !os.IsNotExist(err) {
 		t.Fatalf("fresh install gained a config file: %v", err)
 	}
 }
 
 func TestMigrateImplicitThemePolicyKeepsExplicitChoice(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
 	d := newSettingsDaemon(t)
 	tree := map[string]interface{}{
 		"theme": map[string]interface{}{"policy": "off"},
@@ -627,11 +630,69 @@ func TestMigrateImplicitThemePolicyKeepsExplicitChoice(t *testing.T) {
 	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d.migrateImplicitThemePolicy()
+	d.migrateImplicitThemePolicy(true)
 	resetSettingsState()
 
 	got := readJSONFile(t, configPath())
 	if value, _ := lookupDotted(got, "theme.policy"); value != "off" {
 		t.Errorf("theme.policy = %v, want off", value)
+	}
+}
+
+func TestMigrateImplicitThemePolicyMarkerStopsResetReversal(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	d := newSettingsDaemon(t)
+	tree := map[string]interface{}{
+		"general": map[string]interface{}{"randomInterval": 60},
+	}
+	b, _ := json.MarshalIndent(tree, "", "  ")
+	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d.migrateImplicitThemePolicy(true)
+	resetSettingsState()
+	got := readJSONFile(t, configPath())
+	if value, _ := lookupDotted(got, "theme.policy"); value != "wallpaper" {
+		t.Fatalf("theme.policy = %v, want wallpaper", value)
+	}
+
+	// a reset deletes the key again; the marker must stop a second migration
+	delete(got["theme"].(map[string]interface{}), "policy")
+	b, _ = json.MarshalIndent(got, "", "  ")
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resetSettingsState()
+	d.migrateImplicitThemePolicy(true)
+	resetSettingsState()
+	got = readJSONFile(t, configPath())
+	if _, exists := lookupDotted(got, "theme.policy"); exists {
+		t.Errorf("reset was reversed: theme.policy = %v", got["theme"])
+	}
+}
+
+func TestMigrateImplicitThemePolicyFreshInstallStaysOff(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+	d := newSettingsDaemon(t)
+	d.migrateImplicitThemePolicy(false)
+	tree := map[string]interface{}{
+		"general": map[string]interface{}{"randomInterval": 60},
+	}
+	b, _ := json.MarshalIndent(tree, "", "  ")
+	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
+	if err := os.WriteFile(configPath(), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resetSettingsState()
+	d.migrateImplicitThemePolicy(false)
+	resetSettingsState()
+
+	got := readJSONFile(t, configPath())
+	if _, exists := lookupDotted(got, "theme.policy"); exists {
+		t.Errorf("fresh install gained theme.policy: %v", got["theme"])
+	}
+	if _, err := os.Stat(themePolicyMigrationMarker()); err != nil {
+		t.Errorf("marker was not written: %v", err)
 	}
 }
