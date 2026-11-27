@@ -168,6 +168,11 @@ func runDaemon() error {
 	d.migrateLegacyConfig()
 	d.migratePickerState()
 	cfg = d.config()
+	// Temps from transcodes a previous daemon lost mid-run would leak forever.
+	// Sweep synchronously, before any watcher, restore or rescan can start a
+	// generator: doing it inside the restore goroutine races those generators
+	// and can delete a live job's temp out from under it.
+	sweepTmpFiles(cfg.cacheDir())
 	// A finished pipeline replaced sources on disk, so the catalog rescans;
 	// every pipeline event also reaches subscribed clients untouched.
 	d.optimizer = NewOptimizer(cfg.wallpaperDir(), cfg.videoDir(), func(ev string, data map[string]interface{}) {
@@ -230,10 +235,6 @@ func runDaemon() error {
 			}
 			d.restoreActiveWorkspaces()
 		}
-		// Temps from transcodes a previous daemon lost mid-run would leak
-		// forever; startup, before the first scan, is the only moment no
-		// generator can hold a live one.
-		sweepTmpFiles(cfg.cacheDir())
 		d.rescan(false)
 		d.playlists.resumeAll()
 		d.broadcast("ryogami.wall.scan_done", map[string]interface{}{})

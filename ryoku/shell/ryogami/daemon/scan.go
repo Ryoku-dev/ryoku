@@ -604,6 +604,41 @@ func previewSourceIdentity(src string, size int64) string {
 	return strconv.FormatInt(size, 10) + ":" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
+// cachedPreviewSourceIdentity reuses the full-content identity computed on an
+// earlier scan when the source's cheap stat signature (size and mtime) is
+// unchanged. Hashing every workshop clip on every warm rescan is wasted work
+// when the bytes were not touched. Any size or timestamp change drops the
+// memo and forces a fresh full-content hash, so a same-size rewrite is still
+// detected by previewSourceIdentity.
+type previewIdentityMemo struct {
+	size     int64
+	mtime    int64
+	identity string
+}
+
+var (
+	previewIdentityMu    sync.Mutex
+	previewIdentityMemos = map[string]previewIdentityMemo{}
+)
+
+func cachedPreviewSourceIdentity(it scanned) string {
+	previewIdentityMu.Lock()
+	memo, ok := previewIdentityMemos[it.src]
+	previewIdentityMu.Unlock()
+	if ok && memo.identity != "" && memo.size == it.filesize && memo.mtime == it.mtime {
+		return memo.identity
+	}
+	identity := previewSourceIdentity(it.src, it.filesize)
+	if identity != "" {
+		previewIdentityMu.Lock()
+		previewIdentityMemos[it.src] = previewIdentityMemo{
+			size: it.filesize, mtime: it.mtime, identity: identity,
+		}
+		previewIdentityMu.Unlock()
+	}
+	return identity
+}
+
 // ensureVideoPreview builds the small clip the picker's hover/selection
 // players decode, beside the video's thumbnail (<stem>-prev.mp4). Preview
 // players used to decode the full source: a 4K60 HEVC-10 clip per hovered
@@ -622,7 +657,7 @@ func ensureVideoPreview(it scanned) string {
 	// record beside the clip are readable; two empty strings are not a match.
 	var identity string
 	if it.we {
-		identity = previewSourceIdentity(it.src, it.filesize)
+		identity = cachedPreviewSourceIdentity(it)
 		if identity == "" {
 			return ""
 		}
@@ -705,15 +740,55 @@ func writePrevSourceIdentity(prev, identity string) error {
 	return nil
 }
 
+// isTmpArtifact reports whether name is a temp sibling produced by tmpPath:
+// a ".tmp.<pid>-<unixnano>" infix immediately before the destination's
+// extension. A finished artifact whose stem merely contains ".tmp." (e.g.
+// "photo.tmp.png.webp") is not a temp and must survive the startup sweep.
+func isTmpArtifact(name string) bool {
+	i := strings.LastIndex(name, ".tmp.")
+	if i < 0 {
+		return false
+	}
+	stamp := name[i+len(".tmp."):]
+	dash := strings.IndexByte(stamp, '-')
+	if dash < 1 {
+		return false
+	}
+	for _, c := range stamp[:dash] {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	tail := stamp[dash+1:]
+	digits := strings.TrimSuffix(tail, filepath.Ext(tail))
+	if digits == "" {
+		return false
+	}
+	for _, c := range digits {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // sweepTmpFiles removes the temp artifacts a previous daemon lost mid-run: a
 // killed transcode or thumb job never cleans up after itself, and a login's
-// double start makes that routine. Startup, before the first scan, is the
-// only moment no generator can hold a live temp.
+// double start makes that routine. Callers must run it at startup, before any
+// watcher, restore or rescan can create a new temp -- a broad ".tmp." match
+// here would delete a live job's output.
 func sweepTmpFiles(cacheDir string) {
 	for _, sub := range []string{"wallpaper/thumbs", "wallpaper/thumbs-sm", "wallpaper/video-thumbs", "wallpaper/anim"} {
-		temps, _ := filepath.Glob(filepath.Join(cacheDir, sub, "*.tmp.*"))
-		for _, p := range temps {
-			_ = os.Remove(p)
+		dir := filepath.Join(cacheDir, sub)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !isTmpArtifact(e.Name()) {
+				continue
+			}
+			_ = os.Remove(filepath.Join(dir, e.Name()))
 		}
 	}
 }
