@@ -21,7 +21,10 @@ esac
 # Laptop panel: only if a backlight device is present. Pin the panel's real
 # backlight -- on ASUS AMD+NVIDIA laptops brightnessctl's default pick is the
 # unreliable nvidia_wmi_ec_backlight, so ryoku-hw-backlight names the right one.
-if compgen -G "/sys/class/backlight/*" >/dev/null; then
+# A plain glob, not compgen: Nix patches this script onto a bash built without
+# completion builtins, where compgen is missing and the panel was never touched.
+backlights=("${RYOKU_BACKLIGHT_PATH:-/sys/class/backlight}"/*)
+if [[ -e ${backlights[0]} ]]; then
   device=$(ryoku-hw-backlight 2>/dev/null || true)
   if [[ $sign == "+" ]]; then
     brightnessctl ${device:+-d "$device"} set "${mag}%+" >/dev/null 2>&1 || true

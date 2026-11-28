@@ -23,6 +23,10 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- The brightness keys change the laptop screen brightness on NixOS again.
+  `ryoku-cmd-brightness` checked for a backlight with `compgen`, which the bash
+  Nix runs scripts with does not have, so the check failed silently and the
+  panel never moved.
 - **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
