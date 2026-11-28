@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Quickshell
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../SettingsSearch.js" as Search
 
 // Chooses a set of installed applications by id: the ones the launcher hides
 // (invert: a switch reads "shown"), or the ones it pins (switch reads "pinned").
@@ -53,14 +54,9 @@ Item {
         out.sort(function (a, b) { return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); });
         return out;
     }
-    readonly property var filtered: {
-        var q = root.query.toLowerCase();
-        if (!q.length)
-            return root.catalog;
-        return root.catalog.filter(function (e) {
-            return (e.name + " " + e.id).toLowerCase().indexOf(q) >= 0;
-        });
-    }
+    readonly property var filtered: Search.searchItems(root.catalog, root.query, function (e) {
+        return { label: e.name, desc: e.id, key: e.id || e.name };
+    })
 
     function setHidden(appId, hide) {
         var next = [];

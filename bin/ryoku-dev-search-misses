@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# report the settings-search queries nothing answered, most asked first.
+#
+# The Hub writes a query nobody found to the XDG state dir, capped at 100
+# entries and never sent anywhere. This reads it back, so the search vocabulary
+# (the phrase table, the per-row keywords) grows from what people actually type
+# rather than from what a maintainer guesses they type.
+#
+#   ryoku-dev-search-misses            the log, ranked by times asked
+#   ryoku-dev-search-misses --clear    delete it
+#
+# exit 2 when there is nothing to report (no log, or empty), 0 otherwise.
+set -euo pipefail
+
+state=${XDG_STATE_HOME:-${HOME}/.local/state}/ryoku
+log=${state}/hub-search-misses.json
+
+if [[ ${1:-} == "--clear" ]]; then
+  rm -f "$log"
+  echo "removed $log"
+  exit 0
+fi
+
+if [[ ! -s $log ]]; then
+  echo "no unanswered searches recorded" >&2
+  exit 2
+fi
+
+# sorted by count, then alphabetically so a tie is stable between runs
+jq -r 'to_entries | sort_by(-.value, .key) | .[] | "\(.value)  \(.key)"' "$log" || {
+  echo "could not read $log" >&2
+  exit 1
+}

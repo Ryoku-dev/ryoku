@@ -109,6 +109,9 @@ GO_CALL = re.compile(r'\b(?:i18n\.)?Tf?\(\s*"((?:\\.|[^"\\])*)"')
 SH_CALL = re.compile(
     r"""(?:^|[|(&;`$]|\s)(?:tf?|log|die)\s+(["'])((?:\\.|(?!\1).)*)\1""", re.M)
 SCHEMA_FIELD = re.compile(r'"(?:tab|label|desc|group)"\s*:\s*"((?:\\.|[^"\\])*)"')
+# a row's search synonyms, quoted or bare (the schemas use both spellings), so
+# a setting can be found in the words a user actually types, in every language.
+KEYWORDS_FIELD = re.compile(r'"?keywords"?\s*:\s*"((?:\\.|[^"\\])*)"')
 # the shortcut catalogue (ryoku/wm/binds.go) and each compositor's reason for a
 # bind it cannot honour are Go data that Kit and the Hub show through I18n.tr.
 WM_ROOT = os.path.join(REPO, "ryoku", "wm")
@@ -218,6 +221,12 @@ def extract_keys():
                 continue
             text = open(os.path.join(SCHEMA_DIR, f), encoding="utf-8", errors="ignore").read()
             for body in SCHEMA_FIELD.findall(text):
+                s = _unescape(body).strip()
+                if s and not _noise(s):
+                    keys.add(s)
+            # search synonyms are copy too: the Hub's global search reads them
+            # through I18n.tr, so a row is found in the language it is drawn in
+            for body in KEYWORDS_FIELD.findall(text):
                 s = _unescape(body).strip()
                 if s and not _noise(s):
                     keys.add(s)

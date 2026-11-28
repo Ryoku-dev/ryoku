@@ -10,6 +10,7 @@ import Quickshell.Bluetooth
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "../Singletons"
+import "../schema/ConnectionsTabs.js" as ConnectionTabs
 
 // Connections (SYSTEM). A self-contained, full-bleed pluggable page: its own
 // head, a bone-pill tab strip (Wi-Fi / Ethernet / Bluetooth / Hotspot / VPN /
@@ -51,15 +52,16 @@ Item {
         function onConnectionSubChanged() { Qt.callLater(pg.acceptRequestedSub); }
     }
 
-    readonly property var tabs: [
-        { "key": "wifi", "label": I18n.tr("Wi-Fi") },
-        { "key": "ethernet", "label": I18n.tr("Ethernet") },
-        { "key": "bluetooth", "label": I18n.tr("Bluetooth") },
-        { "key": "hotspot", "label": I18n.tr("Hotspot") },
-        { "key": "vpn", "label": I18n.tr("VPN") },
-        { "key": "dns", "label": I18n.tr("DNS") },
-        { "key": "phone", "label": I18n.tr("Phone") }
-    ]
+    // The tab list lives in schema/ConnectionsTabs.js so the global search and
+    // the strip cannot drift apart; the page translates the labels at draw time.
+    readonly property var tabs: {
+        var out = [];
+        for (var i = 0; i < ConnectionTabs.tabs.length; i++) {
+            var t = ConnectionTabs.tabs[i];
+            out.push({ key: t.key, label: I18n.tr(t.label) });
+        }
+        return out;
+    }
     // subtabs that live in their own file, loaded beside the body Loader
     readonly property var fileTabs: ({
         "ethernet": "ConnectionsEthernetTab.qml",

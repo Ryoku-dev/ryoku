@@ -6,6 +6,8 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "ReloadCoverModel.js" as ReloadCoverModel
+import "SettingsSearch.js" as SettingsSearch
+import "schema/SearchIntents.js" as SearchIntents
 
 // Renders a page from its schema as grouped, compact rows. A setting is a row
 // of data; which card it lands in comes from its group and what draws it from
@@ -28,7 +30,7 @@ Item {
     // tall lead block leaves the rows a thin strip to scroll in.
     default property alias lead: leadSlot.data
 
-    property var schema: []          // [{ tab, group, key, label, desc, ctl, src, caps?, opts, lo, hi, unit, pct }]
+    property var schema: []          // [{ tab, group, key, label, desc, ctl, src, caps?, opts, lo, hi, unit, pct }] -- untranslated source rows, translated at draw time
     property var draft: null         // the page's live values
     property var defaults: ({})      // factory values, for the struck default
     property string tab: ""
@@ -73,13 +75,27 @@ Item {
     }
 
     readonly property var rows: {
-        var q = query.toLowerCase();
-        return schema.filter(function (r) {
-            if (!sheet.passes(r)) return false;
-            if (r.adv && !sheet.advanced && query === "") return false;
-            if (r.tab !== sheet.tab && query === "") return false;
-            if (query === "") return true;
-            return (r.label + " " + (r.desc || "") + " " + r.key).toLowerCase().indexOf(q) >= 0;
+        var q = query.trim();
+        // No query: show the filtered rows of the open tab, minus the deep
+        // knobs until Advanced is on.
+        if (q === "") {
+            return schema.filter(function (r) {
+                if (!sheet.passes(r)) return false;
+                if (r.adv && !sheet.advanced) return false;
+                if (r.tab !== sheet.tab) return false;
+                return true;
+            });
+        }
+        // Query present: rank the rows fuzzy (synonyms, typos, folded
+        // diacritics, a literal-substring fallback) instead of the plain
+        // indexOf over label + desc + key this used to do. Both the English
+        // source and the language the row is drawn in are indexed, so a query
+        // in either reaches it. The advance gate and the tab boundary are
+        // deliberately NOT applied here: search spans every tab and still
+        // reaches the `adv` rows, so nothing is ever buried.
+        return SettingsSearch.searchRows(schema, q, function (k) { return I18n.tr(k); }, I18n.lang,
+            SearchIntents.intents, SearchIntents.fillers, SearchIntents.langs).filter(function (r) {
+            return sheet.passes(r);
         });
     }
     readonly property var groups: {
@@ -292,13 +308,13 @@ Item {
     function listClear(r) { sheet.edited(r.key, []); }
 
     // inline vs band, and how wide, decided once from the control kind. A
-    // control that needs room (chips, a segmented bar of 3+, a demo)
+    // control that needs room (chips, a segmented bar, a demo)
     // gets a band whose height is its own; a picker or field gets a fixed foot
     // band; everything else sits inline at the row's right.
     function ctlBlock(r) {
-        var c = r.ctl, n = sheet.optsFor(r).length;
+        var c = r.ctl;
         if (c === "chips" || c === "multi" || c === "layoutdemo" || c === "reload-cover" || c === "list") return true;
-        if (c === "seg" && n >= 3) return true;
+        if (c === "seg") return true;
         return false;
     }
     function ctlFoot(r) {

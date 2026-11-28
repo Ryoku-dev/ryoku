@@ -2,7 +2,88 @@
 
 ## Unreleased
 
+### New
+
+- **The add-on, app and app-set lists use the same search as the settings
+  pages.** A typo in an add-on's name, or two words in the other order, used to
+  find nothing there. The VM image and remote-host grids keep exact matching on
+  purpose: a wrong boot or a wrong ssh target is destructive.
+
+- **A search with no matches explains itself, and remembers what you asked.**
+  The results card used to vanish, leaving the page behind to say the same
+  words far from the field. It stays open, echoes the query, says the search
+  covers every setting, page, tab and panel, and suggests trying one word. The
+  unanswered query is kept locally (capped, never sent anywhere) so the search
+  vocabulary can grow from what people actually type.
+
+- **A search that describes what you want to do finds its setting.** Typing
+  "cursor grande", "no veo detras de las ventanas" or "arranque al inicio"
+  matched nothing, because a row's words answer what a control is *called*,
+  not what you want to *do*. A curated table now maps a task phrase to the row
+  that owns it (every destination a row the schemas really carry), in English
+  and Spanish, and both the rail search and the page rank it first.
+
+- **A row's search synonyms are translated too.** `keywords` now enters the
+  translation catalog like `label`, `desc` and `opts` already do, so "ahorro"
+  finds the battery row in a Spanish Hub rather than only "battery".
+
 ### Fixed
+- **A search no longer hides one of two add-ons that share an id.** A ranked
+  row was found again by its key, so two add-ons with the same id, or two apps
+  with the same command, left the first one out of the results. The item rides
+  on its row now, and the page search's literal fallback no longer treats a
+  two-letter word as a match.
+
+- **A filler word in a query no longer brings half the page.** "al" and "no"
+  scored as word-start hits, so "align" and "notifications" carried them at full
+  strength and "arranque al inicio" returned 88 rows, none of them the autostart
+  row. A two-letter word now scores only as a whole token, and when nothing
+  answers every word of a multi-word query a partial row is kept only if it
+  answered one strongly. The list matches, or it says it matches nothing.
+
+- **A typo in a search no longer costs more than a frame.** The loose pass
+  walked every token of every row for the typed word and each of its synonyms,
+  19.4 ms per keystroke over the largest corpus. A synonym is a spelled-out
+  word, so one native search settles a row; the distance scan also reuses its
+  working arrays instead of allocating a pair per call. The pass now costs
+  4.0 ms and returns the same rows.
+
+- **A row that answers every word of a query outranks one that answers a word.**
+  A partial match used to score like a full one, so "window gap" offered every
+  row carrying "window". Coverage scales the score now, so the half answer
+  ranks half as high, and a hit on the label still beats the same hit buried in
+  a description. A task phrase in another language also reaches its row even
+  when no haystack carries its words, and the phrase table only fires in the
+  languages it is written in.
+
+- **A search result takes you to the panel it names.** A row took you to its
+  page and stopped there, and the Connections sub-tabs (Wi-Fi, Ethernet,
+  Bluetooth, Hotspot, VPN, DNS, Phone) had no result at all. Each tab is now a
+  result that opens the page on that tab, and a Connections hit lands on the
+  panel, the same way `ryoku hub open vpn` does.
+
+- **Settings search answers in the language you type, and underlines the run it
+  matched.** The rail indexed only the English source strings, so a query in
+  your language found nothing, and a query in English underlined nothing in the
+  translated label the row actually draws. Every result -- page, setting, tab
+  and panel -- is indexed in both languages now, and the matched substring is
+  underlined in the label's own spelling, accents folded, so "opacidad" reaches
+  "Window opacity".
+
+- **Settings search finds what it used to miss, and stops flooding a page.** The
+  per-page search kept only the rows whose label, description or key held the
+  typed text as one contiguous string, so a synonym, a typo, an accent or a
+  script the tokeniser cannot read found nothing. It now ranks rows with the
+  same engine as the rail -- synonyms, typo tolerance, folded diacritics, a
+  literal fallback -- in passes that only widen when the tighter one found
+  nothing, so "blur" returns the blur row rather than every row whose synonym
+  happens to be "windows", in the English source and in the language you drew.
+
+- **A segmented control's option no longer spills out of its row.** A two-option
+  segmented row ("Full page" / "Personalizado") drew the control inline in a
+  narrow slot, so a long translated label overflowed; it takes a band now, like
+  every other control that needs room.
+
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

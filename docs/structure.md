@@ -386,7 +386,10 @@ downgrades.
   `ryoku-channel-status` and `ryoku-checked-pointer` write a channel's
   `status.json` and the testing `checked.json`), `ryoku-discord` (every
   message CI posts to the Ryoku Discord), `ryoku-track` (the source
-  lane behind `ryoku track unstable`), `ryoku-dev-perf-baseline` (what the
+  lane behind `ryoku track unstable`), `ryoku-dev-search-misses` (the
+  settings-search queries nothing answered, ranked, so the search vocabulary
+  grows from what people type; `--clear` deletes the log),
+  `ryoku-dev-perf-baseline` (what the
   running desktop costs in memory, CPU, wakeups, GPU and power, per process and
   per surface; see `docs/performance.md`), and `art/` for art authoring
   (`ryodither` bakes an image or gif into a 1-bit bone-on-transparent decor;

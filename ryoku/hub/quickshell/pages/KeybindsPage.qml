@@ -11,6 +11,7 @@ import Ryoku.Ui.Singletons
 import "../Singletons"
 import "../Combos.js" as Combos
 import "../fuzzy.js" as Fuzzy
+import "../schema/KeybindsPage.js" as KeybindsSchema
 
 // Keybinds (DESIGN.md section 8, SYSTEM). Three surfaces under one head, built
 // for use and not for reading: Shortcuts is the searchable legend (a category
@@ -52,6 +53,19 @@ Item {
     // "shortcuts" = the searchable legend (default), "apps" = the app-role
     // launchers, "custom" = the user-bind editor. Transient, not persisted.
     property string tab: "shortcuts"
+
+    // a global search jump opens the tab its row lives on, instead of dumping
+    // the user on the legend when the hit was the bind editor or the app roles
+    function focusKey(k) {
+        var rows = KeybindsSchema.rows;
+        for (var i = 0; i < rows.length; i++)
+            if (rows[i].key === k) {
+                if (rows[i].tab === "Apps") pg.tab = "apps";
+                else if (rows[i].tab === "Custom") pg.tab = "custom";
+                else pg.tab = "shortcuts";
+                return;
+            }
+    }
 
     // the shipped legend, parsed live by the backend from the neutral catalogue
     // and the active provider. Owned here (a self-contained page fetches its own
