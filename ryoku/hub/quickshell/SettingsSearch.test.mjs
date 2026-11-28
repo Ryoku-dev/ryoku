@@ -204,7 +204,6 @@ test("highlight underlines the run the query names, in its own spelling", () => 
     assert.equal(highlightHtml("Separación de ventanas", "ventanas"), "Separación de <u>ventanas</u>");
     assert.equal(highlightHtml("Window gaps", "window gap"), "<u>Window gap</u>s");
     // markup in the label is escaped, never interpreted
-    // markup in the label is escaped, never interpreted
     assert.equal(highlightHtml("Blur & <glow>", "blur"),
         "<u>Blur</u> &amp; " + "&lt;glow&gt;");
     // no match leaves the text intact
