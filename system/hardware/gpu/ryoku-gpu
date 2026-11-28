@@ -104,8 +104,37 @@ ${mode:+-- ryoku-gpu-mode: $mode
 -- Reverse PRIME composites the cursor on the primary GPU but scans it out on the
 -- GPU the monitor is wired to. Hyprland's hardware cursor plane cannot reliably
 -- import that cross-GPU buffer, so the cursor shape can stick on the last image.
--- Software cursors keep it correct.
-hl.config({ cursor = { no_hardware_cursors = true } })
+-- Software cursors keep it correct, but they are painted into every captured
+-- frame, so they are forced only while a monitor is connected to another GPU:
+-- checked once the whole config has loaded (at start and after every reload)
+-- and on every hotplug, so plugging a monitor into another GPU switches to them
+-- and unplugging the last one switches back. A connected monitor counts even
+-- when it is disabled. The check waits for the whole config so it sees the
+-- setting user.lua made; forcing keeps that value and unplugging restores it,
+-- so Hyprland's default and a cursor choice in user.lua both stand.
+local cursor_before_force
+local function software_cursor_across_gpus()
+    local probe = io.popen("ryoku-gpu other-screen $primary 2>/dev/null")
+    local screen = probe and probe:read("*l")
+    if probe then probe:close() end
+    if screen == "connected" and cursor_before_force == nil then
+        cursor_before_force = hl.get_config("cursor.no_hardware_cursors")
+        if cursor_before_force == nil then cursor_before_force = 2 end -- Hyprland's default: auto
+        hl.config({ cursor = { no_hardware_cursors = true } })
+    elseif screen ~= "connected" and cursor_before_force ~= nil then
+        hl.config({ cursor = { no_hardware_cursors = cursor_before_force } })
+        cursor_before_force = nil
+    end
+end
+-- a load or reload lays the configured value back down, so start over from it
+local function software_cursor_after_config()
+    cursor_before_force = nil
+    software_cursor_across_gpus()
+end
+hl.on("hyprland.start", software_cursor_after_config)
+hl.on("config.reloaded", software_cursor_after_config)
+hl.on("monitor.added", software_cursor_across_gpus)
+hl.on("monitor.removed", software_cursor_across_gpus)
 EOF
 }
 
@@ -437,6 +466,15 @@ cmd_drives_screen() {
   return 1
 }
 
+cmd_other_screen() {
+  if [[ -n ${1:-} ]] && other_slot_drives_screen "$1"; then
+    echo connected
+    return 0
+  fi
+  echo disconnected
+  return 1
+}
+
 cmd_status() {
   if [[ ${1:-} == "--json" ]]; then
     cmd_status_json
@@ -557,6 +595,8 @@ Commands:
   mode <m> [PATH]  Set host graphics mode: hybrid | performance | passthrough.
   drives-screen SLOT
                   Print connected (exit 0) when a monitor is plugged into that GPU.
+  other-screen SLOT
+                  Print connected (exit 0) when a monitor is plugged into any other GPU.
 
 The pin takes effect on the next Hyprland login (AQ_DRM_DEVICES is read at start).
 
@@ -576,6 +616,7 @@ case "${1:-status}" in
   check-pin) cmd_check_pin "${2:-}" ;;
   mode) cmd_mode "${2:-}" "${3:-}" ;;
   drives-screen) cmd_drives_screen "${2:-}" ;;
+  other-screen) cmd_other_screen "${2:-}" ;;
   -h | --help | help) usage ;;
   *)
     echo "ryoku-gpu: unknown command: $1" >&2

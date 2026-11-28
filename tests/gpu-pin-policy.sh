@@ -251,5 +251,62 @@ if run order --effective >/dev/null 2>&1; then
   fail "order --effective must exit 1 on an unpinned machine"
 fi
 
+# --- 13. a desktop rendering on its dGPU keeps hardware cursors until a monitor
+# is connected to the iGPU's motherboard ports: at load, or by a hotplug
+drmd="$tmp/drmd"
+mkdir -p "$drmd/card0/device/drm/renderD128" "$drmd/card1/device/drm/renderD129" \
+  "$drmd/card0-HDMI-A-3" "$drmd/card1-DP-2"
+printf 'DRIVER=amdgpu\nPCI_SLOT_NAME=0000:01:00.0\n' >"$drmd/card0/device/uevent"
+printf '2000000000\n' >"$drmd/card0/device/mem_info_vram_total"
+printf '2000000000\n' >"$drmd/card0/device/mem_info_vis_vram_total"
+printf 'DRIVER=nvidia\nPCI_SLOT_NAME=0000:02:00.0\n' >"$drmd/card1/device/uevent"
+printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
+printf 'connected\n' >"$drmd/card1-DP-2/status"
+desk() { RYOKU_GPU_DRM_ROOT="$drmd" RYOKU_GPU_DRI_DIR="$dri" RYOKU_GPU_CONF="$tmp/conf-desk" \
+         RYOKU_GPU_NIRI_CONF="$niri" RYOKU_ASSUME_LAPTOP=0 "$gpu" "$@"; }
+rm -f "$tmp/conf-desk"
+desk persist >/dev/null
+grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$tmp/conf-desk" || fail "desktop did not pin its dGPU"
+[[ "$(desk other-screen 0000:02:00.0)" == "disconnected" ]] \
+  || fail "other-screen counted the renderer's own monitor"
+# Loads gpu.lua against a fake hl whose no_hardware_cursors starts at Hyprland's
+# default (2, auto), runs the Lua steps in $1, and prints every cursor setting
+# gpu.lua writes. Steps: port(s) writes the iGPU port status, fire(e) runs the
+# handler for event e, user(v) is user.lua or a reload laying down a value.
+desk_cursor() {
+  RYOKU_GPU_DRM_ROOT="$drmd" "$lua_bin" -e "
+    handlers, nhc, out = {}, 2, {}
+    hl = { env = function() end,
+           get_config = function(k) if k == 'cursor.no_hardware_cursors' then return nhc end end,
+           config = function(t)
+             if t.cursor then nhc = t.cursor.no_hardware_cursors; out[#out + 1] = tostring(nhc) end
+           end,
+           on = function(e, fn) handlers[e] = fn end }
+    function port(s) os.execute([[printf '%s\n' ]] .. s .. [[ >'$drmd/card0-HDMI-A-3/status']]) end
+    function fire(e) handlers[e]() end
+    function user(v) nhc = v end" \
+    -e "port('disconnected'); dofile('$tmp/conf-desk')" \
+    -e "$1" -e "io.write(table.concat(out, ' '))"
+}
+if [[ -n $lua_bin ]]; then
+  [[ "$(desk_cursor "fire('hyprland.start')")" == "" ]] \
+    || fail "desktop forced software cursors with no monitor on the iGPU"
+  [[ "$(desk_cursor "port('connected')")" == "" ]] \
+    || fail "gpu.lua set the cursor before the rest of the config (user.lua) loaded"
+  [[ "$(desk_cursor "fire('hyprland.start'); port('connected'); fire('monitor.added')")" == "true" ]] \
+    || fail "a hotplug onto the iGPU did not switch to software cursors"
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); fire('monitor.added')")" == "true" ]] \
+    || fail "a monitor connected to the iGPU at start kept hardware cursors, or was forced twice"
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); port('disconnected'); fire('monitor.removed')")" == "true 2" ]] \
+    || fail "unplugging the last iGPU monitor did not restore Hyprland's default cursor setting"
+  [[ "$(desk_cursor "user(true); port('connected'); fire('hyprland.start'); port('disconnected'); fire('monitor.removed')")" == "true true" ]] \
+    || fail "unplugging the last iGPU monitor overrode software cursors chosen in user.lua"
+  [[ "$(desk_cursor "fire('hyprland.start'); fire('monitor.removed')")" == "" ]] \
+    || fail "an unplug with no iGPU monitor touched the cursor setting"
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); user(2); fire('config.reloaded'); port('disconnected'); fire('monitor.removed')")" == "true true 2" ]] \
+    || fail "a config reload lost the software cursor or the value to restore"
+else
+  echo "gpu-pin-policy: no lua interpreter, desktop cursor evaluation skipped" >&2
+fi
 
 echo "gpu-pin-policy: all cases passed"
