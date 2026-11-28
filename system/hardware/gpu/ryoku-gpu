@@ -106,18 +106,24 @@ ${mode:+-- ryoku-gpu-mode: $mode
 -- import that cross-GPU buffer, so the cursor shape can stick on the last image.
 -- Software cursors keep it correct, but they are painted into every captured
 -- frame, so they are forced only while a monitor is connected to another GPU:
--- checked whenever this file loads, and a hotplug onto another GPU switches to
--- them. A connected monitor counts even when it is disabled.
+-- checked whenever this file loads and on every hotplug, so plugging a monitor
+-- into another GPU switches to them and unplugging the last one switches back.
+-- A connected monitor counts even when it is disabled. Only a setting this file
+-- made is undone, so a cursor choice in user.lua stands.
+local software_cursor_forced = false
 local function software_cursor_across_gpus()
     local probe = io.popen("ryoku-gpu other-screen $primary 2>/dev/null")
     local screen = probe and probe:read("*l")
     if probe then probe:close() end
-    if screen == "connected" then
-        hl.config({ cursor = { no_hardware_cursors = true } })
+    local connected = screen == "connected"
+    if connected ~= software_cursor_forced then
+        hl.config({ cursor = { no_hardware_cursors = connected } })
+        software_cursor_forced = connected
     end
 end
 software_cursor_across_gpus()
 hl.on("monitor.added", software_cursor_across_gpus)
+hl.on("monitor.removed", software_cursor_across_gpus)
 EOF
 }
 

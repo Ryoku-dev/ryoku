@@ -270,16 +270,19 @@ grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$tmp/conf-desk" || fail "desktop did 
 [[ "$(desk other-screen 0000:02:00.0)" == "disconnected" ]] \
   || fail "other-screen counted the renderer's own monitor"
 # Prints the cursor setting gpu.lua makes at load, then "|", then what its
-# monitor.added handler makes after the given iGPU port status is written.
+# hotplug handler for event $2 (default monitor.added) makes after the given
+# iGPU port status is written.
 desk_cursor() {
   RYOKU_GPU_DRM_ROOT="$drmd" "$lua_bin" -e '
+    handlers = {}
     hl = { env = function() end,
            config = function(t)
              if t.cursor then io.write("software=" .. tostring(t.cursor.no_hardware_cursors)) end
            end,
-           on = function(event, fn) if event == "monitor.added" then added = fn end end }' \
+           on = function(event, fn) handlers[event] = fn end }' \
     -e "dofile('$tmp/conf-desk')" \
-    -e "io.write('|'); os.execute([[printf '$1\n' >'$drmd/card0-HDMI-A-3/status']]); if added then added() end"
+    -e "io.write('|'); os.execute([[printf '$1\n' >'$drmd/card0-HDMI-A-3/status']])" \
+    -e "local fn = handlers['${2:-monitor.added}']; if fn then fn() end"
 }
 if [[ -n $lua_bin ]]; then
   [[ "$(desk_cursor disconnected)" == "|" ]] \
@@ -287,8 +290,13 @@ if [[ -n $lua_bin ]]; then
   printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
   [[ "$(desk_cursor connected)" == "|software=true" ]] \
     || fail "a hotplug onto the iGPU did not switch to software cursors"
-  [[ "$(desk_cursor connected)" == "software=true|software=true" ]] \
+  [[ "$(desk_cursor connected)" == "software=true|" ]] \
     || fail "a monitor connected to the iGPU at load kept hardware cursors"
+  [[ "$(desk_cursor disconnected monitor.removed)" == "software=true|software=false" ]] \
+    || fail "unplugging the last iGPU monitor kept software cursors"
+  printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
+  [[ "$(desk_cursor disconnected monitor.removed)" == "|" ]] \
+    || fail "an unplug with no iGPU monitor touched the cursor setting"
 else
   echo "gpu-pin-policy: no lua interpreter, desktop cursor evaluation skipped" >&2
 fi
