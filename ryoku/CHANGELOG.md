@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **Displays names the screen a mirrored display copies.** Hyprland reports a
+  mirror's source as a monitor number, so the MIRROR OF field read "None" on a
+  display that was mirroring, and an Apply saved that number, which can point
+  at another screen after a replug. The Hyprland provider now reports the
+  source output's name (`wm/hyprland/watch.go`).
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"
