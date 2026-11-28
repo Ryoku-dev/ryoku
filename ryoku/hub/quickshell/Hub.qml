@@ -1844,6 +1844,48 @@ Rectangle {
     function hasQuery(text) {
         return Search.textHasQuery(text, hub.query);
     }
+    // The queries nothing answered, kept on disk so the search vocabulary can
+    // grow from evidence rather than imagination (VS Code's feedback loop,
+    // local: never sent anywhere, and the cache dir is the user's to delete).
+    // One JSON object of query -> times asked, capped at 100 entries so a log
+    // nobody trims cannot become a leak.
+    readonly property string missPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state"))
+        + "/ryoku/hub-search-misses.json"
+    FileView {
+        id: missLog
+        path: hub.missPath
+        blockLoading: true
+        atomicWrites: true
+        printErrors: false
+    }
+    Timer {
+        id: missTimer
+        interval: 1200
+        onTriggered: {
+            var q = hub.query.trim();
+            if (q === "" || hub.searchResults.length > 0) return;
+            var rec = {};
+            try {
+                rec = JSON.parse(missLog.text()) || {};
+            } catch (e) {
+                rec = {};
+            }
+            rec[q] = (rec[q] || 0) + 1;
+            var keys = Object.keys(rec);
+            if (keys.length > 100) {
+                var keep = {};
+                for (var i = keys.length - 100; i < keys.length; i++) keep[keys[i]] = rec[keys[i]];
+                rec = keep;
+            }
+            missLog.setText(JSON.stringify(rec));
+        }
+    }
+    // a query that is still being typed is not yet a miss; the timer re-arms on
+    // every change and only fires once the typing pauses
+    Connections {
+        target: hub
+        function onQueryChanged() { if (hub.query.trim() !== "") missTimer.restart(); }
+    }
     Timer {
         id: focusTimer
         interval: 90; repeat: false
@@ -1858,11 +1900,17 @@ Rectangle {
     Item {
         id: searchPop
         z: 850
-        visible: hub.query !== "" && hub.searchResults.length > 0
+        // A query that found nothing keeps its card open: the page behind says
+        // the same words, far from the field that was typed in, and a card that
+        // vanishes reads as "nothing happened" rather than "nothing matched".
+        // Local state only, never sent anywhere.
+        visible: hub.query !== ""
         x: rail.x + railHead.x + searchField.x
         y: rail.y + railHead.y + searchField.y + searchField.height + Tokens.s2
         width: Math.min(480, hub.width - x - Tokens.s5)
-        height: Math.min(440, searchList.contentHeight + head.height + Tokens.s3 * 2 + Tokens.s1)
+        height: hub.searchResults.length > 0
+            ? Math.min(440, searchList.contentHeight + head.height + Tokens.s3 * 2 + Tokens.s1)
+            : Math.min(440, emptyCol.implicitHeight + Tokens.s3 * 2)
 
         Rectangle {
             anchors.fill: parent
@@ -1873,6 +1921,31 @@ Rectangle {
         }
         // sink so a click on the card's chrome never falls through to the rail.
         MouseArea { anchors.fill: parent; hoverEnabled: true }
+            // no result: what was typed, why nothing came back, and the way out
+            Column {
+                id: emptyCol
+                visible: hub.searchResults.length === 0
+                anchors { left: parent.left; right: parent.right; top: head.bottom; bottom: parent.bottom }
+                anchors.margins: Tokens.s3
+                spacing: Tokens.s2
+                Text {
+                    width: parent.width
+                    text: I18n.tr("nothing here matches “%1”").arg(hub.query)
+                    color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fBody
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    width: parent.width
+                    text: I18n.tr("Search covers every setting, page, tab and panel.")
+                    color: Tokens.inkFaint; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    width: parent.width
+                    text: I18n.tr("Try one word, or the name of the page.")
+                    color: Tokens.inkFaint; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                }
+            }
         Row {
             id: head
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.s3 }

@@ -4,6 +4,13 @@
 
 ### New
 
+- **A search with no matches explains itself, and remembers what you asked.**
+  The results card used to vanish, leaving the page behind to say the same
+  words far from the field. It stays open, echoes the query, says the search
+  covers every setting, page, tab and panel, and suggests trying one word. The
+  unanswered query is kept locally (capped, never sent anywhere) so the search
+  vocabulary can grow from what people actually type.
+
 - **A search that describes what you want to do finds its setting.** Typing
   "cursor grande", "no veo detras de las ventanas" or "arranque al inicio"
   matched nothing, because a row's words answer what a control is *called*,
