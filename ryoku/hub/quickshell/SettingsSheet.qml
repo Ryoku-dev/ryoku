@@ -7,6 +7,7 @@ import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "ReloadCoverModel.js" as ReloadCoverModel
 import "SettingsSearch.js" as SettingsSearch
+import "schema/SearchIntents.js" as SearchIntents
 
 // Renders a page from its schema as grouped, compact rows. A setting is a row
 // of data; which card it lands in comes from its group and what draws it from
@@ -92,7 +93,8 @@ Item {
         // in either reaches it. The advance gate and the tab boundary are
         // deliberately NOT applied here: search spans every tab and still
         // reaches the `adv` rows, so nothing is ever buried.
-        return SettingsSearch.searchRows(schema, q, function (k) { return I18n.tr(k); }, I18n.lang).filter(function (r) {
+        return SettingsSearch.searchRows(schema, q, function (k) { return I18n.tr(k); }, I18n.lang,
+            SearchIntents.intents, SearchIntents.fillers).filter(function (r) {
             return sheet.passes(r);
         });
     }

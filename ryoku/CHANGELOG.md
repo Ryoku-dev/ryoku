@@ -4,6 +4,13 @@
 
 ### New
 
+- **A search that describes what you want to do finds its setting.** Typing
+  "cursor grande", "no veo detras de las ventanas" or "arranque al inicio"
+  matched nothing, because a row's words answer what a control is *called*,
+  not what you want to *do*. A curated table now maps a task phrase to the row
+  that owns it (every destination a row the schemas really carry), in English
+  and Spanish, and both the rail search and the page rank it first.
+
 - **A row's search synonyms are translated too.** `keywords` now enters the
   translation catalog like `label`, `desc` and `opts` already do, so "ahorro"
   finds the battery row in a Spanish Hub rather than only "battery".

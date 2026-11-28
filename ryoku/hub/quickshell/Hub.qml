@@ -36,6 +36,7 @@ import "schema/SessionPage.js" as SessionSchema
 import "schema/PerformancePage.js" as PerformanceSchema
 import "schema/UpdatesPage.js" as UpdatesSchema
 import "schema/ConnectionsTabs.js" as ConnectionTabs
+import "schema/SearchIntents.js" as SearchIntents
 import "SettingsSearch.js" as Search
 import "ReloadCoverModel.js" as ReloadCoverModel
 import Ryoku.FrameBars
@@ -376,6 +377,9 @@ Rectangle {
     readonly property var searchResults: {
         var q = Search.fold(query).trim();
         if (q === "") return [];
+        // task language first: the rows a phrase means outrank everything else,
+        // because a user describing a goal rarely uses the row's own words
+        var want = Search.intentKeys(query, SearchIntents.intents, SearchIntents.fillers);
         var groups = Search.expandQuery(q);
         // the exact pass reads the typed words only; synonyms, scatters and
         // typos are the second pass, offered only when nothing exact landed.
@@ -404,7 +408,12 @@ Rectangle {
                 scored.push({ e: e, s: s });
             }
             if (scored.length) {
-                scored.sort(function (a, b) { return b.s - a.s; });
+                scored.sort(function (a, b) {
+                    var ai = (want && a.e.key && want.indexOf(a.e.key) >= 0) ? 1 : 0;
+                    var bi = (want && b.e.key && want.indexOf(b.e.key) >= 0) ? 1 : 0;
+                    if (ai !== bi) return bi - ai;
+                    return b.s - a.s;
+                });
                 var out = [];
                 for (var j = 0; j < Math.min(scored.length, 60); j++) out.push(scored[j].e);
                 return out;

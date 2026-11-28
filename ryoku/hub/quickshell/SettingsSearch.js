@@ -298,11 +298,21 @@ function termsHit(groups, tws, loose) {
 //  3. the literal substring and the row's group or tab as a whole phrase, for
 //     a script the tokeniser cannot read (Japanese, Thai, Arabic, Hindi) and
 //     for a query that names the section rather than a setting.
-function searchRows(rows, query, tr, lang) {
+function searchRows(rows, query, tr, lang, intents, fillers) {
     var q = fold(query).trim();
     if (q === "") return rows;
     var groups = expandQuery(q);
     var terms = groups.length;
+    // task language, when the caller passes the table: the rows the phrase
+    // means come first, so describing a goal lands on the row that owns it
+    // instead of wherever its own words happened to rank
+    var want = intentKeys(query, intents, fillers);
+    var rank = function (a, b) {
+        var ai = want && a.row && want.indexOf(a.row.key) >= 0 ? 1 : 0;
+        var bi = want && b.row && want.indexOf(b.row.key) >= 0 ? 1 : 0;
+        if (ai !== bi) return bi - ai;
+        return b.score - a.score;
+    };
     // every pass scores the same rows against the same haystack, so fold each
     // row's words once rather than three times over
     var hays = [], i;
@@ -362,7 +372,7 @@ function searchRows(rows, query, tr, lang) {
             }
         }
         if (scored.length) {
-            scored.sort(function (a, b) { return b.score - a.score; });
+            scored.sort(rank);
             var out = [];
             for (var k = 0; k < scored.length; k++) out.push(scored[k].row);
             return out;
@@ -370,6 +380,51 @@ function searchRows(rows, query, tr, lang) {
     }
     return [];
 }
+// ── task language ─────────────────────────────────────────────────────────
+// The keys a phrase means, so describing a goal ("cursor grande") reaches the
+// row that owns it even when none of those words sit in its label. Every word
+// of the query that is not filler must be a word the intent spells, which keeps
+// a stray word from derailing a phrase, and a one-character query never
+// matches: a single kanji mid-composition is a query too, and no intent speaks
+// it.
+//
+// intents: [{ keys: [...], words: "..." }] from schema/SearchIntents.js.
+// fillers: that table's words that carry no intent (el, muy, too). Returns null
+// when nothing matched, so callers keep one code path.
+function intentKeys(query, intents, fillers) {
+    if (!intents || !intents.length) return null;
+    var q = fold(query).trim();
+    if (q === "") return null;
+    var pad = fillers ? " " + fold(fillers) + " " : "";
+    var words = q.split(/\s+/);
+    var task = [];
+    for (var i = 0; i < words.length; i++) {
+        if (words[i].length < 2) return null;
+        if (pad !== "" && pad.indexOf(" " + words[i] + " ") >= 0) continue;
+        var spelled = false;
+        for (var n = 0; n < intents.length && !spelled; n++)
+            if (fold(intents[n].words || "").indexOf(words[i]) >= 0) spelled = true;
+        // a word no intent spells is a stray one: the phrase is not this task
+        if (!spelled) return null;
+        task.push(words[i]);
+    }
+    // a query of nothing but filler carries no task, and must not set every
+    // intent off at once
+    if (!task.length) return null;
+    var out = null;
+    for (var it = 0; it < intents.length; it++) {
+        var have = fold(intents[it].words || "");
+        var ok = true;
+        for (var w = 0; w < task.length && ok; w++)
+            if (have.indexOf(task[w]) < 0) ok = false;
+        if (!ok) continue;
+        var keys = intents[it].keys || [];
+        if (!out) out = [];
+        for (var k = 0; k < keys.length; k++) if (out.indexOf(keys[k]) < 0) out.push(keys[k]);
+    }
+    return out;
+}
+
 // ── highlighting ─────────────────────────────────────────────────────────
 // Underline the run a query names inside a label, in the label's own spelling.
 // The match is made on folded text (so "energia" underlines "Energía") and the
