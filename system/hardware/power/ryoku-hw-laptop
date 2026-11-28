@@ -29,7 +29,8 @@ is_laptop() {
   grep -qsi 'Lid Switch' $input_glob 2>/dev/null && return 0
 
   local lid_dir="${RYOKU_LID_DIR:-/proc/acpi/button/lid}"
-  [[ -d $lid_dir ]] && compgen -G "$lid_dir/*" >/dev/null && return 0
+  local lids=("$lid_dir"/*)
+  [[ -e ${lids[0]} ]] && return 0
 
   return 1
 }
