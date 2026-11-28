@@ -121,7 +121,8 @@ if [[ ! -e "$backlight_path/nvidia_wmi_ec_backlight" ]]; then
   echo "ryoku-hw-backlight-fix: no nvidia_wmi_ec_backlight; nothing to fix"
   exit 0
 fi
-if compgen -G "$backlight_path/amdgpu_bl*" >/dev/null; then
+amdgpu_backlights=("$backlight_path"/amdgpu_bl*)
+if [[ -e ${amdgpu_backlights[0]} ]]; then
   echo "ryoku-hw-backlight-fix: amdgpu_bl* already present; nothing to fix"
   exit 0
 fi
