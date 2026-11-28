@@ -1,6 +1,10 @@
 # Changelog: system/
 
 ## Unreleased
+- **Laptops whose lid only shows up under ACPI are recognized on NixOS.**
+  The `/proc/acpi/button/lid` fallback checked with `compgen`, which the bash
+  Nix runs scripts with does not have, so it never matched
+  (`hardware/power/ryoku-hw-laptop`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to
