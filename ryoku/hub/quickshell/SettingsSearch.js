@@ -298,20 +298,22 @@ function termsHit(groups, tws, loose) {
 //  3. the literal substring and the row's group or tab as a whole phrase, for
 //     a script the tokeniser cannot read (Japanese, Thai, Arabic, Hindi) and
 //     for a query that names the section rather than a setting.
-function searchRows(rows, query, tr, lang, intents, fillers) {
+function searchRows(rows, query, tr, lang, intents, fillers, langs) {
     var q = fold(query).trim();
     if (q === "") return rows;
     var groups = expandQuery(q);
     var terms = groups.length;
     // task language, when the caller passes the table: the rows the phrase
     // means come first, so describing a goal lands on the row that owns it
-    // instead of wherever its own words happened to rank
-    var want = intentKeys(query, intents, fillers);
+    // instead of wherever its own words happened to rank. A bonus, not a class
+    // of its own: an intent may reorder rows that already matched, never lift
+    // one over a clean label hit (measured: a hard first/second split turned a
+    // "shadow" query into "turn shadows on" ahead of "Shadows off")
+    var want = intentKeys(query, intents, fillers, lang, langs);
     var rank = function (a, b) {
-        var ai = want && a.row && want.indexOf(a.row.key) >= 0 ? 1 : 0;
-        var bi = want && b.row && want.indexOf(b.row.key) >= 0 ? 1 : 0;
-        if (ai !== bi) return bi - ai;
-        return b.score - a.score;
+        var ai = (want && a.row && want.indexOf(a.row.key) >= 0) ? 600 : 0;
+        var bi = (want && b.row && want.indexOf(b.row.key) >= 0) ? 600 : 0;
+        return (b.score + bi) - (a.score + ai);
     };
     // every pass scores the same rows against the same haystack, so fold each
     // row's words once rather than three times over
@@ -320,7 +322,7 @@ function searchRows(rows, query, tr, lang, intents, fillers) {
 
     function scoreRow(idx, g, loose) {
         var r = rows[idx], toks = hays[idx].toks, hay = hays[idx].hay;
-        var s = 0, hit = false, hitAll = true;
+        var s = 0, hit = false, hitAll = true, groups = 0;
         for (var gi = 0; gi < g.length; gi++) {
             var best = 0;
             for (var wi = 0; wi < g[gi].length; wi++) {
@@ -337,10 +339,15 @@ function searchRows(rows, query, tr, lang, intents, fillers) {
                 if (wi > 0) t *= 0.85;
                 if (t > best) best = t;
             }
-            if (best > 0) { hit = true; s += best; } else { hitAll = false; }
+            if (best > 0) { hit = true; s += best; groups++; } else { hitAll = false; }
         }
         if (!hit) return null;
-        // a hit on the label itself outranks one buried in the description
+        // a row that answered one word of three is a quarter of an answer, not
+        // a full one: without the scaling a partial match scored the same as a
+        // complete one, and a two-word query put a row naming a single word
+        // above the row naming both. The label bonus is scaled with it, so it
+        // still outranks a match buried in the description.
+        s *= groups / g.length;
         s += 2 * searchScore(g, hays[idx].labelToks, loose);
         return { row: r, score: s, all: hitAll };
     }
@@ -354,6 +361,26 @@ function searchRows(rows, query, tr, lang, intents, fillers) {
         return s > 0 ? s + 2 * searchScore(groups, hays[idx].labelToks, true) : 0;
     }
 
+    // seed the rows a task phrase names, so a query whose words no haystack
+    // carries (a Spanish phrase against English rows) still reaches them: a
+    // bonus can only reorder a candidate the pass already produced. The seeded
+    // score sits above a weak partial match and below a clean label hit, so an
+    // intent fills what the search missed and never outranks a row that
+    // answered directly.
+    function seedIntent(scored) {
+        if (!want) return scored;
+        for (var i = 0; i < rows.length; i++) {
+            if (want.indexOf(rows[i].key) < 0) continue;
+            var seen = false;
+            for (var j = 0; j < scored.length; j++) if (scored[j].row === rows[i]) { seen = true; break; }
+            if (!seen) scored.push({ row: rows[i], score: 1400, all: true });
+            // a row the pass already reached on a partial match is lifted to the
+            // seeded score, so the hand-written mapping outranks the coincidence
+            else scored[j].score = Math.max(scored[j].score, 1400);
+        }
+        return scored;
+    }
+
     for (var pass = 0; pass < 3; pass++) {
         var g = (pass === 1) ? groups : groups.map(function (one) { return [one[0]]; });
         var scored = [], partial = [];
@@ -365,11 +392,15 @@ function searchRows(rows, query, tr, lang, intents, fillers) {
                 if (m.all || terms === 1) scored.push(m); else partial.push(m);
             }
             if (!scored.length) scored = partial;
+            // an intent fills what this pass could not reach, never hides what it
+            // did: a clean label hit still outranks the seeded row
+            seedIntent(scored);
         } else {
             for (i = 0; i < rows.length; i++) {
                 var s2 = fallbackScore(i);
                 if (s2 > 0) scored.push({ row: rows[i], score: s2 });
             }
+            seedIntent(scored);
         }
         if (scored.length) {
             scored.sort(rank);
@@ -389,10 +420,19 @@ function searchRows(rows, query, tr, lang, intents, fillers) {
 // it.
 //
 // intents: [{ keys: [...], words: "..." }] from schema/SearchIntents.js.
-// fillers: that table's words that carry no intent (el, muy, too). Returns null
-// when nothing matched, so callers keep one code path.
-function intentKeys(query, intents, fillers) {
+// fillers: that table's words that carry no intent (el, muy, too).
+// lang: the language the user is drawing ("en", "es", ...).
+// curated: the languages the table is written in ("en es"). An intent is a
+// hand-written promise about how a phrase reads, so outside those languages it
+// must not fire: a loanword ("layout", "size") typed in a German or French Hub
+// would otherwise get an English or Spanish task promoted over the row the
+// user's own labels already ranked first.
+//
+// Returns null when nothing matched, so callers keep one code path.
+function intentKeys(query, intents, fillers, lang, curated) {
     if (!intents || !intents.length) return null;
+    if (curated && curated !== "" && ("" + curated).split(/\s+/).indexOf("" + lang) < 0)
+        return null;
     var q = fold(query).trim();
     if (q === "") return null;
     var pad = fillers ? " " + fold(fillers) + " " : "";
@@ -401,9 +441,12 @@ function intentKeys(query, intents, fillers) {
     for (var i = 0; i < words.length; i++) {
         if (words[i].length < 2) return null;
         if (pad !== "" && pad.indexOf(" " + words[i] + " ") >= 0) continue;
+        // word boundaries, not substrings: "se" is a filler, not the "se" of
+        // "separacion", and a short word that leaks into another's middle would
+        // make a phrase look spelled when nothing spells it
         var spelled = false;
         for (var n = 0; n < intents.length && !spelled; n++)
-            if (fold(intents[n].words || "").indexOf(words[i]) >= 0) spelled = true;
+            if ((" " + fold(intents[n].words || "") + " ").indexOf(" " + words[i] + " ") >= 0) spelled = true;
         // a word no intent spells is a stray one: the phrase is not this task
         if (!spelled) return null;
         task.push(words[i]);
@@ -413,10 +456,10 @@ function intentKeys(query, intents, fillers) {
     if (!task.length) return null;
     var out = null;
     for (var it = 0; it < intents.length; it++) {
-        var have = fold(intents[it].words || "");
+        var have = " " + fold(intents[it].words || "") + " ";
         var ok = true;
         for (var w = 0; w < task.length && ok; w++)
-            if (have.indexOf(task[w]) < 0) ok = false;
+            if (have.indexOf(" " + task[w] + " ") < 0) ok = false;
         if (!ok) continue;
         var keys = intents[it].keys || [];
         if (!out) out = [];

@@ -377,9 +377,11 @@ Rectangle {
     readonly property var searchResults: {
         var q = Search.fold(query).trim();
         if (q === "") return [];
-        // task language first: the rows a phrase means outrank everything else,
-        // because a user describing a goal rarely uses the row's own words
-        var want = Search.intentKeys(query, SearchIntents.intents, SearchIntents.fillers);
+        // task language first: the rows a phrase means rise by a bounded bonus,
+        // so a described goal lands on the row that owns it while a clean label
+        // hit still wins. Only in the languages the table is written in.
+        var want = Search.intentKeys(query, SearchIntents.intents, SearchIntents.fillers,
+            I18n.lang, SearchIntents.langs);
         var groups = Search.expandQuery(q);
         // the exact pass reads the typed words only; synonyms, scatters and
         // typos are the second pass, offered only when nothing exact landed.
@@ -408,12 +410,11 @@ Rectangle {
                 scored.push({ e: e, s: s });
             }
             if (scored.length) {
-                scored.sort(function (a, b) {
-                    var ai = (want && a.e.key && want.indexOf(a.e.key) >= 0) ? 1 : 0;
-                    var bi = (want && b.e.key && want.indexOf(b.e.key) >= 0) ? 1 : 0;
-                    if (ai !== bi) return bi - ai;
-                    return b.s - a.s;
-                });
+                for (var wi2 = 0; wi2 < scored.length; wi2++) {
+                    var e2 = scored[wi2].e;
+                    if (want && e2.key && want.indexOf(e2.key) >= 0) scored[wi2].s += 600;
+                }
+                scored.sort(function (a, b) { return b.s - a.s; });
                 var out = [];
                 for (var j = 0; j < Math.min(scored.length, 60); j++) out.push(scored[j].e);
                 return out;

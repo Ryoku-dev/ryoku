@@ -94,7 +94,7 @@ Item {
         // deliberately NOT applied here: search spans every tab and still
         // reaches the `adv` rows, so nothing is ever buried.
         return SettingsSearch.searchRows(schema, q, function (k) { return I18n.tr(k); }, I18n.lang,
-            SearchIntents.intents, SearchIntents.fillers).filter(function (r) {
+            SearchIntents.intents, SearchIntents.fillers, SearchIntents.langs).filter(function (r) {
             return sheet.passes(r);
         });
     }

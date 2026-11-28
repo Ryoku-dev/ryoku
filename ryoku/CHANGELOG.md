@@ -23,6 +23,14 @@
   finds the battery row in a Spanish Hub rather than only "battery".
 
 ### Fixed
+- **A row that answers every word of a query outranks one that answers a word.**
+  A partial match used to score like a full one, so "window gap" offered every
+  row carrying "window". Coverage scales the score now, so the half answer
+  ranks half as high, and a hit on the label still beats the same hit buried in
+  a description. A task phrase in another language also reaches its row even
+  when no haystack carries its words, and the phrase table only fires in the
+  languages it is written in.
+
 - **A search result takes you to the panel it names.** A row took you to its
   page and stopped there, and the Connections sub-tabs (Wi-Fi, Ethernet,
   Bluetooth, Hotspot, VPN, DNS, Phone) had no result at all. Each tab is now a

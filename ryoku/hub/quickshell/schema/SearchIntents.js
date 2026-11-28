@@ -12,21 +12,28 @@
 // ships; matching is order-independent and needs the WHOLE query, so one
 // stray word cannot derail a phrase.
 //
-// Curation is deliberate, not generated: an intent whose words are a common
-// single word ("big", "size") would fire on every query that contains it, so
-// a word earns its place only when it names this task and not another.
+// The curation rules the test enforces, learned from the first batch:
 //
-// Filler words ride along with a task phrase ("el puntero esta demasiado
-// grande"), so an intent lists them beside its nouns. This is not a stop-word
-// list for the search engine -- the engine and its haystacks are untouched --
-// only the phrases this table answers, and only in the languages it is
-// curated for: a query in a language nobody curated degrades to today's
-// ranking rather than matching something wrong.
-var fillers = "el la los las un una de del al en para por como que cual mi tu su sus esta este eso estoy tengo hacer poner quiero cambiar cambio cambios donde muy mucho demasiado tambien solo quitar desactivar activar enable disable turned turn the a an my to too very its no not dont is are it of";
+//  1. a word earns its place only when it names this task and not another. A
+//     generic word ("layout", "size", "shadow", "font") also names other
+//     settings, so an intent carrying it reorders a query the plain search
+//     already answered; those words belong to the row's own haystack.
+//  2. an intent may not change the first plain result of any single-word query
+//     it fires on, unless the plain search found nothing at all.
+//  3. every destination is a row the schemas really carry, owned by exactly
+//     one intent.
+//
+// Curation is deliberately in English and Spanish only (`langs` below): a
+// promise about how a phrase reads cannot be made for a language nobody wrote,
+// so outside them an intent does not fire at all and the plain ranking stands.
+var langs = "en es";
+
+var fillers = "el la los las un una de del al en para por como que cual mi tu su sus se le les lo me ya pero porque cuando cada todo toda cualquier esta este eso estoy tengo hacer poner quiero cambiar cambio cambios donde muy mucho demasiado tambien solo quitar desactivar activar enable disable turned turn the a an my to too very its no not dont is are it of";
+
 var intents = [
     {
         keys: ["desktop.cursor.size"],
-        words: "cursor grande puntero pointer too big large huge mouse pointer"
+        words: "cursor grande puntero pointer too big large huge mouse"
     },
     {
         keys: ["desktop.input.sensitivity"],
@@ -34,7 +41,7 @@ var intents = [
     },
     {
         keys: ["desktop.input.kbLayout", "desktop.input.kbVariant"],
-        words: "teclado distribucion keyboard layout azerty qwerty dvorak colemaq"
+        words: "teclado distribucion azerty qwerty dvorak colemak keyboard"
     },
     {
         keys: ["desktop.input.repeatRate", "desktop.input.repeatDelay"],
@@ -46,24 +53,24 @@ var intents = [
     },
     {
         keys: ["fontSize", "fontScale"],
-        words: "letra pequena texto pequeno font size small text legible demasiado grande interface scale"
+        words: "letra pequena texto pequeno font small text legible demasiado interface scale"
     },
     {
         keys: ["language", "formatLocale"],
-        words: "idioma language espanol spanish english cambiar formato fecha hora numeros currency"
+        words: "idioma espanol spanish english cambiar formato fecha hora numeros currency"
     },
     {
         keys: ["terminalFontFamily", "fontFamily"],
-        words: "fuente tipografia typeface terminal font monoespaciada consola"
+        words: "fuente tipografia typeface terminal monoespaciada consola"
     },
     {
         keys: ["desktop.appearance.activeOpacity", "desktop.appearance.inactiveOpacity",
                "desktop.appearance.fullscreenOpacity"],
-        words: "ventana transparente translucida opacity see through no veo detras ventanas transparentes"
+        words: "ventana transparente translucida opacity see through no veo detras"
     },
     {
         keys: ["desktop.appearance.rounding", "desktop.appearance.roundingPower"],
-        words: "esquinas redondas corner radius rounded softness puntiagudas ventana"
+        words: "esquinas redondas corner radius rounded softness puntiagudas"
     },
     {
         keys: ["desktop.appearance.gapsIn", "desktop.appearance.gapsOut",
@@ -71,21 +78,17 @@ var intents = [
         words: "separacion espacio entre ventanas gaps spacing inner outer margin hueco"
     },
     {
-        keys: ["desktop.appearance.blurEnabled", "desktop.appearance.blurSize"],
-        words: "desenfoque borroso cristal blurred quitar blur frosting translucido ventanas glass"
+        keys: ["desktop.appearance.blurSize", "desktop.appearance.blurPasses"],
+        words: "desenfoque borroso cristal blurred quitar frosting translucido glass"
     },
     {
-        keys: ["desktop.appearance.shadowEnabled", "desktop.appearance.shadowRange"],
-        words: "sombra shadow drop behind windows solapa plano sombras"
+        keys: ["desktop.appearance.layout"],
+        words: "mosaico tiling dwindle espacial organizar ventanas como colocar"
     },
     {
         keys: ["desktop.appearance.borderSize", "desktop.appearance.activeBorder",
                "desktop.appearance.inactiveBorder"],
-        words: "borde grosor border thickness color colour foco activo linea ventana grueso ancho fino delgado"
-    },
-    {
-        keys: ["desktop.appearance.layout"],
-        words: "layout mosaico tiling dwindle master espacial organizar ventanas como colocar"
+        words: "borde grosor thickness color colour foco activo linea grueso ancho fino delgado"
     },
     {
         keys: ["desktop.autostart"],
@@ -97,14 +100,34 @@ var intents = [
     },
     {
         keys: ["clipboard.widthPercent", "clipboard.heightPercent"],
-        words: "portapapeles clipboard tamano grande historial ancho alto"
+        words: "portapapeles clipboard tamano historial ancho alto"
     },
     {
         keys: ["gamebar.enabled", "gamebar.scale"],
-        words: "barra juego gamebar overlay gaming mostrar tamano"
+        words: "barra juego gamebar overlay gaming mostrar"
     },
     {
         keys: ["idle.enabled", "idle.ac.dimSec", "idle.battery.dimSec"],
-        words: "apaga pantalla solo screen idle timeout bloqueo suspende ahorro energia minutos"
+        words: "apaga pantalla solo sola solas screen idle timeout bloqueo suspende ahorro energia minutos"
+    },
+    {
+        keys: ["sdrbrightness"],
+        words: "brillo pantalla brightness muy oscuro subir bajar luz"
+    },
+    {
+        keys: ["powerProfileEffects", "lowPowerMode"],
+        words: "bateria dura poco power ahorro consumo rendimiento perfil bajo"
+    },
+    {
+        keys: ["desktop.cursor.theme"],
+        words: "cursor tema puntero theme oscuro claro colores"
+    },
+    {
+        keys: ["liveWallpaper60"],
+        words: "fondo animado fps video wallpaper 60 vivo consume"
+    },
+    {
+        keys: ["timezone"],
+        words: "zona horaria hora timezone reloj mal cambio de hora"
     }
 ];

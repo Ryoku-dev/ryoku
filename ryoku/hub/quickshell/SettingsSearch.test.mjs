@@ -47,6 +47,16 @@ test("a typo in the typed query still lands", () => {
     assert.deepEqual(keys("batery", page).slice(0, 1), ["saveBattery"]);
 });
 
+test("a row that answers every word wins over one that answers a single word", () => {
+    // "window gap" is answered in full by "Window gaps", so the rows carrying
+    // only "window" are not offered at all; before the coverage scaling they
+    // were, and one of them outranked the row that answered both
+    assert.deepEqual(keys("window gap", page), ["gapIn"]);
+    assert.deepEqual(keys("close window", page)[0], "closeWindow");
+    // and when nothing answers the whole query, the partial ones still follow
+    assert.ok(keys("window frosted", page).includes("gapIn"), "the partial follows");
+});
+
 test("a synonym reaches the row the word never appears on", () => {
     assert.deepEqual(keys("glass", page).slice(0, 1), ["disableBlur"]);
     assert.deepEqual(keys("transparency", page), ["winOpacity"]);
