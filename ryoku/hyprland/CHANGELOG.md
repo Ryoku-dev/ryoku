@@ -33,6 +33,11 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **A mirrored display is saved by the name of the screen it copies.**
+  Hyprland reports a mirror's source as a monitor number, and `ryoku-monitor`
+  carried that number into `list`, `monitors.lua` and the Super+P snapshot, so
+  a saved mirror could point at another screen after a replug. It now reads
+  the source's output name (`scripts/ryoku-monitor`).
 - **Unplugging the external monitor no longer leaves an invalid layout.** A
   panel turned off in Displays was saved with the 0x0 at -1x-1 placeholder
   Hyprland reports for a disabled output, and the hotplug fallback woke it with

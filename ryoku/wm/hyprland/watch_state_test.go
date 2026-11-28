@@ -60,6 +60,25 @@ func TestMonitorOutputsUseConfiguredVRR(t *testing.T) {
 	}
 }
 
+// Hyprland reports mirrorOf as the source monitor's numeric ID ("0"), while the
+// editor keys its mirror picker by output name and an ID saved into
+// monitors.lua can name a different display after a replug.
+func TestMonitorOutputsMirrorReadsSourceName(t *testing.T) {
+	outputs := monitorOutputs([]hyprMonitor{
+		{ID: 0, Name: "HDMI-A-1", Width: 1920, Height: 1080, MirrorOf: "none"},
+		{ID: 1, Name: "DP-1", Width: 5120, Height: 1440, MirrorOf: "none"},
+		{ID: 2, Name: "DP-2", Width: 1920, Height: 1080, MirrorOf: "0"},
+		{ID: 3, Name: "DP-3", Width: 1920, Height: 1080, MirrorOf: "DP-1"},
+		{ID: 4, Name: "DP-4", Width: 1920, Height: 1080, MirrorOf: "9"},
+	}, true)
+	want := []string{"", "", "HDMI-A-1", "DP-1", "9"}
+	for i, o := range outputs {
+		if o.Mirror != want[i] {
+			t.Errorf("%s mirror = %q, want %q", o.Name, o.Mirror, want[i])
+		}
+	}
+}
+
 func TestWorkspaceFramesCarryNumericRank(t *testing.T) {
 	restore := stubCtl(t, func(args ...string) ([]byte, error) {
 		if args[0] != "workspaces" {

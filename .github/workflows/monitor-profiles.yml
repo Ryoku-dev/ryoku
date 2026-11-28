@@ -10,14 +10,14 @@ name: Monitor profiles
 on:
   pull_request:
     paths:
-      - 'system/hardware/display/ryoku-monitor'
+      - 'ryoku/hyprland/scripts/ryoku-monitor'
       - 'tests/monitor-profiles.sh'
       - 'tests/monitor-persist.sh'
   push:
     branches:
       - main
     paths:
-      - 'system/hardware/display/ryoku-monitor'
+      - 'ryoku/hyprland/scripts/ryoku-monitor'
       - 'tests/monitor-profiles.sh'
       - 'tests/monitor-persist.sh'
   workflow_dispatch:

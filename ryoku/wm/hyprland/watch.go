@@ -341,7 +341,7 @@ func monitorOutputs(mons []hyprMonitor, full bool) []wm.Output {
 			}
 			o.Modes = modes
 			o.Mode = currentHyprMode(m, modes)
-			o.Mirror = mirrorName(m.MirrorOf)
+			o.Mirror = mirrorName(m.MirrorOf, mons)
 			o.ColorMode = hyprColorMode(m.ColorManagementPreset)
 			o.SdrBrightness = m.SdrBrightness
 		}
@@ -376,11 +376,25 @@ func currentHyprMode(m hyprMonitor, modes []string) string {
 	return fmt.Sprintf("%dx%d@%d", m.Width, m.Height, want)
 }
 
-// mirrorName drops Hyprland's "none" sentinel so an un-mirrored output reads as
-// the empty string the neutral shape uses.
-func mirrorName(s string) string {
+// mirrorName turns Hyprland's mirrorOf into the source output's name. Hyprland
+// reports the source's numeric monitor ID, but the editor and hl.monitor's
+// mirror field key outputs by name, and an ID saved as a mirror can point at
+// another display after a replug. The "none" sentinel reads as the empty
+// string the neutral shape uses; a value that is already a name, or an ID no
+// listed output holds, passes through.
+func mirrorName(s string, mons []hyprMonitor) string {
 	if s == "" || s == "none" {
 		return ""
+	}
+	for _, m := range mons {
+		if m.Name == s {
+			return s
+		}
+	}
+	for _, m := range mons {
+		if strconv.Itoa(m.ID) == s {
+			return m.Name
+		}
 	}
 	return s
 }
