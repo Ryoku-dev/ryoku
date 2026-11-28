@@ -1,6 +1,10 @@
 # Changelog: system/
 
 ## Unreleased
+- **The ASUS backlight fix leaves working AMD backlights alone on NixOS.**
+  Its "amdgpu_bl already present" check used `compgen`, which the bash Nix runs
+  scripts with does not have, so it never matched and the boot parameter was
+  added anyway (`hardware/display/ryoku-hw-backlight-fix`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to
