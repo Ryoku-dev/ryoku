@@ -28,6 +28,12 @@
   finds the battery row in a Spanish Hub rather than only "battery".
 
 ### Fixed
+- **A search no longer hides one of two add-ons that share an id.** A ranked
+  row was found again by its key, so two add-ons with the same id, or two apps
+  with the same command, left the first one out of the results. The item rides
+  on its row now, and the page search's literal fallback no longer treats a
+  two-letter word as a match.
+
 - **A filler word in a query no longer brings half the page.** "al" and "no"
   scored as word-start hits, so "align" and "notifications" carried them at full
   strength and "arranque al inicio" returned 88 rows, none of them the autostart

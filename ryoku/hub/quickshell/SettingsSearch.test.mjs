@@ -134,6 +134,37 @@ test("a list that draws itself is ranked by the same engine", () => {
         ["Zip"]);
 });
 
+test("two add-ons sharing an id are both reachable", () => {
+    // the item rides on its row, so a duplicate key cannot erase one of them
+    const dup = [{ id: "same", name: "First" }, { id: "same", name: "Second" }];
+    const hit = (q) => Array.prototype.map.call(
+        searchItems(dup, q, (x) => ({ label: x.name, key: x.id })), x => x.name);
+    assert.deepEqual(hit("first"), ["First"]);
+    assert.deepEqual(hit("second"), ["Second"]);
+    assert.deepEqual(hit("first second").sort(), ["First", "Second"]);
+});
+
+test("a two-letter word scatters into nothing", () => {
+    // "al" sits inside "align" and half the vocabulary: answered as a whole
+    // token and nowhere else. A three-letter abbreviation still scatters.
+    const row = [{ key: "alignEdge", label: "Align to edge", desc: "drag the chip along that" },
+                 { key: "closeWindow", label: "Close window", desc: "the focused window" }];
+    assert.deepEqual(Array.prototype.map.call(searchRows(row, "al"), r => r.key), []);
+    assert.deepEqual(Array.prototype.map.call(searchRows(row, "4k"), r => r.key), []);
+    assert.deepEqual(Array.prototype.map.call(searchRows(row, "clw"), r => r.key), ["closeWindow"]);
+});
+
+test("the label's markup is escaped exactly once", () => {
+    const amp = "&" + "amp;";
+    const lt = "&" + "lt;";
+    const gt = "&" + "gt;";
+    const out = highlightHtml("Blur & <glow> & <b>", "blur");
+    assert.equal(out, "<u>Blur</u> " + amp + " " + lt + "glow" + gt + " " + amp + " " + lt + "b" + gt);
+    // one escape per ampersand, never two
+    assert.equal(out.split("&").length - 1, 6);   // two ampersands, two <, two >
+    assert.ok(!out.includes(amp + amp), "no double escape");
+});
+
 test("a script the tokeniser cannot read keeps the literal substring", () => {
     // the plain indexOf the sheet used before must not regress
     assert.ok(keys("ズーム", baked).includes("zoomModifier"));

@@ -166,7 +166,11 @@ function wordScore(w, tws, loose) {
             if (ss > best) best = ss;
             continue;
         }
-        if (loose && w.length <= tw.length) {
+        // a scatter of a two-letter word is not a match: "al" sits inside "align",
+        // "calm" and half the vocabulary. A two-letter word is answered as a whole
+        // token above and nowhere else, so an abbreviation is three letters or
+        // more ("clw", "4k tv" keep working).
+        if (loose && w.length >= 3 && w.length <= tw.length) {
             var ti = 0, sc = 0, streak = 0, ok = true;
             for (var ci = 0; ci < w.length; ci++) {
                 var f = tw.indexOf(w.charAt(ci), ti);
@@ -368,8 +372,13 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
     // read as one phrase. Both run below every token hit, so they only fill in
     // what the ranker missed; one character is enough, because a single kanji
     // a user types mid-composition is a query too.
+    // one character is enough for a script whose characters carry whole words
+    // (a kanji a user types mid-composition), so the old substring survives
+    // there; a Latin substring of one or two letters is a prefix coincidence
+    // ("al" inside "align"), which is what the token pass is for
+    var wordish = q.length >= 3 || /[^a-z0-9 ]/.test(q);
     function fallbackScore(idx) {
-        var r = rows[idx], hay = hays[idx].hay, s = hay.indexOf(q) >= 0 ? 260 : 0;
+        var r = rows[idx], hay = hays[idx].hay, s = wordish && hay.indexOf(q) >= 0 ? 260 : 0;
         if (s <= 0 && termsHit(groups, hays[idx].gtoks, true) === terms) s = 240;
         return s > 0 ? s + 2 * searchScore(groups, hays[idx].labelToks, true) : 0;
     }
@@ -445,22 +454,18 @@ function searchItems(items, query, toRow, tr, lang) {
     if (!items || !items.length) return items || [];
     var q = fold(query).trim();
     if (q === "") return items;
-    var rows = [], byKey = {}, i;
+    var rows = [], i;
     for (i = 0; i < items.length; i++) {
         var r = toRow(items[i]);
-        // the row key is how the item is found again after ranking, so an item
-        // without one falls back to its place in the list rather than being
-        // dropped from the results silently
-        r.key = r.key === undefined || r.key === null || r.key === "" ? "#" + i : "" + r.key;
+        if (r.key === undefined || r.key === null || r.key === "") r.key = "#" + i;
+        // the item rides on its row, so a duplicate key (two add-ons sharing an
+        // id, two apps sharing a command) cannot silently erase one of them
+        r.item = items[i];
         rows.push(r);
-        byKey[r.key] = items[i];
     }
     var ranked = searchRows(rows, q, tr, lang);
     var out = [];
-    for (i = 0; i < ranked.length; i++) {
-        var it = byKey[ranked[i].key];
-        if (it !== undefined) out.push(it);
-    }
+    for (i = 0; i < ranked.length; i++) out.push(ranked[i].item);
     return out;
 }
 
