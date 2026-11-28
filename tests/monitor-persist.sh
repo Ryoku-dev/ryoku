@@ -278,6 +278,38 @@ grep -qF 'output = "HDMI-A-1", mode = "1920x1080@60.0", position = "auto", scale
 grep -qF 'mode = "preferred"' <<<"$mirror_rule" &&
   fail "mirror raised a below-native target to its preferred mode"
 
+# --- a live mirror reads back by its source's name. Hyprland reports mirrorOf as
+# the source monitor's numeric ID ("0"); the Displays page keys its mirror picker
+# by output name, and an ID saved into monitors.lua or the applied layout can
+# name another display after a replug. ----------------------------------------
+cat >"$tmp/mirror-id.json" <<'JSON'
+[
+  {"id":0,"name":"HDMI-A-1","make":"Acme","model":"TV","serial":"T1","width":1920,"height":1080,"refreshRate":60.0,"x":0,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":false,"mirrorOf":"none","physicalWidth":1600,"physicalHeight":900,"availableModes":["1920x1080@60.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0,"activeWorkspace":{"id":1,"name":"1"}},
+  {"id":1,"name":"DP-1","make":"Acme","model":"Wide","serial":"W1","width":5120,"height":1440,"refreshRate":240.0,"x":1920,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":true,"mirrorOf":"none","physicalWidth":1200,"physicalHeight":340,"availableModes":["5120x1440@240.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0,"activeWorkspace":{"id":2,"name":"2"}},
+  {"id":2,"name":"DP-2","make":"Acme","model":"Side","serial":"S1","width":1920,"height":1080,"refreshRate":60.0,"x":0,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":false,"mirrorOf":"0","physicalWidth":530,"physicalHeight":300,"availableModes":["1920x1080@60.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0,"activeWorkspace":{"id":0,"name":""}}
+]
+JSON
+listed="$(RYOKU_MONITOR_JSON="$tmp/mirror-id.json" "$mon" list)"
+[[ $(jq -r '.[] | select(.name == "DP-2") | .mirror' <<<"$listed") == HDMI-A-1 ]] ||
+  fail "list reported a mirror's source by monitor ID, not by name"
+[[ $(jq -r '.[] | select(.name == "DP-2") | .disabled' <<<"$listed") == false ]] ||
+  fail "a mirror without a workspace of its own was reported off"
+RYOKU_MONITOR_JSON="$tmp/mirror-id.json" "$mon" persist >/dev/null
+grep 'output = "DP-2"' "$conf" | grep -qF 'mirror = "HDMI-A-1"' ||
+  fail "monitors.lua saved a mirror by monitor ID, not by name"
+hasnt "$conf" 'mirror = "0"' "monitors.lua saved a mirror by monitor ID"
+page_layout="$(jq -c '[ .[] | { id, output: .name, mode: "\(.width)x\(.height)@\(.refresh)",
+  position: "\(.x)x\(.y)", scale, transform, vrr, mirror, disabled } ]' <<<"$listed")"
+RYOKU_MONITOR_JSON="$tmp/mirror-id.json" "$mon" apply "$page_layout" >/dev/null
+[[ $(jq -r '.monitors[] | select(.output == "DP-2") | .mirror' "$RYOKU_MONITORS_APPLIED") == HDMI-A-1 ]] ||
+  fail "the applied layout saved a mirror by monitor ID, not by name"
+jq '.[2].mirrorOf = "DP-1"' "$tmp/mirror-id.json" >"$tmp/mirror-name.json"
+[[ $(RYOKU_MONITOR_JSON="$tmp/mirror-name.json" "$mon" list | jq -r '.[2].mirror') == DP-1 ]] ||
+  fail "a mirror source already given by name was rewritten"
+jq '.[2].mirrorOf = "9"' "$tmp/mirror-id.json" >"$tmp/mirror-stale.json"
+[[ $(RYOKU_MONITOR_JSON="$tmp/mirror-stale.json" "$mon" list | jq -r '.[2].mirror') == 9 ]] ||
+  fail "a mirror ID no listed output holds was guessed onto another output"
+
 # Atomic updates follow a user-owned symlink instead of replacing it, and keep
 # the target's mode.
 backing="$tmp/user-monitors.lua"

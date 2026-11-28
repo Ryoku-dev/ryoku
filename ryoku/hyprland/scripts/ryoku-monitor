@@ -181,6 +181,12 @@ require_jq() {
 # (the internal panel saved as disabled and the external monitor unplugged). It
 # is not a display: counting it made the saved layout look unmatched, so the
 # panel was never re-enabled and the screen stayed black.
+#
+# mirrorOf comes back as the source's name. Hyprland reports the source
+# monitor's numeric ID ("0"), but hl.monitor's mirror field, the Displays page
+# and every saved layout key outputs by name, and a saved ID can name a different
+# display after a replug. A value that is already a name, or an ID no listed
+# output holds, passes through. The Hyprland provider's mirrorName does the same.
 monitors_json() {
   local raw
   if [[ -n ${RYOKU_MONITOR_JSON:-} ]]; then
@@ -188,7 +194,12 @@ monitors_json() {
   else
     raw="$(hyprctl monitors all -j)"
   fi
-  printf '%s' "$raw" | jq -c 'if type == "array" then map(select(.name != "FALLBACK")
+  printf '%s' "$raw" | jq -c 'if type == "array" then
+      (map(.name)) as $names
+      | (map(select(.id != null) | { key: (.id | tostring), value: .name }) | from_entries) as $byid
+      | map(select(.name != "FALLBACK")
+      | if (.mirrorOf | type) == "string" and (.mirrorOf as $m | $names | any(.[]; . == $m) | not)
+        then .mirrorOf = ($byid[.mirrorOf] // .mirrorOf) else . end
       | .disabled = (((.width // 0) <= 0) or ((.height // 0) <= 0)
           or ((.disabled == true) and ((.activeWorkspace.id // 0) == 0)
               and ((.activeWorkspace.name // "") == "")
