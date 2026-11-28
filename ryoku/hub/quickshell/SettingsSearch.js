@@ -158,8 +158,17 @@ function wordScore(w, tws, loose) {
         var tw = tws[i];
         if (tw === "") continue;
         var idx = tw.indexOf(w);
-        if (idx === 0) { if (best < 1200) best = 1200; continue; }
-        if (idx > 0) { var ss = 1000 - Math.min(idx, 50); if (ss > best) best = ss; continue; }
+        // a two-letter word is a prefix of half the vocabulary, not a match:
+        // "al" is not the "al" of "align". It still matches as a whole token,
+        // so a real two-letter word (4k, tv, go) keeps working.
+        if (idx === 0) { if (best < 1200 && (w.length > 2 || tw === w)) best = 1200; continue; }
+        // the same for a word carried inside another: "al" is not the "al" of
+        // "label", and a filler word riding in a query must not bring 80 rows
+        if (idx > 0) {
+            var ss = (w.length > 2) ? 1000 - Math.min(idx, 50) : 0;
+            if (ss > best) best = ss;
+            continue;
+        }
         if (loose && w.length <= tw.length) {
             var ti = 0, sc = 0, streak = 0, ok = true;
             for (var ci = 0; ci < w.length; ci++) {
@@ -398,7 +407,15 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
                 if (!m) continue;
                 if (m.all || terms === 1) scored.push(m); else partial.push(m);
             }
-            if (!scored.length) scored = partial;
+            // nothing answered every word: the partial rows follow, but only the
+            // ones that answered one strongly. A word scattered inside a token
+            // scores single digits, and 59 such rows read as a page that matched
+            // nothing rather than as help. A single-word query keeps every
+            // match, because a scatter is all an abbreviation has.
+            if (!scored.length) {
+                for (i = 0; i < partial.length; i++)
+                    if (terms === 1 || partial[i].score >= 100) scored.push(partial[i]);
+            }
             // an intent fills what this pass could not reach, never hides what it
             // did: a clean label hit still outranks the seeded row
             seedIntent(scored);

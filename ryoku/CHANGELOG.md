@@ -23,6 +23,13 @@
   finds the battery row in a Spanish Hub rather than only "battery".
 
 ### Fixed
+- **A filler word in a query no longer brings half the page.** "al" and "no"
+  scored as word-start hits, so "align" and "notifications" carried them at full
+  strength and "arranque al inicio" returned 88 rows, none of them the autostart
+  row. A two-letter word now scores only as a whole token, and when nothing
+  answers every word of a multi-word query a partial row is kept only if it
+  answered one strongly. The list matches, or it says it matches nothing.
+
 - **A typo in a search no longer costs more than a frame.** The loose pass
   walked every token of every row for the typed word and each of its synonyms,
   19.4 ms per keystroke over the largest corpus. A synonym is a spelled-out
