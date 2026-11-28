@@ -117,6 +117,13 @@
   sliders, pages and open motion. It stays in the work area so the bar keeps
   working, Escape steps back out of a page before closing, and the quick
   switches moved up beside Wi-Fi and Bluetooth (`modules/sidebar/`).
+- **Quick settings follows a placement change made in Ryoku Settings.** Position
+  and Edge gap wrote to shell.json but left the running panel where it was;
+  only a shell reload showed the new spot. The shell's settings reader stopped
+  on an `ask` key left behind when Ask was retired, so it never copied the new
+  `controls` values into the live config. The gear picker inside the panel kept
+  working because it updates the shell itself. With that key gone, both places
+  move the panel at once (`services/Config.qml`).
 - **Theia's highlight actions show on Hyprland.** Holding the highlight key
   while selecting text and letting go showed nothing on Hyprland unless the
   mouse moved within a second and a half: Hyprland sends no pointer enter to an
