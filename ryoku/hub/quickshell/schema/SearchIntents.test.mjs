@@ -3,8 +3,12 @@ import vm from "node:vm";
 import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const QML_DIR = "/home/san/Repos/ryoku/ryoku/hub/quickshell";
+// the test runs from wherever the checkout is, so every path is read from this
+// file's own location rather than from the machine it was written on
+const QML_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const WM_DIR = path.join(QML_DIR, "..", "..", "wm");
 const load = (rel) => {
     const src = fs.readFileSync(path.join(QML_DIR, rel), "utf8").replace(/^\.pragma library\s*/, "");
     const ctx = {};
@@ -29,7 +33,7 @@ for (const f of fs.readdirSync(path.join(QML_DIR, "schema"))) {
     }
 }
 for (const wm of ["hyprland", "niri", "wayfire"]) {
-    const j = JSON.parse(fs.readFileSync(`/home/san/Repos/ryoku/ryoku/wm/${wm}/schema.json`, "utf8"));
+    const j = JSON.parse(fs.readFileSync(path.join(WM_DIR, wm, "schema.json"), "utf8"));
     for (const r of j.rows || []) {
         rows.push(r);
         if (r.key) keys.add(r.key);
