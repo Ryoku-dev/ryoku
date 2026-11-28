@@ -116,10 +116,13 @@ function expandQuery(q) {
 
 // bounded Levenshtein: the distance if <= max, else -1, with an early
 // length-diff reject and a per-row floor so it stays cheap per keystroke.
+// two scratch rows, reused across every call: the typo scan runs thousands of
+// times per keystroke and a fresh array pair each time cost more than the match
+var DIST_A = [], DIST_B = [];
 function editDistance(a, b, max) {
     var la = a.length, lb = b.length, j;
     if (Math.abs(la - lb) > max) return -1;
-    var prev = [], cur = [];
+    var prev = DIST_A, cur = DIST_B;
     for (j = 0; j <= lb; j++) prev[j] = j;
     for (var i = 1; i <= la; i++) {
         cur[0] = i;
@@ -331,7 +334,11 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
                 // run of characters, so one native substring search settles the
                 // row without walking its tokens -- the common case while the
                 // query is still being typed, and most rows do not contain it
-                if (!loose && hay.indexOf(g[gi][wi]) < 0) {
+                // an exact word settles a row with one native search: in the
+                // exact pass that is every word, and in the loose pass it is
+                // every synonym -- a synonym is spelled out, only the typed word
+                // may be a near-miss, and it is the group's first entry
+                if ((!loose || wi > 0) && hay.indexOf(g[gi][wi]) < 0) {
                     t = 0;
                 } else {
                     t = wordScore(g[gi][wi], toks, loose);

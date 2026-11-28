@@ -23,6 +23,13 @@
   finds the battery row in a Spanish Hub rather than only "battery".
 
 ### Fixed
+- **A typo in a search no longer costs more than a frame.** The loose pass
+  walked every token of every row for the typed word and each of its synonyms,
+  19.4 ms per keystroke over the largest corpus. A synonym is a spelled-out
+  word, so one native search settles a row; the distance scan also reuses its
+  working arrays instead of allocating a pair per call. The pass now costs
+  4.0 ms and returns the same rows.
+
 - **A row that answers every word of a query outranks one that answers a word.**
   A partial match used to score like a full one, so "window gap" offered every
   row carrying "window". Coverage scales the score now, so the half answer
