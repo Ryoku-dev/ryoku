@@ -1,6 +1,10 @@
 # Changelog: system/
 
 ## Unreleased
+- **GPU detection finds the graphics cards on NixOS.** Its render-node and
+  ACPI lid checks used `compgen`, which the bash Nix runs scripts with does not
+  have, so every GPU was skipped as display-only
+  (`hardware/gpu/ryoku-gpu-detect`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to
