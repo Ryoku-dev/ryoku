@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **A segmented control's option no longer spills out of its row.** A two-option
+  segmented row ("Full page" / "Personalizado") drew the control inline in a
+  narrow slot, so a long translated label overflowed; it takes a band now, like
+  every other control that needs room.
+
 - **The battery readout follows the real charge on two-battery laptops.** The
   bar widget, the battery popout and the low-battery alerts bound to the first
   battery UPower lists, which its controller can park at 99 % "Not charging"

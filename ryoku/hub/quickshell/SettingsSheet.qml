@@ -292,13 +292,13 @@ Item {
     function listClear(r) { sheet.edited(r.key, []); }
 
     // inline vs band, and how wide, decided once from the control kind. A
-    // control that needs room (chips, a segmented bar of 3+, a demo)
+    // control that needs room (chips, a segmented bar, a demo)
     // gets a band whose height is its own; a picker or field gets a fixed foot
     // band; everything else sits inline at the row's right.
     function ctlBlock(r) {
-        var c = r.ctl, n = sheet.optsFor(r).length;
+        var c = r.ctl;
         if (c === "chips" || c === "multi" || c === "layoutdemo" || c === "reload-cover" || c === "list") return true;
-        if (c === "seg" && n >= 3) return true;
+        if (c === "seg") return true;
         return false;
     }
     function ctlFoot(r) {
