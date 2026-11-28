@@ -1,6 +1,10 @@
 # Changelog: system/
 
 ## Unreleased
+- **Switching Wi-Fi to wpa_supplicant keeps Wi-Fi working on NixOS.** The
+  interface checks used `compgen`, which the bash Nix runs scripts with does not
+  have, so no radio got a managed interface back after iwd stopped
+  (`hardware/network/ryoku-wifi-backend`).
 - **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
   records the user's choice through BlueZ without soft-blocking platform radio
   switches, while power-on clears old blocks and waits for the controller to
