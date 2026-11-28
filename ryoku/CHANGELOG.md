@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Fixed
+- **Settings search finds what it used to miss, and stops flooding a page.** The
+  per-page search kept only the rows whose label, description or key held the
+  typed text as one contiguous string, so a synonym, a typo, an accent or a
+  script the tokeniser cannot read found nothing. It now ranks rows with the
+  same engine as the rail -- synonyms, typo tolerance, folded diacritics, a
+  literal fallback -- in passes that only widen when the tighter one found
+  nothing, so "blur" returns the blur row rather than every row whose synonym
+  happens to be "windows", in the English source and in the language you drew.
+
 - **A segmented control's option no longer spills out of its row.** A two-option
   segmented row ("Full page" / "Personalizado") drew the control inline in a
   narrow slot, so a long translated label overflowed; it takes a band now, like

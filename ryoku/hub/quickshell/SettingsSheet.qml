@@ -6,6 +6,7 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "ReloadCoverModel.js" as ReloadCoverModel
+import "SettingsSearch.js" as SettingsSearch
 
 // Renders a page from its schema as grouped, compact rows. A setting is a row
 // of data; which card it lands in comes from its group and what draws it from
@@ -28,7 +29,7 @@ Item {
     // tall lead block leaves the rows a thin strip to scroll in.
     default property alias lead: leadSlot.data
 
-    property var schema: []          // [{ tab, group, key, label, desc, ctl, src, caps?, opts, lo, hi, unit, pct }]
+    property var schema: []          // [{ tab, group, key, label, desc, ctl, src, caps?, opts, lo, hi, unit, pct }] -- untranslated source rows, translated at draw time
     property var draft: null         // the page's live values
     property var defaults: ({})      // factory values, for the struck default
     property string tab: ""
@@ -73,13 +74,25 @@ Item {
     }
 
     readonly property var rows: {
-        var q = query.toLowerCase();
-        return schema.filter(function (r) {
-            if (!sheet.passes(r)) return false;
-            if (r.adv && !sheet.advanced && query === "") return false;
-            if (r.tab !== sheet.tab && query === "") return false;
-            if (query === "") return true;
-            return (r.label + " " + (r.desc || "") + " " + r.key).toLowerCase().indexOf(q) >= 0;
+        var q = query.toLowerCase().trim();
+        // No query: show the filtered rows of the open tab, minus the deep
+        // knobs until Advanced is on.
+        if (q === "") {
+            return schema.filter(function (r) {
+                if (!sheet.passes(r)) return false;
+                if (r.adv && !sheet.advanced) return false;
+                if (r.tab !== sheet.tab) return false;
+                return true;
+            });
+        }
+        // Query present: rank the rows fuzzy (synonyms, typos, folded
+        // diacritics, a literal-substring fallback) instead of the plain
+        // indexOf over label + desc + key this used to do. The advance gate
+        // and the tab boundary are deliberately NOT applied here: search spans
+        // every tab and still reaches the `adv` rows, so nothing is ever
+        // buried.
+        return SettingsSearch.searchRows(schema, q).filter(function (r) {
+            return sheet.passes(r);
         });
     }
     readonly property var groups: {
