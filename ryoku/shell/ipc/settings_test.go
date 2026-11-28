@@ -1339,3 +1339,36 @@ settle:
 		t.Fatal("a finished rewrite under the latched stat did not reload")
 	}
 }
+
+func TestGameBarVoiceAlign(t *testing.T) {
+	store := newTestStore(t)
+	if got := frameGet(t, store.frameLocked(), "gamebar.voiceAlign"); got != "center" {
+		t.Fatalf("voiceAlign default = %v, want center", got)
+	}
+	for _, value := range []string{`"left"`, `"right"`, `"center"`} {
+		if err := store.patch("gamebar.voiceAlign", rm(value)); err != nil {
+			t.Fatalf("patch voiceAlign %s: %v", value, err)
+		}
+	}
+	if err := store.patch("gamebar.voiceAlign", rm(`"diagonal"`)); err == nil {
+		t.Fatal("voiceAlign accepted an unknown value")
+	}
+	if got := frameNum(t, store.frameLocked(), "gamebar.voiceNameGap"); got != 1 {
+		t.Fatalf("voiceNameGap default = %v, want 1", got)
+	}
+	if err := store.patch("gamebar.voiceNameGap", rm("8")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.patch("gamebar.voiceNameGap", rm("20")); err == nil {
+		t.Fatal("voiceNameGap accepted an out-of-range value")
+	}
+	if got := frameNum(t, store.frameLocked(), "gamebar.voiceNameChars"); got != 12 {
+		t.Fatalf("voiceNameChars default = %v, want 12", got)
+	}
+	if err := store.patch("gamebar.voiceNameChars", rm("8")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.patch("gamebar.voiceNameChars", rm("2")); err == nil {
+		t.Fatal("voiceNameChars accepted an out-of-range value")
+	}
+}

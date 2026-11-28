@@ -15,18 +15,38 @@ GameBarCard {
 
     title: I18n.tr("Voice")
     resizable: true
+    // Set by the host to the number of avatars that fit below the strip.
+    property int visibleAvatars: 8
+    property int miniVisibleAvatars: 8
 
     readonly property var voice: DiscordVoice
     readonly property int avatarLimit: Math.max(1, Math.min(8, Config.gamebar.voiceAvatars || 8))
     readonly property bool dimOthers: Config.gamebar.voiceDim !== false
     readonly property real dimOpacity: Math.max(0.2, Math.min(1, Config.gamebar.voiceDimOpacity || 0.5))
+    readonly property bool vertical: Config.gamebar.voiceVertical !== false
+    // Off-centre alignment only fits a vertical stack; a horizontal row is
+    // always centered so the avatars stay inside the card.
+    readonly property string align: !card.vertical ? "center"
+        : ["left", "right"].indexOf(Config.gamebar.voiceAlign) >= 0
+            ? Config.gamebar.voiceAlign : "left"
+    // The name always sits opposite the aligned avatars. Horizontal still
+    // draws names below internally, where alignment is always centered.
+    readonly property string namePosition: !card.vertical ? "below"
+        : card.align === "right" ? "left" : "right"
+    readonly property int nameGap: typeof Config.gamebar.voiceNameGap === "number"
+        ? Math.max(0, Math.min(16, Config.gamebar.voiceNameGap)) : 1
+    readonly property int nameChars: typeof Config.gamebar.voiceNameChars === "number"
+        ? Math.max(4, Math.min(32, Config.gamebar.voiceNameChars)) : 12
+    readonly property real avatarLogical: VoiceLayout.avatar(Config.gamebar.voiceAvatarSize)
     readonly property real avatarSpacing: 4 * card.s
-    readonly property real avatarCell: 58 * card.s
-    readonly property real avatarSize: 46 * card.s
-    readonly property int avatarColumns: Math.max(1, Math.min(8,
+    readonly property real avatarCell: (VoiceLayout.beside(card.namePosition)
+        ? card.avatarLogical + VoiceLayout.nameWidth(card.nameChars) + (card.namePosition === "right" ? card.nameGap : 0)
+        : Math.max(card.avatarLogical, 58, VoiceLayout.nameWidth(card.nameChars))) * card.s
+    readonly property real avatarSize: card.avatarLogical * card.s
+    readonly property int avatarColumns: card.vertical ? 1 : Math.max(1, Math.min(8,
         Math.floor((stage.width + card.avatarSpacing) / (card.avatarCell + card.avatarSpacing))))
 
-    readonly property real miniAvatarLogical: VoiceLayout.avatar(Config.gamebar.voiceAvatarSize)
+    readonly property real miniAvatarLogical: card.avatarLogical
     readonly property bool miniNames: Config.gamebar.voiceNames !== false
     readonly property bool miniControls: Config.gamebar.voiceControls !== false
     readonly property real miniBgOpacity: {
@@ -36,10 +56,28 @@ GameBarCard {
     readonly property real miniPad: VoiceLayout.PAD * card.s
     readonly property real miniGap: VoiceLayout.SPACE * card.s
     readonly property real miniHeaderHeight: VoiceLayout.HEADER * card.s
-    readonly property real miniCell: VoiceLayout.cell(card.miniAvatarLogical, card.miniNames) * card.s
-    readonly property int miniColumns: VoiceLayout.columns(card.width / card.s,
-        Math.min(card.avatarLimit, card.voice.participantCount),
-        card.miniAvatarLogical, card.miniNames)
+    readonly property real miniCell: VoiceLayout.cell(card.miniAvatarLogical, card.miniNames, card.namePosition, card.nameGap, card.nameChars) * card.s
+    // The pinned header's Discord tile starts at miniPad; line the first
+    // avatar up with it when the grid is on the left. With names off the cell
+    // is just the avatar, so there is no name width to offset by.
+    readonly property real miniPlateOffset: !card.miniNames
+        ? (card.miniCell - card.miniAvatarLogical * card.s) / 2
+        : card.namePosition === "right" ? 0
+        : card.namePosition === "left" ? VoiceLayout.nameWidth(card.nameChars) * card.s
+        : (card.miniCell - card.miniAvatarLogical * card.s) / 2
+    // The avatar grid follows Avatar alignment, never the header mirror.
+    readonly property real miniLogoCenter: card.miniPad + 20 * card.s
+    readonly property real miniLeftX: Math.max(card.miniPad - card.miniPlateOffset,
+        card.miniLogoCenter - card.miniAvatarLogical * card.s / 2 - card.miniPlateOffset)
+    readonly property real miniNameShift: Math.max(0, -card.miniLeftX) + card.miniPad
+    // Right mirrors left around the avatar, not around the (wider) name cell.
+    readonly property real miniRightX: card.width - card.miniPad
+        - card.miniAvatarLogical * card.s - card.miniPlateOffset
+    // Size the grid from the same logical width the panel was sized with. The
+    // physical card width can round a hair below the column threshold.
+    readonly property int miniColumns: VoiceLayout.columns(card.host.voiceLimitWidth(),
+        Math.min(card.avatarLimit, card.miniVisibleAvatars, card.voice.participantCount),
+        card.miniAvatarLogical, card.miniNames, card.vertical, card.namePosition, card.nameGap, card.nameChars)
     readonly property string miniSubtitle: {
         if (card.voice.inVoice) {
             const n = card.voice.participantCount;
@@ -105,11 +143,12 @@ GameBarCard {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: 40 * card.s
+            height: 56 * card.s
 
             CutRect {
                 id: glyphTile
                 anchors.left: parent.left
+                anchors.leftMargin: card.space3
                 anchors.verticalCenter: parent.verticalCenter
                 width: 40 * card.s
                 height: 40 * card.s
@@ -157,19 +196,26 @@ GameBarCard {
             anchors.bottomMargin: card.space1
 
             Grid {
-                anchors.centerIn: parent
+                anchors.verticalCenter: parent.verticalCenter
+                x: Math.max(card.pad, Math.min(parent.width - card.pad - implicitWidth,
+                    card.align === "left" ? card.pad + card.avatarSpacing
+                        : card.align === "right" ? parent.width - card.pad - card.avatarSpacing - card.avatarCell
+                        : (parent.width - implicitWidth) / 2))
                 columns: card.avatarColumns
                 spacing: card.avatarSpacing
                 visible: card.voice.participantCount > 0
 
                 Repeater {
-                    model: Math.min(card.avatarLimit, card.voice.participantCount)
+                    model: Math.min(card.avatarLimit, card.visibleAvatars, card.voice.participantCount)
 
                     delegate: ParticipantAvatar {
                         required property int index
                         participant: (card.voice.participantRevision, card.voice.participantAt(index))
                         width: card.avatarCell
                         avatarSize: card.avatarSize
+                        namePosition: card.namePosition
+                        nameGap: card.nameGap
+                        nameChars: card.nameChars
                         dimOthers: card.dimOthers
                         dimOpacity: card.dimOpacity
                     }
@@ -269,7 +315,7 @@ GameBarCard {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: visible ? 32 * card.s : 0
+            height: visible ? 56 * card.s : 0
             visible: card.voice.authenticated && card.voice.status !== "authorizing"
 
             Row {
@@ -395,7 +441,10 @@ GameBarCard {
 
         Grid {
             id: miniGrid
-            anchors.horizontalCenter: parent.horizontalCenter
+            x: card.align === "left"
+                ? (card.namePosition === "left" ? Math.max(0, card.miniLeftX) : card.miniLeftX)
+                : card.align === "right" ? Math.max(card.miniPad, card.miniRightX)
+                : (parent.width - implicitWidth) / 2
             y: card.miniPad + card.miniHeaderHeight + card.miniGap
             columns: card.miniColumns
             rowSpacing: card.miniGap
@@ -403,14 +452,23 @@ GameBarCard {
             visible: card.voice.participantCount > 0
 
             Repeater {
-                model: Math.min(card.avatarLimit, card.voice.participantCount)
+                model: Math.min(card.avatarLimit, card.miniVisibleAvatars, card.voice.participantCount)
 
                 delegate: ParticipantAvatar {
                     required property int index
                     participant: (card.voice.participantRevision, card.voice.participantAt(index))
                     width: card.miniCell
-                    avatarSize: card.miniAvatarLogical
+                    // layout.js sizes the panel in logical units that GameBar
+                    // scales by s, so the delegate must use that scale too or
+                    // stacked rows overrun the panel.
+                    avatarSize: card.miniAvatarLogical * card.s
                     showName: card.miniNames
+                    namePosition: card.namePosition
+                    nameGap: card.nameGap
+                    nameChars: card.nameChars
+                    nameShift: (card.align === "left" || card.align === "right")
+                        && card.namePosition === "below" ? card.miniNameShift : 0
+                    nameShiftMirrored: card.align === "right" && card.namePosition === "below"
                     dimOthers: card.dimOthers
                     dimOpacity: card.dimOpacity
                 }
