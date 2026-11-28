@@ -1,23 +1,20 @@
 .pragma library
 
-// Per-page settings search: the fuzzy, synonym-expanded, typo-tolerant ranking
-// the Hub's global rail search uses (Hub.qml `synonyms`, `wordScore`,
-// `searchScore`), applied to the rows a settings page draws. It replaces the
-// plain indexOf the sheet used, which only matched a phrase typed exactly as
-// the copy had it:
+// The one search engine: the fuzzy, synonym-expanded, typo-tolerant ranking
+// the Hub's rail and every settings page share. It replaces the plain indexOf
+// they used, which only matched a phrase typed exactly as the copy had it:
 //
 //  - synonyms, so "transparency", "glass" or "darkmode" reach the row that
 //    words never spelled that way
 //  - typo tolerance, so "trasparency" or "keybnd" still land
 //  - diacritic folding, so "energia" finds a row that reads "Energía"
+//  - both the language a row is authored in and the language it is drawn in,
+//    so a query in either reaches it
 //  - a substring fallback, so a script the ASCII tokeniser cannot read
 //    (Japanese, Thai, Arabic, Hindi) keeps the literal match indexOf gave
 //  - ranking, so the row the words name comes first instead of schema order
-//
-// The rows arrive untranslated: the sheet translates a row at draw time
-// (I18n.tr(r.label)), so the text searched here is the English source. Every
-// addition therefore widens what the old matcher could find; nothing it found
-// is lost.
+//  - task language (intentKeys), so a phrase that describes a goal reaches the
+//    row that owns it even when no haystack carries its words
 
 // lowercases and folds the Latin diacritics Ryoku's catalogs use, so
 // "Energía" and "energia" are one word to the ASCII tokeniser below and a
@@ -150,8 +147,8 @@ function editDistance(a, b, max) {
 // offer them before the exact reading has been tried: "blue" is one edit from
 // "blur" and also fits inside "blurEnabled" as a scatter, so a page that
 // answered either in the first pass walked a user looking for a colour into
-// the blur settings. Hub.qml's copy has no such switch because the rail caps
-// and ranks its results; the sheet shows everything it is given.
+// the blur settings. `searchRows` runs the loose reading in a second pass for
+// that reason, and `wordScore`'s `loose` flag is what separates the two.
 function wordScore(w, tws, loose) {
     var best = 0;
     for (var i = 0; i < tws.length; i++) {
@@ -334,7 +331,7 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
 
     function scoreRow(idx, g, loose) {
         var r = rows[idx], toks = hays[idx].toks, hay = hays[idx].hay;
-        var s = 0, hit = false, hitAll = true, groups = 0;
+        var s = 0, hit = false, hitAll = true, answered = 0;
         for (var gi = 0; gi < g.length; gi++) {
             var best = 0;
             for (var wi = 0; wi < g[gi].length; wi++) {
@@ -355,7 +352,7 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
                 if (wi > 0) t *= 0.85;
                 if (t > best) best = t;
             }
-            if (best > 0) { hit = true; s += best; groups++; } else { hitAll = false; }
+            if (best > 0) { hit = true; s += best; answered++; } else { hitAll = false; }
         }
         if (!hit) return null;
         // a row that answered one word of three is a quarter of an answer, not
@@ -363,7 +360,7 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
         // complete one, and a two-word query put a row naming a single word
         // above the row naming both. The label bonus is scaled with it, so it
         // still outranks a match buried in the description.
-        s *= groups / g.length;
+        s *= answered / g.length;
         s += 2 * searchScore(g, hays[idx].labelToks, loose);
         return { row: r, score: s, all: hitAll };
     }
@@ -548,9 +545,12 @@ function textHasQuery(text, query) {
     if (q === "") return false;
     var h = fold(text);
     if (h.indexOf(q) >= 0) return true;
+    // word boundaries: a two-letter query word is inside half the vocabulary,
+    // and the caller only wants to know whether the drawn label carries it
+    var padded = " " + h + " ";
     var words = q.split(/\s+/);
     for (var i = 0; i < words.length; i++)
-        if (words[i].length >= 2 && h.indexOf(words[i]) >= 0) return true;
+        if (words[i].length >= 2 && padded.indexOf(" " + words[i] + " ") >= 0) return true;
     return false;
 }
 function highlightHtml(text, query) {
