@@ -35,6 +35,8 @@ import "schema/LayerRulesPage.js" as LayerRulesSchema
 import "schema/SessionPage.js" as SessionSchema
 import "schema/PerformancePage.js" as PerformanceSchema
 import "schema/UpdatesPage.js" as UpdatesSchema
+import "schema/ConnectionsTabs.js" as ConnectionTabs
+import "SettingsSearch.js" as Search
 import "ReloadCoverModel.js" as ReloadCoverModel
 import Ryoku.FrameBars
 
@@ -93,7 +95,9 @@ Rectangle {
             editorHandoff.running = true;
             return;
         }
-        if (target === "phone" || target === "ethernet" || target === "vpn" || target === "dns") {
+        if (target === "wifi" || target === "ethernet" || target === "bluetooth"
+                || target === "hotspot" || target === "vpn" || target === "dns"
+                || target === "phone") {
             hub.connectionSub = target;
             target = "connections";
         } else if (target === "connections") {
@@ -252,6 +256,52 @@ Rectangle {
             if (g.indexOf("(") >= 0 || g.indexOf("<") >= 0) return "";
             return g;
         };
+        // One index row, in both languages. The sheet draws I18n.tr(label) but
+        // the source rows are English, so indexing only one of them is what made
+        // a Spanish query miss every row and a Spanish label impossible to
+        // underline. `toks` is folded and split once here, not per keystroke.
+        // a wrapper, not a direct reference to the singleton's method, so the
+        // index evaluates cleanly in every JS engine the QML runtime uses
+        var tr = function (s) { return I18n.tr(s); };
+        var make = function (o) {
+            var labelTr = tr(o.label);
+            var groupTr = tr(o.group);
+            var tabTr = tr(o.tab);
+            var sectionTr = tr(o.sectionName);
+            var src = Search.fold(o.label) + " " + Search.fold(o.desc) + " " + Search.fold(o.key)
+                + " " + Search.fold(o.group) + " " + Search.fold(o.tab)
+                + " " + Search.fold(o.sectionName) + " " + Search.fold(o.kw);
+            var dst = Search.fold(labelTr) + " " + Search.fold(tr(o.desc))
+                + " " + Search.fold(groupTr) + " " + Search.fold(tabTr)
+                + " " + Search.fold(sectionTr) + " " + Search.fold(tr(o.kw));
+            o.labelTr = labelTr;
+            o.descTr = tr(o.desc);
+            o.groupTr = groupTr;
+            o.tabTr = tabTr;
+            o.sectionNameTr = sectionTr;
+            o.hay = src + " " + dst;
+            o.toks = o.hay.split(/[^a-z0-9]+/);
+            o.labelHay = Search.fold(o.label) + (labelTr !== o.label ? " " + Search.fold(labelTr) : "");
+            o.labelToks = o.labelHay.split(/[^a-z0-9]+/);
+            o.sectionHay = Search.fold(o.sectionName) + " " + Search.fold(o.group) + " " + Search.fold(o.tab)
+                + " " + Search.fold(sectionTr) + " " + Search.fold(groupTr) + " " + Search.fold(tabTr)
+                + " " + Search.fold(o.kw);
+            o.sectionToks = o.sectionHay.split(/[^a-z0-9]+/);
+            return o;
+        };
+        var optWords = function (r) {
+            var out = (r.keywords || "") + " ";
+            if (r.opts) {
+                for (var oi = 0; oi < r.opts.length; oi++) {
+                    var o = r.opts[oi];
+                    if (typeof o !== "string") continue;
+                    if (/^[a-z0-9][a-z0-9 ._/-]*$/.test(o)) out += o + " ";
+                    var to = tr(o);
+                    if (to !== o) out += to + " ";
+                }
+            }
+            return out;
+        };
         var nameOf = {}, out = [];
         for (var gi = 0; gi < groups.length; gi++)
             for (var ii = 0; ii < groups[gi].items.length; ii++) {
@@ -266,7 +316,7 @@ Rectangle {
                 // a user reaches it by typing the name of the desktop they run.
                 if (it.key === "windowmanager" && Settings.provider)
                     pkw += " " + Settings.provider;
-                out.push({ section: it.key, sectionName: it.name, group: "", tab: "", label: it.name, desc: "", kw: pkw, key: "", isPage: true });
+                out.push(make({ section: it.key, target: it.key, sectionName: it.name, group: "", tab: "", label: it.name, desc: "", kw: pkw, key: "", isPage: true }));
             }
         // Updates left the rail for the top-right corner button, so it has no
         // page row here; its one setting still surfaces in search, named right.
@@ -275,16 +325,23 @@ Rectangle {
             // rows on a filtered page never surface either, or the gate is cosmetic.
             if (!hub.sectionAvailable(k)) continue;
             var rows = srcs[k] || [];
+            var tabRows = {};
             for (var ri = 0; ri < rows.length; ri++) {
                 var r = rows[ri];
                 if (!isSetting(r)) continue;
                 if (!Settings.supports(r.caps, r.hostCaps)) continue;
                 if (!Settings.modelsKey(r.key)) continue;
-                // a setting also matches its option values (h264, dwindle, dark,
-                // fahrenheit): index the lowercase ones (skips DisplaysPage's
-                // capitalised doc placeholders) so an enum value finds its row.
-                var optkw = (r.keywords || "") + " " + (r.opts ? r.opts.filter(function (o) { return typeof o === "string" && /^[a-z0-9][a-z0-9 ._/-]*$/.test(o); }).join(" ") : "");
-                out.push({ section: k, sectionName: nameOf[k] || k, group: cleanGroup(r.group), tab: r.tab || "", label: r.label, desc: r.desc || "", kw: optkw, key: r.key || "", isPage: false });
+                if (r.tab && !tabRows[r.tab]) tabRows[r.tab] = r;
+                out.push(make({ section: k, target: k, sectionName: nameOf[k] || k, group: cleanGroup(r.group), tab: r.tab || "", label: r.label, desc: r.desc || "", kw: optWords(r), key: r.key || "", isPage: false }));
+            }
+            // the tab itself is a result: a query naming a panel ("Appearance",
+            // "Windows", "Apariencia") opens the page on that tab, with the first
+            // keyed row as the scroll anchor, instead of stopping at the page.
+            var tabKeys = Object.keys(tabRows);
+            for (var ti = 0; ti < tabKeys.length; ti++) {
+                var t = tabKeys[ti];
+                var anchor = tabRows[t];
+                out.push(make({ section: k, target: k, sectionName: nameOf[k] || k, group: "", tab: t, label: t, desc: "", kw: "", key: anchor.key || "", isTab: true }));
             }
         }
         // The active provider's own settings are real rows too: fold them in so
@@ -299,143 +356,64 @@ Rectangle {
             if (!hub.sectionAvailable(psec)) continue;
             if (!Settings.supports(pr.caps, pr.hostCaps)) continue;
             if (!Settings.modelsKey(pr.key)) continue;
-            var poptkw = (pr.keywords || "") + " " + (pr.opts ? pr.opts.filter(function (o) { return typeof o === "string" && /^[a-z0-9][a-z0-9 ._/-]*$/.test(o); }).join(" ") : "");
-            out.push({ section: psec, sectionName: nameOf[psec] || psec, group: cleanGroup(pr.group), tab: pr.tab || "", label: pr.label, desc: pr.desc || "", kw: poptkw, key: pr.key || "", isPage: false });
+            out.push(make({ section: psec, target: psec, sectionName: nameOf[psec] || psec, group: cleanGroup(pr.group), tab: pr.tab || "", label: pr.label, desc: pr.desc || "", kw: optWords(pr), key: pr.key || "", isPage: false }));
+        }
+        // Connections renders its own sub-tabs, so its panels are not schema
+        // rows. They are still searchable, and `target` is the tab key the page
+        // and the IPC deep link already understand.
+        for (var ci = 0; ci < ConnectionTabs.tabs.length; ci++) {
+            var ct = ConnectionTabs.tabs[ci];
+            out.push(make({ section: "connections", target: ct.key, sectionName: "Connections", group: "", tab: ct.label, label: ct.label, desc: ct.desc || "", kw: ct.kw || "", key: "", isPanel: true }));
         }
         return out;
     }
-    // Intent map: what a user types -> the vocabulary the index actually uses.
-    // This is the "semantic" layer without a model: a curated synonym table for
-    // a bounded settings vocabulary matches intent far more cheaply (and
-    // predictably) than a local embedding runtime would. A query word expands to
-    // itself plus these, and any one of them satisfying a term counts as a hit.
-    readonly property var synonyms: ({
-        "transparency": "opacity", "transparent": "opacity", "seethrough": "opacity transparency", "opacity": "transparency",
-        "darkmode": "dark scheme theme", "lightmode": "light scheme theme", "theme": "appearance scheme palette",
-        "wallpaper": "appearance background", "color": "colour appearance palette", "colour": "color appearance palette", "accent": "appearance colour",
-        "hotkey": "keybind shortcut", "hotkeys": "keybinds shortcuts", "shortcut": "keybind", "shortcuts": "keybinds",
-        "wifi": "connections wireless network", "internet": "connections network", "ethernet": "connections network", "bluetooth": "connections", "hotspot": "connections",
-        "brightness": "backlight", "backlight": "brightness", "nightlight": "night comfort backlight", "warmth": "night comfort", "bluelight": "night comfort",
-        "volume": "audio sound", "sound": "audio", "font": "typeface appearance", "typeface": "font appearance",
-        "screenshot": "recording capture", "screencast": "recording capture", "screensaver": "lockscreen lock", "lock": "lockscreen",
-        "startup": "session", "boot": "session", "battery": "performance power", "powersaving": "performance power", "potato": "performance", "lag": "performance",
-        "gap": "gaps spacing", "spacing": "gaps", "glass": "blur liquid", "liquid": "glass blur",
-        "titlebar": "titlebars decoration csd", "titlebars": "titlebar decoration csd", "plugin": "plugins addon", "plugins": "plugin addon",
-        "monitor": "displays screen", "monitors": "displays screen", "resolution": "displays screen", "hidpi": "displays scale", "refresh": "displays",
-        "mouse": "input pointer", "pointer": "input", "keyboard": "input", "touchpad": "input trackpad", "trackpad": "input touchpad",
-        "notifications": "layerrules",
-        "update": "updates upgrade", "upgrade": "updates", "blur": "windows glass", "rounding": "windows corners", "corners": "windows rounding",
-        "animation": "animations motion", "motion": "animations", "gpu": "graphics", "graphics": "gpu",
-        "voice": "dictation", "speech": "dictation voice", "microphone": "dictation", "mic": "dictation"
-    })
-    // a query word expands to itself plus its synonyms, so a term is satisfied by
-    // any one of them (and never dilutes multi-word coverage).
-    function expandQuery(q) {
-        var words = q.split(/\s+/), groups = [];
-        for (var i = 0; i < words.length; i++) {
-            var w = words[i];
-            if (!w) continue;
-            var g = [w], syn = synonyms[w];
-            if (syn) { var ps = syn.split(/\s+/); for (var j = 0; j < ps.length; j++) if (ps[j]) g.push(ps[j]); }
-            groups.push(g);
-        }
-        return groups;
-    }
-    // bounded Levenshtein: returns the distance if <= max, else -1, with an
-    // early length-diff reject and a per-row floor so it stays cheap in the
-    // per-keystroke loop.
-    function editDistance(a, b, max) {
-        var la = a.length, lb = b.length, j;
-        if (Math.abs(la - lb) > max) return -1;
-        var prev = [], cur = [];
-        for (j = 0; j <= lb; j++) prev[j] = j;
-        for (var i = 1; i <= la; i++) {
-            cur[0] = i;
-            var rowMin = i;
-            for (j = 1; j <= lb; j++) {
-                var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
-                var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-                cur[j] = v;
-                if (v < rowMin) rowMin = v;
-            }
-            if (rowMin > max) return -1;
-            var tmp = prev; prev = cur; cur = tmp;
-        }
-        return prev[lb] <= max ? prev[lb] : -1;
-    }
-    function wordScore(w, text) {
-        var tws = text.split(/[^a-z0-9]+/);
-        var best = 0;
-        for (var i = 0; i < tws.length; i++) {
-            var tw = tws[i];
-            if (tw === "") continue;
-            var idx = tw.indexOf(w);
-            if (idx === 0) { if (best < 1200) best = 1200; continue; }
-            if (idx > 0) { var ss = 1000 - Math.min(idx, 50); if (ss > best) best = ss; continue; }
-            if (w.length <= tw.length) {
-                var ti = 0, sc = 0, streak = 0, ok = true;
-                for (var ci = 0; ci < w.length; ci++) {
-                    var f = tw.indexOf(w.charAt(ci), ti);
-                    if (f < 0) { ok = false; break; }
-                    streak = (f === ti) ? streak + 1 : 0;
-                    sc += 2 + streak * 3;
-                    ti = f + 1;
-                }
-                if (ok && sc > best) best = sc;
-            }
-        }
-        // typo tolerance: a near-miss still matches, weaker than a clean hit, so
-        // "trasparency" or "keybnd" still reach their setting. gated on nothing
-        // cleaner matching and bounded, so it stays cheap per keystroke.
-        if (best < 600 && w.length >= 4) {
-            for (var t = 0; t < tws.length; t++) {
-                var tw2 = tws[t];
-                if (tw2.length < 3) continue;
-                var d = editDistance(w, tw2, w.length >= 7 ? 2 : 1);
-                if (d >= 0) { var es = 640 - d * 140; if (es > best) best = es; }
-            }
-        }
-        return best;
-    }
-    // Tolerant multi-word scoring over expanded groups: each term scores its best
-    // synonym (a synonym counts a touch less than the typed word), summed and
-    // scaled by how much of the query landed, so one out-of-vocab word never
-    // blanks the rail and a synonym or typo still finds the page.
-    function searchScore(groups, text) {
-        var total = 0, matched = 0, n = 0;
-        for (var gi = 0; gi < groups.length; gi++) {
-            n++;
-            var g = groups[gi], best = 0;
-            for (var wi = 0; wi < g.length; wi++) {
-                var s = wordScore(g[wi], text);
-                if (wi > 0) s *= 0.85;
-                if (s > best) best = s;
-            }
-            if (best > 0) { total += best; matched++; }
-        }
-        if (matched === 0 || n === 0) return 0;
-        return total * (matched / n);
-    }
+    // Ranking lives in SettingsSearch.js, the same engine the sheet uses,
+    // so the rail and the page cannot drift apart. The index above holds
+    // folded token arrays in both languages; the query is folded the same
+    // way, so a missing accent or a different language still meets.
     readonly property var searchResults: {
-        var q = query.toLowerCase().trim();
+        var q = Search.fold(query).trim();
         if (q === "") return [];
-        var groups = expandQuery(q);
-        var scored = [];
-        for (var i = 0; i < searchIndex.length; i++) {
-            var e = searchIndex[i];
-            var full = (e.label + " " + e.desc + " " + e.sectionName + " " + e.group + " " + e.tab + " " + e.kw).toLowerCase();
-            var s = searchScore(groups, full);
-            if (s <= 0) continue;
-            s += 2 * searchScore(groups, e.label.toLowerCase());
-            var kwHit = searchScore(groups, (e.sectionName + " " + e.tab + " " + e.kw).toLowerCase());
-            s += kwHit;
-            if (e.isPage) s += 300 + 3 * kwHit;
-            scored.push({ e: e, s: s });
+        var groups = Search.expandQuery(q);
+        // the exact pass reads the typed words only; synonyms, scatters and
+        // typos are the second pass, offered only when nothing exact landed.
+        // "blue" is one edit from "blur", so a colour query must not surface
+        // the blur settings just because the loose reading would.
+        var exact = [];
+        for (var ei = 0; ei < groups.length; ei++) exact.push([groups[ei][0]]);
+        for (var pass = 0; pass < 2; pass++) {
+            var g = pass === 0 ? exact : groups;
+            var loose = pass === 1;
+            var scored = [];
+            for (var i = 0; i < searchIndex.length; i++) {
+                var e = searchIndex[i];
+                var parts = Search.searchScoreParts(g, e.toks, loose);
+                if (parts.matched === 0) continue;
+                // a multi-word exact query wants every word; a partial row waits
+                // for the loose pass, where one out-of-vocabulary word is normal
+                if (!loose && parts.n > 1 && parts.matched < parts.n) continue;
+                var s = parts.score;
+                s += 2 * Search.searchScore(g, e.labelToks, loose);
+                var kwHit = Search.searchScore(g, e.sectionToks, loose);
+                s += kwHit;
+                if (e.isPage) s += 300 + 3 * kwHit;
+                if (e.isPanel) s += 220;
+                if (e.isTab) s += 80;
+                scored.push({ e: e, s: s });
+            }
+            if (scored.length) {
+                scored.sort(function (a, b) { return b.s - a.s; });
+                var out = [];
+                for (var j = 0; j < Math.min(scored.length, 60); j++) out.push(scored[j].e);
+                return out;
+            }
         }
-        scored.sort(function (a, b) { return b.s - a.s; });
-        var out = [];
-        for (var j = 0; j < Math.min(scored.length, 60); j++) out.push(scored[j].e);
-        return out;
+        // a script the tokeniser cannot read (Japanese, Thai, Arabic, Hindi)
+        // still meets its row by the literal substring the old search used
+        var literal = [];
+        for (var k = 0; k < searchIndex.length; k++)
+            if (searchIndex[k].hay.indexOf(q) >= 0) literal.push(searchIndex[k]);
+        return literal.slice(0, 60);
     }
 
     // Layout class per section, kept as sets so the chrome is derived from the
@@ -1821,10 +1799,11 @@ Rectangle {
 
     // ── search: results overlay + jump-to-setting ────────────────────────────
     // The rail search opens a results card under the field (not a cramped rail
-    // list). Picking a result navigates to its page and, for a real setting,
-    // scrolls it into view and flashes it -- the jump-to-setting the old search
-    // never did. Enter takes the selected hit; Escape (the field clears)
-    // dismisses; Up/Down walk the hits while the field keeps focus.
+    // list). Picking a result navigates to its page, its tab or its panel and,
+    // for a real setting, scrolls it into view and flashes it -- the
+    // jump-to-setting the old search never did. Enter takes the selected hit;
+    // Escape (the field clears) dismisses; Up/Down walk the hits while the
+    // field keeps focus.
     property string pendingFocusKey: ""
     // Which hit the keyboard is on. Resets to 0 on every edit and on dismissal,
     // so a refined query or a reopened search never selects a stale row.
@@ -1835,21 +1814,24 @@ Rectangle {
         // a filtered page never enters searchResults, but guard the jump anyway so
         // the search path can never reach one even if the index changes.
         if (!hub.sectionAvailable(r.section)) return;
-        hub.section = r.section;
+        // `target` is the page, or a panel inside it (Connections' VPN/DNS/...);
+        // navigate() already owns that mapping for the IPC deep link, so search
+        // and `ryoku hub open vpn` land on the same panel.
+        hub.navigate(r.target || r.section);
         hub.pendingFocusKey = (r.isPage || !r.key) ? "" : r.key;
         hub.query = "";
         searchField.clear();
         hub.searchCursor = 0;
         if (hub.pendingFocusKey !== "") { focusTimer.tries = 0; focusTimer.restart(); }
     }
-    // bold the matched run in a result label (StyledText).
+    // underline the matched run in a result label (StyledText). The search
+    // engine folds accents and maps the match back, so "energia" underlines
+    // "Energía" and a multi-word query underlines each word it names.
     function hlLabel(text) {
-        function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-        var q = hub.query.trim();
-        if (!q) return esc(text);
-        var lc = String(text).toLowerCase(), i = lc.indexOf(q.toLowerCase());
-        if (i < 0) return esc(text);
-        return esc(text.substring(0, i)) + "<u>" + esc(text.substring(i, i + q.length)) + "</u>" + esc(text.substring(i + q.length));
+        return Search.highlightHtml(text, hub.query);
+    }
+    function hasQuery(text) {
+        return Search.textHasQuery(text, hub.query);
     }
     Timer {
         id: focusTimer
@@ -1929,14 +1911,20 @@ Rectangle {
                     spacing: 1
                     Text {
                         width: parent.width
-                        text: hub.hlLabel(I18n.tr(rr.modelData.label))
+                        // the visible label carries the language the row is drawn
+                        // in; when the query matched the other language instead,
+                        // the source label follows it so there is still a run to
+                        // underline and the user sees why the row matched.
+                        readonly property string shown: rr.modelData.labelTr || rr.modelData.label
+                        readonly property bool sourceHit: shown !== rr.modelData.label && hub.hasQuery(rr.modelData.label)
+                        text: hub.hlLabel(shown) + (sourceHit && !hub.hasQuery(shown) ? "  \u00b7  " + hub.hlLabel(rr.modelData.label) : "")
                         textFormat: Text.StyledText
                         color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: 13
                         elide: Text.ElideRight
                     }
                     Text {
                         width: parent.width
-                        text: rr.modelData.isPage ? I18n.tr("Page") : (rr.modelData.sectionName + (rr.modelData.group ? "  \u203a  " + rr.modelData.group : ""))
+                        text: rr.modelData.isPage ? I18n.tr("Page") : ((rr.modelData.sectionNameTr || rr.modelData.sectionName) + (rr.modelData.groupTr ? "  \u203a  " + rr.modelData.groupTr : ""))
                         color: Tokens.inkFaint; font.family: Tokens.mono; font.pixelSize: 9
                         elide: Text.ElideRight
                     }

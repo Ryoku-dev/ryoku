@@ -187,7 +187,7 @@ function wordScore(w, tws, loose) {
 // scaled by how much of the query landed, so one out-of-vocabulary word never
 // blanks the list and a synonym or a typo still finds the row. `loose` is the
 // pass's setting: see wordScore.
-function searchScore(groups, tws, loose) {
+function searchScoreParts(groups, tws, loose) {
     var total = 0, matched = 0, n = 0;
     for (var gi = 0; gi < groups.length; gi++) {
         n++;
@@ -199,8 +199,10 @@ function searchScore(groups, tws, loose) {
         }
         if (best > 0) { total += best; matched++; }
     }
-    if (matched === 0 || n === 0) return 0;
-    return total * (matched / n);
+    return { score: (matched === 0 || n === 0) ? 0 : total * (matched / n), matched: matched, n: n };
+}
+function searchScore(groups, tws, loose) {
+    return searchScoreParts(groups, tws, loose).score;
 }
 
 // The row's searchable words, folded once and remembered per row object.
@@ -210,44 +212,53 @@ function searchScore(groups, tws, loose) {
 // the option values of 200+ rows is the whole cost of a search -- measured at
 // eight times the cost of the matching itself on the largest page. A row that
 // is rebuilt (a page that injects a live option list) simply misses once.
+//
+// A row is searched in the language it is authored in AND the language it is
+// drawn in: the sheet hands over English source rows and translates them at
+// draw time, while a bespoke page may hand over rows that are already
+// translated. Keeping both in the haystack is what makes a query in either
+// language reach the row.
 var FOLDED = (typeof WeakMap !== "undefined") ? new WeakMap() : null;
-function buildHaystack(r) {
-    var own = fold(r.label) + " " + fold(r.desc) + " " + fold(r.key);
+function translated(tr, s) {
+    return (typeof tr === "function") ? tr(s) : s;
+}
+function buildHaystack(r, tr) {
+    var labelTr = translated(tr, r.label);
+    var groupTr = translated(tr, r.group);
+    var tabTr = translated(tr, r.tab);
+    var src = fold(r.label) + " " + fold(r.desc) + " " + fold(r.key);
+    var dst = fold(labelTr) + " " + fold(translated(tr, r.desc)) + " " + fold(translated(tr, r.eg || ""));
     var optkw = (r.keywords || "") + " ";
     if (r.opts) {
         for (var i = 0; i < r.opts.length; i++) {
             var o = r.opts[i];
-            if (typeof o === "string" && /^[a-z0-9][a-z0-9 ._/-]*$/.test(o))
-                optkw += o + " ";
+            if (typeof o !== "string") continue;
+            if (/^[a-z0-9][a-z0-9 ._/-]*$/.test(o)) optkw += o + " ";
+            var to = translated(tr, o);
+            if (to !== o) optkw += to + " ";
         }
     }
-    var hay = own + " " + fold(optkw);
-    return { hay: hay, label: fold(r.label), toks: hay.split(/[^a-z0-9]+/) };
+    var hay = src + " " + dst + " " + fold(optkw);
+    var labelHay = fold(r.label) + (labelTr !== r.label ? " " + fold(labelTr) : "");
+    var groupHay = fold(r.group) + (groupTr !== r.group ? " " + fold(groupTr) : "")
+        + " " + fold(r.tab) + (tabTr !== r.tab ? " " + fold(tabTr) : "");
+    return {
+        hay: hay,
+        label: labelHay,
+        toks: hay.split(/[^a-z0-9]+/),
+        labelToks: labelHay.split(/[^a-z0-9]+/),
+        gtoks: groupHay.split(/[^a-z0-9]+/)
+    };
 }
-function cachedRow(r) {
-    if (!FOLDED) return buildHaystack(r);
+function cachedRow(r, tr, lang) {
+    if (!FOLDED) return buildHaystack(r, tr);
     var got = FOLDED.get(r);
-    if (got === undefined) {
-        got = buildHaystack(r);
+    if (got === undefined || got.lang !== lang) {
+        got = buildHaystack(r, tr);
+        got.lang = lang;
         FOLDED.set(r, got);
     }
     return got;
-}
-function rowLabel(r) {
-    return cachedRow(r).label;
-}
-
-// the words that name the page, not the row: the group and the tab. They are
-// matched only as the whole typed phrase, because letting a single common word
-// ("window", "blur", "layout") satisfy them is how a one-word query comes back
-// showing half the page. A typed phrase still reaches them ("layer rules").
-function groupHaystack(r) {
-    // the group and the tab change only when the schema does; folding them per
-    // keystroke is the same cost the row cache removes above
-    var got = cachedRow(r);
-    if (got.gtoks === undefined)
-        got.gtoks = (fold(r.group) + " " + fold(r.tab)).split(/[^a-z0-9]+/);
-    return got.gtoks;
 }
 
 // how many of the query's terms a haystack satisfies, by word, prefix or typo.
@@ -263,10 +274,14 @@ function termsHit(groups, tws, loose) {
 
 // Search the rows and return the matches, best first.
 //
-// rows: the rows the page draws, untranslated (the sheet translates at draw
-// time, so the text here is the English source).
+// rows: the rows the page draws. A page may hand over English source rows (the
+// sheet translates them at draw time) or rows whose text is already translated;
+// both are searched, so a query in either language reaches the row.
 // query: the typed text; an empty or whitespace-only query returns every row,
 // because the caller shows its unfiltered view for that and never asks.
+// tr: the translation lookup, when the caller has one (I18n.tr).
+// lang: the active language code, so the per-row cache is rebuilt when it
+// changes.
 //
 // Three passes, each tried only when the one before it found nothing, because
 // a page has no room to show half of itself and the loosest reading is the
@@ -282,7 +297,7 @@ function termsHit(groups, tws, loose) {
 //  3. the literal substring and the row's group or tab as a whole phrase, for
 //     a script the tokeniser cannot read (Japanese, Thai, Arabic, Hindi) and
 //     for a query that names the section rather than a setting.
-function searchRows(rows, query) {
+function searchRows(rows, query, tr, lang) {
     var q = fold(query).trim();
     if (q === "") return rows;
     var groups = expandQuery(q);
@@ -290,7 +305,7 @@ function searchRows(rows, query) {
     // every pass scores the same rows against the same haystack, so fold each
     // row's words once rather than three times over
     var hays = [], i;
-    for (i = 0; i < rows.length; i++) hays.push(cachedRow(rows[i]));
+    for (i = 0; i < rows.length; i++) hays.push(cachedRow(rows[i], tr, lang));
 
     function scoreRow(idx, g, loose) {
         var r = rows[idx], toks = hays[idx].toks, hay = hays[idx].hay;
@@ -315,7 +330,7 @@ function searchRows(rows, query) {
         }
         if (!hit) return null;
         // a hit on the label itself outranks one buried in the description
-        s += 2 * searchScore(g, fold(r.label).split(/[^a-z0-9]+/), loose);
+        s += 2 * searchScore(g, hays[idx].labelToks, loose);
         return { row: r, score: s, all: hitAll };
     }
     // the literal substring the sheet always had, and the row's group or tab
@@ -324,8 +339,8 @@ function searchRows(rows, query) {
     // a user types mid-composition is a query too.
     function fallbackScore(idx) {
         var r = rows[idx], hay = hays[idx].hay, s = hay.indexOf(q) >= 0 ? 260 : 0;
-        if (s <= 0 && termsHit(groups, groupHaystack(r), true) === terms) s = 240;
-        return s > 0 ? s + 2 * searchScore(groups, rowLabel(r), true) : 0;
+        if (s <= 0 && termsHit(groups, hays[idx].gtoks, true) === terms) s = 240;
+        return s > 0 ? s + 2 * searchScore(groups, hays[idx].labelToks, true) : 0;
     }
 
     for (var pass = 0; pass < 3; pass++) {
@@ -353,4 +368,70 @@ function searchRows(rows, query) {
         }
     }
     return [];
+}
+// ── highlighting ─────────────────────────────────────────────────────────
+// Underline the run a query names inside a label, in the label's own spelling.
+// The match is made on folded text (so "energia" underlines "Energía") and the
+// index is mapped back to the original string, so the markup never slices a
+// character in half. Used by the Hub's result list.
+function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function foldMap(s) {
+    var text = "", map = [], f, i, j;
+    for (i = 0; i < s.length; i++) {
+        f = fold(s.charAt(i));
+        for (j = 0; j < f.length; j++) {
+            text += f.charAt(j);
+            map.push(i);
+        }
+    }
+    return { text: text, map: map };
+}
+function textHasQuery(text, query) {
+    var q = fold(query).trim();
+    if (q === "") return false;
+    var h = fold(text);
+    if (h.indexOf(q) >= 0) return true;
+    var words = q.split(/\s+/);
+    for (var i = 0; i < words.length; i++)
+        if (words[i].length >= 2 && h.indexOf(words[i]) >= 0) return true;
+    return false;
+}
+function highlightHtml(text, query) {
+    var src = "" + text;
+    var q = fold(query).trim();
+    if (q === "") return escapeHtml(src);
+    var fm = foldMap(src);
+    var ranges = [], at, from;
+    // the whole typed phrase first, so a two-word query reads as one run
+    at = fm.text.indexOf(q);
+    if (at >= 0) {
+        ranges.push([fm.map[at], fm.map[at + q.length - 1] + 1]);
+    } else {
+        var words = q.split(/\s+/);
+        for (var w = 0; w < words.length; w++) {
+            if (words[w].length < 2) continue;
+            from = 0;
+            while ((at = fm.text.indexOf(words[w], from)) >= 0) {
+                ranges.push([fm.map[at], fm.map[at + words[w].length - 1] + 1]);
+                from = at + words[w].length;
+            }
+        }
+    }
+    if (!ranges.length) return escapeHtml(src);
+    ranges.sort(function (a, b) { return a[0] - b[0]; });
+    var merged = [];
+    for (var r = 0; r < ranges.length; r++) {
+        var last = merged[merged.length - 1];
+        if (last && ranges[r][0] <= last[1]) last[1] = Math.max(last[1], ranges[r][1]);
+        else merged.push([ranges[r][0], ranges[r][1]]);
+    }
+    var out = "", pos = 0;
+    for (var m = 0; m < merged.length; m++) {
+        out += escapeHtml(src.slice(pos, merged[m][0]));
+        out += "<u>" + escapeHtml(src.slice(merged[m][0], merged[m][1])) + "</u>";
+        pos = merged[m][1];
+    }
+    return out + escapeHtml(src.slice(pos));
 }

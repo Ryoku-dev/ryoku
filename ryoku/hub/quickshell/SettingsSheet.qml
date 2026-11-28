@@ -74,7 +74,7 @@ Item {
     }
 
     readonly property var rows: {
-        var q = query.toLowerCase().trim();
+        var q = query.trim();
         // No query: show the filtered rows of the open tab, minus the deep
         // knobs until Advanced is on.
         if (q === "") {
@@ -87,11 +87,12 @@ Item {
         }
         // Query present: rank the rows fuzzy (synonyms, typos, folded
         // diacritics, a literal-substring fallback) instead of the plain
-        // indexOf over label + desc + key this used to do. The advance gate
-        // and the tab boundary are deliberately NOT applied here: search spans
-        // every tab and still reaches the `adv` rows, so nothing is ever
-        // buried.
-        return SettingsSearch.searchRows(schema, q).filter(function (r) {
+        // indexOf over label + desc + key this used to do. Both the English
+        // source and the language the row is drawn in are indexed, so a query
+        // in either reaches it. The advance gate and the tab boundary are
+        // deliberately NOT applied here: search spans every tab and still
+        // reaches the `adv` rows, so nothing is ever buried.
+        return SettingsSearch.searchRows(schema, q, function (k) { return I18n.tr(k); }, I18n.lang).filter(function (r) {
             return sheet.passes(r);
         });
     }

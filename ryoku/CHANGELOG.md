@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Fixed
+- **A search result takes you to the panel it names.** A row took you to its
+  page and stopped there, and the Connections sub-tabs (Wi-Fi, Ethernet,
+  Bluetooth, Hotspot, VPN, DNS, Phone) had no result at all. Each tab is now a
+  result that opens the page on that tab, and a Connections hit lands on the
+  panel, the same way `ryoku hub open vpn` does.
+
+- **Settings search answers in the language you type, and underlines the run it
+  matched.** The rail indexed only the English source strings, so a query in
+  your language found nothing, and a query in English underlined nothing in the
+  translated label the row actually draws. Every result -- page, setting, tab
+  and panel -- is indexed in both languages now, and the matched substring is
+  underlined in the label's own spelling, accents folded, so "opacidad" reaches
+  "Window opacity".
+
 - **Settings search finds what it used to miss, and stops flooding a page.** The
   per-page search kept only the rows whose label, description or key held the
   typed text as one contiguous string, so a synonym, a typo, an accent or a

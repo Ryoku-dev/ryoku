@@ -9,7 +9,7 @@ const source = fs
 const context = {};
 vm.createContext(context);
 vm.runInContext(source, context);
-const { fold, searchRows } = context;
+const { fold, searchRows, highlightHtml, textHasQuery } = context;
 
 // The rows a schema page hands the sheet: untranslated source rows, because
 // the sheet translates a row when it draws it (I18n.tr(r.label)).
@@ -35,7 +35,7 @@ const baked = [
 ];
 // the module runs in a vm context, whose Array.prototype is not this realm's;
 // rebuild every result as a host array so assert.deepEqual compares values.
-const keys = (q, rows) => Array.prototype.map.call(searchRows(rows, q), r => r.key);
+const keys = (q, rows) => searchKeys(searchRows(rows, q), r => r.key);
 
 test("the row its words name comes first", () => {
     assert.deepEqual(keys("blur", page).slice(0, 1), ["disableBlur"]);
@@ -128,4 +128,64 @@ test("fold flattens the Latin letters the catalogs use", () => {
     assert.equal(fold("日本語"), "日本語");
     assert.equal(fold(" energía"), " energia");
     assert.equal(fold("  Batería  "), "  bateria  ");
+});
+// A Spanish catalog for the page's source rows: what I18n.tr returns once the
+// language is switched, which is the second half of every row's haystack.
+const es = {
+    "Disable blur": "Desactivar desenfoque",
+    "Drops the frosted-glass look everywhere": "Quita el aspecto de cristal en todas partes",
+    "Window gaps": "Separación de ventanas",
+    "Battery saver": "Ahorro de batería",
+    "Colour scheme": "Esquema de color",
+    "Light, dark or auto": "Claro, oscuro o automático",
+    "Window opacity": "Opacidad de ventana",
+    "How see-through a window is": "Cuán transparente es una ventana",
+};
+const trEs = (s) => (s === undefined || s === null || s === "") ? s : (es[s] || s);
+
+const searchKeys = (arr) => Array.prototype.map.call(arr, r => r.key);
+
+test("a query in the language the row is drawn in reaches it", () => {
+    const es_ = (q) => searchKeys(searchRows(page, q, trEs, "es"));
+    assert.deepEqual(es_("desenfoque").slice(0, 1), ["disableBlur"]);
+    assert.deepEqual(es_("opacidad").slice(0, 1), ["winOpacity"]);
+    // a typo still lands in the translated text: "trasparency" -> transparency
+    // -> the "opacity" of "Opacidad de ventana"
+    assert.ok(es_("trasparency").includes("winOpacity"));
+    // and the English source keeps working while the UI is in Spanish
+    assert.deepEqual(es_("blur").slice(0, 1), ["disableBlur"]);
+    // accents fold on the translated side too
+    assert.deepEqual(searchKeys(searchRows(baked, "ahorro de energia", trEs, "es")).slice(0, 1), ["saveBattery4"]);
+});
+
+test("the per-row cache is rebuilt when the language changes", () => {
+    const keysEs = (q) => searchKeys(searchRows(page, q, trEs, "es"));
+    // the same row objects, searched in English first and then in Spanish; a
+    // cache that survived the switch would keep answering only English
+    assert.deepEqual(keys("blur", page).slice(0, 1), ["disableBlur"]);
+    assert.deepEqual(keysEs("desenfoque").slice(0, 1), ["disableBlur"]);
+    assert.deepEqual(keysEs("blur").slice(0, 1), ["disableBlur"]);
+});
+
+test("highlight underlines the run the query names, in its own spelling", () => {
+    assert.equal(highlightHtml("Desactivar desenfoque", "desenfoque"), "Desactivar <u>desenfoque</u>");
+    // folded: "energia" underlines "Energía" without slicing it
+    assert.equal(highlightHtml("Energía", "energia"), "<u>Energía</u>");
+    // a two-word query underlines the phrase first, then each word
+    assert.equal(highlightHtml("Separación de ventanas", "ventanas"), "Separación de <u>ventanas</u>");
+    assert.equal(highlightHtml("Window gaps", "window gap"), "<u>Window gap</u>s");
+    // markup in the label is escaped, never interpreted
+    // markup in the label is escaped, never interpreted
+    assert.equal(highlightHtml("Blur & <glow>", "blur"),
+        "<u>Blur</u> &amp; " + "&lt;glow&gt;");
+    // no match leaves the text intact
+    assert.equal(highlightHtml("Blur", "zzz"), "Blur");
+    assert.equal(highlightHtml("", "zzz"), "");
+});
+
+test("textHasQuery answers what highlightHtml would underline", () => {
+    assert.ok(textHasQuery("Energía", "energia"));
+    assert.ok(textHasQuery("Window gaps", "gap"));
+    assert.ok(!textHasQuery("Window gaps", "zzz"));
+    assert.ok(!textHasQuery("Window gaps", "   "));
 });
