@@ -9,7 +9,7 @@ const source = fs
 const context = {};
 vm.createContext(context);
 vm.runInContext(source, context);
-const { fold, searchRows, highlightHtml, textHasQuery } = context;
+const { fold, searchRows, searchItems, highlightHtml, textHasQuery } = context;
 
 // The rows a schema page hands the sheet: untranslated source rows, because
 // the sheet translates a row when it draws it (I18n.tr(r.label)).
@@ -113,6 +113,25 @@ test("diacritics fold, so a row drawn in another language is still reachable", (
     assert.deepEqual(keys("energia", baked).slice(0, 1), ["saveBattery4"]);
     assert.deepEqual(keys("Ahorro de energía", baked).slice(0, 1), ["saveBattery4"]);
     assert.ok(keys("bateria", baked).includes("saveBattery5"));
+});
+
+test("a list that draws itself is ranked by the same engine", () => {
+    const apps = [
+        { name: "Firefox", cmd: "firefox", id: "firefox" },
+        { name: "Files", cmd: "nautilus", id: "files" },
+        { name: "LibreOffice Writer", cmd: "libreoffice --writer", id: "writer" },
+    ];
+    const toRow = (e) => ({ label: e.name, desc: e.cmd, key: e.id });
+    const hit = (q) => Array.prototype.map.call(searchItems(apps, q, toRow), (a) => a.id);
+    assert.deepEqual(hit(""), ["firefox", "files", "writer"]);
+    assert.deepEqual(hit("fierfox"), ["firefox"]);
+    assert.deepEqual(hit("writer libreoffice"), ["writer"]);
+    assert.deepEqual(hit("zzzqqq"), []);
+    // an item the caller's mapping left without a key is found by its place,
+    // so nothing is silently dropped out of the results
+    const bare = [{ name: "Zap" }, { name: "Zip" }];
+    assert.deepEqual(Array.prototype.map.call(searchItems(bare, "zip", (x) => ({ label: x.name })), (x) => x.name),
+        ["Zip"]);
 });
 
 test("a script the tokeniser cannot read keeps the literal substring", () => {

@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Quickshell
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "SettingsSearch.js" as Search
 
 // A filterable list of installed applications -- the same app-picker idea the
 // Keybinds page uses to bind an app to a role. Type to filter, click to choose;
@@ -34,14 +35,11 @@ Item {
         return out;
     }
     property string query: ""
-    readonly property var filtered: {
-        var q = root.query.toLowerCase();
-        if (!q.length)
-            return root.catalog;
-        return root.catalog.filter(function (e) {
-            return (e.name + " " + e.cmd).toLowerCase().indexOf(q) >= 0;
-        });
-    }
+    // ranked by the settings search engine, so a typo or a transposed word
+    // still finds the app; an empty query keeps the catalogue's own order
+    readonly property var filtered: Search.searchItems(root.catalog, root.query, function (e) {
+        return { label: e.name, desc: e.cmd, key: e.id || e.cmd };
+    })
 
     Rectangle {
         anchors.fill: parent

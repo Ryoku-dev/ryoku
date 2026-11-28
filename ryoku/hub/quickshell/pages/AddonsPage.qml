@@ -7,6 +7,7 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "../Singletons"
+import "../SettingsSearch.js" as Search
 
 // Installed add-on management. RyoStore owns discovery and installation;
 // Settings keeps plugin enablement, placement, live options, updates/removal,
@@ -68,38 +69,33 @@ Item {
         return null;
     }
 
-    readonly property var shown: {
-        var q = pg.query.trim().toLowerCase();
-        if (q === "")
-            return pg.plugins;
-        return pg.plugins.filter(function (p) {
-            var m = p.manifest || {};
-            var name = ("" + (m.name || p.id || "")).toLowerCase();
-            return name.indexOf(q) >= 0 || ("" + p.id).toLowerCase().indexOf(q) >= 0;
+    // Three lists that own their drawing, filtered by the same engine as the
+    // settings pages rather than a substring over name and id: a typo in an
+    // add-on's name, or two words in the other order, used to find nothing.
+    // The id is the row key, so an item is always found again after ranking.
+    readonly property var shown: Search.searchItems(pg.plugins, pg.query, function (p) {
+        var m = p.manifest || {};
+        return { label: m.name || p.id, desc: p.id, key: p.id };
+    })
+    readonly property var shownBundles: Search.searchItems(pg.bundles, pg.query, function (bundle) {
+        var parts = ((bundle.metadata || {}).items || []).map(function (part) {
+            return part.name + " " + (part.summary || "");
         });
-    }
-    readonly property var shownBundles: {
-        const q = pg.query.trim().toLowerCase();
-        if (q === "")
-            return pg.bundles;
-        return pg.bundles.filter(bundle => {
-            const parts = (bundle.metadata || {}).items || [];
-            const hay = [bundle.id, bundle.name, bundle.summary, bundle.description]
-                .concat(parts.map(part => part.name + " " + (part.summary || "")))
-                .join(" ").toLowerCase();
-            return hay.indexOf(q) !== -1;
-        });
-    }
-    readonly property var shownOmarchy: {
-        const q = pg.query.trim().toLowerCase();
-        if (q === "")
-            return pg.omarchyPlugins;
-        return pg.omarchyPlugins.filter(plugin => {
-            const hay = [plugin.id, plugin.name, plugin.description, (plugin.kinds || []).join(" ")]
-                .join(" ").toLowerCase();
-            return hay.indexOf(q) !== -1;
-        });
-    }
+        return {
+            label: bundle.name || bundle.id,
+            desc: bundle.summary || "",
+            keywords: [bundle.id, bundle.description || ""].concat(parts).join(" "),
+            key: bundle.id
+        };
+    })
+    readonly property var shownOmarchy: Search.searchItems(pg.omarchyPlugins, pg.query, function (plugin) {
+        return {
+            label: plugin.name || plugin.id,
+            desc: plugin.description || "",
+            keywords: (plugin.kinds || []).join(" "),
+            key: plugin.id
+        };
+    })
     readonly property string barStyle: shellAdapter.barStyle
     readonly property bool allLoaded: pg.loaded && pg.bundlesLoaded
         && (pg.barStyle !== "nomarchy" || pg.omarchyLoaded)

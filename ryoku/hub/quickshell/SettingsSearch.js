@@ -435,6 +435,38 @@ function searchRows(rows, query, tr, lang, intents, fillers, langs) {
     }
     return [];
 }
+// Rank the objects a surface draws, without pretending they are settings.
+//
+// A list that owns its own drawing (an app picker, a plugin grid) filters with
+// a plain substring over name and id, so a typo or a word in the wrong order
+// finds nothing. This hands the engine the same row shape the settings pages
+// give it and hands the caller its own objects back, ranked. `toRow` names the
+// searchable fields; the empty query keeps the caller's order (already sorted
+// for reading), because a search that arrives with nothing typed must not
+// reshuffle a list nobody asked about.
+function searchItems(items, query, toRow, tr, lang) {
+    if (!items || !items.length) return items || [];
+    var q = fold(query).trim();
+    if (q === "") return items;
+    var rows = [], byKey = {}, i;
+    for (i = 0; i < items.length; i++) {
+        var r = toRow(items[i]);
+        // the row key is how the item is found again after ranking, so an item
+        // without one falls back to its place in the list rather than being
+        // dropped from the results silently
+        r.key = r.key === undefined || r.key === null || r.key === "" ? "#" + i : "" + r.key;
+        rows.push(r);
+        byKey[r.key] = items[i];
+    }
+    var ranked = searchRows(rows, q, tr, lang);
+    var out = [];
+    for (i = 0; i < ranked.length; i++) {
+        var it = byKey[ranked[i].key];
+        if (it !== undefined) out.push(it);
+    }
+    return out;
+}
+
 // ── task language ─────────────────────────────────────────────────────────
 // The keys a phrase means, so describing a goal ("cursor grande") reaches the
 // row that owns it even when none of those words sit in its label. Every word

@@ -4,6 +4,11 @@
 
 ### New
 
+- **The add-on, app and app-set lists use the same search as the settings
+  pages.** A typo in an add-on's name, or two words in the other order, used to
+  find nothing there. The VM image and remote-host grids keep exact matching on
+  purpose: a wrong boot or a wrong ssh target is destructive.
+
 - **A search with no matches explains itself, and remembers what you asked.**
   The results card used to vanish, leaving the page behind to say the same
   words far from the field. It stays open, echoes the query, says the search
