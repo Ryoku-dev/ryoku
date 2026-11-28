@@ -29,7 +29,7 @@ trap restore_cursor EXIT
 
 if previous=$(ryoku wm act cursor.visibility hidden 2>/dev/null); then
   case $previous in
-    hidden|visible) restore=$previous; sleep 0.08 ;;
+    hidden|visible) restore=$previous ;;
   esac
 fi
 

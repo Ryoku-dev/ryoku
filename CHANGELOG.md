@@ -23,6 +23,11 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Screenshots no longer catch the pointer when Hyprland draws it in software
+  (`no_hardware_cursors`, or its own choice on NVIDIA with more than one GPU).
+  Hyprland only applies a hidden cursor on its next 500 ms cursor tick, so the
+  fixed 80 ms wait lost the race; hiding now waits out that tick, so a
+  screenshot starts about half a second later.
 - **Failed VM downloads clear their new partial folder so trying again keeps the real error**
 - **Dictation shows the current speech model, or Custom when it was set outside the Hub**
 - **The Italian translation keeps the Fish shell name unchanged after the next catalog sync**
