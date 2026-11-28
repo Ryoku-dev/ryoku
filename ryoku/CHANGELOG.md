@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New
+
+- **A row's search synonyms are translated too.** `keywords` now enters the
+  translation catalog like `label`, `desc` and `opts` already do, so "ahorro"
+  finds the battery row in a Spanish Hub rather than only "battery".
+
 ### Fixed
 - **A search result takes you to the panel it names.** A row took you to its
   page and stopped there, and the Connections sub-tabs (Wi-Fi, Ethernet,

@@ -290,7 +290,9 @@ Rectangle {
             return o;
         };
         var optWords = function (r) {
-            var out = (r.keywords || "") + " ";
+            var kw = r.keywords || "";
+            var kwTr = tr(kw);
+            var out = kw + " " + (kwTr !== kw ? kwTr + " " : "");
             if (r.opts) {
                 for (var oi = 0; oi < r.opts.length; oi++) {
                     var o = r.opts[oi];

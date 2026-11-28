@@ -228,7 +228,8 @@ function buildHaystack(r, tr) {
     var tabTr = translated(tr, r.tab);
     var src = fold(r.label) + " " + fold(r.desc) + " " + fold(r.key);
     var dst = fold(labelTr) + " " + fold(translated(tr, r.desc)) + " " + fold(translated(tr, r.eg || ""));
-    var optkw = (r.keywords || "") + " ";
+    var optkw = (r.keywords || "") + " " + (translated(tr, r.keywords || "") !== (r.keywords || "")
+        ? translated(tr, r.keywords || "") + " " : "");
     if (r.opts) {
         for (var i = 0; i < r.opts.length; i++) {
             var o = r.opts[i];

@@ -183,6 +183,20 @@ test("highlight underlines the run the query names, in its own spelling", () => 
     assert.equal(highlightHtml("", "zzz"), "");
 });
 
+test("a row's search synonyms are read in the language they are drawn in", () => {
+    // the catalog now translates a row's `keywords` (i18n tools harvest them the
+    // way they harvest label/desc), so a query in the drawn language meets the
+    // synonyms too, not only the label the user can already see
+    const esKw = { "battery performance power saving": "bateria rendimiento energia ahorro" };
+    const trKw = (s) => (s === undefined || s === null || s === "") ? s : (esKw[s] || s);
+    const hit = (q) => searchKeys(searchRows(page, q, trKw, "es"));
+    assert.ok(hit("ahorro").includes("saveBattery"), "the translated keyword reaches its row");
+    // and the English synonyms keep working while the UI is in Spanish
+    assert.ok(hit("power saving").includes("saveBattery"));
+    // a synonym the row carries in English only is not a false hit
+    assert.ok(!hit("zzzqqq").includes("saveBattery"));
+});
+
 test("textHasQuery answers what highlightHtml would underline", () => {
     assert.ok(textHasQuery("Energía", "energia"));
     assert.ok(textHasQuery("Window gaps", "gap"));

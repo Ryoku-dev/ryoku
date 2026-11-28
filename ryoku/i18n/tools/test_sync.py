@@ -28,6 +28,34 @@ class CopyDetectionTest(unittest.TestCase):
 
 
 
+class SchemaKeywordExtractionTest(unittest.TestCase):
+    """A row's search synonyms are copy too: the Hub search reads them through
+    I18n.tr, so a row is found in the language it is drawn in."""
+
+    def test_keywords_are_catalogued_bare_and_quoted(self):
+        row = ('{ tab: "Look", label: "Controls layout", desc: "Reorder the blocks", '
+               'group: "PANEL", keywords: "sidebar quick settings panel sections order drag" }')
+        for text in (row, row.replace("keywords:", '"keywords":')):
+            self.assertEqual([sync._unescape(b) for b in sync.KEYWORDS_FIELD.findall(text)],
+                             ["sidebar quick settings panel sections order drag"])
+
+    def test_an_opts_array_is_not_read_as_keywords(self):
+        self.assertEqual(sync.KEYWORDS_FIELD.findall('"opts": ["dark", "light"]'), [])
+
+    def test_extract_keys_pulls_a_row_keyword(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            schema = os.path.join(tmp, "schema")
+            os.makedirs(schema)
+            with open(os.path.join(schema, "Probe.js"), "w", encoding="utf-8") as fh:
+                fh.write('var rows = [\n'
+                         '{ tab: "Look", label: "Probe", desc: "A row", group: "PANEL",\n'
+                         '  keywords: "mouse pointer cursor" },\n'
+                         '];\n')
+            with mock.patch.object(sync, "SCHEMA_DIR", schema), \
+                    mock.patch.object(sync, "QML_ROOT", tmp):
+                self.assertIn("mouse pointer cursor", sync.extract_keys())
+
+
 class ShimaExtractionTest(unittest.TestCase):
     def test_translation_bridge_call_is_catalogued(self):
         calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")')
