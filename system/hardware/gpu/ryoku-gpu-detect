@@ -139,7 +139,8 @@ symlink_path() {
 
 gpu_has_render_node() {
   # KMS-only devices can expose cardN and connectors but cannot render frames.
-  compgen -G "$1/device/drm/renderD[0-9]*" >/dev/null
+  local nodes=("$1"/device/drm/renderD[0-9]*)
+  [[ -e ${nodes[0]} ]]
 }
 
 classify() {
@@ -294,7 +295,8 @@ is_laptop() {
   if grep -qsi 'Lid Switch' /sys/class/input/event*/device/name 2>/dev/null; then
     return 0
   fi
-  [[ -d /proc/acpi/button/lid ]] && compgen -G '/proc/acpi/button/lid/*' >/dev/null && return 0
+  local lids=(/proc/acpi/button/lid/*)
+  [[ -e ${lids[0]} ]] && return 0
   return 1
 }
 
