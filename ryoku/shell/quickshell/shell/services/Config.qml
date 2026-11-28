@@ -242,7 +242,7 @@ Singleton {
         "terminalFontFamily", "fontSize", "weatherLocation", "weatherUnit", "formatLocale",
         "screenShader", "frameBars", "batteryAlerts", "theme", "notifications", "sounds",
         "audio", "barStyle", "launcherTarget", "obi", "nacre", "qsbar", "kairos",
-        "orpheus", "python", "inir", "dock", "designs", "clipboard", "phone", "ask", "gamebar"
+        "orpheus", "python", "inir", "dock", "designs", "clipboard", "phone", "gamebar"
     ]
     property var adapterDefaults: ({})
 
