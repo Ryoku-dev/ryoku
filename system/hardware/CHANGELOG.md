@@ -35,9 +35,9 @@
   the renderer, even with no such monitor. A software cursor is painted into
   every captured frame, so screenshots could show it. `gpu.lua` now forces them
   only while `ryoku-gpu other-screen` finds a monitor connected to another GPU,
-  at load and on every hotplug: unplugging the last such monitor switches
-  hardware cursors back on without a restart. Covered by
-  `tests/gpu-pin-policy.sh`.
+  once the config has loaded and on every hotplug: unplugging the last such
+  monitor restores the cursor setting the config chose (Hyprland's default or
+  a `user.lua` choice) without a restart. Covered by `tests/gpu-pin-policy.sh`.
 - `network/ryoku-dns`: **the DNS picker changes DNS where systemd-resolved
   does the lookups.** NetworkManager stores `[global-dns]` but does not apply it
   with its systemd-resolved backend, so every connection kept the DNS its

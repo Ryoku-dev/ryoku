@@ -269,34 +269,42 @@ desk persist >/dev/null
 grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$tmp/conf-desk" || fail "desktop did not pin its dGPU"
 [[ "$(desk other-screen 0000:02:00.0)" == "disconnected" ]] \
   || fail "other-screen counted the renderer's own monitor"
-# Prints the cursor setting gpu.lua makes at load, then "|", then what its
-# hotplug handler for event $2 (default monitor.added) makes after the given
-# iGPU port status is written.
+# Loads gpu.lua against a fake hl whose no_hardware_cursors starts at Hyprland's
+# default (2, auto), runs the Lua steps in $1, and prints every cursor setting
+# gpu.lua writes. Steps: port(s) writes the iGPU port status, fire(e) runs the
+# handler for event e, user(v) is user.lua or a reload laying down a value.
 desk_cursor() {
-  RYOKU_GPU_DRM_ROOT="$drmd" "$lua_bin" -e '
-    handlers = {}
+  RYOKU_GPU_DRM_ROOT="$drmd" "$lua_bin" -e "
+    handlers, nhc, out = {}, 2, {}
     hl = { env = function() end,
+           get_config = function(k) if k == 'cursor.no_hardware_cursors' then return nhc end end,
            config = function(t)
-             if t.cursor then io.write("software=" .. tostring(t.cursor.no_hardware_cursors)) end
+             if t.cursor then nhc = t.cursor.no_hardware_cursors; out[#out + 1] = tostring(nhc) end
            end,
-           on = function(event, fn) handlers[event] = fn end }' \
-    -e "dofile('$tmp/conf-desk')" \
-    -e "io.write('|'); os.execute([[printf '$1\n' >'$drmd/card0-HDMI-A-3/status']])" \
-    -e "local fn = handlers['${2:-monitor.added}']; if fn then fn() end"
+           on = function(e, fn) handlers[e] = fn end }
+    function port(s) os.execute([[printf '%s\n' ]] .. s .. [[ >'$drmd/card0-HDMI-A-3/status']]) end
+    function fire(e) handlers[e]() end
+    function user(v) nhc = v end" \
+    -e "port('disconnected'); dofile('$tmp/conf-desk')" \
+    -e "$1" -e "io.write(table.concat(out, ' '))"
 }
 if [[ -n $lua_bin ]]; then
-  [[ "$(desk_cursor disconnected)" == "|" ]] \
-    || fail "desktop forced software cursors with no monitor on the iGPU: $(desk_cursor disconnected)"
-  printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
-  [[ "$(desk_cursor connected)" == "|software=true" ]] \
+  [[ "$(desk_cursor "fire('hyprland.start')")" == "" ]] \
+    || fail "desktop forced software cursors with no monitor on the iGPU"
+  [[ "$(desk_cursor "port('connected')")" == "" ]] \
+    || fail "gpu.lua set the cursor before the rest of the config (user.lua) loaded"
+  [[ "$(desk_cursor "fire('hyprland.start'); port('connected'); fire('monitor.added')")" == "true" ]] \
     || fail "a hotplug onto the iGPU did not switch to software cursors"
-  [[ "$(desk_cursor connected)" == "software=true|" ]] \
-    || fail "a monitor connected to the iGPU at load kept hardware cursors"
-  [[ "$(desk_cursor disconnected monitor.removed)" == "software=true|software=false" ]] \
-    || fail "unplugging the last iGPU monitor kept software cursors"
-  printf 'disconnected\n' >"$drmd/card0-HDMI-A-3/status"
-  [[ "$(desk_cursor disconnected monitor.removed)" == "|" ]] \
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); fire('monitor.added')")" == "true" ]] \
+    || fail "a monitor connected to the iGPU at start kept hardware cursors, or was forced twice"
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); port('disconnected'); fire('monitor.removed')")" == "true 2" ]] \
+    || fail "unplugging the last iGPU monitor did not restore Hyprland's default cursor setting"
+  [[ "$(desk_cursor "user(true); port('connected'); fire('hyprland.start'); port('disconnected'); fire('monitor.removed')")" == "true true" ]] \
+    || fail "unplugging the last iGPU monitor overrode software cursors chosen in user.lua"
+  [[ "$(desk_cursor "fire('hyprland.start'); fire('monitor.removed')")" == "" ]] \
     || fail "an unplug with no iGPU monitor touched the cursor setting"
+  [[ "$(desk_cursor "port('connected'); fire('hyprland.start'); user(2); fire('config.reloaded'); port('disconnected'); fire('monitor.removed')")" == "true true 2" ]] \
+    || fail "a config reload lost the software cursor or the value to restore"
 else
   echo "gpu-pin-policy: no lua interpreter, desktop cursor evaluation skipped" >&2
 fi
